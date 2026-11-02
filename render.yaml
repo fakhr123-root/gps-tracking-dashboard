@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: google-maps-3d-extractor
+    runtime: node
+    plan: free
+    buildCommand: echo "No external build required"
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production

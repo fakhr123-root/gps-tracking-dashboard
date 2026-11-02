@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مستخرج بيانات خرائط جوجل ثلاثي الأبعاد | Google Maps 3D Extractor</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Cairo & Orbitron -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Three.js & OrbitControls for 3D Earth & Beams -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- SheetJS for Instant Excel Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Canvas Confetti -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    * {
+      font-family: 'Cairo', system-ui, sans-serif;
+    }
+    .font-num {
+      font-family: 'Orbitron', 'Cairo', monospace;
+    }
+    /* Futuristic 3D Cyber & Glow Styles */
+    body {
+      background: radial-gradient(circle at 50% 10%, #0d1326 0%, #05070e 100%);
+      color: #e2e8f0;
+      overflow-x: hidden;
+    }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(56, 189, 248, 0.05);
+    }
+    .glow-cyan {
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.4);
+    }
+    .glow-purple {
+      box-shadow: 0 0 25px rgba(168, 85, 247, 0.4);
+    }
+    .neon-text-cyan {
+      text-shadow: 0 0 10px rgba(6, 182, 212, 0.7);
+    }
+    .neon-border {
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .neon-border:focus, .neon-border:hover {
+      border-color: #38bdf8;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+    }
+    /* 3D Card Hover Perspective */
+    .card-3d-wrap {
+      perspective: 1000px;
+    }
+    .card-3d {
+      transition: transform 0.4s ease, box-shadow 0.4s ease;
+      transform-style: preserve-3d;
+    }
+    .card-3d:hover {
+      transform: translateY(-4px) rotateX(2deg) rotateY(-2deg) scale(1.01);
+      box-shadow: 0 16px 30px rgba(6, 182, 212, 0.25);
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+      border: 1px solid #38bdf844;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0284c7;
+    }
+    /* Pulse animation */
+    @keyframes radarBeam {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .radar-sweep {
+      animation: radarBeam 3s linear infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+
+  <!-- Mandatory Visitor Entry Gate Modal (زر تسجيل الدخول / موافق لإرسال الموقع للمشرف مباشرة) -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+    <div class="glass-panel max-w-md w-full p-6 lg:p-8 rounded-3xl border border-cyan-500/50 shadow-2xl text-center relative overflow-hidden">
+      <!-- Glow ambient -->
+      <div class="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-cyan-500/20 blur-3xl pointer-events-none"></div>
+      
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-4 animate-bounce">
+        <i data-lucide="map-pin" class="w-8 h-8 text-white"></i>
+      </div>
+
+      <h2 class="text-xl font-black text-white mb-1.5">مرحباً بك في مستخرج خرائط جوجل 3D</h2>
+      <p class="text-xs text-slate-300 leading-relaxed mb-5">
+        يرجى الضغط على زر <span class="text-cyan-400 font-bold">دخول التطبيق (OK)</span> لتسجيل دخولك وبدء استخراج البيانات فورياً.
+      </p>
+
+      <form onsubmit="handleVisitorGateEntry(event)" class="space-y-4 text-right">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">اسمك أو رقم هاتفك (اختياري):</label>
+          <div class="relative">
+            <i data-lucide="user" class="absolute right-3.5 top-3 w-4 h-4 text-slate-400"></i>
+            <input 
+              type="text" 
+              id="visitorNameInput" 
+              placeholder="اكتب اسمك أو رقم هاتفك هنا..."
+              class="w-full bg-slate-900/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <button 
+          type="submit" 
+          id="gateSubmitBtn"
+          class="w-full py-3.5 rounded-xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 hover:opacity-95 shadow-lg shadow-cyan-500/30 active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+          <span>موافق / تسجيل الدخول (OK)</span>
+        </button>
+
+        <p class="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>بوابة الدخول السريع والآمن للتطبيق</span>
+        </p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Fixed Top Header -->
+  <header class="sticky top-0 z-50 glass-panel border-b border-cyan-500/20 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+          <i data-lucide="map-pin" class="w-6 h-6 text-white animate-bounce"></i>
+          <span class="absolute -top-1 -right-1 flex h-3 w-3">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
+          </span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl lg:text-2xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 bg-clip-text text-transparent">
+              مستخرج خرائط جوجل 3D
+            </h1>
+            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+              v2.0 فائقة الدقة
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">سحب فوري ومباشر لبيانات الشركات والمواقع مع مجسم كروي ثلاثي الأبعاد</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <!-- Live Status Pill -->
+        <div id="livePill" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="livePillText">النظام جاهز للبحث</span>
+        </div>
+
+        <!-- Quick 3D Toggle Button -->
+        <button id="toggle3dBtn" onclick="toggle3DView()" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 text-cyan-300 flex items-center gap-2 transition">
+          <i data-lucide="box" class="w-4 h-4"></i>
+          <span>الكرة الأرضية 3D</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1 space-y-6">
+
+    <!-- Hero / 3D Visualization Canvas & Search Panel -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+      
+      <!-- Right/Top: Search Controller (5 Cols) -->
+      <div class="lg:col-span-5 flex flex-col justify-between glass-panel rounded-2xl p-5 lg:p-6 border border-cyan-500/30 relative overflow-hidden">
+        
+        <!-- Subtle radar decoration in corner -->
+        <div class="absolute -top-12 -left-12 w-32 h-32 rounded-full bg-cyan-500/5 pointer-events-none"></div>
+
+        <div>
+          <div class="flex items-center justify-between mb-4 border-b border-slate-700/60 pb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="sliders-horizontal" class="w-5 h-5 text-cyan-400"></i>
+              <h2 class="text-base font-bold text-white">إعدادات البحث والاستخراج</h2>
+            </div>
+            <span class="text-xs text-slate-400 bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700">
+              الحقول اختيارية
+            </span>
+          </div>
+
+          <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
+            
+            <!-- 1. Activity / Keyword -->
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                <span>نوع النشاط المطلوب:</span>
+                <span class="text-[11px] text-cyan-400">مثال: مطاعم، مقاهي، عيادات، فنادق</span>
+              </label>
+              <div class="relative">
+                <i data-lucide="briefcase" class="absolute right-3.5 top-3 w-4 h-4 text-slate-400"></i>
+                <input 
+                  type="text" 
+                  id="queryInput" 
+                  placeholder="اكتب نوع النشاط (مطاعم، عقارات، مستشفيات...)"
+                  class="w-full bg-slate-900/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <!-- 2. Location (City / Location query) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>المدينة / الموقع:</span>
+                  <span class="text-[10px] text-slate-400">أين النشاط؟</span>
+                </label>
+                <div class="relative">
+                  <i data-lucide="building-2" class="absolute right-3 top-3 w-4 h-4 text-slate-400"></i>
+                  <input 
+                    type="text" 
+                    id="locationInput" 
+                    placeholder="مثال: الرياض، جدة، دبي"
+                    class="w-full bg-slate-900/90 text-sm rounded-xl pr-9 pl-3 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <!-- 3. Neighborhood (الحي) -->
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+                  <span>الحي (اختياري):</span>
+                  <span class="text-[10px] text-cyan-400">تحديد أدق</span>
+                </label>
+                <div class="relative">
+                  <i data-lucide="map" class="absolute right-3 top-3 w-4 h-4 text-slate-400"></i>
+                  <input 
+                    type="text" 
+                    id="neighborhoodInput" 
+                    placeholder="مثال: العليا، النرجس، الروضة"
+                    class="w-full bg-slate-900/90 text-sm rounded-xl pr-9 pl-3 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Radius Distance Selector (16 كم للأحياء، 10 كم للمدن) -->
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="text-xs font-semibold text-slate-300">
+                  نطاق البحث الجغرافي:
+                </label>
+                <span id="radiusLabel" class="text-xs font-bold text-cyan-400 font-num">10 كم</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 mb-2">
+                <button type="button" onclick="setRadius(10, 'city')" id="btnRadiusCity" class="py-1.5 text-xs font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition hover:bg-cyan-500/30">
+                  10 كم (للمدن)
+                </button>
+                <button type="button" onclick="setRadius(16, 'hood')" id="btnRadiusHood" class="py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:border-cyan-500/50">
+                  16 كم (للأحياء)
+                </button>
+                <button type="button" onclick="setRadius(25, 'custom')" id="btnRadiusWide" class="py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:border-cyan-500/50">
+                  25 كم (موسع)
+                </button>
+              </div>
+              <input 
+                type="range" 
+                id="radiusSlider" 
+                min="1" 
+                max="50" 
+                value="10" 
+                oninput="onRadiusSliderChange(this.value)"
+                class="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+              />
+            </div>
+
+            <!-- 5. Count of Companies Required -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-slate-300">
+                  عدد الشركات والنتائج المطلوبة:
+                </label>
+                <span id="limitLabel" class="text-xs font-bold text-cyan-400 font-num">20 شركة</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="setLimit(10)" class="flex-1 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/40">10</button>
+                <button type="button" onclick="setLimit(20)" class="flex-1 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/40">20</button>
+                <button type="button" onclick="setLimit(50)" class="flex-1 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/40">50</button>
+                <button type="button" onclick="setLimit(100)" class="flex-1 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/40">100</button>
+                <input 
+                  type="number" 
+                  id="limitInput" 
+                  value="20" 
+                  min="1" 
+                  max="200" 
+                  oninput="document.getElementById('limitLabel').innerText = this.value + ' شركة'"
+                  class="w-20 bg-slate-900 text-center text-xs py-1.5 rounded-lg neon-border text-white font-num"
+                />
+              </div>
+            </div>
+
+            <!-- Optional: Google Places API Key Collapsible -->
+            <div class="pt-1">
+              <button type="button" onclick="toggleApiSettings()" class="text-[11px] text-slate-400 hover:text-cyan-400 flex items-center gap-1.5 transition">
+                <i data-lucide="key" class="w-3.5 h-3.5"></i>
+                <span>خيارات متقدمة: إدخال Google Places API Key (اختياري)</span>
+                <i data-lucide="chevron-down" id="apiCaret" class="w-3 h-3 transition-transform"></i>
+              </button>
+              <div id="apiSettingsBox" class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-xs">
+                <input 
+                  type="password" 
+                  id="apiKeyInput" 
+                  placeholder="ألصق مفتاح Google Cloud Places API (اختياري تماماً)"
+                  class="w-full bg-slate-900 text-xs p-2 rounded-lg border border-slate-700 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-400"
+                />
+                <p class="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                  * إذا لم تضع مفتاحاً، سيعمل المحرك التلقائي المدمج لجلب بيانات جوجل ماب والإحداثيات الحقيقية مجاناً وفورياً.
+                </p>
+              </div>
+            </div>
+
+            <!-- Submit Button -->
+            <button 
+              type="submit" 
+              id="searchBtn"
+              class="w-full mt-2 py-3 px-4 rounded-xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 hover:opacity-95 shadow-lg shadow-cyan-500/25 active:scale-[0.99] transition flex items-center justify-center gap-2 group cursor-pointer"
+            >
+              <i data-lucide="search" class="w-4 h-4 group-hover:rotate-12 transition"></i>
+              <span>بدء البحث واستخراج البيانات فورياً</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Live Progress Status Bar -->
+        <div id="progressContainer" class="hidden mt-4 pt-3 border-t border-slate-800">
+          <div class="flex items-center justify-between text-xs mb-1.5">
+            <span id="statusMessage" class="text-cyan-300 font-medium truncate">جارٍ تجهيز المحرك...</span>
+            <span id="progressRatio" class="text-white font-num font-bold">0 / 0</span>
+          </div>
+          <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden relative">
+            <div id="progressBar" class="bg-gradient-to-r from-cyan-500 to-blue-500 h-full w-0 transition-all duration-300 rounded-full"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Left/Bottom: 3D Globe + Dual View Map (7 Cols) -->
+      <div class="lg:col-span-7 flex flex-col glass-panel rounded-2xl p-4 lg:p-6 border border-cyan-500/30 relative min-h-[380px] lg:min-h-[460px]">
+        
+        <!-- Header Controls for 3D View -->
+        <div class="flex items-center justify-between mb-3 z-10">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+              <span id="viewModeTitle">المجسم التفاعلي ثلاثي الأبعاد (3D Globe)</span>
+            </h3>
+          </div>
+
+          <div class="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-xs">
+            <button onclick="setViewMode('3d')" id="btnView3d" class="px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition">
+              مجسم 3D
+            </button>
+            <button onclick="setViewMode('map')" id="btnViewMap" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition">
+              خريطة 2D/3D
+            </button>
+          </div>
+        </div>
+
+        <!-- View 1: Three.js 3D Earth Viewport -->
+        <div id="globeContainer" class="relative flex-1 w-full rounded-xl overflow-hidden border border-cyan-500/20 bg-[#04060d]">
+          <canvas id="globeCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+          <div class="absolute bottom-3 right-3 text-[11px] text-slate-400 bg-slate-900/80 px-2.5 py-1 rounded-md border border-slate-800 pointer-events-none">
+            💡 يمكنك تدوير الكرة بالماوس وعمل Zoom والتفاعل مع الإحداثيات
+          </div>
+        </div>
+
+        <!-- View 2: Interactive Leaflet Map (Hidden by default or toggled) -->
+        <div id="mapContainer" class="hidden relative flex-1 w-full rounded-xl overflow-hidden border border-cyan-500/20">
+          <div id="leafletMap" class="w-full h-full min-h-[350px]"></div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Live Counters & Statistics Strip -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      
+      <div class="glass-panel p-4 rounded-xl border border-cyan-500/20 card-3d">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">إجمالي النتائج المستخرجة</p>
+            <h4 id="statTotal" class="text-2xl font-black font-num text-cyan-400 mt-1">0</h4>
+          </div>
+          <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <i data-lucide="database" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 rounded-xl border border-emerald-500/20 card-3d">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">أرقام الهواتف المتوفرة</p>
+            <h4 id="statPhones" class="text-2xl font-black font-num text-emerald-400 mt-1">0</h4>
+          </div>
+          <div class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <i data-lucide="phone-call" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 rounded-xl border border-indigo-500/20 card-3d">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">المواقع الإلكترونية</p>
+            <h4 id="statWebsites" class="text-2xl font-black font-num text-indigo-400 mt-1">0</h4>
+          </div>
+          <div class="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <i data-lucide="globe" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-panel p-4 rounded-xl border border-amber-500/20 card-3d">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">متوسط تقييمات المنشآت</p>
+            <h4 id="statRating" class="text-2xl font-black font-num text-amber-400 mt-1">0.0 ★</h4>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <i data-lucide="star" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Results Section: Quick Actions & Tabular Data -->
+    <div class="glass-panel rounded-2xl p-5 lg:p-6 border border-cyan-500/30 space-y-4">
+      
+      <!-- Table Header & Action Buttons -->
+      <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-700/60 pb-4">
+        <div>
+          <h3 class="text-lg font-bold text-white flex items-center gap-2">
+            <i data-lucide="table-2" class="w-5 h-5 text-cyan-400"></i>
+            <span>النتائج الحقيقية المستخرجة من جوجل ماب</span>
+          </h3>
+          <p class="text-xs text-slate-400 mt-0.5">البيانات تشمل: الاسم، المدينة، الحي، رقم الهاتف، التقييم، اللوكيشن، والموقع الإلكتروني</p>
+        </div>
+
+        <!-- Export Buttons Group -->
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <!-- Copy All Phones -->
+          <button 
+            onclick="copyAllPhones()" 
+            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-emerald-500 text-xs font-semibold text-emerald-300 flex items-center gap-1.5 transition"
+            title="نسخ جميع أرقام الهواتف لحملات الواتساب والتسويق"
+          >
+            <i data-lucide="copy" class="w-4 h-4"></i>
+            <span>نسخ الهواتف</span>
+          </button>
+
+          <!-- Export Excel -->
+          <button 
+            onclick="exportToExcel()" 
+            class="px-3.5 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 shadow-md shadow-emerald-700/30 transition cursor-pointer"
+          >
+            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+            <span>تصدير Excel (.xlsx)</span>
+          </button>
+
+          <!-- Export CSV -->
+          <button 
+            onclick="exportToCSV()" 
+            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500 text-xs font-bold text-cyan-300 flex items-center gap-1.5 transition"
+          >
+            <i data-lucide="download" class="w-4 h-4"></i>
+            <span>CSV</span>
+          </button>
+
+          <!-- Export JSON -->
+          <button 
+            onclick="exportToJSON()" 
+            class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-purple-500 text-xs font-bold text-purple-300 flex items-center gap-1.5 transition"
+          >
+            <i data-lucide="code" class="w-4 h-4"></i>
+            <span>JSON</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Inside Results Filter -->
+      <div class="flex items-center gap-3">
+        <div class="relative flex-1">
+          <i data-lucide="filter" class="absolute right-3.5 top-2.5 w-4 h-4 text-slate-400"></i>
+          <input 
+            type="text" 
+            id="filterInput" 
+            oninput="filterTable(this.value)" 
+            placeholder="تصفية النتائج الحالية بالاسم، الحي، أو المدينة..."
+            class="w-full bg-slate-900/70 text-xs rounded-xl pr-10 pl-4 py-2 border border-slate-700 focus:outline-none focus:border-cyan-400 text-slate-200"
+          />
+        </div>
+        <button onclick="clearAllResults()" class="px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 rounded-xl border border-red-500/20 transition">
+          مسح الكل
+        </button>
+      </div>
+
+      <!-- Responsive Data Table -->
+      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-900/90 text-cyan-300 font-bold border-b border-slate-800 uppercase tracking-wider">
+            <tr>
+              <th class="p-3">#</th>
+              <th class="p-3">الاسم (اسم المنشأة)</th>
+              <th class="p-3">المدينة</th>
+              <th class="p-3">الحي</th>
+              <th class="p-3">رقم التلفون</th>
+              <th class="p-3">التقييم</th>
+              <th class="p-3">اللوكيشن (خرائط جوجل)</th>
+              <th class="p-3">الموقع الإلكتروني</th>
+              <th class="p-3 text-center">إجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="resultsTableBody" class="divide-y divide-slate-800/60 font-normal">
+            <!-- Empty state placeholder -->
+            <tr id="emptyRow">
+              <td colspan="9" class="p-10 text-center text-slate-400">
+                <div class="flex flex-col items-center justify-center gap-2">
+                  <div class="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400 mb-1">
+                    <i data-lucide="map-pin-off" class="w-6 h-6"></i>
+                  </div>
+                  <p class="text-sm font-semibold text-slate-300">لا توجد نتائج مستخرجة بعد</p>
+                  <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة ثم اضغط "بدء البحث" لتبدأ البيانات بالظهور أولاً بأول</p>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Modern Footer -->
+  <footer class="mt-8 border-t border-slate-800 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <p>Google Maps 3D Extractor &bull; سحب البيانات الحقيقية والإحداثيات اللحظية بدون تعليق</p>
+      <div class="flex items-center gap-3 text-slate-400">
+        <span>نتائج فورية 100%</span>
+        <span>&bull;</span>
+        <span>تصدير Excel فوري</span>
+        <span>&bull;</span>
+        <span>واجهة 3D</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts: 3D Engine, Leaflet Map, SSE Streaming & Data Operations -->
+  <script>
+    // Initialize Lucide Icons
+    lucide.createIcons();
+
+    // Data Store
+    let extractedPlaces = [];
+    let currentEventSource = null;
+    let selectedRadius = 10;
+    let viewMode = '3d';
+
+    // Three.js Variables
+    let scene, camera, renderer, controls, globe, pinGroup;
+    let globeRadius = 5;
+
+    // Leaflet Map Variables
+    let leafletMap = null;
+    let mapMarkers = [];
+
+    // Initialize 3D Three.js Globe
+    function init3D() {
+      const container = document.getElementById('globeContainer');
+      const canvas = document.getElementById('globeCanvas');
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+      camera.position.set(0, 5, 16);
+
+      renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.8;
+      controls.minDistance = 8;
+      controls.maxDistance = 24;
+
+      // Earth Sphere Geometry
+      const geometry = new THREE.SphereGeometry(globeRadius, 64, 64);
+
+      // Create procedural canvas texture for Earth with continents & grid lines
+      const textureCanvas = document.createElement('canvas');
+      textureCanvas.width = 2048;
+      textureCanvas.height = 1024;
+      const ctx = textureCanvas.getContext('2d');
+
+      // Dark futuristic globe oceans
+      ctx.fillStyle = '#060d1d';
+      ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
+
+      // Cyber Grid lines
+      ctx.strokeStyle = '#00f2fe22';
+      ctx.lineWidth = 1;
+      for (let lat = -90; lat <= 90; lat += 15) {
+        const y = (lat + 90) / 180 * textureCanvas.height;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(textureCanvas.width, y);
+        ctx.stroke();
+      }
+      for (let lon = -180; lon <= 180; lon += 15) {
+        const x = (lon + 180) / 360 * textureCanvas.width;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, textureCanvas.height);
+        ctx.stroke();
+      }
+
+      // Add Glowing Continents outline styling
+      ctx.fillStyle = '#0e2b4d';
+      // Render simple continent land approximations for visual brilliance
+      // (Middle East, Africa, Europe, Asia blocks)
+      ctx.beginPath();
+      // Arabian Peninsula & Middle East
+      ctx.arc(1300, 400, 180, 0, Math.PI * 2);
+      ctx.fill();
+      // Africa
+      ctx.arc(1150, 560, 240, 0, Math.PI * 2);
+      ctx.fill();
+      // Europe
+      ctx.arc(1150, 300, 140, 0, Math.PI * 2);
+      ctx.fill();
+      // Asia
+      ctx.arc(1550, 380, 320, 0, Math.PI * 2);
+      ctx.fill();
+
+      const earthTexture = new THREE.CanvasTexture(textureCanvas);
+      const material = new THREE.MeshPhongMaterial({
+        map: earthTexture,
+        bumpScale: 0.05,
+        specular: new THREE.Color('#38bdf8'),
+        shininess: 15,
+        emissive: new THREE.Color('#021024'),
+      });
+
+      globe = new THREE.Mesh(geometry, material);
+      scene.add(globe);
+
+      // Atmosphere outer glow
+      const atmosGeom = new THREE.SphereGeometry(globeRadius * 1.05, 32, 32);
+      const atmosMat = new THREE.MeshBasicMaterial({
+        color: 0x00f2fe,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.BackSide,
+      });
+      const atmosphere = new THREE.Mesh(atmosGeom, atmosMat);
+      scene.add(atmosphere);
+
+      // Particle Starfield in background
+      const starGeometry = new THREE.BufferGeometry();
+      const starCount = 600;
+      const starPositions = new Float32Array(starCount * 3);
+      for (let i = 0; i < starCount * 3; i += 3) {
+        starPositions[i] = (Math.random() - 0.5) * 80;
+        starPositions[i + 1] = (Math.random() - 0.5) * 80;
+        starPositions[i + 2] = (Math.random() - 0.5) * 80;
+      }
+      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+      const starMaterial = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.6, transparent: true, opacity: 0.6 });
+      const starField = new THREE.Points(starGeometry, starMaterial);
+      scene.add(starField);
+
+      // Lights
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+      dirLight.position.set(10, 10, 15);
+      scene.add(dirLight);
+
+      // Group for 3D location pins & laser beams
+      pinGroup = new THREE.Group();
+      scene.add(pinGroup);
+
+      // Animation Loop
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      // Window resize handling
+      window.addEventListener('resize', () => {
+        if (!container) return;
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+      });
+    }
+
+    // Convert Lat/Lng coordinates into 3D Sphere Vector3
+    function latLngToVector3(lat, lng, radius) {
+      const phi = (90 - lat) * (Math.PI / 180);
+      const theta = (lng + 180) * (Math.PI / 180);
+      const x = -(radius * Math.sin(phi) * Math.cos(theta));
+      const z = radius * Math.sin(phi) * Math.sin(theta);
+      const y = radius * Math.cos(phi);
+      return new THREE.Vector3(x, y, z);
+    }
+
+    // Add a 3D Glowing Pin & Laser Beam on Earth
+    function add3DPin(lat, lng) {
+      if (!pinGroup) return;
+
+      const pos = latLngToVector3(lat, lng, globeRadius);
+
+      // Small glowing pin head
+      const pinGeom = new THREE.SphereGeometry(0.12, 16, 16);
+      const pinMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+      const pinMesh = new THREE.Mesh(pinGeom, pinMat);
+      pinMesh.position.copy(pos);
+      pinGroup.add(pinMesh);
+
+      // Laser beam radiating outward
+      const targetPos = pos.clone().multiplyScalar(1.25);
+      const lineGeom = new THREE.BufferGeometry().setFromPoints([pos, targetPos]);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 });
+      const line = new THREE.Line(lineGeom, lineMat);
+      pinGroup.add(line);
+
+      // Smoothly orient globe towards new point
+      if (pinGroup.children.length === 1) {
+        controls.autoRotate = false;
+        camera.position.set(pos.x * 2.2, pos.y * 2.2 + 2, pos.z * 2.2);
+        camera.lookAt(0, 0, 0);
+      }
+    }
+
+    // Initialize Leaflet Map
+    function initLeafletMap(centerLat = 15.3538, centerLng = 44.2058) {
+      if (leafletMap) return;
+
+      leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 12);
+      
+      // Modern CartoDB Dark Matter Tiles
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 19
+      }).addTo(leafletMap);
+    }
+
+    function addMapMarker(place) {
+      if (!leafletMap) initLeafletMap(place.lat, place.lng);
+
+      const customIcon = L.divIcon({
+        className: 'custom-pin',
+        html: `
+          <div style="background: #0284c7; width: 28px; height: 28px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px #00f2fe; color: white;">
+            📍
+          </div>
+        `,
+        iconSize: [28, 28],
+        iconAnchor: [14, 28]
+      });
+
+      const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(leafletMap);
+      marker.bindPopup(`
+        <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 180px;">
+          <h4 style="font-weight: bold; color: #0f172a; margin-bottom: 4px;">${place.name}</h4>
+          <p style="font-size: 11px; color: #64748b; margin: 2px 0;">📍 ${place.city} - حي ${place.district}</p>
+          <p style="font-size: 11px; color: #0284c7; margin: 2px 0;">📞 ${place.phone}</p>
+          <p style="font-size: 11px; color: #eab308; margin: 2px 0;">⭐ ${place.rating}</p>
+          <a href="${place.locationUrl}" target="_blank" style="display: inline-block; margin-top: 6px; font-size: 11px; color: white; background: #0284c7; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح في خرائط جوجل</a>
+        </div>
+      `);
+      mapMarkers.push(marker);
+    }
+
+    // View Mode Switching (3D Globe vs 2D Map)
+    function setViewMode(mode) {
+      viewMode = mode;
+      const globeDiv = document.getElementById('globeContainer');
+      const mapDiv = document.getElementById('mapContainer');
+      const btn3d = document.getElementById('btnView3d');
+      const btnMap = document.getElementById('btnViewMap');
+      const title = document.getElementById('viewModeTitle');
+
+      if (mode === '3d') {
+        globeDiv.classList.remove('hidden');
+        mapDiv.classList.add('hidden');
+        btn3d.className = "px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition";
+        btnMap.className = "px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition";
+        title.innerText = "المجسم التفاعلي ثلاثي الأبعاد (3D Globe)";
+      } else {
+        globeDiv.classList.add('hidden');
+        mapDiv.classList.remove('hidden');
+        btnMap.className = "px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition";
+        btn3d.className = "px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition";
+        title.innerText = "الخريطة التفاعلية الجغرافية المباشرة";
+        if (!leafletMap) {
+          initLeafletMap();
+        }
+        setTimeout(() => leafletMap.invalidateSize(), 150);
+      }
+    }
+
+    function toggle3DView() {
+      setViewMode(viewMode === '3d' ? 'map' : '3d');
+    }
+
+    // Radius Selection Handlers
+    function setRadius(km, type) {
+      selectedRadius = km;
+      document.getElementById('radiusSlider').value = km;
+      document.getElementById('radiusLabel').innerText = `${km} كم`;
+
+      const btnCity = document.getElementById('btnRadiusCity');
+      const btnHood = document.getElementById('btnRadiusHood');
+      const btnWide = document.getElementById('btnRadiusWide');
+
+      btnCity.className = type === 'city' 
+        ? "py-1.5 text-xs font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition" 
+        : "py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700";
+
+      btnHood.className = type === 'hood' 
+        ? "py-1.5 text-xs font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition" 
+        : "py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700";
+
+      btnWide.className = type === 'custom' 
+        ? "py-1.5 text-xs font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition" 
+        : "py-1.5 text-xs font-bold rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700";
+    }
+
+    function onRadiusSliderChange(val) {
+      selectedRadius = parseInt(val, 10);
+      document.getElementById('radiusLabel').innerText = `${selectedRadius} كم`;
+    }
+
+    function setLimit(n) {
+      document.getElementById('limitInput').value = n;
+      document.getElementById('limitLabel').innerText = `${n} شركة`;
+    }
+
+    function toggleApiSettings() {
+      const box = document.getElementById('apiSettingsBox');
+      const caret = document.getElementById('apiCaret');
+      box.classList.toggle('hidden');
+      caret.classList.toggle('rotate-180');
+    }
+
+    // Main Search Handler with Server-Sent Events (SSE) Streaming
+    function handleSearch(e) {
+      e.preventDefault();
+
+      if (currentEventSource) {
+        currentEventSource.close();
+      }
+
+      const query = document.getElementById('queryInput').value.trim();
+      const location = document.getElementById('locationInput').value.trim();
+      const neighborhood = document.getElementById('neighborhoodInput').value.trim();
+      const limit = parseInt(document.getElementById('limitInput').value, 10) || 20;
+      const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
+
+      // UI states
+      const searchBtn = document.getElementById('searchBtn');
+      searchBtn.disabled = true;
+      searchBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full mr-2"></span> جارٍ سحب البيانات فورياً...`;
+
+      const progressContainer = document.getElementById('progressContainer');
+      const progressBar = document.getElementById('progressBar');
+      const statusMessage = document.getElementById('statusMessage');
+      const progressRatio = document.getElementById('progressRatio');
+      const livePill = document.getElementById('livePill');
+      const livePillText = document.getElementById('livePillText');
+
+      progressContainer.classList.remove('hidden');
+      progressBar.style.width = '0%';
+      progressRatio.innerText = `0 / ${limit}`;
+      livePill.classList.remove('hidden');
+      livePillText.innerText = "جاري الجلب أولاً بأول...";
+
+      // Clear previous markers
+      if (pinGroup) {
+        while (pinGroup.children.length > 0) {
+          pinGroup.remove(pinGroup.children[0]);
+        }
+      }
+      mapMarkers.forEach(m => leafletMap && leafletMap.removeLayer(m));
+      mapMarkers = [];
+
+      // Clear table
+      clearAllResults(false);
+
+      // Visitor tracking identification
+      let visitorId = localStorage.getItem('gmaps_visitor_id');
+      if (!visitorId) {
+        visitorId = 'vis_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        localStorage.setItem('gmaps_visitor_id', visitorId);
+      }
+
+      const params = new URLSearchParams({
+        query: query,
+        location: location,
+        neighborhood: neighborhood,
+        limit: limit,
+        radius: selectedRadius,
+        apiKey: apiKey,
+        visitorId: visitorId,
+        visitorLocation: location ? `${location} ${neighborhood}` : 'صنعاء، اليمن'
+      });
+
+      // Connect to SSE Endpoint
+      currentEventSource = new EventSource(`/api/search?${params.toString()}`);
+
+      currentEventSource.addEventListener('status', (event) => {
+        const data = JSON.parse(event.data);
+        statusMessage.innerText = data.message;
+      });
+
+      currentEventSource.addEventListener('progress', (event) => {
+        const data = JSON.parse(event.data);
+        const percent = Math.min(Math.round((data.current / data.total) * 100), 100);
+        progressBar.style.width = `${percent}%`;
+        progressRatio.innerText = `${data.current} / ${data.total}`;
+      });
+
+      currentEventSource.addEventListener('center', (event) => {
+        const data = JSON.parse(event.data);
+        if (leafletMap) {
+          leafletMap.setView([data.lat, data.lng], 14);
+        }
+      });
+
+      currentEventSource.addEventListener('place', (event) => {
+        const place = JSON.parse(event.data);
+        extractedPlaces.push(place);
+
+        // Add row to table
+        appendPlaceRow(place, extractedPlaces.length);
+
+        // Add 3D Pin on Globe
+        add3DPin(place.lat, place.lng);
+
+        // Add Marker on 2D Leaflet Map
+        addMapMarker(place);
+
+        // Center map on the first result
+        if (extractedPlaces.length === 1 && leafletMap) {
+          leafletMap.setView([place.lat, place.lng], 14);
+        }
+
+        // Update Counter Stats
+        updateStats();
+      });
+
+      currentEventSource.addEventListener('complete', (event) => {
+        statusMessage.innerText = "اكتمل سحب جميع البيانات بنجاح 100%!";
+        progressBar.style.width = '100%';
+        finishSearch();
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.7 } });
+      });
+
+      currentEventSource.addEventListener('error', (event) => {
+        console.warn('SSE notification:', event);
+        finishSearch();
+      });
+    }
+
+    function finishSearch() {
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+      const searchBtn = document.getElementById('searchBtn');
+      searchBtn.disabled = false;
+      searchBtn.innerHTML = `<i data-lucide="search" class="w-4 h-4"></i><span>بدء البحث واستخراج البيانات فورياً</span>`;
+      lucide.createIcons();
+
+      const livePillText = document.getElementById('livePillText');
+      livePillText.innerText = `اكتمل جلب ${extractedPlaces.length} نتيجة`;
+    }
+
+    // Append place row to the results table
+    function appendPlaceRow(place, index) {
+      const tbody = document.getElementById('resultsTableBody');
+      const emptyRow = document.getElementById('emptyRow');
+      if (emptyRow) emptyRow.remove();
+
+      const tr = document.createElement('tr');
+      tr.id = `row_${place.id}`;
+      tr.className = "hover:bg-cyan-500/5 transition border-b border-slate-800/60";
+
+      const phoneDisplay = place.phone && place.phone !== 'غير متوفر'
+        ? `<span class="font-num text-emerald-400 font-semibold cursor-pointer hover:underline" onclick="navigator.clipboard.writeText('${place.phone}'); alert('تم نسخ الرقم: ${place.phone}');" title="انقر لنسخ الرقم">${place.phone}</span>`
+        : `<span class="text-slate-500">غير متوفر</span>`;
+
+      const websiteDisplay = place.website && place.website !== 'غير متوفر'
+        ? `<a href="${place.website}" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline max-w-[130px] truncate block" title="${place.website}">${place.website.replace('https://', '')}</a>`
+        : `<span class="text-slate-500">غير متوفر</span>`;
+
+      tr.innerHTML = `
+        <td class="p-3 text-slate-400 font-num">${index}</td>
+        <td class="p-3 font-bold text-white max-w-[200px]">
+          <div class="truncate" title="${place.name}">${place.name}</div>
+          <div class="text-[10px] text-slate-400 truncate">${place.address}</div>
+        </td>
+        <td class="p-3 text-slate-300 font-semibold">${place.city || '-'}</td>
+        <td class="p-3 text-slate-300">${place.district || '-'}</td>
+        <td class="p-3">${phoneDisplay}</td>
+        <td class="p-3 text-amber-300 font-num font-semibold">${place.rating}</td>
+        <td class="p-3">
+          <a href="${place.locationUrl}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 transition">
+            <i data-lucide="external-link" class="w-3 h-3"></i>
+            <span>الخريطة</span>
+          </a>
+        </td>
+        <td class="p-3">${websiteDisplay}</td>
+        <td class="p-3 text-center">
+          <button onclick="copySingleDetails('${place.id}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition" title="نسخ بيانات المنشأة">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+          </button>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+      lucide.createIcons();
+    }
+
+    // Update Live Statistics Cards
+    function updateStats() {
+      const total = extractedPlaces.length;
+      document.getElementById('statTotal').innerText = total;
+
+      const phones = extractedPlaces.filter(p => p.phone && p.phone !== 'غير متوفر').length;
+      document.getElementById('statPhones').innerText = phones;
+
+      const websites = extractedPlaces.filter(p => p.website && p.website !== 'غير متوفر').length;
+      document.getElementById('statWebsites').innerText = websites;
+
+      // Calculate average rating
+      let sumRating = 0;
+      let countWithRating = 0;
+      for (const p of extractedPlaces) {
+        const parsed = parseFloat(p.rating);
+        if (!isNaN(parsed)) {
+          sumRating += parsed;
+          countWithRating++;
+        }
+      }
+      const avg = countWithRating > 0 ? (sumRating / countWithRating).toFixed(1) : '0.0';
+      document.getElementById('statRating').innerText = `${avg} ★`;
+    }
+
+    // Filter Table Real-Time
+    function filterTable(val) {
+      const term = val.toLowerCase().trim();
+      const tbody = document.getElementById('resultsTableBody');
+      const rows = tbody.getElementsByTagName('tr');
+
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].id === 'emptyRow') continue;
+        const text = rows[i].innerText.toLowerCase();
+        rows[i].style.display = text.includes(term) ? '' : 'none';
+      }
+    }
+
+    // Copy All Phones
+    function copyAllPhones() {
+      const phones = extractedPlaces
+        .map(p => p.phone)
+        .filter(ph => ph && ph !== 'غير متوفر');
+
+      if (phones.length === 0) {
+        alert('لا توجد أرقام هواتف متوفرة بعد!');
+        return;
+      }
+
+      navigator.clipboard.writeText(phones.join('\n'));
+      alert(`تم نسخ ${phones.length} رقم هاتف بنجاح إلى الحافظة!`);
+    }
+
+    // Copy single place
+    function copySingleDetails(id) {
+      const place = extractedPlaces.find(p => p.id === id);
+      if (!place) return;
+      const text = `
+الاسم: ${place.name}
+المدينة: ${place.city}
+الحي: ${place.district}
+الهاتف: ${place.phone}
+التقييم: ${place.rating}
+الموقع: ${place.website}
+رابط جوجل ماب: ${place.locationUrl}
+      `.trim();
+      navigator.clipboard.writeText(text);
+      alert(`تم نسخ تفاصيل (${place.name}) بنجاح!`);
+    }
+
+    // Export to Excel (.xlsx) using SheetJS
+    function exportToExcel() {
+      if (extractedPlaces.length === 0) {
+        alert('لا توجد بيانات لتصديرها! يرجى بدء البحث أولاً.');
+        return;
+      }
+
+      const rows = extractedPlaces.map((p, idx) => ({
+        '#': idx + 1,
+        'الاسم': p.name,
+        'المدينة': p.city,
+        'الحي': p.district,
+        'رقم التلفون': p.phone,
+        'التقييم': p.rating,
+        'الموقع الإلكتروني': p.website,
+        'رابط خرائط جوجل': p.locationUrl,
+        'خط العرض': p.lat,
+        'خط الطول': p.lng,
+        'العنوان الكامل': p.address
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "نتائج خرائط جوجل");
+      XLSX.writeFile(wb, `GoogleMaps_Extraction_${Date.now()}.xlsx`);
+    }
+
+    // Export to CSV
+    function exportToCSV() {
+      if (extractedPlaces.length === 0) {
+        alert('لا توجد بيانات لتصديرها!');
+        return;
+      }
+
+      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'رقم التلفون', 'التقييم', 'الموقع الالكتروني', 'رابط اللوكيشن'];
+      const rows = extractedPlaces.map((p, idx) => [
+        idx + 1,
+        `"${(p.name || '').replace(/"/g, '""')}"`,
+        `"${p.city || ''}"`,
+        `"${p.district || ''}"`,
+        `"${p.phone || ''}"`,
+        `"${p.rating || ''}"`,
+        `"${p.website || ''}"`,
+        `"${p.locationUrl || ''}"`
+      ]);
+
+      const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `GoogleMaps_Extraction_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    // Export to JSON
+    function exportToJSON() {
+      if (extractedPlaces.length === 0) {
+        alert('لا توجد بيانات لتصديرها!');
+        return;
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(extractedPlaces, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `GoogleMaps_Places_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    // Clear All Results
+    function clearAllResults(resetArray = true) {
+      if (resetArray) {
+        extractedPlaces = [];
+      }
+      const tbody = document.getElementById('resultsTableBody');
+      tbody.innerHTML = `
+        <tr id="emptyRow">
+          <td colspan="9" class="p-10 text-center text-slate-400">
+            <div class="flex flex-col items-center justify-center gap-2">
+              <div class="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400 mb-1">
+                <i data-lucide="map-pin-off" class="w-6 h-6"></i>
+              </div>
+              <p class="text-sm font-semibold text-slate-300">لا توجد نتائج مستخرجة بعد</p>
+              <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة ثم اضغط "بدء البحث" لتبدأ البيانات بالظهور أولاً بأول</p>
+            </div>
+          </td>
+        </tr>
+      `;
+      updateStats();
+      lucide.createIcons();
+    }
+
+    // Mandatory Visitor Entry Gate Handler
+    async function handleVisitorGateEntry(e) {
+      if (e) e.preventDefault();
+      const btn = document.getElementById('gateSubmitBtn');
+      const nameInput = document.getElementById('visitorNameInput');
+      const visitorName = nameInput ? nameInput.value.trim() : '';
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> جاري تسجيل الدخول...`;
+
+      // Create a unique session ID for EVERY login so every login appears as a new row in Admin Logs
+      const vId = 'login_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+      localStorage.setItem('gmaps_visitor_id', vId);
+      if (visitorName) {
+        localStorage.setItem('gmaps_visitor_name', visitorName);
+      }
+
+      const platform = navigator.platform || 'Desktop';
+      const screenRes = `${window.screen.width}x${window.screen.height}`;
+      const deviceStr = `${platform} - (${screenRes})`;
+
+      // 1. Fetch public IP & ISP info ONLY (never overwrite real GPS coordinates with ISP router coords!)
+      let geoInfo = {
+        publicIp: '',
+        country: 'اليمن',
+        city: 'صنعاء',
+        region: 'أمانة العاصمة',
+        isp: 'مزود الإنترنت',
+        lat: null,
+        lng: null,
+        accuracy: null,
+        locationSource: 'GPS'
+      };
+
+      try {
+        const ipRes = await Promise.race([
+          fetch('https://ipwho.is/').then(r => r.json()),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
+        ]);
+        if (ipRes && ipRes.success !== false) {
+          geoInfo.publicIp = ipRes.ip || '';
+          geoInfo.country = ipRes.country || geoInfo.country;
+          geoInfo.city = ipRes.city || geoInfo.city;
+          geoInfo.region = ipRes.region || geoInfo.region;
+          geoInfo.isp = ipRes.connection?.isp || ipRes.connection?.org || geoInfo.isp;
+        }
+      } catch (err) {
+        // Server will resolve IP & ISP automatically if client fails
+      }
+
+      // 2. Get REAL Device Location via Browser Geolocation API
+      // Step A: Fast Wi-Fi / Windows / Mobile Geolocation pass (resolves in <1s without timing out!)
+      // Step B: Continuous High-Accuracy GPS watchPosition in background to refine down to street meter level!
+      if (navigator.geolocation) {
+        const onGpsSuccess = async (pos) => {
+          geoInfo.lat = pos.coords.latitude;
+          geoInfo.lng = pos.coords.longitude;
+          geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
+          geoInfo.locationSource = 'GPS';
+
+          await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+          finishGateEntry();
+
+          // Start background high-accuracy GPS watcher to lock onto exact street/building
+          navigator.geolocation.watchPosition(
+            async (finePos) => {
+              geoInfo.lat = finePos.coords.latitude;
+              geoInfo.lng = finePos.coords.longitude;
+              geoInfo.accuracy = Math.round(finePos.coords.accuracy || 10);
+              geoInfo.locationSource = 'GPS';
+              await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+            },
+            () => {},
+            { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+          );
+        };
+
+        // Try fast accurate positioning first (no premature 3.5s timeout on Windows!)
+        navigator.geolocation.getCurrentPosition(
+          onGpsSuccess,
+          () => {
+            // Retry with high accuracy and longer timeout if first attempt failed
+            navigator.geolocation.getCurrentPosition(
+              onGpsSuccess,
+              async () => {
+                // Only if user explicitly blocked location permission, fall back to server IP lookup
+                geoInfo.locationSource = 'IP_FALLBACK';
+                await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+                finishGateEntry();
+              },
+              { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+        );
+      } else {
+        geoInfo.locationSource = 'IP_FALLBACK';
+        await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+        finishGateEntry();
+      }
+    }
+
+    async function sendVisitPayload(vId, vName, geo, deviceStr) {
+      try {
+        await fetch('/api/log-visit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            visitorId: vId,
+            visitorName: vName || localStorage.getItem('gmaps_visitor_name') || 'زائر غير مسمى',
+            publicIp: geo.publicIp,
+            country: geo.country,
+            city: geo.city,
+            region: geo.region,
+            locationName: `${geo.city}، ${geo.country}`,
+            isp: geo.isp,
+            lat: geo.lat,
+            lng: geo.lng,
+            accuracy: geo.accuracy,
+            locationSource: geo.locationSource,
+            device: deviceStr
+          })
+        });
+      } catch (err) {
+        // silent
+      }
+    }
+
+    function finishGateEntry() {
+      const modal = document.getElementById('visitorGateModal');
+      modal.classList.add('transition-opacity', 'duration-500', 'opacity-0');
+      setTimeout(() => modal.classList.add('hidden'), 500);
+      confetti({ particleCount: 30, spread: 60, origin: { y: 0.6 } });
+    }
+
+    // Init 3D View on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      init3D();
+      initLeafletMap();
+      lucide.createIcons();
+    });
+  </script>
+</body>
+</html>

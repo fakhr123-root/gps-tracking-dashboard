@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المشرف والرقابة الحية | Admin Supervisor Center</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Cairo & Orbitron -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- SheetJS for Instant Excel Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <style>
+    * { font-family: 'Cairo', system-ui, sans-serif; }
+    .font-num { font-family: 'Orbitron', 'Cairo', monospace; }
+    body {
+      background: radial-gradient(circle at 50% 10%, #0b1329 0%, #030611 100%);
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    }
+    .neon-border {
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      transition: all 0.3s ease;
+    }
+    .neon-border:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
+    }
+    /* Radar pulsing pin */
+    .radar-pin {
+      position: relative;
+    }
+    .radar-pin::after {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: -10px;
+      right: -10px;
+      bottom: -10px;
+      border-radius: 50%;
+      border: 2px solid #00f2fe;
+      animation: radarPulse 1.8s infinite ease-out;
+    }
+    @keyframes radarPulse {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #070b14; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #0284c7; }
+  </style>
+</head>
+<body class="flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+
+  <!-- Top Supervisor Bar -->
+  <header class="sticky top-0 z-50 glass-card border-b border-cyan-500/20 px-4 lg:px-8 py-3.5">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
+          <i data-lucide="shield-alert" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg lg:text-xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
+              لوحة تحكم المشرف والرقابة الحية
+            </h1>
+            <span class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              Admin Supervisor
+            </span>
+          </div>
+          <p class="text-xs text-slate-400">تتبع الزوار، ومعرفة مواقعهم الجغرافية، وسجلات ما بحثوا عنه لحظة بلحظة</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <!-- Live Status Pill -->
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>الرقابة الحية تعمل بنشاط</span>
+        </div>
+
+        <!-- Refresh Button -->
+        <button onclick="fetchAdminData()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+          <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
+          <span>تحديث</span>
+        </button>
+
+        <!-- Back to Main App Button -->
+        <a href="/" class="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow transition">
+          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          <span>العودة للتطبيق</span>
+        </a>
+
+        <!-- Logout button -->
+        <button id="logoutBtn" onclick="logoutAdmin()" class="hidden p-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition" title="تسجيل الخروج">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- Login Modal / Gate -->
+  <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+    <div class="glass-card max-w-md w-full p-6 lg:p-8 rounded-2xl border border-cyan-500/40 shadow-2xl relative text-center">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4 shadow-lg shadow-cyan-500/20">
+        <i data-lucide="lock" class="w-7 h-7"></i>
+      </div>
+      <h2 class="text-xl font-black text-white mb-1">تسجيل دخول المشرف</h2>
+      <p class="text-xs text-slate-400 mb-6">يرجى إدخال كلمة مرور الإشراف للوصول إلى السجلات الحية ومواقع الزوار</p>
+
+      <form onsubmit="handleAdminLogin(event)" class="space-y-4 text-right">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1.5">كلمة مرور المشرف:</label>
+          <div class="relative">
+            <i data-lucide="key" class="absolute right-3.5 top-3 w-4 h-4 text-slate-400"></i>
+            <input 
+              type="password" 
+              id="adminPasswordInput" 
+              placeholder="اكتب كلمة المرور (الافتراضية: admin)" 
+              class="w-full bg-slate-900/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+              required
+              autofocus
+            />
+          </div>
+          <p class="text-[11px] text-slate-500 mt-1">كلمة المرور الافتراضية المحددة هي: <code class="text-cyan-400 font-bold">admin</code></p>
+        </div>
+
+        <div id="loginErrorMsg" class="hidden text-xs text-red-400 bg-red-950/50 p-2 rounded-lg border border-red-500/30 text-center"></div>
+
+        <button 
+          type="submit" 
+          id="loginSubmitBtn"
+          class="w-full py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-cyan-400 to-blue-500 hover:from-cyan-300 hover:to-blue-400 text-slate-950 transition shadow-lg shadow-cyan-500/25 cursor-pointer"
+        >
+          دخول لوحة المشرف
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Dashboard Main Workspace -->
+  <main id="adminContent" class="hidden max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1 space-y-6">
+
+    <!-- Counters Strip -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      
+      <div class="glass-card p-4 rounded-xl border border-cyan-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">إجمالي الزوار (من دخلوا)</p>
+            <h3 id="statTotalVisitors" class="text-2xl font-black font-num text-cyan-400 mt-1">0</h3>
+          </div>
+          <div class="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <i data-lucide="users" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-4 rounded-xl border border-emerald-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">زوار اليوم النشطون</p>
+            <h3 id="statTodayVisitors" class="text-2xl font-black font-num text-emerald-400 mt-1">0</h3>
+          </div>
+          <div class="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <i data-lucide="user-check" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-4 rounded-xl border border-indigo-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">إجمالي عمليات البحث</p>
+            <h3 id="statTotalSearches" class="text-2xl font-black font-num text-indigo-400 mt-1">0</h3>
+          </div>
+          <div class="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+            <i data-lucide="search" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card p-4 rounded-xl border border-amber-500/20">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs text-slate-400">بحث اليوم المنفذ</p>
+            <h3 id="statTodaySearches" class="text-2xl font-black font-num text-amber-400 mt-1">0</h3>
+          </div>
+          <div class="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <i data-lucide="activity" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Live Visitor Radar Map -->
+    <div class="glass-card rounded-2xl p-4 lg:p-6 border border-cyan-500/30 space-y-3">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
+          <h3 class="text-base font-bold text-white">خريطة جوجل الحية لمواقع الزوار الحقيقية (GPS)</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="setAdminMapLayer('streets')" id="btnMapStreets" class="px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
+            خريطة شوارع جوجل
+          </button>
+          <button onclick="setAdminMapLayer('hybrid')" id="btnMapHybrid" class="px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer">
+            قمر صناعي (Satellite)
+          </button>
+        </div>
+      </div>
+
+      <div class="relative w-full h-[400px] rounded-xl overflow-hidden border border-cyan-500/20">
+        <div id="adminVisitorMap" class="w-full h-full"></div>
+      </div>
+    </div>
+
+    <!-- Section 1: What they searched for (إيش بحثوا) -->
+    <div class="glass-card rounded-2xl p-5 lg:p-6 border border-cyan-500/30 space-y-4">
+      
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="file-text" class="w-5 h-5 text-cyan-400"></i>
+            <span>سجل عمليات البحث التفصيلية (إيش بحث الزائر وموقعه والنتائج)</span>
+          </h3>
+          <p class="text-xs text-slate-400">يعرض نوع النشاط، الموقع والحي المطلوبين، والنطاق، والوقت، وعدد الشركات المستخرجة</p>
+        </div>
+
+        <button onclick="exportSearchesExcel()" class="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>تصدير السجل إلى Excel</span>
+        </button>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-900/90 text-cyan-300 font-bold border-b border-slate-800">
+            <tr>
+              <th class="p-3">#</th>
+              <th class="p-3">وقت البحث</th>
+              <th class="p-3">نوع النشاط (الكلمة المبحوثة)</th>
+              <th class="p-3">الموقع والمدينة المطلوبة</th>
+              <th class="p-3">الحي المحدد</th>
+              <th class="p-3">نطاق البحث</th>
+              <th class="p-3">الشركات المستخرجة</th>
+              <th class="p-3">عنوان الآي بي وموقع الزائر</th>
+            </tr>
+          </thead>
+          <tbody id="searchesTableBody" class="divide-y divide-slate-800/60">
+            <tr>
+              <td colspan="8" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <!-- Section 2: Who entered the app (من دخل التطبيق وأين موقعه وجهازه) -->
+    <div class="glass-card rounded-2xl p-5 lg:p-6 border border-cyan-500/30 space-y-4">
+      
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="users" class="w-5 h-5 text-indigo-400"></i>
+            <span>سجل الزوار والمستخدمين (من دخل التطبيق، نوع جهازه، وآخر ظهور)</span>
+          </h3>
+          <p class="text-xs text-slate-400">يتضمن تفاصيل المتصفح ونظام التشغيل والإحداثيات وعدد مرات البحث المنفذة</p>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="clearAllLogsPrompt()" class="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-bold text-red-400 flex items-center gap-1.5 transition">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>مسح السجلات</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-900/90 text-indigo-300 font-bold border-b border-slate-800">
+            <tr>
+              <th class="p-3">#</th>
+              <th class="p-3">اسم المسجل / المعرف</th>
+              <th class="p-3">الآي بي (IP)</th>
+              <th class="p-3">الدولة والمدينة (موقع الدخول)</th>
+              <th class="p-3">مزود الإنترنت والشبكة</th>
+              <th class="p-3">الجهاز والمتصفح</th>
+              <th class="p-3">وقت تسجيل الدخول</th>
+              <th class="p-3">آخر نشاط</th>
+              <th class="p-3 text-center">الإحداثيات على الخريطة</th>
+            </tr>
+          </thead>
+          <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60">
+            <tr>
+              <td colspan="9" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-8 border-t border-slate-800 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto flex items-center justify-between">
+      <p>لوحة تحكم المشرف &bull; رقابة جغرافية وفورية متكاملة لكافة عمليات الاستخراج والزوار</p>
+      <span class="text-cyan-400">محمية بالكامل</span>
+    </div>
+  </footer>
+
+  <script>
+    lucide.createIcons();
+
+    let adminMap = null;
+    let visitorMarkers = [];
+    let currentAdminData = { visitors: [], searches: [] };
+
+    // Check existing auth in sessionStorage
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = sessionStorage.getItem('admin_token');
+      if (token === 'admin_auth_token_2026') {
+        unlockDashboard();
+      }
+    });
+
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const pass = document.getElementById('adminPasswordInput').value.trim();
+      const errBox = document.getElementById('loginErrorMsg');
+      const btn = document.getElementById('loginSubmitBtn');
+
+      errBox.classList.add('hidden');
+      btn.disabled = true;
+      btn.innerText = "جارٍ التحقق...";
+
+      try {
+        const res = await fetch('/api/admin/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pass })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          sessionStorage.setItem('admin_token', data.token);
+          unlockDashboard();
+        } else {
+          errBox.innerText = data.message || "كلمة المرور غير صحيحة!";
+          errBox.classList.remove('hidden');
+        }
+      } catch (err) {
+        errBox.innerText = "خطأ في الاتصال بالخادم: " + err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "دخول لوحة المشرف";
+      }
+    }
+
+    function unlockDashboard() {
+      document.getElementById('loginModal').classList.add('hidden');
+      document.getElementById('adminContent').classList.remove('hidden');
+      document.getElementById('logoutBtn').classList.remove('hidden');
+      initAdminMap();
+      fetchAdminData();
+      // Auto refresh every 10 seconds
+      setInterval(fetchAdminData, 10000);
+    }
+
+    function logoutAdmin() {
+      sessionStorage.removeItem('admin_token');
+      window.location.reload();
+    }
+
+    let googleStreetsLayer = null;
+    let googleHybridLayer = null;
+    let hasCenteredMapOnce = false;
+
+    function initAdminMap() {
+      if (adminMap) return;
+      adminMap = L.map('adminVisitorMap').setView([15.340137, 44.191831], 14);
+
+      // Official Google Maps Arabic Streets & Satellite Hybrid Layers
+      googleStreetsLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps',
+        maxZoom: 20
+      });
+
+      googleHybridLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ar&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps Satellite',
+        maxZoom: 20
+      });
+
+      googleStreetsLayer.addTo(adminMap);
+    }
+
+    function setAdminMapLayer(type) {
+      if (!adminMap) return;
+      const btnStreets = document.getElementById('btnMapStreets');
+      const btnHybrid = document.getElementById('btnMapHybrid');
+
+      if (type === 'hybrid') {
+        if (adminMap.hasLayer(googleStreetsLayer)) adminMap.removeLayer(googleStreetsLayer);
+        googleHybridLayer.addTo(adminMap);
+        btnHybrid.className = "px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
+        btnStreets.className = "px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer";
+      } else {
+        if (adminMap.hasLayer(googleHybridLayer)) adminMap.removeLayer(googleHybridLayer);
+        googleStreetsLayer.addTo(adminMap);
+        btnStreets.className = "px-3 py-1 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
+        btnHybrid.className = "px-3 py-1 rounded-lg text-xs font-bold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer";
+      }
+    }
+
+    function focusVisitorOnMap(lat, lng, idx) {
+      if (!adminMap || !lat || !lng) return;
+      document.getElementById('adminVisitorMap').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      adminMap.flyTo([lat, lng], 17, { duration: 1.2 });
+      if (visitorMarkers[idx]) {
+        setTimeout(() => visitorMarkers[idx].openPopup(), 1200);
+      }
+    }
+
+    async function fetchAdminData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon.classList.add('animate-spin');
+
+      try {
+        const res = await fetch('/api/admin/data');
+        if (res.ok) {
+          const data = await res.json();
+          currentAdminData = data;
+          renderStats(data.stats);
+          renderSearches(data.searches);
+          renderVisitors(data.visitors);
+          renderMapPins(data.visitors);
+        }
+      } catch (err) {
+        console.error('Fetch admin data error:', err);
+      } finally {
+        setTimeout(() => refreshIcon.classList.remove('animate-spin'), 400);
+      }
+    }
+
+    function renderStats(stats = {}) {
+      document.getElementById('statTotalVisitors').innerText = stats.totalVisitors || 0;
+      document.getElementById('statTodayVisitors').innerText = stats.todayVisitors || 0;
+      document.getElementById('statTotalSearches').innerText = stats.totalSearches || 0;
+      document.getElementById('statTodaySearches').innerText = stats.todaySearches || 0;
+    }
+
+    function renderSearches(searches = []) {
+      const tbody = document.getElementById('searchesTableBody');
+      if (searches.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة حتى الآن</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = searches.map((s, idx) => {
+        const dateFormatted = new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true });
+        return `
+          <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
+            <td class="p-3 text-slate-400 font-num">${idx + 1}</td>
+            <td class="p-3 text-slate-300 font-num text-[11px]">${dateFormatted}</td>
+            <td class="p-3 font-bold text-cyan-300">${s.query || 'الكل'}</td>
+            <td class="p-3 font-semibold text-white">${s.targetLocation || '-'}</td>
+            <td class="p-3 text-slate-300">${s.targetNeighborhood || '-'}</td>
+            <td class="p-3 font-num text-slate-400">${s.radius || 10} كم</td>
+            <td class="p-3 font-num font-bold text-emerald-400">${s.resultsCount || 0} منشأة</td>
+            <td class="p-3 text-slate-300 text-[11px]">
+              <span class="font-bold text-white block">${s.visitorName || 'زائر'}</span>
+              <span class="text-cyan-400 font-num">${s.ip}</span>
+              <span class="block text-[10px] text-emerald-400">${s.visitorLocation || 'اليمن'}</span>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderVisitors(visitors = []) {
+      const tbody = document.getElementById('visitorsTableBody');
+      if (visitors.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = visitors.map((v, idx) => {
+        const firstSeen = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+        const lastSeen = new Date(v.lastSeen).toLocaleString('ar-SA', { hour12: true });
+        const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
+        const sourceBadge = v.locationSource === 'IP'
+          ? `<span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">عبر الشبكة IP</span>`
+          : `<span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🎯 GPS حقيقي دقيق</span>`;
+
+        return `
+          <tr class="hover:bg-indigo-500/5 transition border-b border-slate-800/60">
+            <td class="p-3 text-slate-400 font-num font-bold">${idx + 1}</td>
+            <td class="p-3">
+              <span class="font-bold text-white block">${v.visitorName || 'زائر بدون اسم'}</span>
+              <span class="text-[10px] text-indigo-400 font-num">${v.id}</span>
+            </td>
+            <td class="p-3 font-num text-cyan-300 font-semibold">${v.ip}</td>
+            <td class="p-3 text-white">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-emerald-400">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</span>
+                ${sourceBadge}
+              </div>
+              <span class="block text-[11px] text-slate-400 font-num mt-0.5">(${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)})</span>
+            </td>
+            <td class="p-3 text-slate-300 text-[11px]">
+              <span class="text-cyan-400">🌐 ${v.isp || 'يمن نت / مزود الخدمة'}</span>
+            </td>
+            <td class="p-3 text-slate-400 text-[11px] max-w-[170px] truncate" title="${v.device}">
+              💻 ${v.device || 'Windows / Chrome'}
+            </td>
+            <td class="p-3 text-slate-400 font-num text-[11px]">${firstSeen}</td>
+            <td class="p-3 text-emerald-300 font-num text-[11px]">${lastSeen}</td>
+            <td class="p-3 text-center">
+              <div class="flex items-center justify-center gap-1.5">
+                <button onclick="focusVisitorOnMap(${v.lat}, ${v.lng}, ${idx})" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/40 px-2.5 py-1 rounded-lg border border-emerald-500/40 transition cursor-pointer">
+                  <i data-lucide="crosshair" class="w-3 h-3"></i>
+                  <span>تتبع بالخريطة</span>
+                </button>
+                <a href="${gmapsLink}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 transition">
+                  <i data-lucide="external-link" class="w-3 h-3"></i>
+                  <span>جوجل ماب</span>
+                </a>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    function renderMapPins(visitors = []) {
+      if (!adminMap) return;
+      visitorMarkers.forEach(m => adminMap.removeLayer(m));
+      visitorMarkers = [];
+
+      visitors.forEach((v, idx) => {
+        if (!v.lat || !v.lng) return;
+
+        const customIcon = L.divIcon({
+          className: 'radar-pin',
+          html: `
+            <div style="background: #ef4444; width: 26px; height: 26px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px #ef4444; color: white; font-size: 13px;">
+              📍
+            </div>
+          `,
+          iconSize: [26, 26],
+          iconAnchor: [13, 13]
+        });
+
+        const marker = L.marker([v.lat, v.lng], { icon: customIcon }).addTo(adminMap);
+        const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
+
+        marker.bindPopup(`
+          <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 210px;">
+            <h4 style="font-weight: bold; color: #0284c7; margin-bottom: 3px;">👤 ${v.visitorName || 'زائر'} (${v.ip})</h4>
+            <p style="font-size: 12px; font-weight: bold; color: #10b981; margin: 2px 0;">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</p>
+            <p style="font-size: 11px; color: #475569; margin: 2px 0; font-family: monospace;">الإحداثيات: ${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)}</p>
+            <p style="font-size: 11px; color: #64748b; margin: 2px 0;">🌐 مزود الخدمة: ${v.isp || 'يمن نت'}</p>
+            <p style="font-size: 10px; color: #64748b; margin: 2px 0;">💻 ${v.device || 'متصفح'}</p>
+            <p style="font-size: 11px; color: #3b82f6; margin: 2px 0;">🔍 عمليات البحث: ${v.searchesCount || 0}</p>
+            <a href="${gmapsLink}" target="_blank" style="display: inline-block; margin-top: 6px; font-size: 11px; color: white; background: #0284c7; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح الموقع الدقيق في خرائط جوجل</a>
+          </div>
+        `);
+        visitorMarkers.push(marker);
+      });
+
+      // Automatically center and zoom on the latest visitor's real coordinates on initial load
+      if (!hasCenteredMapOnce && visitors.length > 0 && visitors[0].lat && visitors[0].lng) {
+        hasCenteredMapOnce = true;
+        adminMap.setView([visitors[0].lat, visitors[0].lng], 16);
+        if (visitorMarkers[0]) {
+          visitorMarkers[0].openPopup();
+        }
+      }
+    }
+
+    function exportSearchesExcel() {
+      if (!currentAdminData.searches || currentAdminData.searches.length === 0) {
+        alert('لا توجد سجلات بحث لتصديرها!');
+        return;
+      }
+
+      const rows = currentAdminData.searches.map((s, idx) => ({
+        '#': idx + 1,
+        'وقت البحث': s.timestamp,
+        'نوع النشاط المبحوث': s.query,
+        'الموقع المطلوب': s.targetLocation,
+        'الحي': s.targetNeighborhood,
+        'نطاق البحث (كم)': s.radius,
+        'عدد النتائج': s.resultsCount,
+        'آي بي الزائر': s.ip,
+        'موقع الزائر الفعلي': s.visitorLocation
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "سجلات عمليات البحث");
+      XLSX.writeFile(wb, `Admin_Searches_Log_${Date.now()}.xlsx`);
+    }
+
+    async function clearAllLogsPrompt() {
+      const pass = prompt('يرجى تأكيد كلمة مرور المشرف لمسح السجلات:');
+      if (!pass) return;
+
+      const res = await fetch('/api/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('تم مسح السجلات بنجاح!');
+        fetchAdminData();
+      } else {
+        alert('فشل المسح: ' + (data.message || 'كلمة المرور غير صحيحة'));
+      }
+    }
+  </script>
+</body>
+</html>

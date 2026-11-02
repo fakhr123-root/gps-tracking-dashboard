@@ -1,0 +1,16 @@
+{
+  "name": "google_maps_3d_extractor",
+  "version": "2.0.0",
+  "description": "Google Maps 3D Business Extractor & Live Supervisor Dashboard",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["google-maps", "extractor", "3d", "yemen"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

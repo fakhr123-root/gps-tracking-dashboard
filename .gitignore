@@ -1,0 +1,5 @@
+node_modules/
+bin/
+*.log
+public_url.txt
+.DS_Store

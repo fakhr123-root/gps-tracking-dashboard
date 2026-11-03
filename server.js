@@ -987,7 +987,8 @@ async function recordVisitor(info) {
       firstSeen: now,
       lastSeen: now,
       pageViews: 1,
-      searchesCount: 0
+      searchesCount: 0,
+      sessionSearches: []
     };
     logs.visitors.unshift(v);
   }
@@ -997,31 +998,64 @@ async function recordVisitor(info) {
 
 function recordSearch(searchInfo) {
   const logs = loadAdminLogs();
-  const v = logs.visitors.find(x => x.id === searchInfo.visitorId);
+  const now = new Date().toISOString();
+  let v = logs.visitors.find(x => x.id === searchInfo.visitorId);
+
+  // If a user searched without an existing session entry, create a permanent session entry automatically
+  if (!v) {
+    v = {
+      id: searchInfo.visitorId || `login_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      visitorName: searchInfo.visitorName || 'مستخدم التطبيق',
+      ip: searchInfo.ip || '127.0.0.1',
+      country: 'اليمن',
+      city: searchInfo.location || 'صنعاء',
+      region: searchInfo.neighborhood || 'أمانة العاصمة',
+      locationName: searchInfo.visitorLocation || `${searchInfo.location || 'صنعاء'}، اليمن`,
+      isp: 'مزود الإنترنت',
+      lat: 15.340137,
+      lng: 44.191831,
+      locationSource: 'SESSION',
+      accuracy: null,
+      device: 'متصفح ويب',
+      firstSeen: now,
+      lastSeen: now,
+      pageViews: 1,
+      searchesCount: 0,
+      sessionSearches: []
+    };
+    logs.visitors.unshift(v);
+  }
+
   const record = {
     id: `srch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    visitorId: searchInfo.visitorId || 'زائر',
-    visitorName: v?.visitorName || searchInfo.visitorName || 'زائر',
-    ip: v?.ip || searchInfo.ip || '127.0.0.1',
-    visitorLocation: v?.locationName || searchInfo.visitorLocation || 'اليمن',
+    visitorId: v.id,
+    visitorName: v.visitorName || searchInfo.visitorName || 'زائر',
+    ip: v.ip || searchInfo.ip || '127.0.0.1',
+    visitorLocation: v.locationName || searchInfo.visitorLocation || 'اليمن',
     query: searchInfo.query || 'غير محدد (جميع الأنشطة)',
     targetLocation: searchInfo.location || 'صنعاء',
     targetNeighborhood: searchInfo.neighborhood || 'الكل',
     radius: searchInfo.radiusKm || 10,
     resultsCount: searchInfo.resultsCount || 0,
-    timestamp: new Date().toISOString()
+    timestamp: now
   };
   logs.searches.unshift(record);
 
-  // Update visitor searches count
-  if (v) {
-    v.searchesCount = (v.searchesCount || 0) + 1;
-    v.lastSeen = new Date().toISOString();
+  // Update visitor session searches count & attach search to session history permanently
+  v.searchesCount = (v.searchesCount || 0) + 1;
+  v.lastSeen = now;
+  if (!Array.isArray(v.sessionSearches)) {
+    v.sessionSearches = [];
   }
+  v.sessionSearches.unshift({
+    query: record.query,
+    targetLocation: record.targetLocation,
+    targetNeighborhood: record.targetNeighborhood,
+    resultsCount: record.resultsCount,
+    timestamp: now
+  });
 
-  if (logs.searches.length > 1000) logs.searches = logs.searches.slice(0, 1000);
-  if (logs.visitors.length > 500) logs.visitors = logs.visitors.slice(0, 500);
-
+  // Never truncate or delete historical logs - keep all sessions permanently
   saveAdminLogs(logs);
 }
 
@@ -1092,10 +1126,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Data Dashboard Endpoint
+  // Health check endpoint (keeps cloud instance awake 24/7)
+  if (pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'alive', time: new Date().toISOString() }));
+    return;
+  }
+
+  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
-    // Statistics overview
     const totalVisitors = logs.visitors.length;
     const totalSearches = logs.searches.length;
     
@@ -1112,26 +1152,59 @@ const server = http.createServer(async (req, res) => {
         todayVisitors,
         todaySearches
       },
-      visitors: logs.visitors.slice(0, 100),
-      searches: logs.searches.slice(0, 150)
+      visitors: logs.visitors,
+      searches: logs.searches
     }));
     return;
   }
 
-  // Admin Clear Logs
-  if (pathname === '/api/admin/clear' && req.method === 'POST') {
+  // Admin Permanent Archive Sync Endpoint (restores any sessions from admin browser backup if cloud server restarted)
+  if (pathname === '/api/admin/sync' && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
-    if (data.password === (logs.adminPassword || 'admin')) {
-      logs.visitors = [];
-      logs.searches = [];
-      saveAdminLogs(logs);
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, message: 'تم مسح السجلات بنجاح' }));
-    } else {
-      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: false, message: 'غير مصرح' }));
+    let changed = false;
+
+    if (Array.isArray(data.visitors)) {
+      const existingIds = new Set(logs.visitors.map(v => v.id));
+      for (const item of data.visitors) {
+        if (item && item.id && !existingIds.has(item.id)) {
+          logs.visitors.push(item);
+          existingIds.add(item.id);
+          changed = true;
+        }
+      }
+      logs.visitors.sort((a, b) => new Date(b.firstSeen || 0) - new Date(a.firstSeen || 0));
     }
+
+    if (Array.isArray(data.searches)) {
+      const existingSearchIds = new Set(logs.searches.map(s => s.id));
+      for (const sItem of data.searches) {
+        if (sItem && sItem.id && !existingSearchIds.has(sItem.id)) {
+          logs.searches.push(sItem);
+          existingSearchIds.add(sItem.id);
+          changed = true;
+        }
+      }
+      logs.searches.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    }
+
+    if (changed) {
+      saveAdminLogs(logs);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      visitors: logs.visitors,
+      searches: logs.searches
+    }));
+    return;
+  }
+
+  // Admin Clear Logs (Disabled to protect permanent session history)
+  if (pathname === '/api/admin/clear' && req.method === 'POST') {
+    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: false, message: 'تم تعطيل حذف السجلات لضمان حفظ جميع الجلسات بشكل دائم وعدم فقدانها.' }));
     return;
   }
 
@@ -1233,4 +1306,13 @@ server.listen(PORT, () => {
   console.log(`🚀 تطبيق استخراج بيانات خرائط جوجل 3D يعمل الآن بنجاح!`);
   console.log(`🌐 الرابط المحلي: http://localhost:${PORT}`);
   console.log(`=======================================================`);
+
+  // Self Keep-Alive every 5 minutes to prevent cloud container from sleeping and resetting memory
+  const keepAliveUrl = process.env.RENDER_EXTERNAL_URL
+    ? `${process.env.RENDER_EXTERNAL_URL}/api/health`
+    : `https://gps-tracking-dashboard-sctg.onrender.com/api/health`;
+
+  setInterval(() => {
+    fetchWithTimeout(keepAliveUrl, { timeout: 5000 }).catch(() => {});
+  }, 5 * 60 * 1000);
 });

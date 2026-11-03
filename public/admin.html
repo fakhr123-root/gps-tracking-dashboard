@@ -283,15 +283,19 @@
         <div>
           <h3 class="text-base font-bold text-white flex items-center gap-2">
             <i data-lucide="users" class="w-5 h-5 text-indigo-400"></i>
-            <span>سجل الزوار والمستخدمين (من دخل التطبيق، نوع جهازه، وآخر ظهور)</span>
+            <span>سجل الجلسات والزوار الدائم (كل عملية دخول للتطبيق محفوظة بالكامل)</span>
           </h3>
-          <p class="text-xs text-slate-400">يتضمن تفاصيل المتصفح ونظام التشغيل والإحداثيات وعدد مرات البحث المنفذة</p>
+          <p class="text-xs text-slate-400">يتم حفظ جميع جلسات الدخول وعمليات البحث بشكل دائم ومؤرشف دون حذف أي سجل</p>
         </div>
 
         <div class="flex items-center gap-2">
-          <button onclick="clearAllLogsPrompt()" class="px-3 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-bold text-red-400 flex items-center gap-1.5 transition">
-            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-            <span>مسح السجلات</span>
+          <span class="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-300 flex items-center gap-1.5">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
+            <span>أرشفة دائمة (محمي من الحذف)</span>
+          </span>
+          <button onclick="exportVisitorsExcel()" class="px-3 py-1.5 rounded-xl bg-indigo-600/90 hover:bg-indigo-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>تصدير الجلسات إلى Excel</span>
           </button>
         </div>
       </div>
@@ -301,11 +305,11 @@
           <thead class="bg-slate-900/90 text-indigo-300 font-bold border-b border-slate-800">
             <tr>
               <th class="p-3">#</th>
-              <th class="p-3">اسم المسجل / المعرف</th>
+              <th class="p-3">اسم المسجل / معرف الجلسة</th>
               <th class="p-3">الآي بي (IP)</th>
               <th class="p-3">الدولة والمدينة (موقع الدخول)</th>
-              <th class="p-3">مزود الإنترنت والشبكة</th>
-              <th class="p-3">الجهاز والمتصفح</th>
+              <th class="p-3">ما بحث عنه في الجلسة</th>
+              <th class="p-3">مزود الإنترنت والجهاز</th>
               <th class="p-3">وقت تسجيل الدخول</th>
               <th class="p-3">آخر نشاط</th>
               <th class="p-3 text-center">الإحداثيات على الخريطة</th>
@@ -444,6 +448,22 @@
       }
     }
 
+    const ARCHIVE_STORAGE_KEY = 'admin_permanent_archive_v1';
+
+    function loadLocalArchive() {
+      try {
+        const raw = localStorage.getItem(ARCHIVE_STORAGE_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return { visitors: [], searches: [] };
+    }
+
+    function saveLocalArchive(visitors, searches) {
+      try {
+        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify({ visitors, searches }));
+      } catch (e) {}
+    }
+
     async function fetchAdminData() {
       const refreshIcon = document.getElementById('refreshIcon');
       refreshIcon.classList.add('animate-spin');
@@ -452,11 +472,75 @@
         const res = await fetch('/api/admin/data');
         if (res.ok) {
           const data = await res.json();
-          currentAdminData = data;
-          renderStats(data.stats);
-          renderSearches(data.searches);
-          renderVisitors(data.visitors);
-          renderMapPins(data.visitors);
+          const localArch = loadLocalArchive();
+
+          // Merge server visitors with local permanent archive so NO session is ever lost
+          const visitorMap = new Map();
+          for (const v of (localArch.visitors || [])) {
+            if (v && v.id) visitorMap.set(v.id, v);
+          }
+          let missingOnServerCount = 0;
+          const serverVisitorIds = new Set((data.visitors || []).map(v => v.id));
+          for (const v of (localArch.visitors || [])) {
+            if (v && v.id && !serverVisitorIds.has(v.id)) {
+              missingOnServerCount++;
+            }
+          }
+          for (const v of (data.visitors || [])) {
+            if (v && v.id) visitorMap.set(v.id, v);
+          }
+          const mergedVisitors = Array.from(visitorMap.values()).sort(
+            (a, b) => new Date(b.firstSeen || 0) - new Date(a.firstSeen || 0)
+          );
+
+          // Merge server searches with local permanent archive
+          const searchMap = new Map();
+          for (const s of (localArch.searches || [])) {
+            if (s && s.id) searchMap.set(s.id, s);
+          }
+          const serverSearchIds = new Set((data.searches || []).map(s => s.id));
+          for (const s of (localArch.searches || [])) {
+            if (s && s.id && !serverSearchIds.has(s.id)) {
+              missingOnServerCount++;
+            }
+          }
+          for (const s of (data.searches || [])) {
+            if (s && s.id) searchMap.set(s.id, s);
+          }
+          const mergedSearches = Array.from(searchMap.values()).sort(
+            (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
+          );
+
+          // Save combined archive permanently in browser
+          saveLocalArchive(mergedVisitors, mergedSearches);
+
+          // If cloud server restarted and lost any older records, sync them back automatically
+          if (missingOnServerCount > 0) {
+            fetch('/api/admin/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ visitors: mergedVisitors, searches: mergedSearches })
+            }).catch(() => {});
+          }
+
+          const todayStr = new Date().toISOString().slice(0, 10);
+          const mergedStats = {
+            totalVisitors: mergedVisitors.length,
+            totalSearches: mergedSearches.length,
+            todayVisitors: mergedVisitors.filter(v => (v.lastSeen || '').startsWith(todayStr)).length,
+            todaySearches: mergedSearches.filter(s => (s.timestamp || '').startsWith(todayStr)).length
+          };
+
+          currentAdminData = {
+            stats: mergedStats,
+            visitors: mergedVisitors,
+            searches: mergedSearches
+          };
+
+          renderStats(mergedStats);
+          renderSearches(mergedSearches);
+          renderVisitors(mergedVisitors, mergedSearches);
+          renderMapPins(mergedVisitors);
         }
       } catch (err) {
         console.error('Fetch admin data error:', err);
@@ -500,7 +584,7 @@
       }).join('');
     }
 
-    function renderVisitors(visitors = []) {
+    function renderVisitors(visitors = [], allSearches = []) {
       const tbody = document.getElementById('visitorsTableBody');
       if (visitors.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
@@ -514,6 +598,18 @@
         const sourceBadge = v.locationSource === 'IP'
           ? `<span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">عبر الشبكة IP</span>`
           : `<span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🎯 GPS حقيقي دقيق</span>`;
+
+        // Collect all searches performed in this session
+        const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
+          ? v.sessionSearches
+          : allSearches.filter(s => s.visitorId === v.id);
+
+        const searchesHtml = sessionSearches.length > 0
+          ? `<div class="space-y-1 max-w-[200px]">
+              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 inline-block mb-0.5">🔍 ${sessionSearches.length} عملية بحث</span>
+              ${sessionSearches.slice(0, 3).map(s => `<div class="text-[11px] text-slate-200 truncate">• ${s.query} (${s.targetLocation || 'صنعاء'})</div>`).join('')}
+            </div>`
+          : `<span class="text-[11px] text-slate-500">دخول للجلسة (بدون بحث بعد)</span>`;
 
         return `
           <tr class="hover:bg-indigo-500/5 transition border-b border-slate-800/60">
@@ -530,11 +626,12 @@
               </div>
               <span class="block text-[11px] text-slate-400 font-num mt-0.5">(${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)})</span>
             </td>
-            <td class="p-3 text-slate-300 text-[11px]">
-              <span class="text-cyan-400">🌐 ${v.isp || 'يمن نت / مزود الخدمة'}</span>
+            <td class="p-3">
+              ${searchesHtml}
             </td>
-            <td class="p-3 text-slate-400 text-[11px] max-w-[170px] truncate" title="${v.device}">
-              💻 ${v.device || 'Windows / Chrome'}
+            <td class="p-3 text-slate-300 text-[11px]">
+              <span class="text-cyan-400 block">🌐 ${v.isp || 'يمن نت / مزود الخدمة'}</span>
+              <span class="text-slate-400 block truncate max-w-[160px]" title="${v.device}">💻 ${v.device || 'Windows / Chrome'}</span>
             </td>
             <td class="p-3 text-slate-400 font-num text-[11px]">${firstSeen}</td>
             <td class="p-3 text-emerald-300 font-num text-[11px]">${lastSeen}</td>
@@ -626,22 +723,33 @@
       XLSX.writeFile(wb, `Admin_Searches_Log_${Date.now()}.xlsx`);
     }
 
-    async function clearAllLogsPrompt() {
-      const pass = prompt('يرجى تأكيد كلمة مرور المشرف لمسح السجلات:');
-      if (!pass) return;
-
-      const res = await fetch('/api/admin/clear', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pass })
-      });
-      const data = await res.json();
-      if (data.success) {
-        alert('تم مسح السجلات بنجاح!');
-        fetchAdminData();
-      } else {
-        alert('فشل المسح: ' + (data.message || 'كلمة المرور غير صحيحة'));
+    function exportVisitorsExcel() {
+      if (!currentAdminData.visitors || currentAdminData.visitors.length === 0) {
+        alert('لا توجد جلسات لتصديرها!');
+        return;
       }
+
+      const rows = currentAdminData.visitors.map((v, idx) => ({
+        '#': idx + 1,
+        'معرف الجلسة': v.id,
+        'اسم المستخدم': v.visitorName || 'زائر',
+        'الآي بي (IP)': v.ip,
+        'الدولة': v.country || 'اليمن',
+        'المدينة': v.city || 'صنعاء',
+        'الحي / المنطقة': v.region || '',
+        'خط العرض (Lat)': v.lat,
+        'خط الطول (Lng)': v.lng,
+        'مزود الخدمة': v.isp || '',
+        'الجهاز': v.device || '',
+        'عدد عمليات البحث': v.searchesCount || 0,
+        'وقت الدخول': v.firstSeen,
+        'آخر نشاط': v.lastSeen
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "سجل الجلسات الدائم");
+      XLSX.writeFile(wb, `Admin_Sessions_Log_${Date.now()}.xlsx`);
     }
   </script>
 </body>

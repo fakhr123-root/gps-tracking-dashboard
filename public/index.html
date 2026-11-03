@@ -378,11 +378,14 @@
           </div>
 
           <div class="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-xs">
-            <button onclick="setViewMode('3d')" id="btnView3d" class="px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition">
+            <button onclick="setViewMode('3d')" id="btnView3d" class="px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
               مجسم 3D
             </button>
-            <button onclick="setViewMode('map')" id="btnViewMap" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition">
-              خريطة 2D/3D
+            <button onclick="setViewMode('map', 'streets')" id="btnViewMap" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
+              خريطة شوارع حية
+            </button>
+            <button onclick="setViewMode('map', 'hybrid')" id="btnViewHybrid" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
+              قمر صناعي واقعي
             </button>
           </div>
         </div>
@@ -776,18 +779,28 @@
       }
     }
 
-    // Initialize Leaflet Map
+    // Initialize Leaflet Map with Live Google Maps Arabic Streets & Realistic Satellite Hybrid
+    let googleStreetsMainLayer = null;
+    let googleHybridMainLayer = null;
+
     function initLeafletMap(centerLat = 15.3538, centerLng = 44.2058) {
       if (leafletMap) return;
 
-      leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 12);
+      leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 14);
       
-      // Modern CartoDB Dark Matter Tiles
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-        subdomains: 'abcd',
-        maxZoom: 19
-      }).addTo(leafletMap);
+      // Live Google Maps Arabic Streets (High detail roads, POIs, neighborhoods)
+      googleStreetsMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps Live Streets',
+        maxZoom: 20
+      });
+
+      // Live Google Maps Realistic Satellite + Streets Hybrid
+      googleHybridMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ar&x={x}&y={y}&z={z}', {
+        attribution: '&copy; Google Maps Satellite Hybrid',
+        maxZoom: 20
+      });
+
+      googleStreetsMainLayer.addTo(leafletMap);
     }
 
     function addMapMarker(place) {
@@ -817,29 +830,45 @@
       mapMarkers.push(marker);
     }
 
-    // View Mode Switching (3D Globe vs 2D Map)
-    function setViewMode(mode) {
+    // View Mode Switching (3D Globe vs Live Streets vs Satellite Hybrid)
+    function setViewMode(mode, mapStyle = 'streets') {
       viewMode = mode;
       const globeDiv = document.getElementById('globeContainer');
       const mapDiv = document.getElementById('mapContainer');
       const btn3d = document.getElementById('btnView3d');
       const btnMap = document.getElementById('btnViewMap');
+      const btnHybrid = document.getElementById('btnViewHybrid');
       const title = document.getElementById('viewModeTitle');
+
+      const activeClass = "px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
+      const inactiveClass = "px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer";
 
       if (mode === '3d') {
         globeDiv.classList.remove('hidden');
         mapDiv.classList.add('hidden');
-        btn3d.className = "px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition";
-        btnMap.className = "px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition";
+        btn3d.className = activeClass;
+        btnMap.className = inactiveClass;
+        if (btnHybrid) btnHybrid.className = inactiveClass;
         title.innerText = "المجسم التفاعلي ثلاثي الأبعاد (3D Globe)";
       } else {
         globeDiv.classList.add('hidden');
         mapDiv.classList.remove('hidden');
-        btnMap.className = "px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition";
-        btn3d.className = "px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition";
-        title.innerText = "الخريطة التفاعلية الجغرافية المباشرة";
+        btn3d.className = inactiveClass;
         if (!leafletMap) {
           initLeafletMap();
+        }
+        if (mapStyle === 'hybrid') {
+          if (leafletMap.hasLayer(googleStreetsMainLayer)) leafletMap.removeLayer(googleStreetsMainLayer);
+          googleHybridMainLayer.addTo(leafletMap);
+          if (btnHybrid) btnHybrid.className = activeClass;
+          btnMap.className = inactiveClass;
+          title.innerText = "خريطة القمر الصناعي والشوارع الواقعية المباشرة";
+        } else {
+          if (leafletMap.hasLayer(googleHybridMainLayer)) leafletMap.removeLayer(googleHybridMainLayer);
+          googleStreetsMainLayer.addTo(leafletMap);
+          btnMap.className = activeClass;
+          if (btnHybrid) btnHybrid.className = inactiveClass;
+          title.innerText = "خريطة الشوارع والأحياء الواقعية المباشرة (Google Maps)";
         }
         setTimeout(() => leafletMap.invalidateSize(), 150);
       }

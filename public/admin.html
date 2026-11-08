@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>مركز قيادة المشرف | GeoRadar Admin Command Center</title>
+  <title>مركز قيادة المشرف - Admin Command Center</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Cairo & Orbitron -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <!-- Leaflet Map CSS & JS -->
@@ -23,142 +23,128 @@
     * { font-family: 'Cairo', system-ui, sans-serif; }
     .font-num { font-family: 'Orbitron', 'Cairo', monospace; }
     body {
-      background-color: #020611;
+      background-color: #050912;
       background-image:
-        radial-gradient(at 12% 10%, rgba(6, 182, 212, 0.17) 0px, transparent 42%),
-        radial-gradient(at 88% 12%, rgba(99, 102, 241, 0.16) 0px, transparent 42%),
-        radial-gradient(at 50% 90%, rgba(16, 185, 129, 0.12) 0px, transparent 48%),
-        linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
-      background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+        radial-gradient(at 20% 15%, rgba(6, 182, 212, 0.14) 0px, transparent 45%),
+        radial-gradient(at 80% 20%, rgba(99, 102, 241, 0.14) 0px, transparent 45%),
+        radial-gradient(at 50% 85%, rgba(16, 185, 129, 0.12) 0px, transparent 50%);
       color: #f1f5f9;
       min-height: 100vh;
       overflow-x: hidden;
     }
-    .glass-card {
-      background: linear-gradient(155deg, rgba(13, 22, 41, 0.88) 0%, rgba(6, 11, 24, 0.95) 100%);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(56, 189, 248, 0.24);
-      box-shadow: 0 22px 55px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+    /* Main Framed Command Center Window matching Mockup */
+    .command-frame {
+      background: linear-gradient(160deg, rgba(13, 20, 34, 0.95) 0%, rgba(7, 12, 22, 0.98) 100%);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
-    .kpi-metric {
+
+    /* 4 Distinct Color-Coded KPI Cards matching Mockup 1:1 */
+    .kpi-cyan {
+      background: linear-gradient(135deg, rgba(6, 78, 99, 0.55) 0%, rgba(11, 25, 44, 0.9) 100%);
+      border: 1px solid rgba(34, 211, 238, 0.45);
+      box-shadow: 0 10px 30px rgba(6, 182, 212, 0.18), inset 0 0 20px rgba(6, 182, 212, 0.08);
+    }
+    .kpi-emerald {
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.55) 0%, rgba(10, 26, 35, 0.9) 100%);
+      border: 1px solid rgba(52, 211, 153, 0.45);
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.18), inset 0 0 20px rgba(16, 185, 129, 0.08);
+    }
+    .kpi-blue {
+      background: linear-gradient(135deg, rgba(30, 58, 138, 0.55) 0%, rgba(13, 23, 48, 0.9) 100%);
+      border: 1px solid rgba(96, 165, 250, 0.45);
+      box-shadow: 0 10px 30px rgba(59, 130, 246, 0.18), inset 0 0 20px rgba(59, 130, 246, 0.08);
+    }
+    .kpi-purple {
+      background: linear-gradient(135deg, rgba(88, 28, 135, 0.55) 0%, rgba(24, 16, 48, 0.9) 100%);
+      border: 1px solid rgba(192, 132, 252, 0.45);
+      box-shadow: 0 10px 30px rgba(168, 85, 247, 0.18), inset 0 0 20px rgba(168, 85, 247, 0.08);
+    }
+
+    /* Right Vertical Icon Sidebar Navigation Button */
+    .sidebar-icon-btn {
       position: relative;
-      overflow: hidden;
-      background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(8, 13, 26, 0.96));
-      border: 1px solid rgba(56, 189, 248, 0.24);
-      transition: all 0.25s ease;
-    }
-    .kpi-metric::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, #22d3ee, #6366f1, transparent);
-    }
-    .kpi-metric:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(6, 182, 212, 0.22);
-    }
-    .nav-tab-btn {
       transition: all 0.22s ease;
-      border: 1px solid transparent;
+      color: #94a3b8;
     }
-    .nav-tab-btn:hover {
-      background: rgba(30, 41, 59, 0.7);
-      border-color: rgba(56, 189, 248, 0.25);
+    .sidebar-icon-btn:hover {
+      color: #f8fafc;
+      background: rgba(30, 41, 59, 0.5);
     }
-    .nav-tab-btn.active {
-      background: linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(59, 130, 246, 0.22));
-      border-color: rgba(34, 211, 238, 0.65);
-      color: #ffffff;
-      box-shadow: 0 8px 22px rgba(6, 182, 212, 0.22);
+    .sidebar-icon-btn.active {
+      background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, rgba(16, 185, 129, 0.24) 100%);
+      color: #34d399;
     }
-    .neon-border {
-      border: 1px solid rgba(56, 189, 248, 0.32);
-      transition: all 0.25s ease;
-    }
-    .neon-border:focus {
-      border-color: #38bdf8;
-      box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
-    }
-    /* Radar pulsing pin */
-    .radar-pin {
-      position: relative;
-    }
-    .radar-pin::after {
+    .sidebar-icon-btn.active::before {
       content: '';
       position: absolute;
-      top: -10px;
-      left: -10px;
-      right: -10px;
-      bottom: -10px;
-      border-radius: 50%;
-      border: 2px solid #00f2fe;
-      animation: radarPulse 1.8s infinite ease-out;
+      right: 0;
+      top: 12%;
+      bottom: 12%;
+      width: 4px;
+      border-radius: 4px 0 0 4px;
+      background: #10b981;
+      box-shadow: 0 0 12px #10b981;
     }
-    @keyframes radarPulse {
-      0% { transform: scale(0.5); opacity: 1; }
-      100% { transform: scale(2.3); opacity: 0; }
+
+    /* Floating Glassmorphic Visitor Inspector Panel inside Map */
+    .inspector-glass {
+      background: linear-gradient(160deg, rgba(22, 32, 48, 0.88) 0%, rgba(12, 18, 30, 0.94) 100%);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.75);
     }
+
+    /* Dark Cyber Styling for Streets Map */
+    #adminVisitorMap.dark-cyber-map .leaflet-tile-pane {
+      filter: invert(100%) hue-rotate(180deg) brightness(92%) contrast(95%);
+    }
+
+    /* Concentric Glowing Radar Target Rings on Map */
+    @keyframes targetRingPulse {
+      0% { transform: scale(0.75); opacity: 0.95; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
+    .target-ring-outer {
+      animation: targetRingPulse 2.2s infinite ease-out;
+    }
+
     ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #060a14; }
+    ::-webkit-scrollbar-track { background: #070b14; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #0284c7; }
-    /* Automatic Mobile vs Laptop View Switching for Admin Panel */
-    #mobileSearchesCards, #mobileVisitorsCards {
-      display: none;
-    }
-    body.device-mobile #desktopSearchesTableWrapper,
-    body.device-mobile #desktopVisitorsTableWrapper {
-      display: none !important;
-    }
-    body.device-mobile #mobileSearchesCards,
-    body.device-mobile #mobileVisitorsCards {
-      display: flex !important;
-    }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+
+    #mobileSearchesCards, #mobileVisitorsCards { display: none; }
     @media (max-width: 767px) {
-      #desktopSearchesTableWrapper,
-      #desktopVisitorsTableWrapper {
-        display: none !important;
-      }
-      #mobileSearchesCards,
-      #mobileVisitorsCards {
-        display: flex !important;
-      }
-      main {
-        padding-bottom: 5rem !important;
-      }
+      #desktopSearchesTableWrapper, #desktopVisitorsTableWrapper { display: none !important; }
+      #mobileSearchesCards, #mobileVisitorsCards { display: flex !important; }
+      main { padding-bottom: 5rem !important; }
     }
   </style>
 </head>
-<body class="flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+<body class="flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
 
-  <!-- Admin Login Gate Modal -->
+  <!-- Admin Login Modal -->
   <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
-    <div class="glass-card max-w-md w-full p-6 lg:p-8 rounded-3xl border border-cyan-500/45 shadow-2xl relative text-center overflow-hidden">
-      <div class="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-cyan-500/20 blur-3xl pointer-events-none"></div>
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-500/20 to-indigo-500/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400 mb-4 shadow-lg shadow-cyan-500/20">
-        <i data-lucide="shield-alert" class="w-8 h-8"></i>
+    <div class="command-frame max-w-md w-full p-7 rounded-3xl border border-cyan-500/40 shadow-2xl relative text-center">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center text-emerald-400 mb-4 shadow-lg shadow-emerald-500/20">
+        <i data-lucide="layers" class="w-8 h-8"></i>
       </div>
-      <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold mb-2">
-        <span>GeoRadar Command Center</span>
-      </div>
-      <h2 class="text-xl font-black text-white mb-1">مركز قيادة المشرف</h2>
-      <p class="text-xs text-slate-400 mb-6">أدخل كلمة مرور المشرف السرية للوصول إلى الرادار الحي وسجلات النظام</p>
+      <h2 class="text-xl font-black text-white mb-1">Admin Command Center - مركز قيادة المشرف</h2>
+      <p class="text-xs text-slate-400 mb-6">أدخل كلمة مرور المشرف السرية للوصول إلى الرادار المباشر وسجلات النظام</p>
 
       <form onsubmit="handleAdminLogin(event)" class="space-y-4 text-right">
         <div>
           <label class="block text-xs font-bold text-slate-300 mb-1.5">كلمة مرور المشرف:</label>
           <div class="relative">
-            <i data-lucide="key-round" class="absolute right-3.5 top-3 w-4 h-4 text-cyan-400"></i>
+            <i data-lucide="lock" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
             <input 
               type="password" 
               id="adminPasswordInput" 
               placeholder="أدخل كلمة مرور المشرف..." 
-              class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+              class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 border border-emerald-500/40 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400"
               required
               autofocus
             />
@@ -170,472 +156,376 @@
         <button 
           type="submit" 
           id="loginSubmitBtn"
-          class="w-full py-3 rounded-xl font-black text-sm bg-gradient-to-r from-cyan-400 via-sky-400 to-indigo-500 hover:opacity-95 text-slate-950 transition shadow-lg shadow-cyan-500/25 cursor-pointer"
+          class="w-full py-3 rounded-xl font-black text-sm bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400 hover:opacity-95 text-slate-950 transition shadow-lg shadow-emerald-500/25 cursor-pointer"
         >
-          فتح مركز القيادة
+          دخول مركز القيادة
         </button>
       </form>
     </div>
   </div>
 
-  <!-- Admin Command Center Main Workspace -->
-  <main id="adminContent" class="hidden max-w-[1460px] mx-auto w-full px-3 sm:px-5 lg:px-7 py-4 flex-1 space-y-4">
+  <!-- Admin Command Center Workspace matching Mockup 1:1 -->
+  <main id="adminContent" class="hidden max-w-[1440px] mx-auto w-full px-3 sm:px-6 py-4 flex-1 flex flex-col gap-3">
 
-    <!-- 1. Top KPI Telemetry Strip (With HUD Bars matching Mockup) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <div class="kpi-metric p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">إجمالي الزوار المسجلين</p>
-            <h3 id="statTotalVisitors" class="text-2xl font-black font-num text-cyan-400 mt-0.5">0</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/35 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
-            <i data-lucide="users" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-cyan-400 to-sky-500 h-full w-4/5 rounded-full"></div>
-        </div>
-      </div>
-
-      <div class="kpi-metric p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">زوار بموقع GPS دقيق</p>
-            <h3 id="statGpsVisitors" class="text-2xl font-black font-num text-emerald-400 mt-0.5">0</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-            <i data-lucide="locate-fixed" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-emerald-400 to-teal-500 h-full w-5/6 rounded-full"></div>
-        </div>
-      </div>
-
-      <div class="kpi-metric p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">زوار اليوم النشطون</p>
-            <h3 id="statTodayVisitors" class="text-2xl font-black font-num text-sky-400 mt-0.5">0</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/35 flex items-center justify-center text-sky-400 shadow-lg shadow-sky-500/10">
-            <i data-lucide="user-check" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-sky-400 to-blue-500 h-full w-2/3 rounded-full"></div>
-        </div>
-      </div>
-
-      <div class="kpi-metric p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">إجمالي عمليات البحث</p>
-            <h3 id="statTotalSearches" class="text-2xl font-black font-num text-indigo-400 mt-0.5">0</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/10">
-            <i data-lucide="search" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-indigo-400 to-purple-500 h-full w-3/4 rounded-full"></div>
-        </div>
-      </div>
-
-      <div class="kpi-metric p-4 rounded-2xl flex flex-col justify-between gap-2 col-span-2 sm:col-span-1">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">عمليات بحث اليوم</p>
-            <h3 id="statTodaySearches" class="text-2xl font-black font-num text-amber-400 mt-0.5">0</h3>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10">
-            <i data-lucide="activity" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-amber-400 to-orange-500 h-full w-4/5 rounded-full"></div>
-        </div>
-      </div>
+    <!-- Top Title Banner (Exactly like Mockup!) -->
+    <div class="text-center py-1">
+      <h1 class="text-lg sm:text-2xl font-black text-white tracking-wide">
+        <span class="font-num">Admin Command Center</span> - مركز قيادة المشرف
+      </h1>
     </div>
 
-    <!-- 2. Command Center Grid: Right Sidebar Navigation (3 Cols) | Main Dynamic Viewport (9 Cols) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    <!-- Main Framed Command Window (Right Icon Sidebar + Left Main Area) -->
+    <div class="command-frame rounded-3xl overflow-hidden flex flex-col lg:flex-row flex-1 min-h-[680px]">
 
-      <!-- RIGHT SIDEBAR NAVIGATION (3 Cols on Desktop) -->
-      <aside class="lg:col-span-3 lg:sticky lg:top-4 glass-card rounded-3xl p-4 border border-cyan-500/30 space-y-4">
-        <!-- Brand & Live Pulse -->
-        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
-          <div class="flex items-center gap-2.5">
-            <div class="w-10 h-10 rounded-2xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
-              <i data-lucide="shield" class="w-5 h-5"></i>
-            </div>
-            <div>
-              <h1 class="text-sm font-black text-white">مركز قيادة المشرف</h1>
-              <div class="flex items-center gap-1.5 mt-0.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                <span class="text-[10px] text-emerald-300 font-bold">متصل ومزامن لحظياً</span>
-              </div>
-            </div>
-          </div>
-          <span id="adminDeviceBadge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">
-            💻 لابتوب
-          </span>
+      <!-- RIGHT VERTICAL ICON SIDEBAR (Exactly like Mockup!) -->
+      <aside class="hidden lg:flex flex-col items-center justify-between w-28 bg-slate-950/85 border-l border-slate-800/90 py-6 shrink-0">
+        <!-- Top Stacked Layers Logo -->
+        <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-emerald-400/20 to-indigo-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/15">
+          <i data-lucide="layers" class="w-6 h-6"></i>
         </div>
 
-        <!-- Navigation Menu Buttons -->
-        <div class="space-y-1.5">
-          <p class="text-[11px] font-bold text-slate-400 px-2 mb-1">أقسام مركز القيادة:</p>
-
-          <button type="button" id="nav_radar" onclick="switchAdminTab('radar')" class="nav-tab-btn active w-full px-3.5 py-3 rounded-2xl text-right flex items-center justify-between text-xs font-extrabold text-slate-200 cursor-pointer">
-            <span class="flex items-center gap-2.5">
-              <i data-lucide="radar" class="w-4 h-4 text-cyan-400"></i>
-              <span>الرادار الحي وفاحص الزوار</span>
-            </span>
-            <span id="badgeNavVisitors" class="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-num text-[10px]">0</span>
+        <!-- Center Navigation Icons -->
+        <div class="w-full flex flex-col gap-2">
+          <button type="button" id="nav_radar" onclick="switchAdminTab('radar')" class="sidebar-icon-btn active w-full py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="radio" class="w-6 h-6"></i>
+            <span class="text-[11px] font-extrabold">الرادار المباشر</span>
           </button>
 
-          <button type="button" id="nav_searches" onclick="switchAdminTab('searches')" class="nav-tab-btn w-full px-3.5 py-3 rounded-2xl text-right flex items-center justify-between text-xs font-extrabold text-slate-200 cursor-pointer">
-            <span class="flex items-center gap-2.5">
-              <i data-lucide="file-search" class="w-4 h-4 text-emerald-400"></i>
-              <span>سجل البحث وإدارة الحذف</span>
-            </span>
-            <span id="badgeNavSearches" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-num text-[10px]">0</span>
+          <button type="button" id="nav_searches" onclick="switchAdminTab('searches')" class="sidebar-icon-btn w-full py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="search" class="w-6 h-6"></i>
+            <span class="text-[11px] font-bold">سجلات البحث</span>
           </button>
 
-          <button type="button" id="nav_visitors" onclick="switchAdminTab('visitors')" class="nav-tab-btn w-full px-3.5 py-3 rounded-2xl text-right flex items-center justify-between text-xs font-extrabold text-slate-200 cursor-pointer">
-            <span class="flex items-center gap-2.5">
-              <i data-lucide="users" class="w-4 h-4 text-indigo-400"></i>
-              <span>سجل الزوار والأجهزة الدائم</span>
-            </span>
-            <i data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-500"></i>
+          <button type="button" id="nav_visitors" onclick="switchAdminTab('visitors')" class="sidebar-icon-btn w-full py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="users" class="w-6 h-6"></i>
+            <span class="text-[11px] font-bold">الزوار والأجهزة</span>
           </button>
 
-          <button type="button" id="nav_settings" onclick="switchAdminTab('settings')" class="nav-tab-btn w-full px-3.5 py-3 rounded-2xl text-right flex items-center justify-between text-xs font-extrabold text-slate-200 cursor-pointer">
-            <span class="flex items-center gap-2.5">
-              <i data-lucide="settings" class="w-4 h-4 text-amber-400"></i>
-              <span>الإعدادات وكلمة المرور</span>
-            </span>
-            <i data-lucide="chevron-left" class="w-3.5 h-3.5 text-slate-500"></i>
-          </button>
-
-          <button type="button" id="nav_all" onclick="switchAdminTab('all')" class="nav-tab-btn w-full px-3.5 py-2.5 rounded-2xl text-right flex items-center justify-between text-[11px] font-bold text-slate-400 hover:text-white cursor-pointer">
-            <span class="flex items-center gap-2.5">
-              <i data-lucide="layers" class="w-4 h-4 text-sky-400"></i>
-              <span>إظهار كافة الأقسام معاً</span>
-            </span>
+          <button type="button" id="nav_settings" onclick="switchAdminTab('settings')" class="sidebar-icon-btn w-full py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
+            <i data-lucide="lock" class="w-6 h-6"></i>
+            <span class="text-[11px] font-bold">إعدادات الأمان</span>
           </button>
         </div>
 
-        <!-- Quick Actions Footer in Sidebar -->
-        <div class="pt-3 border-t border-slate-800 space-y-2">
-          <div class="flex items-center gap-2">
-            <button onclick="fetchAdminData()" class="flex-1 py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer">
-              <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
-              <span>تحديث فوري</span>
-            </button>
-            <button id="logoutBtn" onclick="logoutAdmin()" class="py-2 px-3 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer" title="تسجيل الخروج">
-              <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-              <span>خروج</span>
-            </button>
-          </div>
-
-          <a href="/" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-cyan-400 to-sky-400 hover:opacity-95 text-slate-950 text-xs font-black flex items-center justify-center gap-1.5 shadow transition">
-            <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
-            <span>الانتقال لواجهة المستخرج 3D</span>
-          </a>
-        </div>
+        <!-- Bottom Logout Button -->
+        <button type="button" onclick="logoutAdmin()" title="تسجيل الخروج" class="w-11 h-11 rounded-xl hover:bg-red-500/15 text-slate-400 hover:text-red-400 flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="log-out" class="w-5 h-5"></i>
+        </button>
       </aside>
 
-      <!-- LEFT / MAIN CONTENT VIEWPORT (9 Cols on Desktop) -->
-      <div class="lg:col-span-9 space-y-5">
+      <!-- MAIN COMMAND WORKSPACE (Left of Sidebar) -->
+      <div class="flex-1 flex flex-col p-4 sm:p-6 gap-4 min-w-0">
 
-        <!-- TAB SECTION 1: LIVE RADAR MAP & VISITOR INSPECTOR DRAWER -->
-        <section id="section_radar" class="glass-card rounded-3xl p-4 sm:p-6 border border-cyan-500/30 space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800">
-            <div class="flex items-center gap-2.5">
-              <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
-              <div>
-                <h3 class="text-base font-black text-white">رادار المواقع الحية وفاحص الزوار (Live Geo-Inspector)</h3>
-                <p class="text-[11px] text-slate-400">اضغط على أي زائر من القائمة أو الدبابيس لفحص إحداثياته وجهازه وسجل بحثه</p>
-              </div>
+        <!-- Inner Header Row: Right "قيادة المشرف" | Left Profile, Notification Badge & Quick Actions -->
+        <div class="flex items-center justify-between">
+          <h2 class="text-base sm:text-lg font-black text-white">قيادة المشرف</h2>
+
+          <div class="flex items-center gap-2.5">
+            <a href="/" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition">
+              <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              <span>واجهة المستخرج</span>
+            </a>
+            <button type="button" onclick="fetchAdminData()" title="تحديث البيانات" class="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 flex items-center justify-center cursor-pointer">
+              <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i>
+            </button>
+            <div class="relative w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center justify-center">
+              <i data-lucide="bell" class="w-4 h-4"></i>
+              <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-num text-[9px] font-bold flex items-center justify-center" id="notifBadgeCount">1</span>
             </div>
-            <div class="flex items-center gap-1.5 bg-slate-950/90 p-1 rounded-xl border border-slate-800">
-              <button onclick="setAdminMapLayer('streets')" id="btnMapStreets" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
-                🗺️ شوارع جوجل
-              </button>
-              <button onclick="setAdminMapLayer('hybrid')" id="btnMapHybrid" class="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer">
-                🛰️ قمر صناعي (Satellite)
-              </button>
-            </div>
-          </div>
-
-          <!-- Split Radar + Visitor Inspector Panel -->
-          <div class="grid grid-cols-1 xl:grid-cols-12 gap-4 items-stretch">
-            <!-- Map Viewport (8 Cols) -->
-            <div class="xl:col-span-8 relative min-h-[380px] sm:min-h-[470px] rounded-2xl overflow-hidden border border-cyan-500/25">
-              <div id="adminVisitorMap" class="w-full h-full min-h-[380px] sm:min-h-[470px]"></div>
-            </div>
-
-            <!-- Visitor Inspector & Active Feed (4 Cols) -->
-            <div class="xl:col-span-4 flex flex-col justify-between gap-3 bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800">
-              <!-- Selected Visitor Inspector Card -->
-              <div id="visitorInspectorBox" class="p-3.5 rounded-2xl bg-slate-900/95 border border-cyan-500/35 space-y-2.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-xs font-black text-cyan-300 flex items-center gap-1.5">
-                    <i data-lucide="scan-face" class="w-4 h-4"></i>
-                    <span>فاحص بيانات الزائر</span>
-                  </span>
-                  <span id="inspSourceBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">GPS</span>
-                </div>
-                <div id="inspectorDetails" class="text-xs text-slate-300 space-y-1.5">
-                  <p class="text-slate-400 text-[11px]">اختر أي زائر من القائمة بالأسفل أو من الخريطة لعرض ملفه الكامل وإحداثياته الدقيقة.</p>
-                </div>
-              </div>
-
-              <!-- Quick Visitors Radar List -->
-              <div class="flex-1 flex flex-col min-h-[210px]">
-                <div class="flex items-center justify-between mb-2 px-1">
-                  <span class="text-xs font-bold text-slate-300">آخر الزوار المتصلين بالرادار:</span>
-                  <span class="text-[10px] text-cyan-400">اضغط للتتبع</span>
-                </div>
-                <div id="radarVisitorsQuickList" class="space-y-2 overflow-y-auto max-h-[240px] pr-1">
-                  <div class="p-4 text-center text-slate-500 text-xs">جارٍ التحميل...</div>
-                </div>
+            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5">
+              <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center text-emerald-300">
+                <i data-lucide="user" class="w-4 h-4"></i>
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 4 Color-Coded Glowing KPI Cards (Matching Mockup 1:1!) -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+          
+          <!-- Card 1 (Purple): Top Active City -->
+          <div class="kpi-purple p-4 rounded-2xl flex items-center justify-between">
+            <div class="text-right">
+              <p class="text-xs text-purple-200/80 font-semibold">المدينة الأكثر نشاطاً:</p>
+              <h3 id="statTopCity" class="text-2xl sm:text-3xl font-black text-white mt-1">صنعاء</h3>
+            </div>
+            <div class="w-11 h-11 rounded-full bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300">
+              <i data-lucide="map-pin" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <!-- Card 2 (Royal Blue): Live Searches -->
+          <div class="kpi-blue p-4 rounded-2xl flex items-center justify-between">
+            <div class="text-right">
+              <p class="text-xs text-blue-200/80 font-semibold flex items-center gap-1">
+                <i data-lucide="search" class="w-3.5 h-3.5 text-blue-300"></i>
+                <span>عمليات البحث الحية</span>
+              </p>
+              <h3 id="statTotalSearches" class="text-2xl sm:text-3xl font-black font-num text-white mt-1">0</h3>
+            </div>
+            <div class="w-11 h-11 rounded-xl bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-300">
+              <i data-lucide="trending-up" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <!-- Card 3 (Emerald): Active GPS Devices -->
+          <div class="kpi-emerald p-4 rounded-2xl flex items-center justify-between">
+            <div class="text-right">
+              <p class="text-xs text-emerald-200/80 font-semibold flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-300"></i>
+                <span>أجهزة GPS النشطة</span>
+              </p>
+              <h3 id="statGpsVisitors" class="text-2xl sm:text-3xl font-black font-num text-white mt-1">0</h3>
+            </div>
+            <div class="w-11 h-11 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+              <i data-lucide="Compass" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+          <!-- Card 4 (Cyan): Total Visitors -->
+          <div class="kpi-cyan p-4 rounded-2xl flex items-center justify-between">
+            <div class="text-right">
+              <p class="text-xs text-cyan-200/80 font-semibold flex items-center gap-1">
+                <i data-lucide="users" class="w-3.5 h-3.5 text-cyan-300"></i>
+                <span>إجمالي الزوار</span>
+              </p>
+              <h3 id="statTotalVisitors" class="text-2xl sm:text-3xl font-black font-num text-white mt-1">0</h3>
+            </div>
+            <div class="w-11 h-11 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300">
+              <i data-lucide="folder-kanban" class="w-5 h-5"></i>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- TAB 1: LIVE RADAR MAP WITH FLOATING "VISITOR INSPECTOR" OVERLAY ON THE LEFT (Matching Mockup 1:1!) -->
+        <section id="section_radar" class="relative flex-1 min-h-[470px] rounded-2xl overflow-hidden border border-slate-800">
+          
+          <!-- Full-Area Dark Cyber / Satellite Map -->
+          <div id="adminVisitorMap" class="dark-cyber-map w-full h-full min-h-[470px]"></div>
+
+          <!-- Top-Right Map Layer Controls (Exactly like Mockup: [Home] [Satellite street map]) -->
+          <div class="absolute top-3 right-3 z-[400] flex items-center gap-2">
+            <button type="button" onclick="centerOnLatestVisitor()" class="w-9 h-9 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 flex items-center justify-center shadow-lg cursor-pointer" title="التركيز على آخر زائر">
+              <i data-lucide="home" class="w-4 h-4"></i>
+            </button>
+            <button type="button" onclick="toggleAdminMapMode()" id="btnMapLayerToggle" class="px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-num font-bold flex items-center gap-2 shadow-lg cursor-pointer">
+              <i data-lucide="filter" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span id="mapLayerLabel">Satellite street map</span>
+            </button>
+          </div>
+
+          <!-- Floating Glassmorphic "Visitor Inspector" Overlay on the Left Side of the Map (100% Identical to Mockup!) -->
+          <div id="visitorInspectorDrawer" class="inspector-glass absolute top-3 bottom-3 left-3 z-[400] w-[280px] sm:w-[310px] rounded-2xl p-4 flex flex-col justify-between overflow-hidden" dir="ltr">
+            
+            <!-- Inspector Header -->
+            <div>
+              <div class="flex items-center justify-between pb-3 border-b border-slate-700/70">
+                <h4 class="text-sm font-bold text-white tracking-wide">Visitor Inspector</h4>
+                <button type="button" onclick="document.getElementById('visitorInspectorDrawer').classList.toggle('hidden')" class="text-slate-400 hover:text-white">
+                  <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+              </div>
+
+              <!-- Selected Visitor Profile Row -->
+              <div class="flex items-center justify-between py-3 border-b border-slate-700/60">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-sm shrink-0">
+                    👤
+                  </div>
+                  <div class="min-w-0">
+                    <div id="inspVisitorName" class="text-sm font-black text-white truncate">Visitor</div>
+                    <div id="inspVisitorSub" class="text-[11px] text-slate-400 truncate">Active Session</div>
+                  </div>
+                </div>
+                <a id="inspGmapsLink" href="#" target="_blank" class="w-7 h-7 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 flex items-center justify-center shrink-0" title="فتح في خرائط جوجل">
+                  <i data-lucide="info" class="w-3.5 h-3.5"></i>
+                </a>
+              </div>
+
+              <!-- Telemetry Specs: Device Type, GPS Coordinates, IP Address -->
+              <div class="py-3 space-y-3 border-b border-slate-700/60 text-left">
+                <div class="flex items-start gap-2.5">
+                  <i data-lucide="smartphone" class="w-4 h-4 text-slate-400 mt-0.5 shrink-0"></i>
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400">Device Type</div>
+                    <div id="inspDevice" class="text-xs font-bold text-white truncate">Desktop / Mobile</div>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2.5">
+                  <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 mt-0.5 shrink-0"></i>
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400">GPS Coordinates</div>
+                    <div id="inspCoords" class="text-xs font-num font-bold text-white">15.3538° N, 44.2058° E</div>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2.5">
+                  <i data-lucide="globe" class="w-4 h-4 text-cyan-400 mt-0.5 shrink-0"></i>
+                  <div class="min-w-0">
+                    <div class="text-[10px] text-slate-400">IP Address</div>
+                    <div id="inspIp" class="text-xs font-num font-bold text-white">0.0.0.0</div>
+                    <div id="inspCityBadge" class="text-[11px] text-emerald-400 font-semibold mt-0.5">Live GPS Radar ✓</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Search & Visitor Activity Log Timeline at Bottom of Inspector -->
+            <div class="flex-1 flex flex-col min-h-0 pt-2.5">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-white">Live Search Log</span>
+                <i data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-400"></i>
+              </div>
+              <div id="inspectorLiveTimeline" class="space-y-2.5 overflow-y-auto pr-1 flex-1" dir="rtl">
+                <!-- Populated dynamically with visitors & searches -->
+              </div>
+            </div>
+
+          </div>
+
         </section>
 
-        <!-- TAB SECTION 2: SEARCH LOGS & DELETION CONTROLS -->
-        <section id="section_searches" class="hidden glass-card rounded-3xl p-4 sm:p-6 border border-cyan-500/30 space-y-4">
-          <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+        <!-- TAB 2: SEARCH LOGS & DELETION MANAGEMENT -->
+        <section id="section_searches" class="hidden space-y-4">
+          <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
             <div>
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="file-search" class="w-5 h-5 text-emerald-400"></i>
+              <h3 class="text-base font-black text-white flex items-center gap-2">
+                <i data-lucide="search" class="w-5 h-5 text-emerald-400"></i>
                 <span>سجل عمليات البحث وإدارة الحذف</span>
               </h3>
-              <p class="text-xs text-slate-400">يعرض ما بحث عنه كل زائر، المدينة والحي، عدد النتائج، مع تحكم كامل بالحذف والتصدير</p>
+              <p class="text-xs text-slate-400">حذف الكل، أو حذف آخر 24 ساعة، أو تحديد عمليات معينة لحذفها</p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-              <button onclick="deleteSearches('selected')" class="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+              <button onclick="deleteSearches('selected')" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
                 <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
                 <span>حذف المحدد</span>
               </button>
-              <button onclick="deleteSearches('last_day')" class="px-3 py-2 rounded-xl bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+              <button onclick="deleteSearches('last_day')" class="px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
                 <i data-lucide="clock" class="w-3.5 h-3.5"></i>
                 <span>حذف آخر 24 ساعة</span>
               </button>
-              <button onclick="deleteSearches('all')" class="px-3 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+              <button onclick="deleteSearches('all')" class="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                 <span>حذف الكل</span>
               </button>
-              <button onclick="exportSearchesExcel()" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 shadow transition cursor-pointer">
+              <button onclick="exportSearchesExcel()" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
                 <span>تصدير Excel</span>
               </button>
             </div>
           </div>
 
-          <!-- Filter inside Search Logs -->
-          <div class="relative">
-            <i data-lucide="search" class="absolute right-3.5 top-2.5 w-4 h-4 text-slate-400"></i>
-            <input
-              type="text"
-              id="adminSearchFilterInput"
-              oninput="filterAdminSearches(this.value)"
-              placeholder="ابحث في سجل البحث باسم الزائر، الكلمة المبحوثة، أو المدينة..."
-              class="w-full bg-slate-950/80 text-xs rounded-xl pr-10 pl-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-400 text-slate-200"
-            />
-          </div>
-
-          <div id="desktopSearchesTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/70">
+          <div id="desktopSearchesTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
             <table class="w-full text-right text-xs">
-              <thead class="bg-slate-900/95 text-cyan-300 font-bold border-b border-slate-800">
+              <thead class="bg-slate-900 text-emerald-300 font-bold border-b border-slate-800">
                 <tr>
                   <th class="p-3 w-8 text-center">
-                    <input type="checkbox" id="selectAllSearchesCheckbox" onchange="toggleSelectAllSearches(this.checked)" class="accent-cyan-400 cursor-pointer" title="تحديد الكل" />
+                    <input type="checkbox" id="selectAllSearchesCheckbox" onchange="toggleSelectAllSearches(this.checked)" class="accent-emerald-400 cursor-pointer" />
                   </th>
                   <th class="p-3">#</th>
                   <th class="p-3">وقت البحث</th>
-                  <th class="p-3">نوع النشاط المبحوث</th>
-                  <th class="p-3">المدينة المطلوبة</th>
-                  <th class="p-3">الحي المحدد</th>
+                  <th class="p-3">النشاط المبحوث</th>
+                  <th class="p-3">المدينة</th>
+                  <th class="p-3">الحي</th>
                   <th class="p-3">النطاق</th>
-                  <th class="p-3">النتائج المستخرجة</th>
-                  <th class="p-3">الزائر وموقعه</th>
+                  <th class="p-3">النتائج</th>
+                  <th class="p-3">الزائر</th>
                   <th class="p-3 text-center">حذف</th>
                 </tr>
               </thead>
-              <tbody id="searchesTableBody" class="divide-y divide-slate-800/60">
-                <tr>
-                  <td colspan="10" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
-                </tr>
-              </tbody>
+              <tbody id="searchesTableBody" class="divide-y divide-slate-800/60"></tbody>
             </table>
           </div>
 
-          <!-- Mobile Searches Cards -->
-          <div id="mobileSearchesCards" class="flex-col gap-3">
-            <div class="p-6 text-center text-slate-400 text-xs">جارٍ جلب السجلات...</div>
-          </div>
+          <div id="mobileSearchesCards" class="flex-col gap-3"></div>
         </section>
 
-        <!-- TAB SECTION 3: VISITORS & DEVICES PERMANENT LOG -->
-        <section id="section_visitors" class="hidden glass-card rounded-3xl p-4 sm:p-6 border border-cyan-500/30 space-y-4">
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+        <!-- TAB 3: VISITORS & DEVICES PERMANENT ARCHIVE -->
+        <section id="section_visitors" class="hidden space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
             <div>
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="users" class="w-5 h-5 text-indigo-400"></i>
-                <span>سجل الجلسات والزوار والأجهزة الدائم</span>
+              <h3 class="text-base font-black text-white flex items-center gap-2">
+                <i data-lucide="users" class="w-5 h-5 text-cyan-400"></i>
+                <span>سجل الزوار والأجهزة الدائم</span>
               </h3>
-              <p class="text-xs text-slate-400">أرشفة تلقائية دائمة لكل عملية دخول مع الإحداثيات ونوع الجهاز وعمليات البحث</p>
+              <p class="text-xs text-slate-400">اضغط على "فحص بالرادار" لأي زائر لعرض موقعه في بطاقة الفاحص على الخريطة</p>
             </div>
-
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-300 flex items-center gap-1.5">
-                <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
-                <span>أرشفة دائمة</span>
-              </span>
-              <button onclick="exportVisitorsExcel()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-bold text-white flex items-center gap-1.5 shadow transition cursor-pointer">
-                <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                <span>تصدير الجلسات Excel</span>
-              </button>
-            </div>
+            <button onclick="exportVisitorsExcel()" class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>تصدير الزوار Excel</span>
+            </button>
           </div>
 
-          <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/70">
+          <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
             <table class="w-full text-right text-xs">
-              <thead class="bg-slate-900/95 text-indigo-300 font-bold border-b border-slate-800">
+              <thead class="bg-slate-900 text-cyan-300 font-bold border-b border-slate-800">
                 <tr>
                   <th class="p-3">#</th>
-                  <th class="p-3">الاسم أو الرقم / الجلسة</th>
-                  <th class="p-3">الآي بي (IP)</th>
-                  <th class="p-3">موقع الدخول والإحداثيات</th>
-                  <th class="p-3">عمليات البحث بالجلسة</th>
+                  <th class="p-3">الاسم / الجلسة</th>
+                  <th class="p-3">IP</th>
+                  <th class="p-3">الموقع والإحداثيات</th>
+                  <th class="p-3">عمليات البحث</th>
                   <th class="p-3">الشبكة والجهاز</th>
                   <th class="p-3">وقت الدخول</th>
-                  <th class="p-3">آخر نشاط</th>
-                  <th class="p-3 text-center">إجراءات التتبع</th>
+                  <th class="p-3 text-center">التتبع</th>
                 </tr>
               </thead>
-              <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60">
-                <tr>
-                  <td colspan="9" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
-                </tr>
-              </tbody>
+              <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60"></tbody>
             </table>
           </div>
 
-          <!-- Mobile Visitors Cards -->
-          <div id="mobileVisitorsCards" class="flex-col gap-3">
-            <div class="p-6 text-center text-slate-400 text-xs">جارٍ جلب السجلات...</div>
-          </div>
+          <div id="mobileVisitorsCards" class="flex-col gap-3"></div>
         </section>
 
-        <!-- TAB SECTION 4: ADMIN SETTINGS & SECURITY -->
-        <section id="section_settings" class="hidden glass-card rounded-3xl p-4 sm:p-6 border border-indigo-500/40 space-y-5">
-          <div class="flex items-center justify-between border-b border-slate-800 pb-3.5">
-            <div>
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="settings" class="w-5 h-5 text-amber-400"></i>
-                <span>إعدادات المشرف والأمان (Security & Preferences)</span>
-              </h3>
-              <p class="text-xs text-slate-400">تغيير كلمة مرور المشرف، وضبط سرعة الرادار والنسخ الاحتياطي</p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Password Change Card -->
-            <form onsubmit="handleChangeAdminPassword(event)" class="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-3.5">
-              <div class="flex items-center gap-2 text-cyan-300 font-bold text-sm">
+        <!-- TAB 4: SECURITY & PASSWORD SETTINGS -->
+        <section id="section_settings" class="hidden space-y-4">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <form onsubmit="handleChangeAdminPassword(event)" class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3.5">
+              <div class="flex items-center gap-2 text-emerald-300 font-bold text-sm">
                 <i data-lucide="key-round" class="w-4 h-4"></i>
                 <span>تغيير كلمة مرور المشرف</span>
               </div>
-
               <div>
                 <label class="block text-xs text-slate-300 mb-1">كلمة المرور الحالية:</label>
-                <input
-                  type="password"
-                  id="currentAdminPass"
-                  placeholder="أدخل كلمة المرور الحالية..."
-                  required
-                  class="w-full bg-slate-900 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-                />
+                <input type="password" id="currentAdminPass" required class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white" />
               </div>
-
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label class="block text-xs text-slate-300 mb-1">كلمة المرور الجديدة:</label>
-                  <input
-                    type="password"
-                    id="newAdminPass"
-                    placeholder="كلمة المرور الجديدة..."
-                    required
-                    class="w-full bg-slate-900 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-                  />
+                  <input type="password" id="newAdminPass" required class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white" />
                 </div>
                 <div>
                   <label class="block text-xs text-slate-300 mb-1">تأكيد كلمة المرور الجديدة:</label>
-                  <input
-                    type="password"
-                    id="confirmAdminPass"
-                    placeholder="أعد كتابة كلمة المرور..."
-                    required
-                    class="w-full bg-slate-900 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
-                  />
+                  <input type="password" id="confirmAdminPass" required class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white" />
                 </div>
               </div>
-
               <div id="passChangeMsg" class="hidden text-xs p-2.5 rounded-lg text-center font-bold"></div>
-
-              <button
-                type="submit"
-                id="savePassBtn"
-                class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 to-indigo-500 hover:opacity-95 text-slate-950 font-black text-xs transition cursor-pointer"
-              >
+              <button type="submit" id="savePassBtn" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-xs cursor-pointer">
                 حفظ كلمة المرور الجديدة
               </button>
             </form>
 
-            <!-- General Dashboard Preferences & Backup Card -->
-            <div class="p-5 rounded-2xl bg-slate-950/80 border border-slate-800 space-y-4 flex flex-col justify-between">
+            <div class="p-5 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-4 flex flex-col justify-between">
               <div class="space-y-3">
-                <div class="flex items-center gap-2 text-indigo-300 font-bold text-sm">
+                <div class="flex items-center gap-2 text-cyan-300 font-bold text-sm">
                   <i data-lucide="sliders" class="w-4 h-4"></i>
-                  <span>تفضيلات الرادار والتحديث التلقائي</span>
+                  <span>إعدادات الرادار والتحديث</span>
                 </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs text-slate-300 mb-1">سرعة التحديث التلقائي:</label>
-                    <select id="prefAutoRefresh" onchange="applyAdminPreferences()" class="w-full bg-slate-900 text-xs rounded-xl px-3 py-2.5 border border-slate-700 text-white">
-                      <option value="5">كل 5 ثوانٍ (فوري)</option>
-                      <option value="10" selected>كل 10 ثوانٍ (موصى به)</option>
-                      <option value="30">كل 30 ثانية</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block text-xs text-slate-300 mb-1">نمط الخريطة الافتراضي:</label>
-                    <select id="prefMapStyle" onchange="setAdminMapLayer(this.value)" class="w-full bg-slate-900 text-xs rounded-xl px-3 py-2.5 border border-slate-700 text-white">
-                      <option value="streets">خريطة شوارع جوجل التفصيلية</option>
-                      <option value="hybrid">قمر صناعي هجين (Satellite)</option>
-                    </select>
-                  </div>
+                <div>
+                  <label class="block text-xs text-slate-300 mb-1">سرعة التحديث التلقائي:</label>
+                  <select id="prefAutoRefresh" onchange="applyAdminPreferences()" class="w-full bg-slate-950 text-xs rounded-xl px-3 py-2.5 border border-slate-700 text-white">
+                    <option value="5">كل 5 ثوانٍ</option>
+                    <option value="10" selected>كل 10 ثوانٍ</option>
+                    <option value="30">كل 30 ثانية</option>
+                  </select>
                 </div>
               </div>
-
-              <div class="pt-3 border-t border-slate-800 space-y-2">
-                <p class="text-[11px] text-slate-400">تصدير نسخة احتياطية شاملة لكافة السجلات المحفوظة:</p>
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" onclick="exportVisitorsExcel()" class="flex-1 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer">
-                    📊 تصدير سجل الزوار (Excel)
-                  </button>
-                  <button type="button" onclick="exportSearchesExcel()" class="flex-1 py-2.5 px-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition cursor-pointer">
-                    🔍 تصدير سجل البحث (Excel)
-                  </button>
-                </div>
+              <div class="flex gap-2">
+                <button type="button" onclick="exportVisitorsExcel()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">تصدير الزوار Excel</button>
+                <button type="button" onclick="exportSearchesExcel()" class="flex-1 py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-bold cursor-pointer">تصدير البحث Excel</button>
               </div>
             </div>
           </div>
@@ -647,33 +537,25 @@
 
   </main>
 
-  <!-- Mobile Bottom Navigation Bar for Admin -->
-  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-cyan-500/30 px-3 py-2 flex items-center justify-around">
-    <button type="button" onclick="switchAdminTab('radar')" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[10px] font-bold">
-      <i data-lucide="radar" class="w-4 h-4"></i>
-      <span>الرادار</span>
+  <!-- Mobile Bottom Navigation Bar -->
+  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-3 py-2 flex items-center justify-around">
+    <button type="button" onclick="switchAdminTab('radar')" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[10px] font-bold">
+      <i data-lucide="radio" class="w-4 h-4"></i>
+      <span>الرادار المباشر</span>
     </button>
-    <button type="button" onclick="switchAdminTab('searches')" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[10px] font-bold">
-      <i data-lucide="file-search" class="w-4 h-4"></i>
-      <span>سجل البحث</span>
+    <button type="button" onclick="switchAdminTab('searches')" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[10px] font-bold">
+      <i data-lucide="search" class="w-4 h-4"></i>
+      <span>سجلات البحث</span>
     </button>
     <button type="button" onclick="switchAdminTab('visitors')" class="flex flex-col items-center gap-0.5 text-indigo-400 text-[10px] font-bold">
       <i data-lucide="users" class="w-4 h-4"></i>
-      <span>الزوار</span>
+      <span>الزوار والأجهزة</span>
     </button>
     <button type="button" onclick="switchAdminTab('settings')" class="flex flex-col items-center gap-0.5 text-amber-400 text-[10px] font-bold">
-      <i data-lucide="settings" class="w-4 h-4"></i>
-      <span>الإعدادات</span>
+      <i data-lucide="lock" class="w-4 h-4"></i>
+      <span>الأمان</span>
     </button>
   </nav>
-
-  <!-- Footer -->
-  <footer class="mt-6 border-t border-slate-800/80 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-500">
-    <div class="max-w-[1460px] mx-auto flex items-center justify-between">
-      <p>GeoRadar Command Center &bull; مركز القيادة والرقابة الحية</p>
-      <span class="text-cyan-400 font-bold">نظام مشفر ومحمي</span>
-    </div>
-  </footer>
 
   <script>
     lucide.createIcons();
@@ -682,41 +564,28 @@
     let visitorMarkers = [];
     let currentAdminData = { visitors: [], searches: [] };
     let currentAdminTab = 'radar';
+    let isSatelliteMode = false;
 
-    // Switch Sidebar Tabs cleanly
     function switchAdminTab(tabName) {
       currentAdminTab = tabName;
-      const sections = ['radar', 'searches', 'visitors', 'settings'];
-      const navIds = ['radar', 'searches', 'visitors', 'settings', 'all'];
-
-      navIds.forEach(k => {
-        const btn = document.getElementById(`nav_${k}`);
-        if (btn) {
-          if (k === tabName) btn.classList.add('active');
-          else btn.classList.remove('active');
+      ['radar', 'searches', 'visitors', 'settings'].forEach(sec => {
+        const el = document.getElementById(`section_${sec}`);
+        const nav = document.getElementById(`nav_${sec}`);
+        if (el) {
+          if (sec === tabName) el.classList.remove('hidden');
+          else el.classList.add('hidden');
+        }
+        if (nav) {
+          if (sec === tabName) nav.classList.add('active');
+          else nav.classList.remove('active');
         }
       });
 
-      if (tabName === 'all') {
-        sections.forEach(sec => {
-          document.getElementById(`section_${sec}`)?.classList.remove('hidden');
-        });
-      } else {
-        sections.forEach(sec => {
-          const el = document.getElementById(`section_${sec}`);
-          if (el) {
-            if (sec === tabName) el.classList.remove('hidden');
-            else el.classList.add('hidden');
-          }
-        });
-      }
-
-      if ((tabName === 'radar' || tabName === 'all') && adminMap) {
+      if (tabName === 'radar' && adminMap) {
         setTimeout(() => adminMap.invalidateSize(), 150);
       }
     }
 
-    // Check existing auth in sessionStorage
     window.addEventListener('DOMContentLoaded', () => {
       const token = sessionStorage.getItem('admin_token');
       if (token === 'admin_auth_token_2026') {
@@ -750,11 +619,11 @@
           errBox.classList.remove('hidden');
         }
       } catch (err) {
-        errBox.innerText = "خطأ في الاتصال بالخادم: " + err.message;
+        errBox.innerText = "خطأ في الاتصال بالخادم";
         errBox.classList.remove('hidden');
       } finally {
         btn.disabled = false;
-        btn.innerText = "فتح مركز القيادة";
+        btn.innerText = "دخول مركز القيادة";
       }
     }
 
@@ -791,17 +660,11 @@
       }
 
       btn.disabled = true;
-      btn.innerText = 'جارٍ الحفظ...';
-
       try {
         const res = await fetch('/api/admin/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'change_password',
-            currentPassword,
-            newPassword
-          })
+          body: JSON.stringify({ action: 'change_password', currentPassword, newPassword })
         });
         const data = await res.json();
         if (res.ok && data.success) {
@@ -815,11 +678,9 @@
           msgBox.innerText = data.message || 'تعذر تغيير كلمة المرور';
         }
       } catch (err) {
-        msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-red-950/60 text-red-300 border border-red-500/40';
         msgBox.innerText = 'حدث خطأ أثناء الاتصال بالخادم';
       } finally {
         btn.disabled = false;
-        btn.innerText = 'حفظ كلمة المرور الجديدة';
       }
     }
 
@@ -834,7 +695,8 @@
 
     function initAdminMap() {
       if (adminMap) return;
-      adminMap = L.map('adminVisitorMap').setView([15.340137, 44.191831], 14);
+      adminMap = L.map('adminVisitorMap', { zoomControl: false }).setView([15.3538, 44.2058], 14);
+      L.control.zoom({ position: 'bottomright' }).addTo(adminMap);
 
       googleStreetsLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
         attribution: '&copy; Google Maps',
@@ -849,89 +711,57 @@
       googleStreetsLayer.addTo(adminMap);
     }
 
-    function setAdminMapLayer(type) {
+    function toggleAdminMapMode() {
       if (!adminMap) return;
-      const btnStreets = document.getElementById('btnMapStreets');
-      const btnHybrid = document.getElementById('btnMapHybrid');
+      isSatelliteMode = !isSatelliteMode;
+      const mapEl = document.getElementById('adminVisitorMap');
+      const lbl = document.getElementById('mapLayerLabel');
 
-      if (type === 'hybrid') {
+      if (isSatelliteMode) {
+        mapEl.classList.remove('dark-cyber-map');
         if (adminMap.hasLayer(googleStreetsLayer)) adminMap.removeLayer(googleStreetsLayer);
         googleHybridLayer.addTo(adminMap);
-        btnHybrid.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
-        btnStreets.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer";
+        if (lbl) lbl.innerText = 'Dark Cyber Radar';
       } else {
+        mapEl.classList.add('dark-cyber-map');
         if (adminMap.hasLayer(googleHybridLayer)) adminMap.removeLayer(googleHybridLayer);
         googleStreetsLayer.addTo(adminMap);
-        btnStreets.className = "px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
-        btnHybrid.className = "px-3 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white transition cursor-pointer";
+        if (lbl) lbl.innerText = 'Satellite street map';
       }
     }
 
-    // Inspect Visitor in the Side Inspector Drawer & Fly Map to their exact coordinates
+    function centerOnLatestVisitor() {
+      if (currentAdminData.visitors && currentAdminData.visitors.length > 0) {
+        inspectVisitor(0);
+      }
+    }
+
+    // Populate Floating Visitor Inspector & Fly Map to Visitor
     function inspectVisitor(idx) {
       const v = currentAdminData.visitors[idx];
       if (!v) return;
 
-      if (currentAdminTab !== 'radar' && currentAdminTab !== 'all') {
+      if (currentAdminTab !== 'radar') {
         switchAdminTab('radar');
       }
 
-      const badge = document.getElementById('inspSourceBadge');
-      if (badge) {
-        badge.innerText = v.locationSource === 'IP' ? 'IP Network' : '🎯 GPS دقيق';
-        badge.className = v.locationSource === 'IP'
-          ? 'px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold'
-          : 'px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold';
-      }
+      const drawer = document.getElementById('visitorInspectorDrawer');
+      if (drawer) drawer.classList.remove('hidden');
 
-      const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
-        ? v.sessionSearches
-        : (currentAdminData.searches || []).filter(s => s.visitorId === v.id);
-
-      const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
-      const detailsBox = document.getElementById('inspectorDetails');
-      if (detailsBox) {
-        detailsBox.innerHTML = `
-          <div class="pt-1 space-y-1.5">
-            <div class="flex items-center justify-between">
-              <span class="font-black text-white text-sm">👤 ${v.visitorName || 'زائر'}</span>
-              <span class="font-num text-cyan-400 text-[11px]">${v.ip || ''}</span>
-            </div>
-            <div class="text-emerald-400 font-bold">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</div>
-            <div class="font-num text-[11px] text-slate-300 bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800" dir="ltr">
-              Lat: ${Number(v.lat).toFixed(6)} | Lng: ${Number(v.lng).toFixed(6)}
-            </div>
-            <div class="text-[11px] text-slate-300">💻 الجهاز: <span class="text-white">${v.device || '-'}</span></div>
-            <div class="text-[11px] text-slate-300">🌐 الشبكة: <span class="text-cyan-300">${v.isp || '-'}</span></div>
-            <div class="pt-1 border-t border-slate-800">
-              <span class="text-[11px] font-bold text-indigo-300 block mb-1">🔎 عمليات البحث (${sessionSearches.length}):</span>
-              ${sessionSearches.length > 0
-                ? `<div class="max-h-20 overflow-y-auto space-y-1">${sessionSearches.map(s => `<div class="text-[11px] bg-slate-950/90 px-2 py-1 rounded border border-slate-800 text-slate-200">• ${s.query} (${s.targetLocation || 'صنعاء'})</div>`).join('')}</div>`
-                : `<span class="text-[11px] text-slate-500">لم ينفذ عملية بحث بعد</span>`
-              }
-            </div>
-            <div class="pt-2 flex gap-2">
-              <a href="${gmapsLink}" target="_blank" class="w-full py-1.5 px-3 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs text-center transition">
-                فتح الموقع في خرائط جوجل ↗
-              </a>
-            </div>
-          </div>
-        `;
-      }
+      document.getElementById('inspVisitorName').innerText = v.visitorName || 'Visitor';
+      document.getElementById('inspVisitorSub').innerText = v.device ? v.device.split('-')[0].trim() : 'Active Device';
+      document.getElementById('inspDevice').innerText = v.device || 'Smartphone / Desktop';
+      document.getElementById('inspCoords').innerText = `${Number(v.lat || 15.3538).toFixed(4)}° N, ${Number(v.lng || 44.2058).toFixed(4)}° E`;
+      document.getElementById('inspIp').innerText = v.ip || '0.0.0.0';
+      document.getElementById('inspCityBadge').innerText = `${v.city || 'صنعاء'} • ${v.locationSource === 'IP' ? 'IP Network' : 'Live GPS ✓'}`;
+      document.getElementById('inspGmapsLink').href = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
 
       if (adminMap && v.lat && v.lng) {
         setTimeout(() => {
           adminMap.invalidateSize();
-          adminMap.flyTo([v.lat, v.lng], 17, { duration: 1.1 });
-          if (visitorMarkers[idx]) {
-            setTimeout(() => visitorMarkers[idx].openPopup(), 1000);
-          }
-        }, 120);
+          adminMap.flyTo([v.lat, v.lng], 16, { duration: 1.0 });
+        }, 100);
       }
-    }
-
-    function focusVisitorOnMap(lat, lng, idx) {
-      inspectVisitor(idx);
     }
 
     const ARCHIVE_STORAGE_KEY = 'admin_permanent_archive_v1';
@@ -964,13 +794,6 @@
           for (const v of (localArch.visitors || [])) {
             if (v && v.id) visitorMap.set(v.id, v);
           }
-          let missingOnServerCount = 0;
-          const serverVisitorIds = new Set((data.visitors || []).map(v => v.id));
-          for (const v of (localArch.visitors || [])) {
-            if (v && v.id && !serverVisitorIds.has(v.id)) {
-              missingOnServerCount++;
-            }
-          }
           for (const v of (data.visitors || [])) {
             if (v && v.id) visitorMap.set(v.id, v);
           }
@@ -982,12 +805,6 @@
           for (const s of (localArch.searches || [])) {
             if (s && s.id) searchMap.set(s.id, s);
           }
-          const serverSearchIds = new Set((data.searches || []).map(s => s.id));
-          for (const s of (localArch.searches || [])) {
-            if (s && s.id && !serverSearchIds.has(s.id)) {
-              missingOnServerCount++;
-            }
-          }
           for (const s of (data.searches || [])) {
             if (s && s.id) searchMap.set(s.id, s);
           }
@@ -997,22 +814,21 @@
 
           saveLocalArchive(mergedVisitors, mergedSearches);
 
-          if (missingOnServerCount > 0) {
-            fetch('/api/admin/sync', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ visitors: mergedVisitors, searches: mergedSearches })
-            }).catch(() => {});
-          }
-
-          const todayStr = new Date().toISOString().slice(0, 10);
           const gpsCount = mergedVisitors.filter(v => v.locationSource !== 'IP').length;
+
+          // Compute Top Active City
+          const cityCounts = {};
+          mergedSearches.forEach(s => {
+            const c = (s.targetLocation || 'صنعاء').trim();
+            if (c) cityCounts[c] = (cityCounts[c] || 0) + 1;
+          });
+          const topCity = Object.keys(cityCounts).sort((a, b) => cityCounts[b] - cityCounts[a])[0] || 'صنعاء';
+
           const mergedStats = {
             totalVisitors: mergedVisitors.length,
             gpsVisitors: gpsCount,
             totalSearches: mergedSearches.length,
-            todayVisitors: mergedVisitors.filter(v => (v.lastSeen || '').startsWith(todayStr)).length,
-            todaySearches: mergedSearches.filter(s => (s.timestamp || '').startsWith(todayStr)).length
+            topCity: topCity
           };
 
           currentAdminData = {
@@ -1025,7 +841,7 @@
           renderSearches(mergedSearches);
           renderVisitors(mergedVisitors, mergedSearches);
           renderMapPins(mergedVisitors);
-          renderRadarQuickList(mergedVisitors);
+          renderInspectorTimeline(mergedVisitors, mergedSearches);
         }
       } catch (err) {
         console.error('Fetch admin data error:', err);
@@ -1035,115 +851,123 @@
     }
 
     function renderStats(stats = {}) {
-      document.getElementById('statTotalVisitors').innerText = stats.totalVisitors || 0;
-      const gpsEl = document.getElementById('statGpsVisitors');
-      if (gpsEl) gpsEl.innerText = stats.gpsVisitors || 0;
-      document.getElementById('statTodayVisitors').innerText = stats.todayVisitors || 0;
-      document.getElementById('statTotalSearches').innerText = stats.totalSearches || 0;
-      document.getElementById('statTodaySearches').innerText = stats.todaySearches || 0;
-
-      const bVis = document.getElementById('badgeNavVisitors');
-      if (bVis) bVis.innerText = stats.totalVisitors || 0;
-      const bSea = document.getElementById('badgeNavSearches');
-      if (bSea) bSea.innerText = stats.totalSearches || 0;
+      document.getElementById('statTotalVisitors').innerText = (stats.totalVisitors || 0).toLocaleString();
+      document.getElementById('statGpsVisitors').innerText = (stats.gpsVisitors || 0).toLocaleString();
+      document.getElementById('statTotalSearches').innerText = (stats.totalSearches || 0).toLocaleString();
+      document.getElementById('statTopCity').innerText = stats.topCity || 'صنعاء';
+      const notif = document.getElementById('notifBadgeCount');
+      if (notif) notif.innerText = Math.min(stats.totalVisitors || 1, 99);
     }
 
-    function renderRadarQuickList(visitors = []) {
-      const box = document.getElementById('radarVisitorsQuickList');
+    function renderInspectorTimeline(visitors = [], searches = []) {
+      const box = document.getElementById('inspectorLiveTimeline');
       if (!box) return;
-      if (visitors.length === 0) {
-        box.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs">لا يوجد زوار مسجلون بعد</div>`;
+
+      const items = [];
+      visitors.slice(0, 12).forEach((v, idx) => {
+        items.push({
+          type: 'visitor',
+          idx,
+          title: `👤 ${v.visitorName || 'زائر'}`,
+          sub: `${v.city || 'صنعاء'} • ${v.ip || ''}`,
+          color: '#10b981'
+        });
+      });
+      searches.slice(0, 8).forEach((s) => {
+        items.push({
+          type: 'search',
+          idx: 0,
+          title: `🔍 ${s.query || 'بحث'} - ${s.targetLocation || 'صنعاء'}`,
+          sub: `${s.visitorName || 'زائر'} (${s.resultsCount || 0} نتيجة)`,
+          color: '#a855f7'
+        });
+      });
+
+      if (items.length === 0) {
+        box.innerHTML = `<div class="text-xs text-slate-500 text-center py-4">لا توجد سجلات بعد</div>`;
         return;
       }
 
-      box.innerHTML = visitors.slice(0, 25).map((v, idx) => {
-        const isGps = v.locationSource !== 'IP';
-        return `
-          <div onclick="inspectVisitor(${idx})" class="p-2.5 rounded-xl bg-slate-900/90 hover:bg-cyan-500/15 border border-slate-800 hover:border-cyan-500/40 cursor-pointer transition flex items-center justify-between gap-2">
-            <div class="min-w-0">
-              <div class="text-xs font-extrabold text-white truncate">👤 ${v.visitorName || 'زائر'}</div>
-              <div class="text-[10px] text-slate-400 truncate">📍 ${v.city || 'صنعاء'} • <span class="font-num text-cyan-400">${v.ip || ''}</span></div>
-            </div>
-            <span class="px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${isGps ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}">
-              ${isGps ? '🎯 GPS' : 'IP'}
-            </span>
+      box.innerHTML = items.map(item => `
+        <div onclick="${item.type === 'visitor' ? `inspectVisitor(${item.idx})` : ''}" class="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-slate-800/60 cursor-pointer transition border border-transparent hover:border-slate-700">
+          <div class="min-w-0 text-right">
+            <div class="text-xs font-bold text-white truncate">${item.title}</div>
+            <div class="text-[10px] text-slate-400 truncate">${item.sub}</div>
           </div>
-        `;
-      }).join('');
+          <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
+        </div>
+      `).join('');
 
-      // Automatically populate inspector with latest visitor on first load
-      const inspDetails = document.getElementById('inspectorDetails');
-      if (inspDetails && inspDetails.innerText.includes('اختر أي زائر') && visitors.length > 0) {
+      if (visitors.length > 0 && document.getElementById('inspVisitorName')?.innerText === 'Visitor') {
         inspectVisitor(0);
       }
     }
 
-    function filterAdminSearches(val) {
-      const term = (val || '').toLowerCase().trim();
-      const rows = document.querySelectorAll('#searchesTableBody tr');
-      rows.forEach(r => {
-        r.style.display = r.innerText.toLowerCase().includes(term) ? '' : 'none';
+    // Render Glowing Concentric Radar Rings on Map matching Mockup 1:1!
+    function renderMapPins(visitors = []) {
+      if (!adminMap) return;
+      visitorMarkers.forEach(m => adminMap.removeLayer(m));
+      visitorMarkers = [];
+
+      visitors.forEach((v, idx) => {
+        if (!v.lat || !v.lng) return;
+
+        const isPrimary = idx === 0;
+        const ringColor = isPrimary ? '#22d3ee' : '#10b981';
+
+        const customIcon = L.divIcon({
+          className: 'concentric-radar-marker',
+          html: `
+            <div style="position:relative; width:56px; height:56px; display:flex; align-items:center; justify-content:center;">
+              <div class="target-ring-outer" style="position:absolute; width:52px; height:52px; border-radius:50%; border:2px solid ${ringColor}; background:${ringColor}18; box-shadow:0 0 20px ${ringColor}66;"></div>
+              <div style="position:absolute; width:34px; height:34px; border-radius:50%; border:1.5px solid ${ringColor}; background:${ringColor}28;"></div>
+              <div style="position:relative; width:14px; height:14px; border-radius:50%; background:${ringColor}; border:2px solid #ffffff; box-shadow:0 0 14px ${ringColor};"></div>
+            </div>
+          `,
+          iconSize: [56, 56],
+          iconAnchor: [28, 28]
+        });
+
+        const marker = L.marker([v.lat, v.lng], { icon: customIcon }).addTo(adminMap);
+        marker.on('click', () => inspectVisitor(idx));
+        visitorMarkers.push(marker);
       });
-    }
 
-    function detectAdminDeviceUI() {
-      const ua = navigator.userAgent || '';
-      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-      const isPhone = isMobileUA || window.innerWidth < 768;
-      const badge = document.getElementById('adminDeviceBadge');
-      if (isPhone) {
-        document.body.classList.add('device-mobile');
-        document.body.classList.remove('device-laptop');
-        if (badge) {
-          badge.innerText = '📱 هاتف';
-          badge.className = 'px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
-        }
-      } else {
-        document.body.classList.add('device-laptop');
-        document.body.classList.remove('device-mobile');
-        if (badge) {
-          badge.innerText = '💻 لابتوب';
-          badge.className = 'px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
-        }
+      if (!hasCenteredMapOnce && visitors.length > 0 && visitors[0].lat && visitors[0].lng) {
+        hasCenteredMapOnce = true;
+        adminMap.setView([visitors[0].lat, visitors[0].lng], 15);
       }
-      if (adminMap) setTimeout(() => adminMap.invalidateSize(), 100);
     }
-
-    window.addEventListener('DOMContentLoaded', () => {
-      detectAdminDeviceUI();
-      window.addEventListener('resize', detectAdminDeviceUI);
-    });
 
     function renderSearches(searches = []) {
       const tbody = document.getElementById('searchesTableBody');
       const mobileCards = document.getElementById('mobileSearchesCards');
       if (searches.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة حتى الآن</td></tr>`;
-        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات بحث مسجلة حتى الآن</div>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة</td></tr>`;
+        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات بحث مسجلة</div>`;
         return;
       }
 
       tbody.innerHTML = searches.map((s, idx) => {
         const dateFormatted = new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true });
         return `
-          <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
+          <tr class="hover:bg-emerald-500/5 transition border-b border-slate-800/60">
             <td class="p-3 text-center">
-              <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-cyan-400 cursor-pointer" />
+              <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-emerald-400 cursor-pointer" />
             </td>
             <td class="p-3 text-slate-400 font-num">${idx + 1}</td>
             <td class="p-3 text-slate-300 font-num text-[11px]">${dateFormatted}</td>
-            <td class="p-3 font-bold text-cyan-300">${s.query || 'الكل'}</td>
+            <td class="p-3 font-bold text-emerald-300">${s.query || 'الكل'}</td>
             <td class="p-3 font-semibold text-white">${s.targetLocation || '-'}</td>
             <td class="p-3 text-slate-300">${s.targetNeighborhood || '-'}</td>
             <td class="p-3 font-num text-slate-400">${s.radius || 10} كم</td>
-            <td class="p-3 font-num font-bold text-emerald-400">${s.resultsCount || 0} منشأة</td>
+            <td class="p-3 font-num font-bold text-cyan-400">${s.resultsCount || 0} منشأة</td>
             <td class="p-3 text-slate-300 text-[11px]">
               <span class="font-bold text-white block">${s.visitorName || 'زائر'}</span>
               <span class="text-cyan-400 font-num">${s.ip}</span>
-              <span class="block text-[10px] text-emerald-400">${s.visitorLocation || 'اليمن'}</span>
             </td>
             <td class="p-3 text-center">
-              <button onclick="deleteSingleSearch('${s.id}')" class="p-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 text-red-300 transition cursor-pointer" title="حذف هذا البحث">
+              <button onclick="deleteSingleSearch('${s.id}')" class="p-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 text-red-300 transition cursor-pointer">
                 <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
               </button>
             </td>
@@ -1152,38 +976,24 @@
       }).join('');
 
       if (mobileCards) {
-        mobileCards.innerHTML = searches.map((s, idx) => {
-          const dateFormatted = new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true });
-          return `
-            <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
-              <div class="flex items-center justify-between gap-2">
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-cyan-400" />
-                  <span class="text-sm font-extrabold text-cyan-300">#${idx + 1} • ${s.query || 'الكل'}</span>
-                </label>
-                <div class="flex items-center gap-1.5">
-                  <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-num font-bold text-xs">${s.resultsCount || 0} منشأة</span>
-                  <button onclick="deleteSingleSearch('${s.id}')" class="px-2 py-0.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
-                </div>
-              </div>
-              <div class="text-xs text-slate-300 flex flex-wrap gap-2">
-                <span>📍 المطلوب: <strong class="text-white">${s.targetLocation || '-'} ${s.targetNeighborhood ? '(' + s.targetNeighborhood + ')' : ''}</strong></span>
-                <span>• النطاق: ${s.radius || 10} كم</span>
-              </div>
-              <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-800">
-                <span>👤 ${s.visitorName || 'زائر'} (${s.ip})</span>
-                <span class="font-num">${dateFormatted}</span>
-              </div>
+        mobileCards.innerHTML = searches.map((s, idx) => `
+          <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="flex items-center gap-2">
+                <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-emerald-400" />
+                <span class="text-sm font-black text-emerald-300">#${idx + 1} • ${s.query || 'الكل'}</span>
+              </label>
+              <button onclick="deleteSingleSearch('${s.id}')" class="px-2 py-0.5 rounded bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
             </div>
-          `;
-        }).join('');
+            <div class="text-xs text-slate-300">📍 ${s.targetLocation || '-'} ${s.targetNeighborhood || ''} • 👤 ${s.visitorName || 'زائر'}</div>
+          </div>
+        `).join('');
       }
       lucide.createIcons();
     }
 
     function toggleSelectAllSearches(checked) {
-      const boxes = document.querySelectorAll('.search-row-checkbox');
-      boxes.forEach(b => { b.checked = checked; });
+      document.querySelectorAll('.search-row-checkbox').forEach(b => { b.checked = checked; });
     }
 
     async function deleteSingleSearch(id) {
@@ -1199,10 +1009,7 @@
         await executeSearchDeletion('last_day', []);
       } else if (mode === 'selected') {
         const checked = Array.from(document.querySelectorAll('.search-row-checkbox:checked')).map(cb => cb.value);
-        if (checked.length === 0) {
-          alert('يرجى تحديد عملية بحث واحدة على الأقل من المربعات لحذفها!');
-          return;
-        }
+        if (checked.length === 0) return alert('يرجى تحديد عملية بحث واحدة على الأقل!');
         await executeSearchDeletion('selected', checked);
       }
     }
@@ -1222,21 +1029,15 @@
           const idSet = new Set(ids);
 
           let updatedSearches = localArch.searches || [];
-          if (mode === 'all') {
-            updatedSearches = [];
-          } else if (mode === 'last_day') {
-            updatedSearches = updatedSearches.filter(s => (nowMs - new Date(s.timestamp || 0).getTime()) > oneDayMs);
-          } else if (mode === 'selected') {
-            updatedSearches = updatedSearches.filter(s => !idSet.has(s.id));
-          }
+          if (mode === 'all') updatedSearches = [];
+          else if (mode === 'last_day') updatedSearches = updatedSearches.filter(s => (nowMs - new Date(s.timestamp || 0).getTime()) > oneDayMs);
+          else if (mode === 'selected') updatedSearches = updatedSearches.filter(s => !idSet.has(s.id));
 
           saveLocalArchive(data.visitors || localArch.visitors || [], updatedSearches);
-          const selectAllCb = document.getElementById('selectAllSearchesCheckbox');
-          if (selectAllCb) selectAllCb.checked = false;
           await fetchAdminData();
         }
       } catch (e) {
-        alert('تعذر حذف سجلات البحث: ' + e.message);
+        alert('تعذر حذف سجلات البحث');
       }
     }
 
@@ -1244,61 +1045,36 @@
       const tbody = document.getElementById('visitorsTableBody');
       const mobileCards = document.getElementById('mobileVisitorsCards');
       if (visitors.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
-        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات تسجيل دخول بعد</div>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
         return;
       }
 
       tbody.innerHTML = visitors.map((v, idx) => {
         const firstSeen = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
-        const lastSeen = new Date(v.lastSeen).toLocaleString('ar-SA', { hour12: true });
         const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
-        const sourceBadge = v.locationSource === 'IP'
-          ? `<span class="px-1.5 py-0.5 text-[10px] rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">عبر الشبكة IP</span>`
-          : `<span class="px-1.5 py-0.5 text-[10px] rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🎯 GPS حقيقي دقيق</span>`;
-
         const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
           ? v.sessionSearches
           : allSearches.filter(s => s.visitorId === v.id);
 
-        const searchesHtml = sessionSearches.length > 0
-          ? `<div class="space-y-1 max-w-[200px]">
-              <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 inline-block mb-0.5">🔍 ${sessionSearches.length} عملية بحث</span>
-              ${sessionSearches.slice(0, 3).map(s => `<div class="text-[11px] text-slate-200 truncate">• ${s.query} (${s.targetLocation || 'صنعاء'})</div>`).join('')}
-            </div>`
-          : `<span class="text-[11px] text-slate-500">دخول للجلسة (بدون بحث بعد)</span>`;
-
         return `
-          <tr class="hover:bg-indigo-500/5 transition border-b border-slate-800/60">
+          <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
             <td class="p-3 text-slate-400 font-num font-bold">${idx + 1}</td>
-            <td class="p-3">
-              <span class="font-bold text-white block">${v.visitorName || 'زائر بدون اسم'}</span>
-              <span class="text-[10px] text-indigo-400 font-num">${v.id}</span>
+            <td class="p-3 font-bold text-white">${v.visitorName || 'زائر'}</td>
+            <td class="p-3 font-num text-cyan-300">${v.ip}</td>
+            <td class="p-3 text-emerald-400 font-bold">
+              📍 ${v.city || 'صنعاء'}
+              <span class="block text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</span>
             </td>
-            <td class="p-3 font-num text-cyan-300 font-semibold">${v.ip}</td>
-            <td class="p-3 text-white">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="font-bold text-emerald-400">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</span>
-                ${sourceBadge}
-              </div>
-              <span class="block text-[11px] text-slate-400 font-num mt-0.5">(${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)})</span>
-            </td>
-            <td class="p-3">${searchesHtml}</td>
-            <td class="p-3 text-slate-300 text-[11px]">
-              <span class="text-cyan-400 block">🌐 ${v.isp || 'مزود الخدمة'}</span>
-              <span class="text-slate-400 block truncate max-w-[160px]" title="${v.device}">💻 ${v.device || 'متصفح'}</span>
-            </td>
+            <td class="p-3 text-slate-200">${sessionSearches.length} عملية بحث</td>
+            <td class="p-3 text-slate-300 text-[11px]">${v.isp || ''} • ${v.device || ''}</td>
             <td class="p-3 text-slate-400 font-num text-[11px]">${firstSeen}</td>
-            <td class="p-3 text-emerald-300 font-num text-[11px]">${lastSeen}</td>
             <td class="p-3 text-center">
               <div class="flex items-center justify-center gap-1.5">
-                <button onclick="inspectVisitor(${idx})" class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-300 hover:text-white bg-emerald-500/20 hover:bg-emerald-500/40 px-2.5 py-1 rounded-lg border border-emerald-500/40 transition cursor-pointer">
-                  <i data-lucide="crosshair" class="w-3 h-3"></i>
-                  <span>فحص بالرادار</span>
+                <button onclick="inspectVisitor(${idx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold cursor-pointer">
+                  🎯 فحص بالرادار
                 </button>
-                <a href="${gmapsLink}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 transition">
-                  <i data-lucide="external-link" class="w-3 h-3"></i>
-                  <span>جوجل ماب</span>
+                <a href="${gmapsLink}" target="_blank" class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[11px] font-bold">
+                  جوجل ماب ↗
                 </a>
               </div>
             </td>
@@ -1307,151 +1083,34 @@
       }).join('');
 
       if (mobileCards) {
-        mobileCards.innerHTML = visitors.map((v, idx) => {
-          const firstSeen = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
-          const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
-          const sourceBadge = v.locationSource === 'IP'
-            ? `<span class="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">عبر الشبكة IP</span>`
-            : `<span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🎯 GPS دقيق</span>`;
-          const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
-            ? v.sessionSearches
-            : allSearches.filter(s => s.visitorId === v.id);
-
-          return `
-            <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2.5 shadow-md">
-              <div class="flex items-start justify-between gap-2">
-                <div>
-                  <h4 class="text-sm font-extrabold text-white">#${idx + 1} • ${v.visitorName || 'زائر بدون اسم'}</h4>
-                  <span class="text-[11px] text-cyan-400 font-num">${v.ip}</span>
-                </div>
-                ${sourceBadge}
-              </div>
-
-              <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1 text-xs">
-                <div class="font-bold text-emerald-400">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</div>
-                <div class="text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)})</div>
-                <div class="text-[11px] text-slate-300">🌐 ${v.isp || ''} • 💻 ${v.device || ''}</div>
-              </div>
-
-              <div class="text-xs text-slate-200">
-                ${sessionSearches.length > 0
-                  ? `<span class="text-cyan-300 font-bold">ما بحث عنه (${sessionSearches.length}):</span> ${sessionSearches.map(s => s.query).join(' ، ')}`
-                  : `<span class="text-slate-500">لم يبحث بعد في هذه الجلسة</span>`}
-              </div>
-
-              <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
-                <button onclick="inspectVisitor(${idx})" class="flex-1 py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
-                  🎯 فحص بالرادار
-                </button>
-                <a href="${gmapsLink}" target="_blank" class="flex-1 py-2 px-3 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-bold text-center">
-                  📍 فتح جوجل ماب
-                </a>
-              </div>
-              <div class="text-[10px] text-slate-500 font-num text-left">${firstSeen}</div>
+        mobileCards.innerHTML = visitors.map((v, idx) => `
+          <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+            <div class="flex items-center justify-between">
+              <strong class="text-white text-sm">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
+              <span class="text-cyan-400 font-num text-xs">${v.ip}</span>
             </div>
-          `;
-        }).join('');
+            <div class="text-xs text-emerald-400">📍 ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
+            <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
+          </div>
+        `).join('');
       }
-
       lucide.createIcons();
     }
 
-    function renderMapPins(visitors = []) {
-      if (!adminMap) return;
-      visitorMarkers.forEach(m => adminMap.removeLayer(m));
-      visitorMarkers = [];
-
-      visitors.forEach((v, idx) => {
-        if (!v.lat || !v.lng) return;
-
-        const customIcon = L.divIcon({
-          className: 'radar-pin',
-          html: `
-            <div style="background: linear-gradient(135deg, #06b6d4, #10b981); width: 28px; height: 28px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px #06b6d4; color: #020617; font-weight:900; font-size: 12px;">
-              ${idx + 1}
-            </div>
-          `,
-          iconSize: [28, 28],
-          iconAnchor: [14, 14]
-        });
-
-        const marker = L.marker([v.lat, v.lng], { icon: customIcon }).addTo(adminMap);
-        const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
-
-        marker.on('click', () => inspectVisitor(idx));
-        marker.bindPopup(`
-          <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 210px;">
-            <h4 style="font-weight: bold; color: #0284c7; margin-bottom: 3px;">👤 ${v.visitorName || 'زائر'} (${v.ip})</h4>
-            <p style="font-size: 12px; font-weight: bold; color: #10b981; margin: 2px 0;">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</p>
-            <p style="font-size: 11px; color: #475569; margin: 2px 0; font-family: monospace;">الإحداثيات: ${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)}</p>
-            <p style="font-size: 11px; color: #64748b; margin: 2px 0;">🌐 مزود الخدمة: ${v.isp || 'يمن نت'}</p>
-            <p style="font-size: 10px; color: #64748b; margin: 2px 0;">💻 ${v.device || 'متصفح'}</p>
-            <a href="${gmapsLink}" target="_blank" style="display: inline-block; margin-top: 6px; font-size: 11px; color: white; background: #0284c7; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح الموقع الدقيق في خرائط جوجل</a>
-          </div>
-        `);
-        visitorMarkers.push(marker);
-      });
-
-      if (!hasCenteredMapOnce && visitors.length > 0 && visitors[0].lat && visitors[0].lng) {
-        hasCenteredMapOnce = true;
-        adminMap.setView([visitors[0].lat, visitors[0].lng], 16);
-        if (visitorMarkers[0]) {
-          visitorMarkers[0].openPopup();
-        }
-      }
-    }
-
     function exportSearchesExcel() {
-      if (!currentAdminData.searches || currentAdminData.searches.length === 0) {
-        alert('لا توجد سجلات بحث لتصديرها!');
-        return;
-      }
-
-      const rows = currentAdminData.searches.map((s, idx) => ({
-        '#': idx + 1,
-        'وقت البحث': s.timestamp,
-        'نوع النشاط المبحوث': s.query,
-        'الموقع المطلوب': s.targetLocation,
-        'الحي': s.targetNeighborhood,
-        'نطاق البحث (كم)': s.radius,
-        'عدد النتائج': s.resultsCount,
-        'آي بي الزائر': s.ip,
-        'موقع الزائر الفعلي': s.visitorLocation
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(rows);
+      if (!currentAdminData.searches || currentAdminData.searches.length === 0) return alert('لا توجد سجلات!');
+      const ws = XLSX.utils.json_to_sheet(currentAdminData.searches);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجلات عمليات البحث");
-      XLSX.writeFile(wb, `Admin_Searches_Log_${Date.now()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "سجلات البحث");
+      XLSX.writeFile(wb, `Admin_Searches_${Date.now()}.xlsx`);
     }
 
     function exportVisitorsExcel() {
-      if (!currentAdminData.visitors || currentAdminData.visitors.length === 0) {
-        alert('لا توجد جلسات لتصديرها!');
-        return;
-      }
-
-      const rows = currentAdminData.visitors.map((v, idx) => ({
-        '#': idx + 1,
-        'معرف الجلسة': v.id,
-        'اسم المستخدم': v.visitorName || 'زائر',
-        'الآي بي (IP)': v.ip,
-        'الدولة': v.country || 'اليمن',
-        'المدينة': v.city || 'صنعاء',
-        'الحي / المنطقة': v.region || '',
-        'خط العرض (Lat)': v.lat,
-        'خط الطول (Lng)': v.lng,
-        'مزود الخدمة': v.isp || '',
-        'الجهاز': v.device || '',
-        'عدد عمليات البحث': v.searchesCount || 0,
-        'وقت الدخول': v.firstSeen,
-        'آخر نشاط': v.lastSeen
-      }));
-
-      const ws = XLSX.utils.json_to_sheet(rows);
+      if (!currentAdminData.visitors || currentAdminData.visitors.length === 0) return alert('لا توجد جلسات!');
+      const ws = XLSX.utils.json_to_sheet(currentAdminData.visitors);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجل الجلسات الدائم");
-      XLSX.writeFile(wb, `Admin_Sessions_Log_${Date.now()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "سجل الزوار");
+      XLSX.writeFile(wb, `Admin_Visitors_${Date.now()}.xlsx`);
     }
   </script>
 </body>

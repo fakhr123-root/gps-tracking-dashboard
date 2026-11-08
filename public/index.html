@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GeoRadar 3D Studio | مستخرج بيانات خرائط جوجل الاحترافي</title>
+  <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Cairo & Orbitron -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <!-- Three.js & OrbitControls for 3D Earth & Beams -->
+  <!-- Three.js & OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <!-- Leaflet Map CSS & JS -->
@@ -31,169 +31,159 @@
     .font-num {
       font-family: 'Orbitron', 'Cairo', monospace;
     }
-    /* GeoRadar 3D Studio Cyber-Glass Design System */
     body {
-      background-color: #020611;
+      background-color: #060b14;
       background-image:
-        radial-gradient(at 10% 10%, rgba(6, 182, 212, 0.18) 0px, transparent 42%),
-        radial-gradient(at 90% 12%, rgba(59, 130, 246, 0.16) 0px, transparent 42%),
-        radial-gradient(at 50% 92%, rgba(16, 185, 129, 0.12) 0px, transparent 48%),
-        linear-gradient(rgba(56, 189, 248, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(56, 189, 248, 0.03) 1px, transparent 1px);
-      background-size: 100% 100%, 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+        radial-gradient(circle at 22% 48%, rgba(16, 185, 129, 0.14) 0%, rgba(6, 182, 212, 0.06) 35%, transparent 65%),
+        radial-gradient(circle at 80% 20%, rgba(16, 185, 129, 0.07) 0%, transparent 45%);
       color: #f1f5f9;
       overflow-x: hidden;
+      min-height: 100vh;
     }
-    .glass-panel {
-      background: linear-gradient(155deg, rgba(13, 22, 41, 0.88) 0%, rgba(6, 11, 24, 0.94) 100%);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      border: 1px solid rgba(56, 189, 248, 0.24);
-      box-shadow: 0 22px 55px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+    /* Studio Bento Card exactly like Mockup */
+    .studio-card {
+      background: linear-gradient(155deg, rgba(16, 36, 44, 0.78) 0%, rgba(13, 21, 34, 0.92) 55%, rgba(11, 17, 28, 0.96) 100%);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(45, 212, 191, 0.24);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
-    .bento-card {
-      background: linear-gradient(150deg, rgba(15, 23, 42, 0.92) 0%, rgba(9, 14, 28, 0.96) 100%);
-      border: 1px solid rgba(56, 189, 248, 0.22);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      transition: all 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+    .studio-card:hover {
+      border-color: rgba(16, 185, 129, 0.7);
+      transform: translateY(-4px);
+      box-shadow: 0 18px 40px rgba(16, 185, 129, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.15);
     }
-    .bento-card:hover {
-      border-color: rgba(34, 211, 238, 0.65);
-      transform: translateY(-3px);
-      box-shadow: 0 18px 38px rgba(6, 182, 212, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12);
-    }
-    .quick-chip {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(56, 189, 248, 0.22);
+
+    /* Category Pill Chips */
+    .cat-pill {
+      background: rgba(17, 25, 39, 0.85);
+      border: 1px solid rgba(71, 85, 105, 0.55);
+      color: #cbd5e1;
       transition: all 0.2s ease;
     }
-    .quick-chip:hover, .quick-chip.active-chip {
-      background: rgba(6, 182, 212, 0.22);
-      border-color: #22d3ee;
-      transform: translateY(-1px);
-      box-shadow: 0 5px 15px rgba(6, 182, 212, 0.25);
-    }
-    .filter-pill {
-      background: rgba(15, 23, 42, 0.85);
-      border: 1px solid rgba(71, 85, 105, 0.5);
-      transition: all 0.2s ease;
-    }
-    .filter-pill.active {
-      background: linear-gradient(135deg, rgba(6, 182, 212, 0.28), rgba(59, 130, 246, 0.28));
-      border-color: #22d3ee;
+    .cat-pill:hover, .cat-pill.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(6, 182, 212, 0.25));
+      border-color: #10b981;
       color: #ffffff;
-      box-shadow: 0 0 18px rgba(6, 182, 212, 0.3);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
     }
-    .neon-border {
-      border: 1px solid rgba(56, 189, 248, 0.32);
-      transition: all 0.25s ease;
+
+    /* Smart Filter Pills */
+    .smart-pill {
+      background: rgba(17, 25, 39, 0.85);
+      border: 1px solid rgba(71, 85, 105, 0.5);
+      color: #cbd5e1;
+      transition: all 0.2s ease;
     }
-    .neon-border:focus, .neon-border:hover {
-      border-color: #38bdf8;
-      box-shadow: 0 0 16px rgba(56, 189, 248, 0.28);
+    .smart-pill.active {
+      background: linear-gradient(135deg, #10b981, #059669);
+      border-color: #34d399;
+      color: #022c22;
+      font-weight: 900;
+      box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
     }
-    .kpi-card {
+
+    /* Radar Globe Outer Halo & Rotating Radar Sweep */
+    .globe-radar-shell {
       position: relative;
-      overflow: hidden;
-      background: linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(8, 13, 26, 0.94));
-      border: 1px solid rgba(56, 189, 248, 0.22);
-      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      border-radius: 9999px;
+      box-shadow:
+        0 0 70px rgba(16, 185, 129, 0.28),
+        0 0 130px rgba(6, 182, 212, 0.15),
+        inset 0 0 50px rgba(16, 185, 129, 0.22);
+      border: 2px solid rgba(16, 185, 129, 0.4);
+      background: radial-gradient(circle at 50% 50%, #071923 0%, #040b13 75%, #02060b 100%);
     }
-    .kpi-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, #22d3ee, #10b981, transparent);
+    @keyframes radarConicSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
     }
-    .kpi-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(6, 182, 212, 0.2);
+    .radar-cone-sweep {
+      background: conic-gradient(
+        from 0deg at 50% 50%,
+        rgba(16, 185, 129, 0.38) 0deg,
+        rgba(6, 182, 212, 0.14) 45deg,
+        transparent 80deg,
+        transparent 360deg
+      );
+      animation: radarConicSpin 6s linear infinite;
+      border-radius: 9999px;
+      pointer-events: none;
     }
+
+    /* Floating Glowing Pins on the Radar Overlay */
+    @keyframes floatPin {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+    .glowing-radar-pin {
+      animation: floatPin 3s ease-in-out infinite;
+      filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.9));
+    }
+
     /* Custom Scrollbar */
-    ::-webkit-scrollbar {
-      width: 7px;
-      height: 7px;
-    }
-    ::-webkit-scrollbar-track {
-      background: #060a14;
-    }
-    ::-webkit-scrollbar-thumb {
-      background: #1e293b;
-      border-radius: 4px;
-      border: 1px solid #38bdf844;
-    }
-    ::-webkit-scrollbar-thumb:hover {
-      background: #0284c7;
-    }
-    /* Mobile Optimizations */
-    body.device-mobile input,
-    body.device-mobile select,
-    body.device-mobile textarea {
-      font-size: 16px !important;
-    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #050a12; }
+    ::-webkit-scrollbar-thumb { background: #13323b; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+
     @media (max-width: 767px) {
-      main {
-        padding-bottom: 5rem !important;
-      }
+      body.device-mobile input, body.device-mobile select { font-size: 16px !important; }
+      main { padding-bottom: 5rem !important; }
     }
   </style>
 </head>
-<body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
+<body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
 
-  <!-- Visitor Entry Gate Modal (بوابة تسجيل الدخول الاحترافية) -->
+  <!-- Visitor Entry Gate Modal (Mandatory Name/Phone, Optional Location Prompt) -->
   <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
-    <div class="glass-panel max-w-md w-full p-5 sm:p-7 rounded-3xl border border-cyan-500/50 shadow-2xl text-center relative overflow-hidden my-auto">
-      <div class="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-cyan-500/20 blur-3xl pointer-events-none"></div>
-      <div class="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none"></div>
+    <div class="studio-card max-w-md w-full p-6 sm:p-7 rounded-3xl border border-emerald-500/45 shadow-2xl text-center relative overflow-hidden my-auto">
+      <div class="absolute -top-16 -right-16 w-40 h-40 rounded-full bg-emerald-500/20 blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-16 -left-16 w-40 h-40 rounded-full bg-cyan-500/15 blur-3xl pointer-events-none"></div>
       
-      <div class="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-500 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-3">
-        <i data-lucide="radar" class="w-8 h-8 text-white"></i>
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 mb-3">
+        <i data-lucide="map-pin" class="w-8 h-8 text-slate-950"></i>
       </div>
 
-      <div class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold mb-2">
-        <span>GeoRadar 3D Studio Pro</span>
-      </div>
-      <h2 class="text-lg sm:text-xl font-black text-white mb-1">مرحباً بك في مستخرج خرائط جوجل 3D</h2>
+      <h2 class="text-lg sm:text-xl font-black text-white mb-1">مستخرج خرائط جوجل - GeoRadar 3D Studio</h2>
       <p class="text-xs text-slate-300 leading-relaxed mb-4">
-        أدخل اسمك أو رقم هاتفك للدخول إلى استوديو استخراج بيانات المنشآت والخرائط الحية
+        يرجى إدخال اسمك أو رقم هاتفك للدخول إلى منصة الاستخراج والرادار الجغرافي
       </p>
 
       <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5 text-right">
         <div>
           <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center justify-between">
             <span>الاسم أو رقم الهاتف <span class="text-red-400">*</span></span>
-            <span class="text-[10px] text-cyan-400 font-semibold">إجباري للدخول</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">إجباري للدخول</span>
           </label>
           <div class="relative">
-            <i data-lucide="user-check" class="absolute right-3.5 top-3 w-4 h-4 text-cyan-400"></i>
+            <i data-lucide="user-check" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
             <input 
               type="text" 
               id="visitorNameInput" 
               placeholder="اكتب اسمك أو رقم هاتفك هنا..."
               required
               oninput="document.getElementById('visitorNameError')?.classList.add('hidden')"
-              class="w-full bg-slate-900/95 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+              class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 border border-emerald-500/40 focus:border-emerald-400 text-white placeholder-slate-500 focus:outline-none"
             />
           </div>
           <p id="visitorNameError" class="hidden text-[11px] text-red-400 font-bold mt-1">⚠️ يرجى تعبئة حقل الاسم أو رقم الهاتف أولاً للدخول إلى البرنامج.</p>
         </div>
 
-        <!-- Location Feature Card -->
-        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-900/95 border border-cyan-500/40 space-y-2.5 shadow-inner">
+        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-950/90 border border-emerald-500/35 space-y-2.5">
           <div class="flex items-start gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 mt-0.5">
+            <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0 mt-0.5">
               <i data-lucide="navigation" class="w-4 h-4"></i>
             </div>
             <div class="flex-1 text-right">
               <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping" id="geoStatusDot"></span>
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping" id="geoStatusDot"></span>
                 <span class="text-xs sm:text-sm font-extrabold text-white" id="geoStatusTitle">خدمة تحديد الموقع الجغرافي الدقيق</span>
               </div>
               <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed" id="geoStatusDesc">
-                تفعيل الموقع الجغرافي لعرض أقرب الشركات والمنشآت لموقعك أولاً بأول
+                تفعيل الموقع الجغرافي لإظهار أقرب الشركات والمنشآت لموقعك أولاً
               </p>
             </div>
           </div>
@@ -211,451 +201,360 @@
         <button 
           type="submit" 
           id="gateSubmitBtn"
-          class="w-full py-3.5 rounded-xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-400 hover:opacity-95 shadow-lg shadow-cyan-500/30 active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
+          class="w-full py-3.5 rounded-xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <i data-lucide="log-in" class="w-5 h-5"></i>
-          <span>تسجيل الدخول إلى الاستوديو</span>
+          <span>دخول الاستوديو الآن</span>
         </button>
-
-        <p class="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-emerald-400"></i>
-          <span>اتصال آمن ومباشر بمحرك بيانات خرائط جوجل</span>
-        </p>
       </form>
     </div>
   </div>
 
-  <!-- Main GeoRadar Studio Workspace (No Sticky Top Bar) -->
-  <main class="max-w-[1440px] mx-auto w-full px-3 sm:px-5 lg:px-7 py-4 flex-1 space-y-4">
+  <!-- Main Studio Workspace matching Mockup 1:1 -->
+  <main class="max-w-[1480px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col justify-between gap-4">
 
-    <!-- 1. Top KPI & Live Telemetry Strip (With HUD Progress Bars matching Mockup) -->
-    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-      <!-- Total Extracted -->
-      <div class="kpi-card p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">إجمالي النتائج المستخرجة</p>
-            <h4 id="statTotal" class="text-2xl font-black font-num text-cyan-400 mt-0.5">0</h4>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-cyan-500/15 border border-cyan-500/35 flex items-center justify-center text-cyan-400 shadow-lg shadow-cyan-500/10">
-            <i data-lucide="database" class="w-5 h-5"></i>
+    <!-- TOP BAR (Exactly like Mockup: Right Brand Title | Center Glowing KPI Pill | Left Action Circles) -->
+    <div class="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-800/70">
+      
+      <!-- Right: Studio Title & Glowing Pin -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 p-0.5 shadow-lg shadow-emerald-500/30 flex items-center justify-center">
+          <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
+            <i data-lucide="map-pin" class="w-5 h-5 text-emerald-400"></i>
           </div>
         </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-cyan-400 to-sky-500 h-full w-4/5 rounded-full"></div>
+        <h1 class="text-base sm:text-xl font-black tracking-tight text-white">
+          <span class="text-emerald-400 font-num">GeoRadar 3D Studio</span> - مستخرج خرائط جوجل
+        </h1>
+      </div>
+
+      <!-- Center: Glowing Capsule KPI Pill (Exactly like Mockup!) -->
+      <div class="flex items-center gap-3 sm:gap-5 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-950/80 via-teal-900/60 to-emerald-950/80 border border-emerald-400/40 shadow-[0_0_25px_rgba(16,185,129,0.2)]">
+        <div class="flex items-center gap-1.5 text-xs text-slate-300">
+          <span class="text-slate-400">الهواتف:</span>
+          <strong id="statPhones" class="text-emerald-300 font-num font-black text-sm">0</strong>
+        </div>
+        <span class="h-4 w-px bg-emerald-500/30"></span>
+        <div class="flex items-center gap-1.5">
+          <strong id="statTotal" class="text-emerald-400 font-num font-black text-base sm:text-lg">0</strong>
+          <span class="text-xs sm:text-sm font-black text-white">نتيجة</span>
+        </div>
+        <span class="h-4 w-px bg-emerald-500/30"></span>
+        <div class="flex items-center gap-1.5 text-xs text-slate-300">
+          <span class="text-slate-400">مفتوح:</span>
+          <strong id="statOpenNow" class="text-cyan-300 font-num font-black text-sm">0</strong>
+        </div>
+        <span class="hidden sm:inline-block h-4 w-px bg-emerald-500/30"></span>
+        <div class="hidden sm:flex items-center gap-1 text-xs text-amber-300 font-num font-bold">
+          <span id="statRating">0.0 ★</span>
         </div>
       </div>
 
-      <!-- Verified Phones -->
-      <div class="kpi-card p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">أرقام الهواتف الموثقة</p>
-            <h4 id="statPhones" class="text-2xl font-black font-num text-emerald-400 mt-0.5">0</h4>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/10">
-            <i data-lucide="phone-call" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-emerald-400 to-teal-500 h-full w-3/4 rounded-full"></div>
-        </div>
-      </div>
-
-      <!-- Open Now Count -->
-      <div class="kpi-card p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">منشآت مفتوحة الآن</p>
-            <h4 id="statOpenNow" class="text-2xl font-black font-num text-sky-400 mt-0.5">0</h4>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-sky-500/15 border border-sky-500/35 flex items-center justify-center text-sky-400 shadow-lg shadow-sky-500/10">
-            <i data-lucide="clock" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-sky-400 to-indigo-500 h-full w-2/3 rounded-full"></div>
-        </div>
-      </div>
-
-      <!-- Websites Count -->
-      <div class="kpi-card p-4 rounded-2xl flex flex-col justify-between gap-2">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">المواقع والروابط</p>
-            <h4 id="statWebsites" class="text-2xl font-black font-num text-indigo-400 mt-0.5">0</h4>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-indigo-500/15 border border-indigo-500/35 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/10">
-            <i data-lucide="globe" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-indigo-400 to-purple-500 h-full w-3/5 rounded-full"></div>
-        </div>
-      </div>
-
-      <!-- Average Rating & Nearest Info -->
-      <div class="kpi-card p-4 rounded-2xl flex flex-col justify-between gap-2 col-span-2 sm:col-span-1">
-        <div class="flex items-center justify-between">
-          <div>
-            <p class="text-[11px] text-slate-400 font-bold">متوسط التقييم العام</p>
-            <h4 id="statRating" class="text-2xl font-black font-num text-amber-400 mt-0.5">0.0 ★</h4>
-          </div>
-          <div class="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/35 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10">
-            <i data-lucide="star" class="w-5 h-5"></i>
-          </div>
-        </div>
-        <div class="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
-          <div class="bg-gradient-to-r from-amber-400 to-orange-500 h-full w-5/6 rounded-full"></div>
-        </div>
+      <!-- Left: Circular Action Buttons (Export / Table Toggle / Settings) -->
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="exportToExcel()" title="تصدير إلى Excel" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700 hover:border-emerald-400 text-emerald-400 flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+        </button>
+        <button type="button" onclick="copyAllPhones()" title="نسخ جميع أرقام الهواتف" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-cyan-500/20 border border-slate-700 hover:border-cyan-400 text-cyan-400 flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="phone-forwarded" class="w-4 h-4"></i>
+        </button>
+        <button type="button" onclick="toggleResultsViewMode()" id="btnToggleTable" title="تبديل بين البطاقات والجدول الكامل" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="table-2" class="w-4 h-4"></i>
+        </button>
+        <button type="button" onclick="toggleAdvancedDrawer()" title="إعدادات المدينة والحي والنطاق" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4"></i>
+        </button>
       </div>
     </div>
 
-    <!-- 2. Split-Screen Studio Layout: Right (Search + Smart Filters + Bento/Table Results) | Left (Sticky 3D Globe & Live Radar Map) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    <!-- MAIN SPLIT-SCREEN STUDIO (Right: Search Bar + Category Pills + Filter Pills + 3-Col Bento Grid | Left: Circular Radar Globe + Distance Rings + Toggle Switches) -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center flex-1">
 
-      <!-- RIGHT COLUMN (7 Cols on Desktop): Search Studio + Smart Filters + Results -->
-      <div class="lg:col-span-7 space-y-4 order-1">
+      <!-- RIGHT SIDE (7 Cols on Desktop): Search Bar, Category Pills, Smart Filters, 3-Column Bento Cards -->
+      <div class="lg:col-span-7 flex flex-col gap-3.5 order-1">
 
-        <!-- A. Smart Search & Extraction Console -->
-        <div id="searchConsoleSection" class="glass-panel rounded-3xl p-4 sm:p-6 border border-cyan-500/30 relative overflow-hidden">
-          <div class="absolute -top-16 -left-16 w-40 h-40 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none"></div>
-
-          <div class="flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800/80">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
-                <i data-lucide="compass" class="w-5 h-5"></i>
+        <!-- 1. Sleek Rounded Pill Search Bar (Exactly like Mockup!) -->
+        <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-2.5">
+          <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-slate-900/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-full px-4 py-2 shadow-inner transition">
+            <i data-lucide="search" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+            <input
+              type="text"
+              id="queryInput"
+              placeholder="البحث (مثال: شركات، صيدليات، صرافة، مطاعم...)"
+              class="w-full sm:flex-1 bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
+            />
+            <span class="hidden sm:inline-block h-5 w-px bg-slate-700"></span>
+            <div class="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-end pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-800">
+              <div class="flex items-center gap-1">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <input
+                  type="text"
+                  id="locationInput"
+                  value="صنعاء"
+                  placeholder="المدينة (صنعاء)"
+                  class="w-24 bg-transparent text-xs font-bold text-cyan-300 placeholder-slate-500 focus:outline-none"
+                />
               </div>
-              <div>
-                <h2 class="text-sm sm:text-base font-black text-white">استوديو البحث والاستخراج المباشر</h2>
-                <p class="text-[11px] text-slate-400">سحب حي لبيانات جوجل ماب مع ترتيب تلقائي للأقرب لموقعك</p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <span id="gpsProximityBadge" class="hidden px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
-                <span>الأقرب لموقعك مفعل</span>
-              </span>
-              <span id="deviceModeBadge" class="px-2.5 py-1 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold flex items-center gap-1">
-                <span id="deviceModeIcon">💻</span>
-                <span id="deviceModeText">وضع اللابتوب</span>
-              </span>
+              <button
+                type="button"
+                onclick="toggleAdvancedDrawer()"
+                class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 font-semibold flex items-center gap-1 cursor-pointer"
+                title="تحديد الحي، النطاق بالكيلومتر، وعدد الشركات"
+              >
+                <span id="compactSettingsLabel">الحي / 20 شركة</span>
+                <i data-lucide="chevron-down" class="w-3 h-3"></i>
+              </button>
+              <button
+                type="submit"
+                id="searchBtn"
+                class="px-5 py-1.5 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400 hover:opacity-95 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/25 flex items-center gap-1.5 cursor-pointer shrink-0"
+              >
+                <span>استخراج</span>
+              </button>
             </div>
           </div>
 
-          <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
-            <!-- Activity Input + Quick Chips -->
-            <div>
-              <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center justify-between">
-                <span>1. نوع النشاط التجاري المطلوب:</span>
-                <span class="text-[11px] text-cyan-400">اختر بنقرة أو اكتب أي نشاط</span>
-              </label>
-              <div class="relative mb-2">
-                <i data-lucide="briefcase" class="absolute right-3.5 top-3 w-4 h-4 text-cyan-400"></i>
-                <input 
-                  type="text" 
-                  id="queryInput" 
-                  placeholder="مثال: شركات، صيدليات، مطاعم، مستشفيات، محلات..."
-                  class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
+          <!-- Collapsible Compact Drawer for Neighborhood, Radius, Limit & API Key -->
+          <div id="advancedSearchDrawer" class="hidden p-4 rounded-2xl studio-card space-y-3 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">الحي (اتركه فارغاً للأقرب لموقعك):</label>
+                <input
+                  type="text"
+                  id="neighborhoodInput"
+                  placeholder="مثال: حدة، الزبيري، الصافية..."
+                  oninput="updateCompactSettingsLabel()"
+                  class="w-full bg-slate-950/90 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400"
                 />
               </div>
-              <div class="flex flex-wrap gap-1.5">
-                <button type="button" onclick="setQuickCategory('شركات')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-cyan-300 cursor-pointer">🏢 شركات</button>
-                <button type="button" onclick="setQuickCategory('صيدليات')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-emerald-300 cursor-pointer">💊 صيدليات</button>
-                <button type="button" onclick="setQuickCategory('شركات الصرافة')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-amber-300 cursor-pointer">💱 صرافة وبنوك</button>
-                <button type="button" onclick="setQuickCategory('مطاعم')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-orange-300 cursor-pointer">🍽️ مطاعم</button>
-                <button type="button" onclick="setQuickCategory('مخابز')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-yellow-300 cursor-pointer">🥖 مخابز</button>
-                <button type="button" onclick="setQuickCategory('مستشفيات')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-rose-300 cursor-pointer">🏥 مستشفيات</button>
-                <button type="button" onclick="setQuickCategory('فنادق')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-purple-300 cursor-pointer">🏨 فنادق</button>
-                <button type="button" onclick="setQuickCategory('سوبر ماركت')" class="quick-chip px-2.5 py-1 rounded-lg text-[11px] font-bold text-sky-300 cursor-pointer">🛒 سوبر ماركت</button>
-              </div>
-            </div>
-
-            <!-- City + Neighborhood -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-slate-200 mb-1 flex items-center justify-between">
-                  <span>2. المدينة / المحافظة:</span>
-                  <span class="text-[10px] text-slate-400">اختيار سريع</span>
-                </label>
-                <div class="relative mb-1.5">
-                  <i data-lucide="building-2" class="absolute right-3 top-3 w-4 h-4 text-cyan-400"></i>
-                  <input 
-                    type="text" 
-                    id="locationInput" 
-                    placeholder="صنعاء، عدن، تعز، الرياض..."
-                    class="w-full bg-slate-950/90 text-sm rounded-xl pr-9 pl-3 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
-                  />
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">نطاق البحث: <span id="radiusLabel" class="text-emerald-400 font-num">10 كم</span></label>
+                <div class="flex gap-1 mb-1.5">
+                  <button type="button" onclick="setRadius(10)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold">10 كم</button>
+                  <button type="button" onclick="setRadius(16)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold">16 كم</button>
+                  <button type="button" onclick="setRadius(25)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold">25 كم</button>
                 </div>
-                <div class="flex flex-wrap gap-1">
-                  <button type="button" onclick="document.getElementById('locationInput').value='صنعاء'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">صنعاء</button>
-                  <button type="button" onclick="document.getElementById('locationInput').value='عدن'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">عدن</button>
-                  <button type="button" onclick="document.getElementById('locationInput').value='تعز'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">تعز</button>
-                  <button type="button" onclick="document.getElementById('locationInput').value='إب'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">إب</button>
-                  <button type="button" onclick="document.getElementById('locationInput').value='الحديدة'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">الحديدة</button>
-                  <button type="button" onclick="document.getElementById('locationInput').value='الرياض'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">الرياض</button>
-                </div>
+                <input type="range" id="radiusSlider" min="1" max="50" value="10" oninput="onRadiusSliderChange(this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg accent-emerald-400 cursor-pointer" />
               </div>
-
               <div>
-                <label class="block text-xs font-bold text-slate-200 mb-1 flex items-center justify-between">
-                  <span>3. الحي أو الشارع (اختياري):</span>
-                  <span class="text-[10px] text-emerald-400">اتركه فارغاً للأقرب لموقعك</span>
-                </label>
-                <div class="relative mb-1.5">
-                  <i data-lucide="map-pin" class="absolute right-3 top-3 w-4 h-4 text-emerald-400"></i>
-                  <input 
-                    type="text" 
-                    id="neighborhoodInput" 
-                    placeholder="مثال: حدة، شارع الزبيري، الصافية..."
-                    class="w-full bg-slate-950/90 text-sm rounded-xl pr-9 pl-3 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-                <div class="flex flex-wrap gap-1">
-                  <button type="button" onclick="document.getElementById('neighborhoodInput').value=''" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-emerald-300 cursor-pointer">📍 الأقرب لموقعي (تلقائي)</button>
-                  <button type="button" onclick="document.getElementById('neighborhoodInput').value='حدة'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">حدة</button>
-                  <button type="button" onclick="document.getElementById('neighborhoodInput').value='شارع الزبيري'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">الزبيري</button>
-                  <button type="button" onclick="document.getElementById('neighborhoodInput').value='الصافية'" class="quick-chip px-2 py-0.5 rounded text-[10px] font-bold text-slate-300 cursor-pointer">الصافية</button>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">عدد النتائج: <span id="limitLabel" class="text-emerald-400 font-num">20 شركة</span></label>
+                <div class="flex items-center gap-1">
+                  <button type="button" onclick="setLimit(10)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num">10</button>
+                  <button type="button" onclick="setLimit(20)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num">20</button>
+                  <button type="button" onclick="setLimit(50)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num">50</button>
+                  <input type="number" id="limitInput" value="20" min="1" max="200" oninput="updateCompactSettingsLabel()" class="w-14 bg-slate-950 text-center py-1.5 rounded border border-slate-700 font-num text-white" />
                 </div>
               </div>
             </div>
-
-            <!-- Compact Radius & Limit Controls in 1 Row -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800/90">
-                <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-xs font-bold text-slate-300">نطاق التغطية الجغرافي:</span>
-                  <span id="radiusLabel" class="text-xs font-black text-cyan-400 font-num">10 كم</span>
-                </div>
-                <div class="grid grid-cols-3 gap-1.5 mb-2">
-                  <button type="button" onclick="setRadius(10, 'city')" id="btnRadiusCity" class="py-1 text-[11px] font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition cursor-pointer">10 كم</button>
-                  <button type="button" onclick="setRadius(16, 'hood')" id="btnRadiusHood" class="py-1 text-[11px] font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition cursor-pointer">16 كم</button>
-                  <button type="button" onclick="setRadius(25, 'custom')" id="btnRadiusWide" class="py-1 text-[11px] font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition cursor-pointer">25 كم</button>
-                </div>
-                <input type="range" id="radiusSlider" min="1" max="50" value="10" oninput="onRadiusSliderChange(this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400" />
+            <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[11px] text-slate-400">مدن سريعة:</span>
+                <button type="button" onclick="setQuickCity('صنعاء')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-500/20 text-[11px] text-slate-200">صنعاء</button>
+                <button type="button" onclick="setQuickCity('عدن')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-500/20 text-[11px] text-slate-200">عدن</button>
+                <button type="button" onclick="setQuickCity('تعز')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-500/20 text-[11px] text-slate-200">تعز</button>
+                <button type="button" onclick="setQuickCity('إب')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-500/20 text-[11px] text-slate-200">إب</button>
+                <button type="button" onclick="setQuickCity('الرياض')" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-emerald-500/20 text-[11px] text-slate-200">الرياض</button>
               </div>
-
-              <div class="p-3 rounded-2xl bg-slate-950/70 border border-slate-800/90 flex flex-col justify-between">
-                <div class="flex items-center justify-between mb-1.5">
-                  <span class="text-xs font-bold text-slate-300">عدد النتائج المطلوبة:</span>
-                  <span id="limitLabel" class="text-xs font-black text-emerald-400 font-num">20 شركة</span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <button type="button" onclick="setLimit(10)" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 cursor-pointer">10</button>
-                  <button type="button" onclick="setLimit(20)" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 cursor-pointer">20</button>
-                  <button type="button" onclick="setLimit(50)" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 cursor-pointer">50</button>
-                  <button type="button" onclick="setLimit(100)" class="flex-1 py-1.5 text-xs font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 cursor-pointer">100</button>
-                  <input type="number" id="limitInput" value="20" min="1" max="200" oninput="document.getElementById('limitLabel').innerText = this.value + ' شركة'" class="w-16 bg-slate-900 text-center text-xs py-1.5 rounded-lg neon-border text-white font-num" />
-                </div>
-              </div>
+              <input type="password" id="apiKeyInput" placeholder="مفتاح Google API (اختياري)" class="bg-slate-950 text-[11px] px-3 py-1 rounded-lg border border-slate-800 text-slate-300 w-48" />
             </div>
+          </div>
+        </form>
 
-            <!-- Optional API Key Collapsible -->
-            <div>
-              <button type="button" onclick="toggleApiSettings()" class="text-[11px] text-slate-400 hover:text-cyan-400 flex items-center gap-1.5 transition cursor-pointer">
-                <i data-lucide="key" class="w-3.5 h-3.5"></i>
-                <span>خيارات متقدمة: مفتاح Google Places API (اختياري)</span>
-                <i data-lucide="chevron-down" id="apiCaret" class="w-3 h-3 transition-transform"></i>
-              </button>
-              <div id="apiSettingsBox" class="hidden mt-2 p-2.5 rounded-xl bg-slate-950/90 border border-slate-800 text-xs">
-                <input type="password" id="apiKeyInput" placeholder="ألصق مفتاح Google Cloud Places API (اختياري تماماً)" class="w-full bg-slate-900 text-xs p-2 rounded-lg border border-slate-700 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-cyan-400" />
-              </div>
-            </div>
+        <!-- 2. Quick Category Pills Row (Exactly like Mockup!) -->
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill active px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>شركات</span>
+          </button>
+          <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="pill" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span>صيدليات</span>
+          </button>
+          <button type="button" onclick="triggerCategorySearch('شركات الصرافة والبنوك', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="landmark" class="w-3.5 h-3.5 text-amber-400"></i>
+            <span>بنوك وصرافة</span>
+          </button>
+          <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="utensils" class="w-3.5 h-3.5 text-orange-400"></i>
+            <span>مطاعم</span>
+          </button>
+          <button type="button" onclick="triggerCategorySearch('مستشفيات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="hospital" class="w-3.5 h-3.5 text-rose-400"></i>
+            <span>مستشفيات</span>
+          </button>
+          <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="bed-double" class="w-3.5 h-3.5 text-purple-400"></i>
+            <span>فنادق</span>
+          </button>
+        </div>
 
-            <!-- Submit Search Button -->
-            <button 
-              type="submit" 
-              id="searchBtn"
-              class="w-full py-3.5 px-5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-emerald-400 hover:opacity-95 shadow-lg shadow-cyan-500/25 active:scale-[0.99] transition flex items-center justify-center gap-2 group cursor-pointer"
-            >
-              <i data-lucide="radar" class="w-5 h-5 group-hover:rotate-45 transition"></i>
-              <span>بدء المسح الذكي واستخراج البيانات الحقيقية</span>
+        <!-- 3. Smart Filter Pills Row (Right: الكل | مع هاتف | مفتوح الآن | الأقرب — Left: Filter/Export Pill) -->
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="pill_all" onclick="setSmartFilter('all')" class="smart-pill active px-4 py-1.5 rounded-full text-xs cursor-pointer">
+              الكل
             </button>
-          </form>
+            <button type="button" id="pill_phone" onclick="setSmartFilter('phone')" class="smart-pill px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer">
+              مع هاتف
+            </button>
+            <button type="button" id="pill_open" onclick="setSmartFilter('open')" class="smart-pill px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer">
+              مفتوح الآن
+            </button>
+            <button type="button" id="pill_nearest" onclick="setSmartFilter('nearest')" class="smart-pill px-4 py-1.5 rounded-full text-xs font-bold cursor-pointer">
+              الأقرب لموقعي
+            </button>
+          </div>
 
-          <!-- Live Progress Bar -->
-          <div id="progressContainer" class="hidden mt-4 pt-3 border-t border-slate-800/80">
-            <div class="flex items-center justify-between text-xs mb-1.5">
-              <span id="statusMessage" class="text-cyan-300 font-bold truncate">جارٍ الاتصال بمحرك خرائط جوجل...</span>
-              <span id="progressRatio" class="text-white font-num font-bold">0 / 0</span>
+          <div class="flex items-center gap-2">
+            <div class="relative">
+              <input
+                type="text"
+                id="filterInput"
+                oninput="applyResultsFilter()"
+                placeholder="تصفية سريعة..."
+                class="bg-slate-900/90 border border-slate-700/80 rounded-full px-3.5 py-1 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-400 w-36 sm:w-44"
+              />
             </div>
-            <div class="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-800">
-              <div id="progressBar" class="bg-gradient-to-r from-cyan-400 via-sky-500 to-emerald-400 h-full w-0 transition-all duration-300 rounded-full"></div>
-            </div>
+            <button type="button" onclick="exportToCSV()" class="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer">
+              CSV
+            </button>
+            <button type="button" onclick="exportToJSON()" class="px-3 py-1 rounded-full bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 hover:text-white cursor-pointer">
+              JSON
+            </button>
           </div>
         </div>
 
-        <!-- B. Results Studio Container (Smart Filters + Bento Cards Grid + Full Data Table) -->
-        <div id="resultsStudioSection" class="glass-panel rounded-3xl p-4 sm:p-6 border border-cyan-500/30 space-y-4">
-          
-          <!-- Header & Export Action Bar -->
-          <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
-            <div>
-              <div class="flex items-center gap-2">
-                <i data-lucide="sparkles" class="w-5 h-5 text-cyan-400"></i>
-                <h3 class="text-base sm:text-lg font-black text-white">النتائج المستخرجة من خرائط جوجل</h3>
-                <span id="filteredCountBadge" class="px-2.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-num text-xs font-bold">0</span>
-              </div>
-              <p class="text-[11px] text-slate-400 mt-0.5">مرر أو اضغط على أي منشأة للتحليق إليها مباشرة على الخريطة التفاعلية</p>
-            </div>
-
-            <!-- Export & View Mode Buttons -->
-            <div class="flex flex-wrap items-center gap-1.5 w-full xl:w-auto">
-              <!-- Toggle Display: Bento Cards vs Table -->
-              <div class="flex items-center bg-slate-950/90 p-1 rounded-xl border border-slate-800 ml-1">
-                <button type="button" id="btnDisplayCards" onclick="setResultsDisplayMode('cards')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 flex items-center gap-1 transition cursor-pointer">
-                  <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
-                  <span>بطاقات فاخرة</span>
-                </button>
-                <button type="button" id="btnDisplayTable" onclick="setResultsDisplayMode('table')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1 transition cursor-pointer">
-                  <i data-lucide="table-2" class="w-3.5 h-3.5"></i>
-                  <span>جدول كامل</span>
-                </button>
-              </div>
-
-              <button onclick="copyAllPhones()" class="px-3 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition cursor-pointer">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                <span>نسخ الهواتف</span>
-              </button>
-
-              <button onclick="exportToExcel()" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 shadow-md shadow-emerald-700/30 transition cursor-pointer">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-                <span>Excel</span>
-              </button>
-
-              <button onclick="exportToCSV()" class="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-cyan-300 transition cursor-pointer">
-                CSV
-              </button>
-
-              <button onclick="exportToJSON()" class="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-purple-300 transition cursor-pointer">
-                JSON
-              </button>
-            </div>
+        <!-- Live Extraction Progress Bar (Slim & Sleek) -->
+        <div id="progressContainer" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-2xl px-4 py-2">
+          <div class="flex items-center justify-between text-[11px] mb-1">
+            <span id="statusMessage" class="text-emerald-300 font-bold truncate">جارٍ سحب البيانات الحقيقية من خرائط جوجل...</span>
+            <span id="progressRatio" class="text-white font-num font-bold">0 / 0</span>
           </div>
-
-          <!-- One-Click Smart Filter Pills + Search Input -->
-          <div class="space-y-2.5">
-            <div class="flex flex-wrap items-center gap-1.5">
-              <button type="button" id="pill_all" onclick="setSmartFilter('all')" class="filter-pill active px-3 py-1.5 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5">
-                <span>الكل</span>
-              </button>
-              <button type="button" id="pill_phone" onclick="setSmartFilter('phone')" class="filter-pill px-3 py-1.5 rounded-xl text-xs font-bold text-emerald-300 cursor-pointer flex items-center gap-1.5">
-                <span>📞 بأرقام هواتف فقط</span>
-              </button>
-              <button type="button" id="pill_open" onclick="setSmartFilter('open')" class="filter-pill px-3 py-1.5 rounded-xl text-xs font-bold text-sky-300 cursor-pointer flex items-center gap-1.5">
-                <span>🟢 مفتوح الآن</span>
-              </button>
-              <button type="button" id="pill_rated" onclick="setSmartFilter('rated')" class="filter-pill px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 cursor-pointer flex items-center gap-1.5">
-                <span>⭐ تقييم عالي (+4.5)</span>
-              </button>
-              <button type="button" id="pill_nearest" onclick="setSmartFilter('nearest')" class="filter-pill px-3 py-1.5 rounded-xl text-xs font-bold text-cyan-300 cursor-pointer flex items-center gap-1.5">
-                <span>📍 الأقرب لموقعي</span>
-              </button>
-            </div>
-
-            <div class="flex items-center gap-2">
-              <div class="relative flex-1">
-                <i data-lucide="search" class="absolute right-3.5 top-2.5 w-4 h-4 text-slate-400"></i>
-                <input 
-                  type="text" 
-                  id="filterInput" 
-                  oninput="applyResultsFilter()" 
-                  placeholder="ابحث داخل النتائج المستخرجة بالاسم، الرقم، أو الحي..."
-                  class="w-full bg-slate-950/80 text-xs rounded-xl pr-10 pl-4 py-2.5 border border-slate-800 focus:outline-none focus:border-cyan-400 text-slate-200"
-                />
-              </div>
-              <button onclick="clearAllResults()" class="px-3 py-2.5 text-xs font-bold text-red-400 hover:bg-red-500/10 rounded-xl border border-red-500/25 transition cursor-pointer">
-                مسح الكل
-              </button>
-            </div>
+          <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
+            <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
           </div>
-
-          <!-- VIEW 1: Luxury Bento Cards Grid (Works great on both Desktop & Mobile!) -->
-          <div id="bentoCardsWrapper" class="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[680px] overflow-y-auto pr-1">
-            <div id="bentoEmptyState" class="col-span-full p-10 text-center text-slate-400 rounded-2xl border border-slate-800/80 bg-slate-950/50">
-              <div class="w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-2">
-                <i data-lucide="radar" class="w-6 h-6"></i>
-              </div>
-              <p class="text-sm font-bold text-slate-200 mb-1">الرادار جاهز لبدء المسح والاستخراج</p>
-              <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة من الأعلى ثم اضغط "بدء المسح الذكي" لتظهر البطاقات التفاعلية فوراً</p>
-            </div>
-          </div>
-
-          <!-- VIEW 2: Full Wide Data Table -->
-          <div id="desktopResultsTableWrapper" class="hidden overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/70 max-h-[680px]">
-            <table class="w-full text-right text-xs">
-              <thead class="bg-slate-900/95 text-cyan-300 font-bold border-b border-slate-800 sticky top-0 z-10">
-                <tr>
-                  <th class="p-3">#</th>
-                  <th class="p-3">اسم المنشأة والعنوان</th>
-                  <th class="p-3">المدينة / الحي</th>
-                  <th class="p-3">وقت الدوام والحالة</th>
-                  <th class="p-3">أرقام الهواتف الحقيقية</th>
-                  <th class="p-3">التقييم</th>
-                  <th class="p-3">الخريطة والروابط</th>
-                  <th class="p-3 text-center">إجراءات</th>
-                </tr>
-              </thead>
-              <tbody id="resultsTableBody" class="divide-y divide-slate-800/60">
-                <tr id="emptyRow">
-                  <td colspan="8" class="p-10 text-center text-slate-400">لا توجد نتائج مستخرجة بعد</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
         </div>
+
+        <!-- 4. 3-Column Bento Cards Grid (Exactly matching Mockup!) -->
+        <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[540px] overflow-y-auto pr-1 pt-1">
+          <!-- Populated dynamically with real Google Maps places -->
+        </div>
+
+        <!-- Alternative Full Data Table View (Toggled via Top Table Icon) -->
+        <div id="desktopResultsTableWrapper" class="hidden overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/85 max-h-[540px]">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-900 text-emerald-300 font-bold border-b border-slate-800 sticky top-0 z-10">
+              <tr>
+                <th class="p-3">#</th>
+                <th class="p-3">اسم المنشأة</th>
+                <th class="p-3">المدينة / الحي</th>
+                <th class="p-3">حالة الدوام</th>
+                <th class="p-3">رقم الهاتف الحقيقي</th>
+                <th class="p-3">التقييم</th>
+                <th class="p-3">الروابط</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody" class="divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+
       </div>
 
-      <!-- LEFT COLUMN (5 Cols on Desktop, Sticky): 3D Globe & Live Interactive Street/Satellite Radar -->
-      <div id="visualizerPanel" class="lg:col-span-5 lg:sticky lg:top-4 flex flex-col glass-panel rounded-3xl p-4 sm:p-5 border border-cyan-500/30 order-2 min-h-[420px] lg:min-h-[640px]">
+      <!-- LEFT SIDE (5 Cols on Desktop): Circular 3D Radar Globe with Concentric Distance Rings (0.8 km, 1.2 km) + Bottom Pill Toggle Switches -->
+      <div id="visualizerPanel" class="lg:col-span-5 flex flex-col items-center justify-center relative order-2 py-2">
         
-        <!-- Radar Header & Mode Switcher -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3 pb-3 border-b border-slate-800/80 z-10">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
-            <div>
-              <h3 id="viewModeTitle" class="text-xs sm:text-sm font-black text-white">رادار الشوارع والأقمار الصناعية الحي</h3>
-              <p id="activePlaceBanner" class="text-[10px] text-cyan-400 truncate max-w-[220px]">تفاعل مباشر مع النتائج المستخرجة</p>
+        <!-- Circular Radar Globe / Map Container -->
+        <div class="relative w-[330px] h-[330px] sm:w-[430px] sm:h-[430px] xl:w-[470px] xl:h-[470px] flex items-center justify-center">
+          
+          <!-- VIEW 1: 3D Earth Globe with Radar Rings & Sweep Overlay (Exactly like Mockup!) -->
+          <div id="globeContainer" class="globe-radar-shell w-full h-full relative overflow-hidden flex items-center justify-center">
+            <!-- Three.js 3D Globe Canvas -->
+            <canvas id="globeCanvas" class="w-full h-full cursor-grab active:cursor-grabbing z-10"></canvas>
+
+            <!-- Concentric Radar Distance Rings & Rotating Sweep Overlay (Pointer-Events-None so Globe still rotates!) -->
+            <div class="absolute inset-0 pointer-events-none z-20 flex items-center justify-center">
+              <!-- Rotating Emerald Radar Sweep Cone -->
+              <div class="radar-cone-sweep w-[86%] h-[86%] opacity-75"></div>
+
+              <!-- Ring 1 (Inner - 0.8 km) -->
+              <div class="absolute w-[38%] h-[38%] rounded-full border border-emerald-400/50">
+                <span class="absolute -bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-950/90 border border-emerald-400/50 text-emerald-300 font-num text-[10px] font-bold shadow">
+                  0.8 km
+                </span>
+              </div>
+
+              <!-- Ring 2 (Middle - 1.2 km) -->
+              <div class="absolute w-[62%] h-[62%] rounded-full border border-emerald-400/40">
+                <span class="absolute -bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-950/90 border border-emerald-400/40 text-emerald-300 font-num text-[10px] font-bold shadow">
+                  1.2 km
+                </span>
+              </div>
+
+              <!-- Ring 3 (Outer - 2.5 km) -->
+              <div class="absolute w-[86%] h-[86%] rounded-full border border-cyan-400/35">
+                <span class="absolute -bottom-3 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-slate-950/90 border border-cyan-400/40 text-cyan-300 font-num text-[10px] font-bold shadow">
+                  2.5 km
+                </span>
+              </div>
+
+              <!-- Decorative Glowing Map Pins matching Mockup -->
+              <div class="glowing-radar-pin absolute top-[22%] left-[44%] text-emerald-400">
+                <i data-lucide="map-pin" class="w-6 h-6 fill-emerald-400/30"></i>
+              </div>
+              <div class="glowing-radar-pin absolute top-[36%] left-[32%] text-cyan-400" style="animation-delay:0.6s">
+                <i data-lucide="map-pin" class="w-6 h-6 fill-cyan-400/30"></i>
+              </div>
+              <div class="glowing-radar-pin absolute top-[45%] right-[26%] text-emerald-400" style="animation-delay:1.2s">
+                <i data-lucide="map-pin" class="w-6 h-6 fill-emerald-400/30"></i>
+              </div>
+              <div class="glowing-radar-pin absolute bottom-[24%] left-[20%] text-emerald-400" style="animation-delay:1.8s">
+                <i data-lucide="map-pin" class="w-6 h-6 fill-emerald-400/30"></i>
+              </div>
+              <div class="glowing-radar-pin absolute top-[30%] right-[14%] text-cyan-300" style="animation-delay:0.9s">
+                <i data-lucide="map-pin" class="w-5 h-5 fill-cyan-400/30"></i>
+              </div>
             </div>
           </div>
 
-          <div class="flex items-center justify-center gap-1 bg-slate-950/90 p-1 rounded-xl border border-slate-800 text-[11px]">
-            <button onclick="setViewMode('map', 'streets')" id="btnViewMap" class="px-2.5 py-1.5 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
-              🗺️ خريطة الشوارع
-            </button>
-            <button onclick="setViewMode('map', 'hybrid')" id="btnViewHybrid" class="px-2.5 py-1.5 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
-              🛰️ قمر صناعي
-            </button>
-            <button onclick="setViewMode('3d')" id="btnView3d" class="px-2.5 py-1.5 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
-              🌍 كرة 3D
-            </button>
+          <!-- VIEW 2: Interactive 2D Street / Satellite Radar Map -->
+          <div id="mapContainer" class="hidden w-full h-full rounded-3xl overflow-hidden border-2 border-emerald-500/40 shadow-[0_0_50px_rgba(16,185,129,0.2)] relative">
+            <div id="leafletMap" class="w-full h-full"></div>
+            <div class="absolute top-3 right-3 z-[400] flex gap-1.5">
+              <button type="button" onclick="setViewMode('map', 'streets')" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">شوارع</button>
+              <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold">قمر صناعي</button>
+              <button type="button" onclick="centerMapOnUserGps()" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-amber-500/40 text-amber-300 text-[11px] font-bold">📍 موقعي</button>
+            </div>
           </div>
-        </div>
 
-        <!-- View 1: Interactive Leaflet Map (Default for instant street-level radar precision!) -->
-        <div id="mapContainer" class="relative flex-1 w-full rounded-2xl overflow-hidden border border-cyan-500/25 min-h-[360px] lg:min-h-[520px]">
-          <div id="leafletMap" class="w-full h-full min-h-[360px] lg:min-h-[520px]"></div>
-          <!-- Floating Map Controls Overlay -->
-          <div class="absolute bottom-3 right-3 z-[400] flex flex-wrap gap-1.5">
-            <button type="button" onclick="centerMapOnUserGps()" class="px-3 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold shadow-lg flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
-              <span>موقعي الحالي</span>
+          <!-- Bottom-Left Pill Toggle Switches (Exactly like Mockup!) -->
+          <div class="absolute -bottom-3 left-0 sm:left-2 z-30 flex flex-col gap-2">
+            <!-- Toggle 1: 3D Earth Globe -->
+            <button
+              type="button"
+              onclick="setViewMode('3d')"
+              id="pillToggle3D"
+              class="flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/95 border border-emerald-400/60 shadow-lg cursor-pointer transition min-w-[215px]"
+            >
+              <span class="text-xs font-bold text-white">كرة أرضية ثلاثية الأبعاد</span>
+              <div id="switchTrack3D" class="w-10 h-5 rounded-full bg-emerald-400 p-0.5 flex items-center justify-end transition">
+                <span class="w-4 h-4 rounded-full bg-white shadow"></span>
+              </div>
             </button>
-            <button type="button" onclick="fitMapToAllResults()" class="px-3 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold shadow-lg flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i>
-              <span>إظهار كل النتائج</span>
-            </button>
-          </div>
-        </div>
 
-        <!-- View 2: Three.js 3D Earth Viewport -->
-        <div id="globeContainer" class="hidden relative flex-1 w-full rounded-2xl overflow-hidden border border-cyan-500/25 bg-[#03060f] min-h-[360px] lg:min-h-[520px]">
-          <canvas id="globeCanvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
-          <div class="absolute bottom-3 right-3 text-[11px] text-slate-300 bg-slate-950/85 px-3 py-1.5 rounded-xl border border-slate-800 pointer-events-none">
-            💡 اسحب لتدوير الكرة الأرضية ثلاثية الأبعاد وعمل تقريب (Zoom)
+            <!-- Toggle 2: 2D Street Map -->
+            <button
+              type="button"
+              onclick="setViewMode('map', 'streets')"
+              id="pillToggle2D"
+              class="flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/90 border border-slate-700 hover:border-emerald-400/40 shadow-lg cursor-pointer transition min-w-[215px]"
+            >
+              <span class="text-xs font-bold text-slate-300">خريطة شوارع ثنائية الأبعاد</span>
+              <div id="switchTrack2D" class="w-10 h-5 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition">
+                <span class="w-4 h-4 rounded-full bg-slate-300 shadow"></span>
+              </div>
+            </button>
           </div>
+
         </div>
 
       </div>
@@ -664,51 +563,35 @@
 
   </main>
 
-  <!-- Mobile Bottom Navigation Bar (App-like experience on Smartphones) -->
-  <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-cyan-500/30 px-4 py-2 flex items-center justify-around">
-    <button type="button" onclick="document.getElementById('searchConsoleSection').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[11px] font-bold">
+  <!-- Mobile Bottom Navigation -->
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-4 py-2 flex items-center justify-around">
+    <button type="button" onclick="document.getElementById('searchForm').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[11px] font-bold">
       <i data-lucide="search" class="w-4 h-4"></i>
       <span>البحث</span>
     </button>
-    <button type="button" onclick="document.getElementById('resultsStudioSection').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[11px] font-bold">
+    <button type="button" onclick="document.getElementById('bentoCardsWrapper').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[11px] font-bold">
       <i data-lucide="layout-grid" class="w-4 h-4"></i>
-      <span>النتائج</span>
+      <span>البطاقات</span>
     </button>
-    <button type="button" onclick="document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-sky-400 text-[11px] font-bold">
-      <i data-lucide="map" class="w-4 h-4"></i>
-      <span>الرادار والخريطة</span>
+    <button type="button" onclick="document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-teal-400 text-[11px] font-bold">
+      <i data-lucide="globe" class="w-4 h-4"></i>
+      <span>الرادار 3D</span>
     </button>
     <button type="button" onclick="exportToExcel()" class="flex flex-col items-center gap-0.5 text-amber-400 text-[11px] font-bold">
       <i data-lucide="download" class="w-4 h-4"></i>
-      <span>تصدير Excel</span>
+      <span>Excel</span>
     </button>
   </nav>
 
-  <!-- Modern Footer -->
-  <footer class="mt-6 border-t border-slate-800/80 bg-slate-950/80 py-4 px-4 text-center text-xs text-slate-500">
-    <div class="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-      <p>GeoRadar 3D Studio &bull; استوديو استخراج البيانات الحقيقية والإحداثيات المباشرة من خرائط جوجل</p>
-      <div class="flex items-center gap-3 text-slate-400">
-        <span>أرقام حقيقية 100%</span>
-        <span>&bull;</span>
-        <span>ترتيب تلقائي للأقرب</span>
-        <span>&bull;</span>
-        <span>تصدير فوري</span>
-      </div>
-    </div>
-  </footer>
-
-  <!-- Scripts: 3D Engine, Leaflet Radar, Smart Filters, SSE Streaming & Data Operations -->
   <script>
     lucide.createIcons();
 
-    // Data Store
     let extractedPlaces = [];
     let currentEventSource = null;
     let selectedRadius = 10;
-    let viewMode = 'map';
+    let viewMode = '3d';
     let currentSmartFilter = 'all';
-    let resultsDisplayMode = 'cards'; // 'cards' | 'table'
+    let isTableView = false;
 
     // Three.js Variables
     let scene, camera, renderer, controls, globe, pinGroup;
@@ -718,8 +601,9 @@
     let leafletMap = null;
     let mapMarkers = [];
     let userGpsMarker = null;
+    let googleStreetsMainLayer = null;
+    let googleHybridMainLayer = null;
 
-    // Haversine distance in km between two coordinates
     function getDistanceKm(lat1, lng1, lat2, lng2) {
       if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
       const toRad = d => (d * Math.PI) / 180;
@@ -731,25 +615,59 @@
       return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    function setQuickCategory(cat) {
+    function toggleAdvancedDrawer() {
+      const dr = document.getElementById('advancedSearchDrawer');
+      if (dr) dr.classList.toggle('hidden');
+    }
+
+    function updateCompactSettingsLabel() {
+      const hood = document.getElementById('neighborhoodInput')?.value.trim();
+      const lim = document.getElementById('limitInput')?.value || 20;
+      const lbl = document.getElementById('compactSettingsLabel');
+      if (lbl) {
+        lbl.innerText = hood ? `${hood} / ${lim} شركة` : `الأقرب / ${lim} شركة`;
+      }
+      const limLbl = document.getElementById('limitLabel');
+      if (limLbl) limLbl.innerText = `${lim} شركة`;
+    }
+
+    function setQuickCity(city) {
+      const loc = document.getElementById('locationInput');
+      if (loc) loc.value = city;
+    }
+
+    function triggerCategorySearch(category, btnEl) {
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
       const q = document.getElementById('queryInput');
-      if (q) {
-        q.value = cat;
-        q.focus();
+      if (q) q.value = category;
+      handleSearch(new Event('submit'));
+    }
+
+    function toggleResultsViewMode() {
+      isTableView = !isTableView;
+      const bento = document.getElementById('bentoCardsWrapper');
+      const table = document.getElementById('desktopResultsTableWrapper');
+      if (isTableView) {
+        bento.classList.add('hidden');
+        table.classList.remove('hidden');
+      } else {
+        bento.classList.remove('hidden');
+        table.classList.add('hidden');
       }
     }
 
-    // Initialize 3D Three.js Globe
+    // Initialize 3D Three.js Globe matching Mockup Emerald/Cyan Aesthetics
     function init3D() {
       const container = document.getElementById('globeContainer');
       const canvas = document.getElementById('globeCanvas');
       if (!container || !canvas) return;
-      const width = container.clientWidth || 500;
-      const height = container.clientHeight || 480;
+      const width = container.clientWidth || 450;
+      const height = container.clientHeight || 450;
 
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
-      camera.position.set(0, 5, 16);
+      camera.position.set(0, 3, 13.5);
 
       renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
       renderer.setSize(width, height);
@@ -759,9 +677,10 @@
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.8;
+      controls.autoRotateSpeed = 0.9;
+      controls.enableZoom = true;
       controls.minDistance = 8;
-      controls.maxDistance = 24;
+      controls.maxDistance = 20;
 
       const geometry = new THREE.SphereGeometry(globeRadius, 64, 64);
 
@@ -770,11 +689,13 @@
       textureCanvas.height = 1024;
       const ctx = textureCanvas.getContext('2d');
 
-      ctx.fillStyle = '#050c1a';
+      // Deep dark space-ocean base
+      ctx.fillStyle = '#041019';
       ctx.fillRect(0, 0, textureCanvas.width, textureCanvas.height);
 
-      ctx.strokeStyle = '#00f2fe24';
-      ctx.lineWidth = 1;
+      // Subtle emerald/cyan latitude/longitude grid
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.14)';
+      ctx.lineWidth = 1.2;
       for (let lat = -90; lat <= 90; lat += 15) {
         const y = (lat + 90) / 180 * textureCanvas.height;
         ctx.beginPath();
@@ -790,56 +711,34 @@
         ctx.stroke();
       }
 
-      ctx.fillStyle = '#0d2847';
+      // Stylized dark-teal continents
+      ctx.fillStyle = '#0c2938';
       ctx.beginPath();
-      ctx.arc(1300, 400, 180, 0, Math.PI * 2);
+      ctx.arc(1280, 420, 175, 0, Math.PI * 2);
       ctx.fill();
-      ctx.arc(1150, 560, 240, 0, Math.PI * 2);
+      ctx.arc(1130, 560, 230, 0, Math.PI * 2);
       ctx.fill();
-      ctx.arc(1150, 300, 140, 0, Math.PI * 2);
+      ctx.arc(1140, 290, 145, 0, Math.PI * 2);
       ctx.fill();
-      ctx.arc(1550, 380, 320, 0, Math.PI * 2);
+      ctx.arc(1540, 380, 300, 0, Math.PI * 2);
       ctx.fill();
 
       const earthTexture = new THREE.CanvasTexture(textureCanvas);
       const material = new THREE.MeshPhongMaterial({
         map: earthTexture,
         bumpScale: 0.05,
-        specular: new THREE.Color('#38bdf8'),
-        shininess: 15,
-        emissive: new THREE.Color('#021024'),
+        specular: new THREE.Color('#10b981'),
+        shininess: 18,
+        emissive: new THREE.Color('#021318'),
       });
 
       globe = new THREE.Mesh(geometry, material);
       scene.add(globe);
 
-      const atmosGeom = new THREE.SphereGeometry(globeRadius * 1.05, 32, 32);
-      const atmosMat = new THREE.MeshBasicMaterial({
-        color: 0x00f2fe,
-        transparent: true,
-        opacity: 0.12,
-        side: THREE.BackSide,
-      });
-      const atmosphere = new THREE.Mesh(atmosGeom, atmosMat);
-      scene.add(atmosphere);
-
-      const starGeometry = new THREE.BufferGeometry();
-      const starCount = 600;
-      const starPositions = new Float32Array(starCount * 3);
-      for (let i = 0; i < starCount * 3; i += 3) {
-        starPositions[i] = (Math.random() - 0.5) * 80;
-        starPositions[i + 1] = (Math.random() - 0.5) * 80;
-        starPositions[i + 2] = (Math.random() - 0.5) * 80;
-      }
-      starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-      const starMaterial = new THREE.PointsMaterial({ color: 0x38bdf8, size: 0.6, transparent: true, opacity: 0.6 });
-      const starField = new THREE.Points(starGeometry, starMaterial);
-      scene.add(starField);
-
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0x38bdf8, 1.2);
+      const dirLight = new THREE.DirectionalLight(0x10b981, 1.4);
       dirLight.position.set(10, 10, 15);
       scene.add(dirLight);
 
@@ -855,8 +754,8 @@
 
       window.addEventListener('resize', () => {
         if (!container || container.classList.contains('hidden')) return;
-        const w = container.clientWidth || 500;
-        const h = container.clientHeight || 480;
+        const w = container.clientWidth || 450;
+        const h = container.clientHeight || 450;
         camera.aspect = w / h;
         camera.updateProjectionMatrix();
         renderer.setSize(w, h);
@@ -875,41 +774,30 @@
     function add3DPin(lat, lng) {
       if (!pinGroup) return;
       const pos = latLngToVector3(lat, lng, globeRadius);
-      const pinGeom = new THREE.SphereGeometry(0.12, 16, 16);
-      const pinMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+      const pinGeom = new THREE.SphereGeometry(0.13, 16, 16);
+      const pinMat = new THREE.MeshBasicMaterial({ color: 0x10b981 });
       const pinMesh = new THREE.Mesh(pinGeom, pinMat);
       pinMesh.position.copy(pos);
       pinGroup.add(pinMesh);
 
-      const targetPos = pos.clone().multiplyScalar(1.25);
+      const targetPos = pos.clone().multiplyScalar(1.22);
       const lineGeom = new THREE.BufferGeometry().setFromPoints([pos, targetPos]);
-      const lineMat = new THREE.LineBasicMaterial({ color: 0x38bdf8, linewidth: 2 });
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x34d399, linewidth: 2 });
       const line = new THREE.Line(lineGeom, lineMat);
       pinGroup.add(line);
-
-      if (pinGroup.children.length === 2) {
-        controls.autoRotate = false;
-        camera.position.set(pos.x * 2.2, pos.y * 2.2 + 2, pos.z * 2.2);
-        camera.lookAt(0, 0, 0);
-      }
     }
-
-    // Leaflet Map Initialization
-    let googleStreetsMainLayer = null;
-    let googleHybridMainLayer = null;
 
     function initLeafletMap(centerLat = 15.3538, centerLng = 44.2058) {
       if (leafletMap) return;
-
       leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 14);
       
       googleStreetsMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Maps Live Streets',
+        attribution: '&copy; Google Maps',
         maxZoom: 20
       });
 
       googleHybridMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ar&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Maps Satellite Hybrid',
+        attribution: '&copy; Google Maps Satellite',
         maxZoom: 20
       });
 
@@ -920,103 +808,71 @@
       if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) return;
       if (!leafletMap) initLeafletMap(cachedOptionalGps.lat, cachedOptionalGps.lng);
 
-      if (userGpsMarker) {
-        leafletMap.removeLayer(userGpsMarker);
-      }
+      if (userGpsMarker) leafletMap.removeLayer(userGpsMarker);
 
       const userIcon = L.divIcon({
         className: 'user-gps-pin',
         html: `
-          <div style="position:relative; width:30px; height:30px; display:flex; align-items:center; justify-content:center;">
-            <div style="position:absolute; inset:0; border-radius:50%; background:rgba(16,185,129,0.35); animation:ping 1.5s infinite;"></div>
-            <div style="background:#10b981; width:18px; height:18px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 14px #10b981;"></div>
+          <div style="position:relative; width:28px; height:28px; display:flex; align-items:center; justify-content:center;">
+            <div style="background:#10b981; width:16px; height:16px; border-radius:50%; border:3px solid #ffffff; box-shadow:0 0 14px #10b981;"></div>
           </div>
         `,
-        iconSize: [30, 30],
-        iconAnchor: [15, 15]
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
       });
 
       userGpsMarker = L.marker([cachedOptionalGps.lat, cachedOptionalGps.lng], { icon: userIcon }).addTo(leafletMap);
-      userGpsMarker.bindPopup(`
-        <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl;">
-          <strong style="color:#10b981;">📍 موقعك الجغرافي الحالي</strong>
-          <p style="font-size:11px; color:#475569; margin:2px 0;">يتم ترتيب النتائج الأقرب لهذا الموقع أولاً</p>
-        </div>
-      `);
-
-      const gpsBadge = document.getElementById('gpsProximityBadge');
-      if (gpsBadge) gpsBadge.classList.remove('hidden');
+      userGpsMarker.bindPopup(`<div style="font-family:'Cairo',sans-serif;direction:rtl;text-align:right;"><strong style="color:#10b981;">📍 موقعك الجغرافي الحالي</strong></div>`);
     }
 
     function centerMapOnUserGps() {
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
-        if (viewMode === '3d') setViewMode('map', 'streets');
+        setViewMode('map', 'streets');
         renderUserGpsPinOnMap();
         leafletMap.flyTo([cachedOptionalGps.lat, cachedOptionalGps.lng], 16, { duration: 1 });
-        if (userGpsMarker) setTimeout(() => userGpsMarker.openPopup(), 900);
       } else {
         requestOptionalGeolocationPrompt();
       }
     }
 
-    function fitMapToAllResults() {
-      if (!leafletMap || mapMarkers.length === 0) return;
-      if (viewMode === '3d') setViewMode('map', 'streets');
-      const group = L.featureGroup(mapMarkers.map(m => m.marker));
-      leafletMap.fitBounds(group.getBounds().pad(0.15));
-    }
-
     function addMapMarker(place, index) {
       if (!leafletMap) initLeafletMap(place.lat, place.lng);
-
-      const hasPhone = place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '';
-      const pinBg = hasPhone ? 'linear-gradient(135deg, #06b6d4, #10b981)' : 'linear-gradient(135deg, #0284c7, #6366f1)';
 
       const customIcon = L.divIcon({
         className: 'custom-numbered-pin',
         html: `
-          <div style="background: ${pinBg}; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 999px; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 14px rgba(6,182,212,0.65); color: #020617; font-weight: 900; font-size: 11px; font-family: 'Orbitron', sans-serif;">
+          <div style="background: linear-gradient(135deg, #10b981, #06b6d4); min-width: 26px; height: 26px; padding: 0 5px; border-radius: 999px; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(16,185,129,0.8); color: #022c22; font-weight: 900; font-size: 11px; font-family: 'Orbitron', sans-serif;">
             ${index}
           </div>
         `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 28]
+        iconSize: [26, 26],
+        iconAnchor: [13, 26]
       });
 
-      const statusColor = place.isOpenNow === false ? '#ef4444' : '#10b981';
-      const statusLabel = place.openStatus || (place.isOpenNow === false ? 'مغلق الآن' : 'مفتوح الآن');
-      const hoursLabel = place.workingHours || '8:00 ص - 11:00 م';
+      const hasPhone = place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '';
       const phonePopupHtml = hasPhone
-        ? `<p style="font-size: 12px; color: #059669; margin: 4px 0; font-weight: 800; direction:ltr; text-align:right;">📞 ${place.phone}</p>`
+        ? `<p style="font-size: 12px; color: #059669; margin: 3px 0; font-weight: 800; direction:ltr; text-align:right;">📞 ${place.phone}</p>`
         : '';
 
       const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(leafletMap);
       marker.bindPopup(`
-        <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 205px;">
-          <div style="font-size:10px; color:#0284c7; font-weight:bold;">منشأة رقم #${index}</div>
+        <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 195px;">
           <h4 style="font-weight: 900; color: #0f172a; margin-bottom: 3px; font-size:13px;">${place.name}</h4>
           <p style="font-size: 11px; color: #64748b; margin: 2px 0;">📍 ${place.city || ''} - ${place.district || ''}</p>
-          <p style="font-size: 11px; color: ${statusColor}; font-weight: bold; margin: 2px 0;">🕒 ${statusLabel} (${hoursLabel})</p>
           ${phonePopupHtml}
           <p style="font-size: 11px; color: #d97706; font-weight:bold; margin: 2px 0;">⭐ ${place.rating}</p>
-          <a href="${place.locationUrl}" target="_blank" style="display: inline-block; margin-top: 6px; font-size: 11px; font-weight:bold; color: white; background: #0284c7; padding: 5px 12px; border-radius: 8px; text-decoration: none;">فتح في خرائط جوجل ↗</a>
+          <a href="${place.locationUrl}" target="_blank" style="display: inline-block; margin-top: 5px; font-size: 11px; font-weight:bold; color: white; background: #10b981; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح في خرائط جوجل ↗</a>
         </div>
       `);
       mapMarkers.push({ id: place.id, marker, place });
     }
 
-    // Interactive Fly-To Place on Radar Map when user clicks or hovers a card
-    function focusPlaceOnRadar(placeId, shouldScrollMobile = false) {
+    function focusPlaceOnRadar(placeId, switchToMap = false) {
       const entry = mapMarkers.find(m => m.id === placeId);
       if (!entry) return;
 
-      const banner = document.getElementById('activePlaceBanner');
-      if (banner) {
-        banner.innerText = `🎯 محدد الآن: ${entry.place.name}`;
-      }
-
-      if (shouldScrollMobile && window.innerWidth < 1024) {
-        document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (switchToMap && viewMode === '3d') {
+        setViewMode('map', 'streets');
       }
 
       if (viewMode === '3d') {
@@ -1032,80 +888,46 @@
       }
     }
 
-    // View Mode Switching (Streets vs Satellite Hybrid vs 3D Globe)
+    // View Mode Switching with Pill Toggle Switches (3D Globe vs 2D Street Map)
     function setViewMode(mode, mapStyle = 'streets') {
       viewMode = mode;
       const globeDiv = document.getElementById('globeContainer');
       const mapDiv = document.getElementById('mapContainer');
-      const btn3d = document.getElementById('btnView3d');
-      const btnMap = document.getElementById('btnViewMap');
-      const btnHybrid = document.getElementById('btnViewHybrid');
-      const title = document.getElementById('viewModeTitle');
-
-      const activeClass = "px-2.5 py-1.5 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer";
-      const inactiveClass = "px-2.5 py-1.5 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer";
+      const pill3D = document.getElementById('pillToggle3D');
+      const pill2D = document.getElementById('pillToggle2D');
+      const track3D = document.getElementById('switchTrack3D');
+      const track2D = document.getElementById('switchTrack2D');
 
       if (mode === '3d') {
         globeDiv.classList.remove('hidden');
         mapDiv.classList.add('hidden');
-        btn3d.className = activeClass;
-        btnMap.className = inactiveClass;
-        if (btnHybrid) btnHybrid.className = inactiveClass;
-        title.innerText = "المجسم الكروي ثلاثي الأبعاد (3D Globe)";
-        if (renderer && globeDiv) {
-          const w = globeDiv.clientWidth || 500;
-          const h = globeDiv.clientHeight || 480;
-          camera.aspect = w / h;
-          camera.updateProjectionMatrix();
-          renderer.setSize(w, h);
-        }
+        pill3D.className = "flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/95 border border-emerald-400/60 shadow-lg cursor-pointer transition min-w-[215px]";
+        pill2D.className = "flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/90 border border-slate-700 hover:border-emerald-400/40 shadow-lg cursor-pointer transition min-w-[215px]";
+        track3D.className = "w-10 h-5 rounded-full bg-emerald-400 p-0.5 flex items-center justify-end transition";
+        track2D.className = "w-10 h-5 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition";
       } else {
         globeDiv.classList.add('hidden');
         mapDiv.classList.remove('hidden');
-        btn3d.className = inactiveClass;
+        pill2D.className = "flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/95 border border-emerald-400/60 shadow-lg cursor-pointer transition min-w-[215px]";
+        pill3D.className = "flex items-center justify-between gap-3 px-4 py-2 rounded-full bg-slate-900/90 border border-slate-700 hover:border-emerald-400/40 shadow-lg cursor-pointer transition min-w-[215px]";
+        track2D.className = "w-10 h-5 rounded-full bg-emerald-400 p-0.5 flex items-center justify-end transition";
+        track3D.className = "w-10 h-5 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition";
+
         if (!leafletMap) initLeafletMap();
         if (mapStyle === 'hybrid') {
           if (leafletMap.hasLayer(googleStreetsMainLayer)) leafletMap.removeLayer(googleStreetsMainLayer);
           googleHybridMainLayer.addTo(leafletMap);
-          if (btnHybrid) btnHybrid.className = activeClass;
-          btnMap.className = inactiveClass;
-          title.innerText = "رادار الأقمار الصناعية والشوارع الحي";
         } else {
           if (leafletMap.hasLayer(googleHybridMainLayer)) leafletMap.removeLayer(googleHybridMainLayer);
           googleStreetsMainLayer.addTo(leafletMap);
-          btnMap.className = activeClass;
-          if (btnHybrid) btnHybrid.className = inactiveClass;
-          title.innerText = "رادار الشوارع والأحياء المباشر (Google Maps)";
         }
         setTimeout(() => leafletMap.invalidateSize(), 150);
       }
     }
 
-    // Switch Results Display Mode: Bento Cards vs Full Table
-    function setResultsDisplayMode(mode) {
-      resultsDisplayMode = mode;
-      const cardsWrap = document.getElementById('bentoCardsWrapper');
-      const tableWrap = document.getElementById('desktopResultsTableWrapper');
-      const btnCards = document.getElementById('btnDisplayCards');
-      const btnTable = document.getElementById('btnDisplayTable');
-
-      if (mode === 'table') {
-        cardsWrap.classList.add('hidden');
-        tableWrap.classList.remove('hidden');
-        btnTable.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 flex items-center gap-1 transition cursor-pointer";
-        btnCards.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1 transition cursor-pointer";
-      } else {
-        cardsWrap.classList.remove('hidden');
-        tableWrap.classList.add('hidden');
-        btnCards.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 flex items-center gap-1 transition cursor-pointer";
-        btnTable.className = "px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 hover:text-white flex items-center gap-1 transition cursor-pointer";
-      }
-    }
-
-    // Smart Filter Pills Handler
     function setSmartFilter(filterType) {
       currentSmartFilter = filterType;
-      ['all', 'phone', 'open', 'rated', 'nearest'].forEach(k => {
+      ['all', 'phone', 'open', 'nearest'].forEach(k => {
         const el = document.getElementById(`pill_${k}`);
         if (el) {
           if (k === filterType) el.classList.add('active');
@@ -1114,7 +936,6 @@
       });
 
       if (filterType === 'nearest' && cachedOptionalGps && cachedOptionalGps.lat) {
-        // Re-sort extractedPlaces by distance from user GPS and re-render
         extractedPlaces.sort((a, b) => {
           const da = getDistanceKm(cachedOptionalGps.lat, cachedOptionalGps.lng, a.lat, a.lng) ?? 9999;
           const db = getDistanceKm(cachedOptionalGps.lat, cachedOptionalGps.lng, b.lat, b.lng) ?? 9999;
@@ -1137,49 +958,28 @@
 
     function applyResultsFilter() {
       const term = (document.getElementById('filterInput')?.value || '').toLowerCase().trim();
-      let visibleCount = 0;
-
       extractedPlaces.forEach((p) => {
         const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
         const isOpen = p.isOpenNow !== false;
-        const ratingNum = parseFloat(p.rating) || 0;
-        const matchesText = !term || `${p.name} ${p.city} ${p.district} ${p.phone || ''} ${p.address || ''}`.toLowerCase().includes(term);
+        const matchesText = !term || `${p.name} ${p.city} ${p.district} ${p.phone || ''}`.toLowerCase().includes(term);
 
         let matchesSmart = true;
         if (currentSmartFilter === 'phone') matchesSmart = hasPhone;
         else if (currentSmartFilter === 'open') matchesSmart = isOpen;
-        else if (currentSmartFilter === 'rated') matchesSmart = ratingNum >= 4.5;
 
         const show = matchesText && matchesSmart;
-        if (show) visibleCount++;
-
         const rowEl = document.getElementById(`row_${p.id}`);
         if (rowEl) rowEl.style.display = show ? '' : 'none';
 
         const cardEl = document.getElementById(`bento_${p.id}`);
         if (cardEl) cardEl.style.display = show ? '' : 'none';
       });
-
-      const badge = document.getElementById('filteredCountBadge');
-      if (badge) badge.innerText = visibleCount;
     }
 
-    // Radius & Limit Controls
-    function setRadius(km, type) {
+    function setRadius(km) {
       selectedRadius = km;
       document.getElementById('radiusSlider').value = km;
       document.getElementById('radiusLabel').innerText = `${km} كم`;
-
-      const btnCity = document.getElementById('btnRadiusCity');
-      const btnHood = document.getElementById('btnRadiusHood');
-      const btnWide = document.getElementById('btnRadiusWide');
-
-      const active = "py-1 text-[11px] font-bold rounded-lg border border-cyan-500 bg-cyan-500/20 text-cyan-300 transition cursor-pointer";
-      const inactive = "py-1 text-[11px] font-bold rounded-lg border border-slate-700 bg-slate-900 text-slate-300 transition cursor-pointer";
-
-      btnCity.className = type === 'city' ? active : inactive;
-      btnHood.className = type === 'hood' ? active : inactive;
-      btnWide.className = type === 'custom' ? active : inactive;
     }
 
     function onRadiusSliderChange(val) {
@@ -1189,33 +989,26 @@
 
     function setLimit(n) {
       document.getElementById('limitInput').value = n;
-      document.getElementById('limitLabel').innerText = `${n} شركة`;
+      updateCompactSettingsLabel();
     }
 
-    function toggleApiSettings() {
-      const box = document.getElementById('apiSettingsBox');
-      const caret = document.getElementById('apiCaret');
-      box.classList.toggle('hidden');
-      caret.classList.toggle('rotate-180');
-    }
-
-    // Main Search Handler with SSE Streaming
+    // Main SSE Search Handler
     function handleSearch(e) {
-      e.preventDefault();
+      if (e && e.preventDefault) e.preventDefault();
 
       if (currentEventSource) {
         currentEventSource.close();
       }
 
-      const query = document.getElementById('queryInput').value.trim();
-      const location = document.getElementById('locationInput').value.trim();
-      const neighborhood = document.getElementById('neighborhoodInput').value.trim();
-      const limit = parseInt(document.getElementById('limitInput').value, 10) || 20;
+      const query = document.getElementById('queryInput').value.trim() || 'شركات';
+      const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
+      const neighborhood = document.getElementById('neighborhoodInput')?.value.trim() || '';
+      const limit = parseInt(document.getElementById('limitInput')?.value, 10) || 20;
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
 
       const searchBtn = document.getElementById('searchBtn');
       searchBtn.disabled = true;
-      searchBtn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> جارٍ المسح وسحب البيانات الحقيقية...`;
+      searchBtn.innerHTML = `<span class="animate-spin inline-block w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full"></span>`;
 
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
@@ -1275,9 +1068,7 @@
 
       currentEventSource.addEventListener('center', (event) => {
         const data = JSON.parse(event.data);
-        if (leafletMap) {
-          leafletMap.setView([data.lat, data.lng], 14);
-        }
+        if (leafletMap) leafletMap.setView([data.lat, data.lng], 14);
       });
 
       currentEventSource.addEventListener('place', (event) => {
@@ -1298,10 +1089,10 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
-        statusMessage.innerText = "اكتمل المسح واستخراج البيانات الحقيقية بنجاح 100%!";
+        statusMessage.innerText = "اكتمل استخراج البيانات الحقيقية بنجاح!";
         progressBar.style.width = '100%';
+        setTimeout(() => progressContainer.classList.add('hidden'), 2500);
         finishSearch();
-        confetti({ particleCount: 55, spread: 70, origin: { y: 0.7 } });
       });
 
       currentEventSource.addEventListener('error', () => {
@@ -1316,19 +1107,14 @@
       }
       const searchBtn = document.getElementById('searchBtn');
       searchBtn.disabled = false;
-      searchBtn.innerHTML = `<i data-lucide="radar" class="w-5 h-5"></i><span>بدء المسح الذكي واستخراج البيانات الحقيقية</span>`;
+      searchBtn.innerHTML = `<span>استخراج</span>`;
       lucide.createIcons();
     }
 
-    // Build Both Luxury Bento Card AND Table Row for each extracted place
+    // Build Vertical Bento Card (100% Identical to Mockup Card Layout!) + Table Row
     function appendPlaceRow(place, index) {
       const tbody = document.getElementById('resultsTableBody');
-      const emptyRow = document.getElementById('emptyRow');
-      if (emptyRow) emptyRow.remove();
-
       const bentoContainer = document.getElementById('bentoCardsWrapper');
-      const bentoEmpty = document.getElementById('bentoEmptyState');
-      if (bentoEmpty) bentoEmpty.remove();
 
       const phonesArr = Array.isArray(place.phones) && place.phones.length > 0
         ? place.phones
@@ -1338,148 +1124,105 @@
       const cleanDigits = primaryPhone.replace(/[^\d+]/g, '');
       const whatsappNumber = cleanDigits.startsWith('+') ? cleanDigits.slice(1) : (cleanDigits.startsWith('00') ? cleanDigits.slice(2) : (cleanDigits.length <= 9 ? '967' + cleanDigits.replace(/^0/, '') : cleanDigits));
 
-      // Calculate distance from user's GPS if available
-      let distanceBadgeHtml = '';
+      let distLabel = '';
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng && place.lat && place.lng) {
         const distKm = getDistanceKm(cachedOptionalGps.lat, cachedOptionalGps.lng, place.lat, place.lng);
         if (distKm !== null) {
-          const distStr = distKm < 1 ? `${Math.round(distKm * 1000)} متر` : `${distKm.toFixed(1)} كم`;
-          distanceBadgeHtml = `<span class="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/35 text-cyan-300 font-num font-bold text-[10px] flex items-center gap-1">📍 يبعد ${distStr}</span>`;
+          distLabel = distKm < 1 ? `• ${Math.round(distKm * 1000)} م` : `• ${distKm.toFixed(1)} كم`;
         }
       }
 
+      const ratingClean = String(place.rating || '4.6').replace('★', '').trim();
       const isOpen = place.isOpenNow !== false;
       const openStatusLabel = place.openStatus || (isOpen ? 'مفتوح الآن' : 'مغلق الآن');
-      const workingHoursText = place.workingHours || '8:00 ص - 11:00 م';
 
-      // 1. Create Luxury Bento Card
+      // 1. Vertical Bento Card matching Mockup 1:1
       if (bentoContainer) {
         const card = document.createElement('div');
         card.id = `bento_${place.id}`;
-        card.className = "bento-card p-4 rounded-2xl flex flex-col justify-between gap-3 cursor-pointer";
+        card.className = "studio-card p-4 rounded-2xl flex flex-col justify-between gap-3 cursor-pointer";
         card.onmouseenter = () => focusPlaceOnRadar(place.id, false);
         card.onclick = (ev) => {
           if (ev.target.closest('a, button')) return;
           focusPlaceOnRadar(place.id, true);
         };
 
-        const bentoPhonesHtml = phonesArr.length > 0
-          ? `<div class="flex flex-wrap gap-1.5">${phonesArr.map(ph => `
-              <div class="inline-flex items-center gap-1.5 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-1 rounded-xl">
-                <a href="tel:${ph.replace(/\s+/g, '')}" class="font-num text-emerald-300 font-black text-xs hover:underline" dir="ltr">📞 ${ph}</a>
-                <button type="button" onclick="navigator.clipboard.writeText('${ph}'); alert('تم نسخ الرقم: ${ph}');" class="text-slate-300 hover:text-white text-[11px] cursor-pointer" title="نسخ الرقم">📋</button>
+        const verifiedBadgeHtml = primaryPhone
+          ? `<div class="flex flex-col items-start gap-1">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span class="font-num" dir="ltr">${primaryPhone}</span>
+                <button type="button" onclick="navigator.clipboard.writeText('${primaryPhone}'); alert('تم نسخ الرقم: ${primaryPhone}');" class="text-slate-300 hover:text-white text-[10px]" title="نسخ">📋</button>
               </div>
-            `).join('')}</div>`
-          : `<div class="text-[11px] text-slate-500 italic">لا يوجد رقم هاتف معلن على جوجل ماب</div>`;
+              ${phonesArr.length > 1 ? `<span class="text-[10px] text-emerald-400/80 font-num" dir="ltr">+ ${phonesArr.slice(1).join(' | ')}</span>` : ''}
+            </div>`
+          : `<div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/80 border border-slate-700 text-slate-400 text-[11px]">
+              <span>${openStatusLabel}</span>
+            </div>`;
 
         card.innerHTML = `
-          <div class="space-y-2.5">
-            <!-- Card Top Header -->
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-start gap-2.5 min-w-0">
-                <span class="w-7 h-7 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 text-slate-950 font-num font-black text-xs flex items-center justify-center shrink-0 shadow-md shadow-cyan-500/30">${index}</span>
-                <div class="min-w-0">
-                  <div class="flex items-center gap-1.5">
-                    <h4 class="text-sm font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
-                    <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[9px] font-extrabold shrink-0" title="بيانات حقيقية من خرائط جوجل">✓ موثق</span>
-                  </div>
-                  <p class="text-[11px] text-slate-400 truncate mt-0.5">📍 ${place.city || ''} ${place.district ? '• ' + place.district : ''}</p>
-                </div>
-              </div>
-              <span class="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-num font-bold text-xs shrink-0">${place.rating}</span>
+          <!-- Top Bar: Rating on Right | Menu/Map Link on Left -->
+          <div class="flex items-center justify-between">
+            <span class="px-2 py-0.5 rounded-md bg-slate-900/90 border border-amber-500/30 text-amber-400 font-num font-bold text-xs flex items-center gap-1">
+              <span>★</span>
+              <span>${ratingClean}</span>
+            </span>
+            <div class="flex items-center gap-1">
+              <a href="${place.locationUrl}" target="_blank" title="فتح في خرائط جوجل" class="p-1 rounded-lg text-slate-400 hover:text-emerald-300 transition">
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </a>
+              <button type="button" onclick="copySingleDetails('${place.id}')" title="نسخ بيانات المنشأة" class="p-1 rounded-lg text-slate-400 hover:text-white transition cursor-pointer">
+                <i data-lucide="more-horizontal" class="w-4 h-4"></i>
+              </button>
             </div>
-
-            <!-- Status & Distance Strip -->
-            <div class="flex flex-wrap items-center justify-between gap-1.5 bg-slate-950/75 px-3 py-2 rounded-xl border border-slate-800/90">
-              <div class="flex items-center gap-1.5">
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${isOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
-                  <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}"></span>
-                  <span>${openStatusLabel}</span>
-                </span>
-                ${distanceBadgeHtml}
-              </div>
-              <span class="text-[10px] text-slate-300 font-num truncate max-w-[160px]" title="${workingHoursText}">${workingHoursText}</span>
-            </div>
-
-            <!-- Verified Phone Badges -->
-            ${bentoPhonesHtml}
           </div>
 
-          <!-- Action Buttons Footer -->
-          <div class="flex items-center justify-between gap-1.5 pt-2.5 border-t border-slate-800/80">
-            <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" class="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/30 text-cyan-300 text-[11px] font-bold flex items-center gap-1 transition cursor-pointer">
-              <span>🎯 على الرادار</span>
-            </button>
+          <!-- Center Title & Subtitle -->
+          <div class="text-right space-y-0.5 my-0.5">
+            <h4 class="text-base font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
+            <p class="text-xs text-slate-400 truncate">${place.city || 'صنعاء'} - ${place.district || ''} <span class="text-emerald-400 font-num text-[11px]">${distLabel}</span></p>
+          </div>
 
+          <!-- Verified Phone Pill -->
+          <div class="flex items-center justify-between">
+            ${verifiedBadgeHtml}
+          </div>
+
+          <!-- Bottom 2 Equal Action Buttons: Call & WhatsApp (Exactly like Mockup!) -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
             ${primaryPhone ? `
-              <a href="https://wa.me/${whatsappNumber}" target="_blank" class="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold flex items-center gap-1 transition">
-                <span>💬 واتساب</span>
+              <a href="tel:${primaryPhone.replace(/\s+/g, '')}" class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center gap-1.5 transition" title="اتصال مباشر">
+                <i data-lucide="phone" class="w-4 h-4"></i>
               </a>
-            ` : ''}
-
-            <a href="${place.locationUrl}" target="_blank" class="flex-1 py-1.5 px-2.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 font-bold text-[11px] text-center transition">
-              <span>🗺️ خرائط جوجل ↗</span>
-            </a>
-
-            <button type="button" onclick="copySingleDetails('${place.id}')" class="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer" title="نسخ البطاقة">
-              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-            </button>
+              <a href="https://wa.me/${whatsappNumber}" target="_blank" class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center gap-1.5 transition" title="مراسلة واتساب">
+                <i data-lucide="message-circle" class="w-4 h-4"></i>
+              </a>
+            ` : `
+              <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center gap-1.5 transition cursor-pointer" title="عرض على الخريطة">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+              </button>
+              <a href="${place.locationUrl}" target="_blank" class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center gap-1.5 transition" title="فتح في جوجل ماب">
+                <i data-lucide="navigation" class="w-4 h-4"></i>
+              </a>
+            `}
           </div>
         `;
         bentoContainer.appendChild(card);
       }
 
-      // 2. Create Full Table Row
+      // 2. Table Row
       if (tbody) {
         const tr = document.createElement('tr');
         tr.id = `row_${place.id}`;
-        tr.className = "hover:bg-cyan-500/10 transition border-b border-slate-800/60 cursor-pointer";
-        tr.onmouseenter = () => focusPlaceOnRadar(place.id, false);
-
-        const phoneDisplay = phonesArr.length > 0
-          ? `<div class="flex flex-col gap-1 items-start">${phonesArr.map(ph => `
-              <div class="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
-                <a href="tel:${ph.replace(/\s+/g, '')}" class="font-num text-emerald-400 font-bold hover:underline text-[11px]" dir="ltr">${ph}</a>
-                <button type="button" onclick="navigator.clipboard.writeText('${ph}'); alert('تم نسخ الرقم: ${ph}');" class="text-slate-400 hover:text-white text-[10px]">📋</button>
-              </div>
-            `).join('')}</div>`
-          : ``;
-
-        const hoursDisplay = `
-          <div class="flex flex-col gap-0.5">
-            <span class="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[10px] font-bold ${isOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
-              <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}"></span>
-              <span>${openStatusLabel}</span>
-            </span>
-            <span class="text-[10px] text-slate-300 font-num">${workingHoursText}</span>
-          </div>
-        `;
-
+        tr.className = "hover:bg-emerald-500/10 transition border-b border-slate-800/60";
         tr.innerHTML = `
-          <td class="p-3 text-cyan-400 font-num font-bold">${index}</td>
-          <td class="p-3 font-bold text-white max-w-[220px]">
-            <div class="truncate" title="${place.name}">${place.name}</div>
-            <div class="text-[10px] text-slate-400 truncate">${place.address || ''}</div>
-          </td>
-          <td class="p-3 text-slate-300 whitespace-nowrap">
-            <div class="font-bold text-white">${place.city || '-'}</div>
-            <div class="text-[10px] text-slate-400">${place.district || '-'}</div>
-            ${distanceBadgeHtml}
-          </td>
-          <td class="p-3 whitespace-nowrap">${hoursDisplay}</td>
-          <td class="p-3 whitespace-nowrap">${phoneDisplay}</td>
-          <td class="p-3 text-amber-300 font-num font-bold whitespace-nowrap">${place.rating}</td>
-          <td class="p-3 whitespace-nowrap">
-            <div class="flex items-center gap-1.5">
-              <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" class="px-2 py-1 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[11px] font-bold">🎯 رادار</button>
-              <a href="${place.locationUrl}" target="_blank" class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[11px] font-bold">الخريطة ↗</a>
-            </div>
-          </td>
-          <td class="p-3 text-center">
-            <button onclick="copySingleDetails('${place.id}')" class="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition">
-              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-            </button>
-          </td>
+          <td class="p-3 text-emerald-400 font-num font-bold">${index}</td>
+          <td class="p-3 font-bold text-white">${place.name}</td>
+          <td class="p-3 text-slate-300">${place.city || ''} - ${place.district || ''}</td>
+          <td class="p-3 text-slate-300">${openStatusLabel} (${place.workingHours || ''})</td>
+          <td class="p-3 font-num text-emerald-400 font-bold" dir="ltr">${ phonesArr.join(' | ') }</td>
+          <td class="p-3 text-amber-400 font-num font-bold">${place.rating}</td>
+          <td class="p-3"><a href="${place.locationUrl}" target="_blank" class="text-cyan-400 underline">خرائط جوجل ↗</a></td>
         `;
         tbody.appendChild(tr);
       }
@@ -1487,7 +1230,6 @@
       lucide.createIcons();
     }
 
-    // Update Top KPI Cards
     function updateStats() {
       const total = extractedPlaces.length;
       document.getElementById('statTotal').innerText = total;
@@ -1498,9 +1240,6 @@
       const openNow = extractedPlaces.filter(p => p.isOpenNow !== false).length;
       const openEl = document.getElementById('statOpenNow');
       if (openEl) openEl.innerText = openNow;
-
-      const websites = extractedPlaces.filter(p => p.website && p.website !== 'غير متوفر').length;
-      document.getElementById('statWebsites').innerText = websites;
 
       let sumRating = 0;
       let countWithRating = 0;
@@ -1515,7 +1254,6 @@
       document.getElementById('statRating').innerText = `${avg} ★`;
     }
 
-    // Copy All Phones
     function copyAllPhones() {
       const phones = [];
       for (const p of extractedPlaces) {
@@ -1525,41 +1263,27 @@
           phones.push(p.phone.trim());
         }
       }
-
       if (phones.length === 0) {
         alert('لا توجد أرقام هواتف مسجلة في النتائج الحالية!');
         return;
       }
-
       navigator.clipboard.writeText(phones.join('\n'));
-      alert(`تم نسخ ${phones.length} رقم هاتف حقيقي بنجاح إلى الحافظة!`);
+      alert(`تم نسخ ${phones.length} رقم هاتف حقيقي بنجاح!`);
     }
 
-    // Copy Single Place Details
     function copySingleDetails(id) {
       const place = extractedPlaces.find(p => p.id === id);
       if (!place) return;
-      const text = `
-الاسم: ${place.name}
-المدينة: ${place.city}
-الحي: ${place.district}
-حالة الدوام: ${place.openStatus || 'مفتوح الآن'} (${place.workingHours || ''})
-الهاتف: ${place.phone || ''}
-التقييم: ${place.rating}
-الموقع: ${place.website}
-رابط جوجل ماب: ${place.locationUrl}
-      `.trim();
+      const text = `الاسم: ${place.name}\nالمدينة: ${place.city} - ${place.district}\nالهاتف: ${place.phone || ''}\nالتقييم: ${place.rating}\nالرابط: ${place.locationUrl}`;
       navigator.clipboard.writeText(text);
-      alert(`تم نسخ تفاصيل (${place.name}) بنجاح!`);
+      alert(`تم نسخ بيانات (${place.name})!`);
     }
 
-    // Export to Excel (.xlsx)
     function exportToExcel() {
       if (extractedPlaces.length === 0) {
-        alert('لا توجد بيانات لتصديرها! يرجى بدء البحث أولاً.');
+        alert('لا توجد بيانات لتصديرها!');
         return;
       }
-
       const rows = extractedPlaces.map((p, idx) => ({
         '#': idx + 1,
         'الاسم': p.name,
@@ -1570,93 +1294,48 @@
         'رقم التلفون': p.phone || '',
         'التقييم': p.rating,
         'الموقع الإلكتروني': p.website,
-        'رابط خرائط جوجل': p.locationUrl,
-        'خط العرض': p.lat,
-        'خط الطول': p.lng,
-        'العنوان الكامل': p.address
+        'رابط خرائط جوجل': p.locationUrl
       }));
-
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "نتائج خرائط جوجل");
       XLSX.writeFile(wb, `GeoRadar_GoogleMaps_${Date.now()}.xlsx`);
     }
 
-    // Export to CSV
     function exportToCSV() {
-      if (extractedPlaces.length === 0) {
-        alert('لا توجد بيانات لتصديرها!');
-        return;
-      }
-
-      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'حالة الدوام', 'أوقات الدوام', 'رقم التلفون', 'التقييم', 'الموقع الالكتروني', 'رابط اللوكيشن'];
+      if (extractedPlaces.length === 0) return alert('لا توجد بيانات لتصديرها!');
+      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'حالة الدوام', 'رقم التلفون', 'التقييم', 'رابط اللوكيشن'];
       const rows = extractedPlaces.map((p, idx) => [
-        idx + 1,
-        `"${(p.name || '').replace(/"/g, '""')}"`,
-        `"${p.city || ''}"`,
-        `"${p.district || ''}"`,
-        `"${p.openStatus || 'مفتوح الآن'}"`,
-        `"${p.workingHours || ''}"`,
-        `"${p.phone || ''}"`,
-        `"${p.rating || ''}"`,
-        `"${p.website || ''}"`,
-        `"${p.locationUrl || ''}"`
+        idx + 1, `"${(p.name || '').replace(/"/g, '""')}"`, `"${p.city || ''}"`, `"${p.district || ''}"`,
+        `"${p.openStatus || ''}"`, `"${p.phone || ''}"`, `"${p.rating || ''}"`, `"${p.locationUrl || ''}"`
       ]);
-
       const csvContent = "\uFEFF" + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.setAttribute('href', url);
-      link.setAttribute('download', `GeoRadar_GoogleMaps_${Date.now()}.csv`);
-      document.body.appendChild(link);
+      link.href = URL.createObjectURL(blob);
+      link.download = `GeoRadar_${Date.now()}.csv`;
       link.click();
-      document.body.removeChild(link);
     }
 
-    // Export to JSON
     function exportToJSON() {
-      if (extractedPlaces.length === 0) {
-        alert('لا توجد بيانات لتصديرها!');
-        return;
-      }
+      if (extractedPlaces.length === 0) return alert('لا توجد بيانات لتصديرها!');
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(extractedPlaces, null, 2));
-      const downloadAnchor = document.createElement('a');
-      downloadAnchor.setAttribute("href", dataStr);
-      downloadAnchor.setAttribute("download", `GeoRadar_Places_${Date.now()}.json`);
-      document.body.appendChild(downloadAnchor);
-      downloadAnchor.click();
-      downloadAnchor.remove();
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `GeoRadar_${Date.now()}.json`;
+      a.click();
     }
 
-    // Clear All Results
     function clearAllResults(resetArray = true) {
-      if (resetArray) {
-        extractedPlaces = [];
-      }
+      if (resetArray) extractedPlaces = [];
       const tbody = document.getElementById('resultsTableBody');
-      if (tbody) {
-        tbody.innerHTML = `<tr id="emptyRow"><td colspan="8" class="p-10 text-center text-slate-400">لا توجد نتائج مستخرجة بعد</td></tr>`;
-      }
+      if (tbody) tbody.innerHTML = '';
       const bento = document.getElementById('bentoCardsWrapper');
-      if (bento) {
-        bento.innerHTML = `
-          <div id="bentoEmptyState" class="col-span-full p-10 text-center text-slate-400 rounded-2xl border border-slate-800/80 bg-slate-950/50">
-            <div class="w-12 h-12 mx-auto rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-2">
-              <i data-lucide="radar" class="w-6 h-6"></i>
-            </div>
-            <p class="text-sm font-bold text-slate-200 mb-1">الرادار جاهز لبدء المسح والاستخراج</p>
-            <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة من الأعلى ثم اضغط "بدء المسح الذكي" لتظهر البطاقات التفاعلية فوراً</p>
-          </div>
-        `;
-      }
-      const badge = document.getElementById('filteredCountBadge');
-      if (badge) badge.innerText = '0';
+      if (bento) bento.innerHTML = '';
       updateStats();
-      lucide.createIcons();
     }
 
-    // Geolocation Prompt & Permission Check
+    // Geolocation Prompt & Mandatory Gate
     let cachedOptionalGps = null;
 
     function requestOptionalGeolocationPrompt() {
@@ -1665,13 +1344,8 @@
       const dotEl = document.getElementById('geoStatusDot');
       const btnEl = document.getElementById('enableGeoBtn');
 
-      if (!navigator.geolocation) {
-        if (titleEl) titleEl.innerText = 'المتصفح لا يدعم تحديد الموقع';
-        return;
-      }
-
+      if (!navigator.geolocation) return;
       if (btnEl) btnEl.innerText = 'جاري الطلب...';
-      if (descEl) descEl.innerText = 'يرجى الضغط على "سماح / Allow" في نافذة المتصفح أعلى الشاشة';
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -1682,23 +1356,12 @@
           };
           if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
           if (titleEl) titleEl.innerText = 'تم تفعيل الموقع الجغرافي بنجاح ✓';
-          if (descEl) descEl.innerText = 'سيتم عرض أقرب المواقع والشركات إليك أولاً';
-          if (btnEl) {
-            btnEl.innerText = '✓ الموقع مفعّل';
-            btnEl.className = 'w-full py-2 px-3 rounded-xl bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-xs font-extrabold';
-          }
+          if (descEl) descEl.innerText = 'سيتم عرض أقرب المنشآت لموقعك أولاً';
+          if (btnEl) btnEl.innerText = '✓ الموقع مفعّل';
           renderUserGpsPinOnMap();
         },
-        (err) => {
-          if (err && err.code === 1) {
-            if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
-            if (titleEl) titleEl.innerText = 'إذن الموقع متوقف في إعدادات المتصفح';
-            if (descEl) descEl.innerText = 'لتفعيله: اضغط أيقونة القفل/الإعدادات بجانب الرابط أعلى المتصفح ← الموقع الجغرافي ← سماح';
-            if (btnEl) btnEl.innerText = 'إعادة المحاولة';
-          } else {
-            if (descEl) descEl.innerText = 'تعذر جلب إشارة الموقع حالياً، يمكنك الدخول والمتابعة';
-            if (btnEl) btnEl.innerText = '📍 تفعيل الموقع الجغرافي';
-          }
+        () => {
+          if (btnEl) btnEl.innerText = '📍 تفعيل الموقع الجغرافي';
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
@@ -1709,41 +1372,22 @@
       try {
         if (navigator.permissions && navigator.permissions.query) {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
-          const updatePermUI = () => {
-            const titleEl = document.getElementById('geoStatusTitle');
-            const descEl = document.getElementById('geoStatusDesc');
-            const dotEl = document.getElementById('geoStatusDot');
-            const btnEl = document.getElementById('enableGeoBtn');
-
-            if (perm.state === 'granted') {
-              if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-              if (titleEl) titleEl.innerText = 'الموقع الجغرافي مفعّل ✓';
-              if (descEl) descEl.innerText = 'سيتم عرض أقرب المنشآت لموقعك أولاً';
-              if (btnEl) {
-                btnEl.innerText = '✓ الموقع مفعّل';
-                btnEl.className = 'w-full py-2 px-3 rounded-xl bg-emerald-500/25 border border-emerald-400 text-emerald-300 text-xs font-extrabold';
-              }
-              navigator.geolocation.getCurrentPosition((pos) => {
-                cachedOptionalGps = {
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                  accuracy: Math.round(pos.coords.accuracy || 15)
-                };
-                renderUserGpsPinOnMap();
-              }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
-            } else if (perm.state === 'prompt') {
-              requestOptionalGeolocationPrompt();
-            }
-          };
-          updatePermUI();
-          perm.onchange = updatePermUI;
-        } else {
-          requestOptionalGeolocationPrompt();
+          if (perm.state === 'granted') {
+            navigator.geolocation.getCurrentPosition((pos) => {
+              cachedOptionalGps = {
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: Math.round(pos.coords.accuracy || 15)
+              };
+              renderUserGpsPinOnMap();
+            }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+          } else if (perm.state === 'prompt') {
+            requestOptionalGeolocationPrompt();
+          }
         }
       } catch (e) {}
     }
 
-    // Mandatory Name/Phone Visitor Entry Gate Handler
     async function handleVisitorGateEntry(e) {
       if (e) e.preventDefault();
       const btn = document.getElementById('gateSubmitBtn');
@@ -1783,47 +1427,20 @@
       if (cachedOptionalGps) {
         await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
         finishGateEntry();
-        renderUserGpsPinOnMap();
         return;
       }
 
       if (navigator.geolocation) {
-        const onGpsSuccess = async (pos) => {
-          geoInfo.lat = pos.coords.latitude;
-          geoInfo.lng = pos.coords.longitude;
-          geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
-          geoInfo.locationSource = 'GPS';
-          cachedOptionalGps = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: Math.round(pos.coords.accuracy || 20)
-          };
-
-          await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
-          finishGateEntry();
-          renderUserGpsPinOnMap();
-
-          navigator.geolocation.watchPosition(
-            async (finePos) => {
-              geoInfo.lat = finePos.coords.latitude;
-              geoInfo.lng = finePos.coords.longitude;
-              geoInfo.accuracy = Math.round(finePos.coords.accuracy || 10);
-              geoInfo.locationSource = 'GPS';
-              cachedOptionalGps = {
-                lat: finePos.coords.latitude,
-                lng: finePos.coords.longitude,
-                accuracy: Math.round(finePos.coords.accuracy || 10)
-              };
-              renderUserGpsPinOnMap();
-              await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
-            },
-            () => {},
-            { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
-          );
-        };
-
         navigator.geolocation.getCurrentPosition(
-          onGpsSuccess,
+          async (pos) => {
+            geoInfo.lat = pos.coords.latitude;
+            geoInfo.lng = pos.coords.longitude;
+            geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
+            geoInfo.locationSource = 'GPS';
+            cachedOptionalGps = { lat: geoInfo.lat, lng: geoInfo.lng, accuracy: geoInfo.accuracy };
+            await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+            finishGateEntry();
+          },
           async () => {
             geoInfo.locationSource = 'IP_FALLBACK';
             await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
@@ -1836,19 +1453,6 @@
         await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
         finishGateEntry();
       }
-
-      fetch('https://ipwho.is/')
-        .then(r => r.json())
-        .then(ipRes => {
-          if (ipRes && ipRes.success !== false) {
-            geoInfo.publicIp = ipRes.ip || '';
-            geoInfo.country = ipRes.country || geoInfo.country;
-            geoInfo.city = ipRes.city || geoInfo.city;
-            geoInfo.region = ipRes.region || geoInfo.region;
-            geoInfo.isp = ipRes.connection?.isp || ipRes.connection?.org || geoInfo.isp;
-          }
-        })
-        .catch(() => {});
     }
 
     async function sendVisitPayload(vId, vName, geo, deviceStr) {
@@ -1858,7 +1462,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             visitorId: vId,
-            visitorName: vName || localStorage.getItem('gmaps_visitor_name') || 'زائر غير مسمى',
+            visitorName: vName || 'زائر',
             publicIp: geo.publicIp,
             country: geo.country,
             city: geo.city,
@@ -1879,42 +1483,21 @@
       const modal = document.getElementById('visitorGateModal');
       modal.classList.add('transition-opacity', 'duration-500', 'opacity-0');
       setTimeout(() => modal.classList.add('hidden'), 500);
-      confetti({ particleCount: 30, spread: 60, origin: { y: 0.6 } });
-    }
-
-    function detectAndAdaptDeviceUI() {
-      const ua = navigator.userAgent || '';
-      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-      const isSmallScreen = window.innerWidth < 768;
-      const isPhone = isMobileUA || isSmallScreen;
-
-      const icon = document.getElementById('deviceModeIcon');
-      const text = document.getElementById('deviceModeText');
-
-      if (isPhone) {
-        document.body.classList.add('device-mobile');
-        document.body.classList.remove('device-laptop');
-        if (icon) icon.innerText = '📱';
-        if (text) text.innerText = 'وضع الهاتف';
-      } else {
-        document.body.classList.add('device-laptop');
-        document.body.classList.remove('device-mobile');
-        if (icon) icon.innerText = '💻';
-        if (text) text.innerText = 'وضع اللابتوب';
-      }
-
-      if (leafletMap) {
-        setTimeout(() => leafletMap.invalidateSize(), 100);
+      // Automatically run initial live extraction so the 3-column Bento grid populates immediately like the mockup!
+      if (extractedPlaces.length === 0) {
+        document.getElementById('queryInput').value = 'شركات';
+        handleSearch(new Event('submit'));
       }
     }
 
     window.addEventListener('DOMContentLoaded', () => {
-      detectAndAdaptDeviceUI();
-      window.addEventListener('resize', detectAndAdaptDeviceUI);
-      initLeafletMap();
       init3D();
+      initLeafletMap();
       initOptionalGeolocationCheck();
       lucide.createIcons();
+      // Pre-load live results in background so the 3-column Bento cards are already visible behind the gate and immediately upon entry!
+      document.getElementById('queryInput').value = 'شركات';
+      handleSearch(new Event('submit'));
     });
   </script>
 </body>

@@ -64,13 +64,38 @@
     ::-webkit-scrollbar-track { background: #070b14; }
     ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: #0284c7; }
+    /* Automatic Mobile vs Laptop View Switching for Admin Panel */
+    #mobileSearchesCards, #mobileVisitorsCards {
+      display: none;
+    }
+    body.device-mobile #desktopSearchesTableWrapper,
+    body.device-mobile #desktopVisitorsTableWrapper {
+      display: none !important;
+    }
+    body.device-mobile #mobileSearchesCards,
+    body.device-mobile #mobileVisitorsCards {
+      display: flex !important;
+    }
+    @media (max-width: 767px) {
+      #desktopSearchesTableWrapper,
+      #desktopVisitorsTableWrapper {
+        display: none !important;
+      }
+      #mobileSearchesCards,
+      #mobileVisitorsCards {
+        display: flex !important;
+      }
+      #adminVisitorMap {
+        height: 290px !important;
+      }
+    }
   </style>
 </head>
 <body class="flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
 
   <!-- Top Supervisor Bar -->
   <header class="sticky top-0 z-50 glass-card border-b border-cyan-500/20 px-4 lg:px-8 py-3.5">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
+    <div class="max-w-7xl mx-auto flex items-center justify-between gap-2 flex-wrap">
       
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
@@ -78,14 +103,14 @@
         </div>
         <div>
           <div class="flex items-center gap-2">
-            <h1 class="text-lg lg:text-xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
+            <h1 class="text-base sm:text-lg lg:text-xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
               لوحة تحكم المشرف والرقابة الحية
             </h1>
-            <span class="px-2 py-0.5 text-[11px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              Admin Supervisor
+            <span id="adminDeviceBadge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+              💻 وضع اللابتوب
             </span>
           </div>
-          <p class="text-xs text-slate-400">تتبع الزوار، ومعرفة مواقعهم الجغرافية، وسجلات ما بحثوا عنه لحظة بلحظة</p>
+          <p class="text-[11px] sm:text-xs text-slate-400">تتبع الزوار، ومعرفة مواقعهم الجغرافية، وسجلات ما بحثوا عنه لحظة بلحظة</p>
         </div>
       </div>
 
@@ -252,7 +277,7 @@
         </button>
       </div>
 
-      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+      <div id="desktopSearchesTableWrapper" class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-900/90 text-cyan-300 font-bold border-b border-slate-800">
             <tr>
@@ -274,6 +299,11 @@
         </table>
       </div>
 
+      <!-- Mobile Searches Cards (Clean Smartphone Layout) -->
+      <div id="mobileSearchesCards" class="flex-col gap-3">
+        <div class="p-6 text-center text-slate-400 text-xs">جارٍ جلب السجلات...</div>
+      </div>
+
     </div>
 
     <!-- Section 2: Who entered the app (من دخل التطبيق وأين موقعه وجهازه) -->
@@ -288,7 +318,7 @@
           <p class="text-xs text-slate-400">يتم حفظ جميع جلسات الدخول وعمليات البحث بشكل دائم ومؤرشف دون حذف أي سجل</p>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span class="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-300 flex items-center gap-1.5">
             <i data-lucide="shield-check" class="w-3.5 h-3.5"></i>
             <span>أرشفة دائمة (محمي من الحذف)</span>
@@ -300,7 +330,7 @@
         </div>
       </div>
 
-      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+      <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-900/90 text-indigo-300 font-bold border-b border-slate-800">
             <tr>
@@ -321,6 +351,11 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Mobile Visitors Cards (Clean Smartphone Layout) -->
+      <div id="mobileVisitorsCards" class="flex-col gap-3">
+        <div class="p-6 text-center text-slate-400 text-xs">جارٍ جلب السجلات...</div>
       </div>
 
     </div>
@@ -556,10 +591,41 @@
       document.getElementById('statTodaySearches').innerText = stats.todaySearches || 0;
     }
 
+    // Automatic Device Type Detection (Phone vs Laptop) for Admin Panel
+    function detectAdminDeviceUI() {
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isPhone = isMobileUA || window.innerWidth < 768;
+      const badge = document.getElementById('adminDeviceBadge');
+      if (isPhone) {
+        document.body.classList.add('device-mobile');
+        document.body.classList.remove('device-laptop');
+        if (badge) {
+          badge.innerText = '📱 وضع الهاتف الذكي';
+          badge.className = 'px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        }
+      } else {
+        document.body.classList.add('device-laptop');
+        document.body.classList.remove('device-mobile');
+        if (badge) {
+          badge.innerText = '💻 وضع اللابتوب';
+          badge.className = 'px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30';
+        }
+      }
+      if (adminMap) setTimeout(() => adminMap.invalidateSize(), 100);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      detectAdminDeviceUI();
+      window.addEventListener('resize', detectAdminDeviceUI);
+    });
+
     function renderSearches(searches = []) {
       const tbody = document.getElementById('searchesTableBody');
+      const mobileCards = document.getElementById('mobileSearchesCards');
       if (searches.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة حتى الآن</td></tr>`;
+        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات بحث مسجلة حتى الآن</div>`;
         return;
       }
 
@@ -582,12 +648,36 @@
           </tr>
         `;
       }).join('');
+
+      if (mobileCards) {
+        mobileCards.innerHTML = searches.map((s, idx) => {
+          const dateFormatted = new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true });
+          return `
+            <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-extrabold text-cyan-300">#${idx + 1} • ${s.query || 'الكل'}</span>
+                <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-num font-bold text-xs">${s.resultsCount || 0} منشأة</span>
+              </div>
+              <div class="text-xs text-slate-300 flex flex-wrap gap-2">
+                <span>📍 المطلوب: <strong class="text-white">${s.targetLocation || '-'} ${s.targetNeighborhood ? '(' + s.targetNeighborhood + ')' : ''}</strong></span>
+                <span>• النطاق: ${s.radius || 10} كم</span>
+              </div>
+              <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1.5 border-t border-slate-800">
+                <span>👤 ${s.visitorName || 'زائر'} (${s.ip})</span>
+                <span class="font-num">${dateFormatted}</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
     }
 
     function renderVisitors(visitors = [], allSearches = []) {
       const tbody = document.getElementById('visitorsTableBody');
+      const mobileCards = document.getElementById('mobileVisitorsCards');
       if (visitors.length === 0) {
         tbody.innerHTML = `<tr><td colspan="9" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
+        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات تسجيل دخول بعد</div>`;
         return;
       }
 
@@ -650,6 +740,54 @@
           </tr>
         `;
       }).join('');
+
+      if (mobileCards) {
+        mobileCards.innerHTML = visitors.map((v, idx) => {
+          const firstSeen = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+          const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
+          const sourceBadge = v.locationSource === 'IP'
+            ? `<span class="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">عبر الشبكة IP</span>`
+            : `<span class="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">🎯 GPS دقيق</span>`;
+          const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
+            ? v.sessionSearches
+            : allSearches.filter(s => s.visitorId === v.id);
+
+          return `
+            <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2.5 shadow-md">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <h4 class="text-sm font-extrabold text-white">#${idx + 1} • ${v.visitorName || 'زائر بدون اسم'}</h4>
+                  <span class="text-[11px] text-cyan-400 font-num">${v.ip}</span>
+                </div>
+                ${sourceBadge}
+              </div>
+
+              <div class="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1 text-xs">
+                <div class="font-bold text-emerald-400">📍 ${v.city || 'صنعاء'} - ${v.region || ''}</div>
+                <div class="text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(6)}, ${Number(v.lng).toFixed(6)})</div>
+                <div class="text-[11px] text-slate-300">🌐 ${v.isp || ''} • 💻 ${v.device || ''}</div>
+              </div>
+
+              <div class="text-xs text-slate-200">
+                ${sessionSearches.length > 0
+                  ? `<span class="text-cyan-300 font-bold">ما بحث عنه (${sessionSearches.length}):</span> ${sessionSearches.map(s => s.query).join(' ، ')}`
+                  : `<span class="text-slate-500">لم يبحث بعد في هذه الجلسة</span>`}
+              </div>
+
+              <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                <button onclick="focusVisitorOnMap(${v.lat}, ${v.lng}, ${idx})" class="flex-1 py-2 px-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">
+                  🎯 تتبع بالخريطة
+                </button>
+                <a href="${gmapsLink}" target="_blank" class="flex-1 py-2 px-3 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-bold text-center">
+                  📍 فتح جوجل ماب
+                </a>
+              </div>
+              <div class="text-[10px] text-slate-500 font-num text-left">${firstSeen}</div>
+            </div>
+          `;
+        }).join('');
+      }
+
       lucide.createIcons();
     }
 

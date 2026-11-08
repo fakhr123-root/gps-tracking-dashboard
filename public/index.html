@@ -106,6 +106,16 @@
     body.device-mobile .overflow-x-auto {
       -webkit-overflow-scrolling: touch;
     }
+    /* Show mobile cards on phones, show wide table on laptops */
+    #mobileResultsCards {
+      display: none;
+    }
+    body.device-mobile #desktopResultsTableWrapper {
+      display: none !important;
+    }
+    body.device-mobile #mobileResultsCards {
+      display: flex !important;
+    }
     @media (max-width: 767px) {
       header {
         padding: 0.65rem 0.85rem !important;
@@ -113,30 +123,33 @@
       main {
         padding: 0.85rem !important;
       }
-      table th, table td {
-        padding: 0.55rem 0.65rem !important;
+      #desktopResultsTableWrapper {
+        display: none !important;
+      }
+      #mobileResultsCards {
+        display: flex !important;
       }
     }
   </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
 
-  <!-- Mandatory Visitor Entry Gate Modal (زر تسجيل الدخول / موافق لإرسال الموقع للمشرف مباشرة) -->
-  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
-    <div class="glass-panel max-w-md w-full p-6 lg:p-8 rounded-3xl border border-cyan-500/50 shadow-2xl text-center relative overflow-hidden">
+  <!-- Mandatory Visitor Entry Gate Modal (زر تسجيل الدخول / موافق مع نافذة موافقة الموقع الواضحة لجميع الأجهزة والمتصفحات) -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
+    <div class="glass-panel max-w-md w-full p-5 sm:p-7 rounded-3xl border border-cyan-500/50 shadow-2xl text-center relative overflow-hidden my-auto">
       <!-- Glow ambient -->
       <div class="absolute -top-16 -right-16 w-36 h-36 rounded-full bg-cyan-500/20 blur-3xl pointer-events-none"></div>
       
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-4 animate-bounce">
-        <i data-lucide="map-pin" class="w-8 h-8 text-white"></i>
+      <div class="w-14 h-14 sm:w-16 sm:h-16 mx-auto rounded-2xl bg-gradient-to-tr from-cyan-600 via-sky-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30 mb-3 animate-bounce">
+        <i data-lucide="map-pin" class="w-7 h-7 sm:w-8 sm:h-8 text-white"></i>
       </div>
 
-      <h2 class="text-xl font-black text-white mb-1.5">مرحباً بك في مستخرج خرائط جوجل 3D</h2>
-      <p class="text-xs text-slate-300 leading-relaxed mb-5">
-        يرجى الضغط على زر <span class="text-cyan-400 font-bold">دخول التطبيق (OK)</span> لتسجيل دخولك وبدء استخراج البيانات فورياً.
+      <h2 class="text-lg sm:text-xl font-black text-white mb-1">مرحباً بك في مستخرج خرائط جوجل 3D</h2>
+      <p class="text-xs text-slate-300 leading-relaxed mb-4">
+        اختر الموافقة على تحديد الموقع الجغرافي ثم اضغط دخول للبدء فوراً
       </p>
 
-      <form onsubmit="handleVisitorGateEntry(event)" class="space-y-4 text-right">
+      <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5 text-right">
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-1">اسمك أو رقم هاتفك (اختياري):</label>
           <div class="relative">
@@ -150,23 +163,41 @@
           </div>
         </div>
 
-        <!-- Optional Location Activation Box & Helper Notice -->
-        <div id="geoPermissionBox" class="p-3 rounded-xl bg-slate-900/80 border border-cyan-500/30 flex items-center justify-between gap-2">
-          <div class="flex items-center gap-2 text-right">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" id="geoStatusDot"></span>
-            <div>
-              <div class="text-xs font-bold text-slate-200" id="geoStatusTitle">تفعيل الموقع الجغرافي (اختياري)</div>
-              <div class="text-[10px] text-slate-400" id="geoStatusDesc">اضغط على الزر لإظهار نافذة السماح بالموقع في كروم</div>
+        <!-- Universal Location Consent Card (Appears 100% on ALL Browsers: Chrome, Safari, Edge, Samsung, Mobile & Laptop) -->
+        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-900/95 border-2 border-cyan-500/50 space-y-2.5 shadow-inner">
+          <div class="flex items-start gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 mt-0.5">
+              <i data-lucide="navigation" class="w-4 h-4"></i>
+            </div>
+            <div class="flex-1 text-right">
+              <div class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping" id="geoStatusDot"></span>
+                <span class="text-xs sm:text-sm font-extrabold text-white" id="geoStatusTitle">يريد الموقع معرفة موقعك الجغرافي</span>
+              </div>
+              <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed" id="geoStatusDesc">
+                هل تسمح بتشغيل الموقع الجغرافي لعرض الخريطة والمنشآت القريبة بدقة؟ (اختياري)
+              </p>
             </div>
           </div>
-          <button
-            type="button"
-            id="enableGeoBtn"
-            onclick="requestOptionalGeolocationPrompt()"
-            class="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-300 text-xs font-bold transition whitespace-nowrap cursor-pointer"
-          >
-            📍 تفعيل الموقع
-          </button>
+
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button
+              type="button"
+              id="enableGeoBtn"
+              onclick="requestOptionalGeolocationPrompt()"
+              class="py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 transition cursor-pointer"
+            >
+              <span>✓ موافق (سماح بالموقع)</span>
+            </button>
+            <button
+              type="button"
+              id="skipGeoBtn"
+              onclick="declineOptionalGeolocation()"
+              class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
+            >
+              <span>تخطي (بدون موقع)</span>
+            </button>
+          </div>
         </div>
 
         <button 
@@ -175,7 +206,7 @@
           class="w-full py-3.5 rounded-xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 hover:opacity-95 shadow-lg shadow-cyan-500/30 active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-          <span>موافق / تسجيل الدخول (OK)</span>
+          <span>دخول التطبيق الآن (OK)</span>
         </button>
 
         <p class="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
@@ -577,8 +608,8 @@
         </button>
       </div>
 
-      <!-- Responsive Data Table -->
-      <div class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
+      <!-- Laptop / Desktop Wide Data Table -->
+      <div id="desktopResultsTableWrapper" class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-900/90 text-cyan-300 font-bold border-b border-slate-800 uppercase tracking-wider">
             <tr>
@@ -609,6 +640,14 @@
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <!-- Mobile Phone Card View (Uncluttered, Easy-to-Read Cards for Smartphones) -->
+      <div id="mobileResultsCards" class="flex-col gap-3">
+        <div id="mobileEmptyState" class="p-8 text-center text-slate-400 rounded-xl border border-slate-800 bg-slate-950/50">
+          <p class="text-sm font-bold text-slate-300 mb-1">لا توجد نتائج مستخرجة بعد</p>
+          <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة ثم اضغط "بدء البحث"</p>
+        </div>
       </div>
 
     </div>
@@ -1106,11 +1145,15 @@
       livePillText.innerText = `اكتمل جلب ${extractedPlaces.length} نتيجة`;
     }
 
-    // Append place row to the results table
+    // Append place row to Laptop Table AND Mobile Card View
     function appendPlaceRow(place, index) {
       const tbody = document.getElementById('resultsTableBody');
       const emptyRow = document.getElementById('emptyRow');
       if (emptyRow) emptyRow.remove();
+
+      const mobileCardsContainer = document.getElementById('mobileResultsCards');
+      const mobileEmpty = document.getElementById('mobileEmptyState');
+      if (mobileEmpty) mobileEmpty.remove();
 
       const tr = document.createElement('tr');
       tr.id = `row_${place.id}`;
@@ -1180,6 +1223,62 @@
       `;
 
       tbody.appendChild(tr);
+
+      // Also build clean, spacious Mobile Card for 스마트폰 (Phone Mode)
+      if (mobileCardsContainer) {
+        const card = document.createElement('div');
+        card.id = `mcard_${place.id}`;
+        card.className = "mobile-place-card p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-3 shadow-md";
+
+        const mobilePhonesHtml = phonesArr.length > 0
+          ? `<div class="flex flex-wrap gap-2 pt-1">${phonesArr.map(ph => `
+              <div class="inline-flex items-center gap-2 bg-emerald-500/15 border border-emerald-500/40 px-3 py-1.5 rounded-xl">
+                <a href="tel:${ph.replace(/\s+/g, '')}" class="font-num text-emerald-300 font-extrabold text-xs" dir="ltr">📞 ${ph}</a>
+                <button type="button" onclick="navigator.clipboard.writeText('${ph}'); alert('تم نسخ الرقم: ${ph}');" class="text-slate-300 hover:text-white text-xs">📋</button>
+              </div>
+            `).join('')}</div>`
+          : ``;
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-start gap-2.5">
+              <span class="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 font-num font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">${index}</span>
+              <div>
+                <h4 class="text-sm font-extrabold text-white leading-snug">${place.name}</h4>
+                <p class="text-[11px] text-slate-400 mt-0.5">${place.city || ''} ${place.district ? '• ' + place.district : ''}</p>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 font-num font-bold text-xs shrink-0">${place.rating}</span>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${isOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
+              <span class="w-2 h-2 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}"></span>
+              <span>${openStatusLabel}</span>
+            </span>
+            <span class="text-[11px] text-slate-300 font-num">${workingHoursText}</span>
+          </div>
+
+          ${mobilePhonesHtml}
+
+          <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+            <a href="${place.locationUrl}" target="_blank" class="flex-1 py-2 px-3 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/30 text-sky-300 font-bold text-xs flex items-center justify-center gap-1.5">
+              <span>📍 فتح في خرائط جوجل</span>
+            </a>
+            ${place.website && place.website !== 'غير متوفر' ? `
+              <a href="${place.website}" target="_blank" class="py-2 px-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-bold text-xs">
+                🌐 الموقع
+              </a>
+            ` : ''}
+            <button type="button" onclick="copySingleDetails('${place.id}')" class="py-2 px-3 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold border border-slate-700">
+              نسخ
+            </button>
+          </div>
+        `;
+
+        mobileCardsContainer.appendChild(card);
+      }
+
       lucide.createIcons();
     }
 
@@ -1208,7 +1307,7 @@
       document.getElementById('statRating').innerText = `${avg} ★`;
     }
 
-    // Filter Table Real-Time
+    // Filter Table & Mobile Cards Real-Time
     function filterTable(val) {
       const term = val.toLowerCase().trim();
       const tbody = document.getElementById('resultsTableBody');
@@ -1218,6 +1317,15 @@
         if (rows[i].id === 'emptyRow') continue;
         const text = rows[i].innerText.toLowerCase();
         rows[i].style.display = text.includes(term) ? '' : 'none';
+      }
+
+      const mobileCardsContainer = document.getElementById('mobileResultsCards');
+      if (mobileCardsContainer) {
+        const cards = mobileCardsContainer.getElementsByClassName('mobile-place-card');
+        for (let i = 0; i < cards.length; i++) {
+          const text = cards[i].innerText.toLowerCase();
+          cards[i].style.display = text.includes(term) ? '' : 'none';
+        }
       }
     }
 
@@ -1354,12 +1462,34 @@
           </td>
         </tr>
       `;
+      const mobileCardsContainer = document.getElementById('mobileResultsCards');
+      if (mobileCardsContainer) {
+        mobileCardsContainer.innerHTML = `
+          <div id="mobileEmptyState" class="p-8 text-center text-slate-400 rounded-xl border border-slate-800 bg-slate-950/50">
+            <p class="text-sm font-bold text-slate-300 mb-1">لا توجد نتائج مستخرجة بعد</p>
+            <p class="text-xs text-slate-500">اختر نوع النشاط والمدينة ثم اضغط "بدء البحث"</p>
+          </div>
+        `;
+      }
       updateStats();
       lucide.createIcons();
     }
 
-    // Optional Geolocation state & prompt handler for Chrome / Google browsers
+    // Optional Geolocation state & prompt handler for ALL browsers (Chrome, Safari, Edge, Mobile & Laptop)
     let cachedOptionalGps = null;
+    let userDeclinedOptionalGps = false;
+
+    function declineOptionalGeolocation() {
+      userDeclinedOptionalGps = true;
+      const titleEl = document.getElementById('geoStatusTitle');
+      const descEl = document.getElementById('geoStatusDesc');
+      const dotEl = document.getElementById('geoStatusDot');
+      const skipBtn = document.getElementById('skipGeoBtn');
+      if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-slate-400';
+      if (titleEl) titleEl.innerText = 'تم اختيار الدخول بدون موقع جغرافي';
+      if (descEl) descEl.innerText = 'يمكنك الآن الضغط على "دخول التطبيق الآن (OK)" بالأسفل';
+      if (skipBtn) skipBtn.innerText = '✓ تم التخطي';
+    }
 
     function requestOptionalGeolocationPrompt() {
       const titleEl = document.getElementById('geoStatusTitle');

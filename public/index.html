@@ -497,44 +497,47 @@
           </div>
 
           <!-- VIEW 2: Interactive 2D Street / Satellite Radar Map -->
-          <div id="mapContainer" class="hidden w-full h-full rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative">
+          <div id="mapContainer" class="hidden w-full h-full rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative z-10">
             <div id="leafletMap" class="w-full h-full"></div>
-            <div class="absolute top-3 right-3 z-[400] flex gap-1.5">
-              <button type="button" onclick="setViewMode('map', 'streets')" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold">شوارع</button>
-              <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold">قمر صناعي</button>
-              <button type="button" onclick="centerMapOnUserGps()" class="px-2.5 py-1 rounded-lg bg-slate-950/90 border border-amber-500/40 text-amber-300 text-[11px] font-bold">📍 موقعي</button>
+            <div class="absolute top-3 right-3 z-[1000] flex flex-wrap gap-1.5">
+              <button type="button" onclick="setViewMode('3d')" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black shadow-lg cursor-pointer flex items-center gap-1">
+                <span>🌍 الكرة 3D</span>
+              </button>
+              <button type="button" onclick="setViewMode('map', 'streets')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold shadow-lg cursor-pointer">شوارع</button>
+              <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold shadow-lg cursor-pointer">قمر صناعي</button>
+              <button type="button" onclick="centerMapOnUserGps()" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow-lg cursor-pointer">📍 موقعي</button>
             </div>
           </div>
 
-          <!-- Bottom-Left Pill Toggle Switches (100% Matching Screenshot 1!) -->
-          <div class="absolute -bottom-5 left-0 sm:-left-4 z-30 flex flex-col gap-2.5">
-            <!-- Toggle 1: 3D Earth Globe -->
-            <button
-              type="button"
-              onclick="setViewMode('3d')"
-              id="pillToggle3D"
-              class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/95 border border-slate-600/70 shadow-xl cursor-pointer transition min-w-[225px]"
-            >
-              <div id="switchTrack3D" class="w-11 h-6 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 p-0.5 flex items-center justify-end transition shadow-[0_0_12px_rgba(16,185,129,0.6)]">
-                <span class="w-5 h-5 rounded-full bg-white shadow"></span>
-              </div>
-              <span class="text-xs font-bold text-white">كرة أرضية ثلاثية الأبعاد</span>
-            </button>
+        </div>
 
-            <!-- Toggle 2: 2D Street Map -->
-            <button
-              type="button"
-              onclick="setViewMode('map', 'streets')"
-              id="pillToggle2D"
-              class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/90 border border-slate-700/70 hover:border-slate-500 shadow-xl cursor-pointer transition min-w-[225px]"
-            >
-              <div id="switchTrack2D" class="w-11 h-6 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition">
-                <span class="w-5 h-5 rounded-full bg-slate-300 shadow"></span>
-              </div>
-              <span class="text-xs font-bold text-slate-300">خريطة شوارع ثنائية الأبعاد</span>
-            </button>
-          </div>
+        <!-- Bottom-Left Pill Toggle Switches (Placed cleanly below the Globe/Map with z-[1000] so they NEVER get hidden under the Map!) -->
+        <div class="w-full max-w-[465px] mt-4 z-[1000] relative flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-2.5">
+          <!-- Toggle 1: 3D Earth Globe -->
+          <button
+            type="button"
+            onclick="setViewMode('3d')"
+            id="pillToggle3D"
+            class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/95 border border-emerald-400/60 shadow-xl cursor-pointer transition min-w-[235px]"
+          >
+            <div id="switchTrack3D" class="w-11 h-6 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 p-0.5 flex items-center justify-end transition shadow-[0_0_12px_rgba(16,185,129,0.6)]">
+              <span class="w-5 h-5 rounded-full bg-white shadow"></span>
+            </div>
+            <span class="text-xs font-bold text-white">كرة أرضية ثلاثية الأبعاد</span>
+          </button>
 
+          <!-- Toggle 2: 2D Street Map -->
+          <button
+            type="button"
+            onclick="setViewMode('map', 'streets')"
+            id="pillToggle2D"
+            class="flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/90 border border-slate-700/70 hover:border-emerald-400/50 shadow-xl cursor-pointer transition min-w-[235px]"
+          >
+            <div id="switchTrack2D" class="w-11 h-6 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition">
+              <span class="w-5 h-5 rounded-full bg-slate-300 shadow"></span>
+            </div>
+            <span class="text-xs font-bold text-slate-300">خريطة شوارع ثنائية الأبعاد</span>
+          </button>
         </div>
 
       </div>
@@ -839,17 +842,33 @@
       viewMode = mode;
       const globeDiv = document.getElementById('globeContainer');
       const mapDiv = document.getElementById('mapContainer');
+      const pill3D = document.getElementById('pillToggle3D');
+      const pill2D = document.getElementById('pillToggle2D');
       const track3D = document.getElementById('switchTrack3D');
       const track2D = document.getElementById('switchTrack2D');
+
+      const activeBtnClass = "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/95 border border-emerald-400/70 shadow-[0_0_20px_rgba(16,185,129,0.2)] cursor-pointer transition min-w-[235px]";
+      const inactiveBtnClass = "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl bg-[#131d2b]/90 border border-slate-700/70 hover:border-emerald-400/50 shadow-xl cursor-pointer transition min-w-[235px]";
 
       if (mode === '3d') {
         globeDiv.classList.remove('hidden');
         mapDiv.classList.add('hidden');
+        if (pill3D) pill3D.className = activeBtnClass;
+        if (pill2D) pill2D.className = inactiveBtnClass;
         track3D.className = "w-11 h-6 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 p-0.5 flex items-center justify-end transition shadow-[0_0_12px_rgba(16,185,129,0.6)]";
         track2D.className = "w-11 h-6 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition";
+        if (renderer && globeDiv) {
+          const w = globeDiv.clientWidth || 450;
+          const h = globeDiv.clientHeight || 450;
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+          renderer.setSize(w, h);
+        }
       } else {
         globeDiv.classList.add('hidden');
         mapDiv.classList.remove('hidden');
+        if (pill2D) pill2D.className = activeBtnClass;
+        if (pill3D) pill3D.className = inactiveBtnClass;
         track2D.className = "w-11 h-6 rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400 p-0.5 flex items-center justify-end transition shadow-[0_0_12px_rgba(16,185,129,0.6)]";
         track3D.className = "w-11 h-6 rounded-full bg-slate-700 p-0.5 flex items-center justify-start transition";
 

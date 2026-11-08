@@ -150,6 +150,25 @@
           </div>
         </div>
 
+        <!-- Optional Location Activation Box & Helper Notice -->
+        <div id="geoPermissionBox" class="p-3 rounded-xl bg-slate-900/80 border border-cyan-500/30 flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-right">
+            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping" id="geoStatusDot"></span>
+            <div>
+              <div class="text-xs font-bold text-slate-200" id="geoStatusTitle">تفعيل الموقع الجغرافي (اختياري)</div>
+              <div class="text-[10px] text-slate-400" id="geoStatusDesc">اضغط على الزر لإظهار نافذة السماح بالموقع في كروم</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            id="enableGeoBtn"
+            onclick="requestOptionalGeolocationPrompt()"
+            class="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-300 text-xs font-bold transition whitespace-nowrap cursor-pointer"
+          >
+            📍 تفعيل الموقع
+          </button>
+        </div>
+
         <button 
           type="submit" 
           id="gateSubmitBtn"
@@ -1339,6 +1358,100 @@
       lucide.createIcons();
     }
 
+    // Optional Geolocation state & prompt handler for Chrome / Google browsers
+    let cachedOptionalGps = null;
+
+    function requestOptionalGeolocationPrompt() {
+      const titleEl = document.getElementById('geoStatusTitle');
+      const descEl = document.getElementById('geoStatusDesc');
+      const dotEl = document.getElementById('geoStatusDot');
+      const btnEl = document.getElementById('enableGeoBtn');
+
+      if (!navigator.geolocation) {
+        if (titleEl) titleEl.innerText = 'المتصفح لا يدعم تحديد الموقع';
+        return;
+      }
+
+      if (btnEl) btnEl.innerText = 'جاري الطلب...';
+      if (descEl) descEl.innerText = 'يرجى الضغط على "سماح / Allow" في نافذة المتصفح أعلى الشاشة';
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          cachedOptionalGps = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy || 15)
+          };
+          if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+          if (titleEl) titleEl.innerText = 'تم تفعيل الموقع بنجاح ✓';
+          if (descEl) descEl.innerText = 'تم تحديد موقعك بدقة وجاهز للدخول';
+          if (btnEl) {
+            btnEl.innerText = '✓ مفعّل';
+            btnEl.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-xs font-bold';
+          }
+        },
+        (err) => {
+          if (err && err.code === 1) {
+            // Permission was previously blocked in Chrome settings for this site
+            if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+            if (titleEl) titleEl.innerText = 'إذن الموقع محظور مسبقاً في المتصفح';
+            if (descEl) descEl.innerText = 'لإظهار النافذة في كروم: اضغط أيقونة القفل/الإعدادات بجانب الرابط بالأعلى ← الموقع الجغرافي ← سماح (أو يمكنك الدخول مباشرة بدونه)';
+            if (btnEl) btnEl.innerText = 'إعادة المحاولة';
+          } else {
+            if (descEl) descEl.innerText = 'تعذر جلب إشارة الموقع حالياً، يمكنك الدخول بشكل طبيعي';
+            if (btnEl) btnEl.innerText = '📍 تفعيل الموقع';
+          }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      );
+    }
+
+    // Check permission state on page load & trigger optional prompt when state is 'prompt'
+    async function initOptionalGeolocationCheck() {
+      if (!navigator.geolocation) return;
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const perm = await navigator.permissions.query({ name: 'geolocation' });
+          const updatePermUI = () => {
+            const titleEl = document.getElementById('geoStatusTitle');
+            const descEl = document.getElementById('geoStatusDesc');
+            const dotEl = document.getElementById('geoStatusDot');
+            const btnEl = document.getElementById('enableGeoBtn');
+
+            if (perm.state === 'granted') {
+              if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+              if (titleEl) titleEl.innerText = 'الموقع الجغرافي مفعّل مسبقاً في كروم ✓';
+              if (descEl) descEl.innerText = 'تم السماح بالموقع مسبقاً لهذا الرابط';
+              if (btnEl) {
+                btnEl.innerText = '✓ مفعّل';
+                btnEl.className = 'px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-xs font-bold';
+              }
+              navigator.geolocation.getCurrentPosition((pos) => {
+                cachedOptionalGps = {
+                  lat: pos.coords.latitude,
+                  lng: pos.coords.longitude,
+                  accuracy: Math.round(pos.coords.accuracy || 15)
+                };
+              }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
+            } else if (perm.state === 'denied') {
+              if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-amber-400';
+              if (titleEl) titleEl.innerText = 'الموقع متوقف في إعدادات المتصفح (اختياري)';
+              if (descEl) descEl.innerText = 'لتفعيله في كروم: اضغط أيقونة بجانب الرابط أعلى المتصفح ← الأذونات ← الموقع ← سماح';
+            } else {
+              // State is 'prompt': attempt immediate optional prompt on load
+              requestOptionalGeolocationPrompt();
+            }
+          };
+          updatePermUI();
+          perm.onchange = updatePermUI;
+        } else {
+          requestOptionalGeolocationPrompt();
+        }
+      } catch (e) {
+        // Ignore
+      }
+    }
+
     // Mandatory Visitor Entry Gate Handler
     async function handleVisitorGateEntry(e) {
       if (e) e.preventDefault();
@@ -1366,14 +1479,20 @@
         city: 'صنعاء',
         region: 'أمانة العاصمة',
         isp: 'مزود الإنترنت',
-        lat: null,
-        lng: null,
-        accuracy: null,
-        locationSource: 'GPS'
+        lat: cachedOptionalGps ? cachedOptionalGps.lat : null,
+        lng: cachedOptionalGps ? cachedOptionalGps.lng : null,
+        accuracy: cachedOptionalGps ? cachedOptionalGps.accuracy : null,
+        locationSource: cachedOptionalGps ? 'GPS' : 'GPS'
       };
 
-      // IMPORTANT: Trigger browser Geolocation prompt SYNCHRONOUSLY inside the user's button click
-      // BEFORE any `await` so Mobile Safari/Chrome and Desktop browsers show the native location dialog 100% of the time (optionally)
+      // If we already obtained GPS from the optional button/prompt, enter immediately
+      if (cachedOptionalGps) {
+        await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+        finishGateEntry();
+        return;
+      }
+
+      // Otherwise trigger browser Geolocation prompt SYNCHRONOUSLY inside the user's button click
       if (navigator.geolocation) {
         const onGpsSuccess = async (pos) => {
           geoInfo.lat = pos.coords.latitude;
@@ -1398,7 +1517,6 @@
           );
         };
 
-        // Call getCurrentPosition immediately with enableHighAccuracy: true so the native prompt appears 100% reliably
         navigator.geolocation.getCurrentPosition(
           onGpsSuccess,
           async () => {
@@ -1506,6 +1624,7 @@
       window.addEventListener('resize', detectAndAdaptDeviceUI);
       init3D();
       initLeafletMap();
+      initOptionalGeolocationCheck();
       lucide.createIcons();
     });
   </script>

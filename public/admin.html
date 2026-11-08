@@ -93,61 +93,6 @@
 </head>
 <body class="flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
 
-  <!-- Top Supervisor Bar -->
-  <header class="sticky top-0 z-50 glass-card border-b border-cyan-500/20 px-4 lg:px-8 py-3.5">
-    <div class="max-w-7xl mx-auto flex items-center justify-between gap-2 flex-wrap">
-      
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-          <i data-lucide="shield-alert" class="w-5 h-5 text-white"></i>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-base sm:text-lg lg:text-xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
-              لوحة تحكم المشرف والرقابة الحية
-            </h1>
-            <span id="adminDeviceBadge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-              💻 وضع اللابتوب
-            </span>
-          </div>
-          <p class="text-[11px] sm:text-xs text-slate-400">تتبع الزوار، ومعرفة مواقعهم الجغرافية، وسجلات ما بحثوا عنه لحظة بلحظة</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2.5">
-        <!-- Live Status Pill -->
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>الرقابة الحية تعمل بنشاط</span>
-        </div>
-
-        <!-- Settings Button -->
-        <button onclick="scrollToAdminSettings()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-indigo-500 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
-          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
-          <span>الإعدادات</span>
-        </button>
-
-        <!-- Refresh Button -->
-        <button onclick="fetchAdminData()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
-          <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
-          <span>تحديث</span>
-        </button>
-
-        <!-- Back to Main App Button -->
-        <a href="/" class="px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1.5 shadow transition">
-          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
-          <span>العودة للتطبيق</span>
-        </a>
-
-        <!-- Logout button -->
-        <button id="logoutBtn" onclick="logoutAdmin()" class="hidden p-1.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition" title="تسجيل الخروج">
-          <i data-lucide="log-out" class="w-4 h-4"></i>
-        </button>
-      </div>
-
-    </div>
-  </header>
-
   <!-- Login Modal / Gate -->
   <div id="loginModal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
     <div class="glass-card max-w-md w-full p-6 lg:p-8 rounded-2xl border border-cyan-500/40 shadow-2xl relative text-center">
@@ -186,8 +131,36 @@
     </div>
   </div>
 
-  <!-- Dashboard Main Workspace -->
-  <main id="adminContent" class="hidden max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1 space-y-6">
+  <!-- Dashboard Main Workspace (Top Sticky Header Removed as Requested) -->
+  <main id="adminContent" class="hidden max-w-7xl mx-auto w-full px-4 lg:px-8 py-5 flex-1 space-y-5">
+
+    <!-- Compact Quick Toolbar inside Workspace -->
+    <div class="flex flex-wrap items-center justify-between gap-2 glass-card px-4 py-2.5 rounded-xl border border-cyan-500/20">
+      <div class="flex items-center gap-2">
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-xs sm:text-sm font-extrabold text-white">لوحة تحكم المشرف</span>
+        <span id="adminDeviceBadge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+          💻 وضع اللابتوب
+        </span>
+      </div>
+      <div class="flex items-center gap-2 flex-wrap">
+        <button onclick="scrollToAdminSettings()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-indigo-300 text-xs font-bold flex items-center gap-1 transition cursor-pointer">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+          <span>الإعدادات</span>
+        </button>
+        <button onclick="fetchAdminData()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 text-xs font-bold flex items-center gap-1 transition cursor-pointer">
+          <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
+          <span>تحديث</span>
+        </button>
+        <a href="/" class="px-3 py-1 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black flex items-center gap-1 shadow transition">
+          <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          <span>العودة للتطبيق</span>
+        </a>
+        <button id="logoutBtn" onclick="logoutAdmin()" class="p-1 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition cursor-pointer" title="تسجيل الخروج">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
 
     <!-- Counters Strip -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -276,16 +249,33 @@
           <p class="text-xs text-slate-400">يعرض نوع النشاط، الموقع والحي المطلوبين، والنطاق، والوقت، وعدد الشركات المستخرجة</p>
         </div>
 
-        <button onclick="exportSearchesExcel()" class="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 transition">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i>
-          <span>تصدير السجل إلى Excel</span>
-        </button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button onclick="deleteSearches('selected')" class="px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/40 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+            <span>حذف المحدد</span>
+          </button>
+          <button onclick="deleteSearches('last_day')" class="px-3 py-1.5 rounded-xl bg-orange-600/20 hover:bg-orange-600/40 border border-orange-500/40 text-orange-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            <span>حذف آخر 24 ساعة</span>
+          </button>
+          <button onclick="deleteSearches('all')" class="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/40 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            <span>حذف الكل</span>
+          </button>
+          <button onclick="exportSearchesExcel()" class="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            <span>تصدير السجل إلى Excel</span>
+          </button>
+        </div>
       </div>
 
       <div id="desktopSearchesTableWrapper" class="overflow-x-auto rounded-xl border border-slate-700/80 bg-slate-950/60">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-900/90 text-cyan-300 font-bold border-b border-slate-800">
             <tr>
+              <th class="p-3 w-8 text-center">
+                <input type="checkbox" id="selectAllSearchesCheckbox" onchange="toggleSelectAllSearches(this.checked)" class="accent-cyan-400 cursor-pointer" title="تحديد الكل" />
+              </th>
               <th class="p-3">#</th>
               <th class="p-3">وقت البحث</th>
               <th class="p-3">نوع النشاط (الكلمة المبحوثة)</th>
@@ -294,11 +284,12 @@
               <th class="p-3">نطاق البحث</th>
               <th class="p-3">الشركات المستخرجة</th>
               <th class="p-3">عنوان الآي بي وموقع الزائر</th>
+              <th class="p-3 text-center">حذف</th>
             </tr>
           </thead>
           <tbody id="searchesTableBody" class="divide-y divide-slate-800/60">
             <tr>
-              <td colspan="8" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
+              <td colspan="10" class="p-6 text-center text-slate-400">جارٍ جلب السجلات...</td>
             </tr>
           </tbody>
         </table>
@@ -798,7 +789,7 @@
       const tbody = document.getElementById('searchesTableBody');
       const mobileCards = document.getElementById('mobileSearchesCards');
       if (searches.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة حتى الآن</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد عمليات بحث مسجلة حتى الآن</td></tr>`;
         if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات بحث مسجلة حتى الآن</div>`;
         return;
       }
@@ -807,6 +798,9 @@
         const dateFormatted = new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true });
         return `
           <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
+            <td class="p-3 text-center">
+              <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-cyan-400 cursor-pointer" />
+            </td>
             <td class="p-3 text-slate-400 font-num">${idx + 1}</td>
             <td class="p-3 text-slate-300 font-num text-[11px]">${dateFormatted}</td>
             <td class="p-3 font-bold text-cyan-300">${s.query || 'الكل'}</td>
@@ -819,6 +813,11 @@
               <span class="text-cyan-400 font-num">${s.ip}</span>
               <span class="block text-[10px] text-emerald-400">${s.visitorLocation || 'اليمن'}</span>
             </td>
+            <td class="p-3 text-center">
+              <button onclick="deleteSingleSearch('${s.id}')" class="p-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 text-red-300 transition cursor-pointer" title="حذف هذا البحث">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
           </tr>
         `;
       }).join('');
@@ -829,8 +828,14 @@
           return `
             <div class="p-3.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
               <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-extrabold text-cyan-300">#${idx + 1} • ${s.query || 'الكل'}</span>
-                <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-num font-bold text-xs">${s.resultsCount || 0} منشأة</span>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" value="${s.id}" class="search-row-checkbox accent-cyan-400" />
+                  <span class="text-sm font-extrabold text-cyan-300">#${idx + 1} • ${s.query || 'الكل'}</span>
+                </label>
+                <div class="flex items-center gap-1.5">
+                  <span class="px-2 py-0.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-num font-bold text-xs">${s.resultsCount || 0} منشأة</span>
+                  <button onclick="deleteSingleSearch('${s.id}')" class="px-2 py-0.5 rounded-lg bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
+                </div>
               </div>
               <div class="text-xs text-slate-300 flex flex-wrap gap-2">
                 <span>📍 المطلوب: <strong class="text-white">${s.targetLocation || '-'} ${s.targetNeighborhood ? '(' + s.targetNeighborhood + ')' : ''}</strong></span>
@@ -843,6 +848,67 @@
             </div>
           `;
         }).join('');
+      }
+      lucide.createIcons();
+    }
+
+    function toggleSelectAllSearches(checked) {
+      const boxes = document.querySelectorAll('.search-row-checkbox');
+      boxes.forEach(b => { b.checked = checked; });
+    }
+
+    async function deleteSingleSearch(id) {
+      await executeSearchDeletion('selected', [id]);
+    }
+
+    async function deleteSearches(mode) {
+      if (mode === 'all') {
+        if (!confirm('هل أنت متأكد من حذف جميع سجلات عمليات البحث؟')) return;
+        await executeSearchDeletion('all', []);
+      } else if (mode === 'last_day') {
+        if (!confirm('هل تريد حذف سجلات البحث لآخر 24 ساعة؟')) return;
+        await executeSearchDeletion('last_day', []);
+      } else if (mode === 'selected') {
+        const checked = Array.from(document.querySelectorAll('.search-row-checkbox:checked')).map(cb => cb.value);
+        if (checked.length === 0) {
+          alert('يرجى تحديد عملية بحث واحدة على الأقل من المربعات لحذفها!');
+          return;
+        }
+        await executeSearchDeletion('selected', checked);
+      }
+    }
+
+    async function executeSearchDeletion(mode, ids = []) {
+      try {
+        const res = await fetch('/api/admin/delete-searches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, ids })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          // Also update local permanent archive so deleted searches are not re-synced back!
+          const localArch = loadLocalArchive();
+          const nowMs = Date.now();
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          const idSet = new Set(ids);
+
+          let updatedSearches = localArch.searches || [];
+          if (mode === 'all') {
+            updatedSearches = [];
+          } else if (mode === 'last_day') {
+            updatedSearches = updatedSearches.filter(s => (nowMs - new Date(s.timestamp || 0).getTime()) > oneDayMs);
+          } else if (mode === 'selected') {
+            updatedSearches = updatedSearches.filter(s => !idSet.has(s.id));
+          }
+
+          saveLocalArchive(data.visitors || localArch.visitors || [], updatedSearches);
+          const selectAllCb = document.getElementById('selectAllSearchesCheckbox');
+          if (selectAllCb) selectAllCb.checked = false;
+          await fetchAdminData();
+        }
+      } catch (e) {
+        alert('تعذر حذف سجلات البحث: ' + e.message);
       }
     }
 

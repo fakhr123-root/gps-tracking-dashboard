@@ -620,7 +620,7 @@ async function extractRealPhones(tags = {}, placeName = '', city = '', lat = 15.
 }
 
 // Built-in Real-time Extractor (Fetches REAL places directly from Google Maps Live Engine + Overpass OSM)
-async function searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent) {
+async function searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat = null, userLng = null) {
   let fetchedCount = 0;
   const seenNames = new Set();
 
@@ -628,6 +628,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
 
   const locCombined = [neighborhood, location].filter(Boolean).join(' ') || 'صنعاء';
   const center = await geocodeLocation(locCombined);
+
+  // If user allowed GPS and did NOT type a specific neighborhood, prioritize their exact GPS coordinates!
+  const hasUserGps = !neighborhood && typeof userLat === 'number' && !isNaN(userLat) && typeof userLng === 'number' && !isNaN(userLng);
+  if (hasUserGps) {
+    center.lat = userLat;
+    center.lng = userLng;
+    const nearHood = resolveLocalNeighborhood(userLat, userLng);
+    if (nearHood && nearHood.distanceKm <= 12) {
+      center.district = nearHood.shortHood || center.district;
+    }
+  }
 
   sendEvent('center', {
     lat: center.lat,
@@ -649,6 +660,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
     const baseTerm = stdQuery || query || 'شركات';
     if (neighborhood) {
       searchTerms.push(`${baseTerm} في ${neighborhood} ${center.city}`);
+    } else if (hasUserGps && center.district) {
+      // Search closest to user's permitted GPS district first, then wider city
+      searchTerms.push(`${baseTerm} في ${center.district} ${center.city}`);
     }
     searchTerms.push(`${baseTerm} في ${center.city}`);
     if (query && query.trim() !== baseTerm) {
@@ -656,14 +670,15 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
     }
 
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const distSpan = Math.min(Math.max(radiusMeters * 3, 15000), 65000);
+    const distSpan = hasUserGps ? Math.min(Math.max(radiusMeters * 1.5, 6000), 35000) : Math.min(Math.max(radiusMeters * 3, 15000), 65000);
+    const collectedGooglePlaces = [];
 
     for (const sTerm of searchTerms) {
-      if (fetchedCount >= limit) break;
+      if (collectedGooglePlaces.length >= limit * 2) break;
 
       const maxPages = Math.ceil(limit / 20) + 1;
       for (let page = 0; page < maxPages; page++) {
-        if (fetchedCount >= limit) break;
+        if (collectedGooglePlaces.length >= limit * 2) break;
         const offset = page * 20;
         const pb = `!4m12!1m3!1d${distSpan}!2d${center.lng}!3d${center.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i20!8i${offset}!10b1`;
         const gUrl = `https://www.google.com/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(sTerm)}`;
@@ -694,7 +709,6 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
 
         let addedInPage = 0;
         for (const entry of entries) {
-          if (fetchedCount >= limit) break;
           const p = entry?.[14];
           if (!Array.isArray(p) || !p[11]) continue;
 
@@ -708,66 +722,77 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
           seenNames.add(dedupeKey);
           seenNames.add(normAr(cleanName));
 
-          // Extract real phones directly from Google Maps place record `p[178]`
-          const phoneData = extractGoogleMapsPlacePhones(p);
-
-          // Extract real working hours and Open/Closed state from Google Maps `p[203]`
-          const hoursInfo = extractGoogleMapsHours(p, cleanName, stdQuery, fetchedCount);
-
-          // Extract real neighborhood/district & address from Google Maps `p[2]`, `p[82]`, `p[39]`
-          const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
-          const addrParts = Array.isArray(p[2]) ? p[2] : [];
-          const gDistrict = p[82]?.[0] || addrParts[1] || addrParts[0] || '';
-          const actualDistrict =
-            (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.shortHood : null) ||
-            gDistrict ||
-            (neighborhood ? neighborhood : center.district);
-
-          const fullAddress =
-            p[39] ||
-            p[18] ||
-            (addrParts.length > 0 ? addrParts.join('، ') : `${center.city} - ${actualDistrict}`);
-
-          // Extract real rating & reviews count from Google Maps `p[4]`
-          const rawRating = p[4]?.[7];
-          const rawReviews = p[4]?.[8];
-          const ratingStr = rawRating ? `${ Number(rawRating).toFixed(1) } ★` : '4.5 ★';
-          const reviewsCount = typeof rawReviews === 'number' ? rawReviews : 15;
-
-          // Extract real website or Google Maps place link
-          const website =
-            p[7]?.[0] ||
-            `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`;
-
-          const item = {
-            id: p[78] || p[0] || `gmap_${Date.now()}_${fetchedCount}`,
-            name: cleanName,
-            city: center.city,
-            district: actualDistrict,
-            phone: phoneData.phone,
-            phones: phoneData.phones,
-            rating: ratingStr,
-            reviewsCount: reviewsCount,
-            isOpenNow: hoursInfo.isOpenNow,
-            openStatus: hoursInfo.openStatus,
-            workingHours: hoursInfo.workingHours,
-            lat: parseFloat(pLat.toFixed(6)),
-            lng: parseFloat(pLng.toFixed(6)),
-            locationUrl: `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`,
-            website: website,
-            address: fullAddress,
-            source: 'خرائط جوجل (Google Maps مباشر)'
-          };
-
-          fetchedCount++;
+          const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
+          collectedGooglePlaces.push({ p, cleanName, pLat, pLng, distFromOrigin });
           addedInPage++;
-          sendEvent('place', item);
-          sendEvent('progress', { current: fetchedCount, total: limit });
-          await new Promise(r => setTimeout(r, 35));
         }
 
         if (addedInPage === 0) break;
       }
+    }
+
+    // Sort results so the CLOSEST places to the user's permitted GPS location (or selected neighborhood) appear FIRST, followed by the remaining places
+    collectedGooglePlaces.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+
+    for (const entryObj of collectedGooglePlaces) {
+      if (fetchedCount >= limit) break;
+      const { p, cleanName, pLat, pLng } = entryObj;
+
+      // Extract real phones directly from Google Maps place record `p[178]`
+      const phoneData = extractGoogleMapsPlacePhones(p);
+
+      // Extract real working hours and Open/Closed state from Google Maps `p[203]`
+      const hoursInfo = extractGoogleMapsHours(p, cleanName, stdQuery, fetchedCount);
+
+      // Extract real neighborhood/district & address from Google Maps `p[2]`, `p[82]`, `p[39]`
+      const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
+      const addrParts = Array.isArray(p[2]) ? p[2] : [];
+      const gDistrict = p[82]?.[0] || addrParts[1] || addrParts[0] || '';
+      const actualDistrict =
+        (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.shortHood : null) ||
+        gDistrict ||
+        (neighborhood ? neighborhood : center.district);
+
+      const fullAddress =
+        p[39] ||
+        p[18] ||
+        (addrParts.length > 0 ? addrParts.join('، ') : `${center.city} - ${actualDistrict}`);
+
+      // Extract real rating & reviews count from Google Maps `p[4]`
+      const rawRating = p[4]?.[7];
+      const rawReviews = p[4]?.[8];
+      const ratingStr = rawRating ? `${ Number(rawRating).toFixed(1) } ★` : '4.5 ★';
+      const reviewsCount = typeof rawReviews === 'number' ? rawReviews : 15;
+
+      // Extract real website or Google Maps place link
+      const website =
+        p[7]?.[0] ||
+        `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`;
+
+      const item = {
+        id: p[78] || p[0] || `gmap_${Date.now()}_${fetchedCount}`,
+        name: cleanName,
+        city: center.city,
+        district: actualDistrict,
+        phone: phoneData.phone,
+        phones: phoneData.phones,
+        rating: ratingStr,
+        reviewsCount: reviewsCount,
+        isOpenNow: hoursInfo.isOpenNow,
+        openStatus: hoursInfo.openStatus,
+        workingHours: hoursInfo.workingHours,
+        lat: parseFloat(pLat.toFixed(6)),
+        lng: parseFloat(pLng.toFixed(6)),
+        locationUrl: `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`,
+        website: website,
+        address: fullAddress,
+        source: 'خرائط جوجل (Google Maps مباشر)'
+      };
+
+      fetchedCount++;
+      sendEvent('place', item);
+      sendEvent('progress', { current: fetchedCount, total: limit });
+      await new Promise(r => setTimeout(r, 35));
     }
   } catch (gErr) {
     console.log('Google Maps direct search notice:', gErr.message);
@@ -1639,10 +1664,49 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Clear Logs (Disabled to protect permanent session history)
-  if (pathname === '/api/admin/clear' && req.method === 'POST') {
-    res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ success: false, message: 'تم تعطيل حذف السجلات لضمان حفظ جميع الجلسات بشكل دائم وعدم فقدانها.' }));
+  // Admin Delete Searches Endpoint (supports: 'all', 'last_day', 'selected')
+  if (pathname === '/api/admin/delete-searches' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const mode = data.mode || 'selected';
+    const idsToDelete = new Set(Array.isArray(data.ids) ? data.ids : []);
+    const nowMs = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    if (mode === 'all') {
+      logs.searches = [];
+      for (const v of logs.visitors) {
+        if (Array.isArray(v.sessionSearches)) v.sessionSearches = [];
+      }
+    } else if (mode === 'last_day') {
+      logs.searches = logs.searches.filter(s => {
+        const t = new Date(s.timestamp || 0).getTime();
+        return (nowMs - t) > oneDayMs;
+      });
+      for (const v of logs.visitors) {
+        if (Array.isArray(v.sessionSearches)) {
+          v.sessionSearches = v.sessionSearches.filter(s => {
+            const t = new Date(s.timestamp || 0).getTime();
+            return (nowMs - t) > oneDayMs;
+          });
+        }
+      }
+    } else if (mode === 'selected' && idsToDelete.size > 0) {
+      logs.searches = logs.searches.filter(s => !idsToDelete.has(s.id));
+      for (const v of logs.visitors) {
+        if (Array.isArray(v.sessionSearches)) {
+          v.sessionSearches = v.sessionSearches.filter(s => !idsToDelete.has(s.id));
+        }
+      }
+    }
+
+    saveAdminLogs(logs);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      searches: logs.searches,
+      visitors: logs.visitors
+    }));
     return;
   }
 
@@ -1657,6 +1721,8 @@ const server = http.createServer(async (req, res) => {
     const apiKey = (parsedUrl.query.apiKey || '').trim();
     const visitorId = (parsedUrl.query.visitorId || '').trim();
     const visitorLocation = (parsedUrl.query.visitorLocation || '').trim();
+    const userLat = parsedUrl.query.userLat ? parseFloat(parsedUrl.query.userLat) : null;
+    const userLng = parsedUrl.query.userLng ? parseFloat(parsedUrl.query.userLng) : null;
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -1683,7 +1749,7 @@ const server = http.createServer(async (req, res) => {
       if (apiKey) {
         await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, limit, sendEvent);
       } else {
-        await searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent);
+        await searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat, userLng);
       }
       sendEvent('complete', { message: 'تم إنجاز البحث بنجاح 100%!' });
     } catch (e) {

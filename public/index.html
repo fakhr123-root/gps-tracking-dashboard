@@ -213,55 +213,8 @@
     </div>
   </div>
 
-  <!-- Fixed Top Header -->
-  <header class="sticky top-0 z-50 glass-panel border-b border-cyan-500/20 px-4 lg:px-8 py-3.5">
-    <div class="max-w-7xl mx-auto flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="relative w-11 h-11 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-cyan-500/30">
-          <i data-lucide="map-pin" class="w-6 h-6 text-white animate-bounce"></i>
-          <span class="absolute -top-1 -right-1 flex h-3 w-3">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-cyan-500"></span>
-          </span>
-        </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <h1 class="text-xl lg:text-2xl font-black bg-gradient-to-r from-cyan-400 via-sky-300 to-blue-500 bg-clip-text text-transparent">
-              مستخرج خرائط جوجل 3D
-            </h1>
-            <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-              v2.0 فائقة الدقة
-            </span>
-          </div>
-          <p class="text-xs text-slate-400">سحب فوري ومباشر لبيانات الشركات والمواقع مع مجسم كروي ثلاثي الأبعاد</p>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-        <!-- Automatic Device Detection Badge (Phone vs Laptop) -->
-        <div id="deviceModeBadge" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold">
-          <span id="deviceModeIcon">💻</span>
-          <span id="deviceModeText">وضع اللابتوب</span>
-        </div>
-
-        <!-- Live Status Pill -->
-        <div id="livePill" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="livePillText">النظام جاهز للبحث</span>
-        </div>
-
-        <!-- Quick 3D Toggle Button -->
-        <button id="toggle3dBtn" onclick="toggle3DView()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 text-cyan-300 flex items-center gap-1.5 transition cursor-pointer">
-          <i data-lucide="box" class="w-4 h-4"></i>
-          <span class="hidden sm:inline">الكرة الأرضية 3D</span>
-          <span class="sm:hidden">3D / خريطة</span>
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Content Layout -->
-  <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 flex-1 space-y-6">
+  <!-- Main Content Layout (Top Header Removed as Requested) -->
+  <main class="max-w-7xl mx-auto w-full px-4 lg:px-8 py-5 flex-1 space-y-6">
 
     <!-- Hero / 3D Visualization Canvas & Search Panel -->
     <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
@@ -1037,8 +990,8 @@
       progressContainer.classList.remove('hidden');
       progressBar.style.width = '0%';
       progressRatio.innerText = `0 / ${limit}`;
-      livePill.classList.remove('hidden');
-      livePillText.innerText = "جاري الجلب أولاً بأول...";
+      if (livePill) livePill.classList.remove('hidden');
+      if (livePillText) livePillText.innerText = "جاري الجلب أولاً بأول...";
 
       // Clear previous markers
       if (pinGroup) {
@@ -1069,6 +1022,12 @@
         visitorId: visitorId,
         visitorLocation: location ? `${location} ${neighborhood}` : 'صنعاء، اليمن'
       });
+
+      // If the user allowed their GPS location and did not fill the neighborhood field, pass their exact GPS coordinates so the closest places appear first
+      if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
+        params.set('userLat', cachedOptionalGps.lat);
+        params.set('userLng', cachedOptionalGps.lng);
+      }
 
       // Connect to SSE Endpoint
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
@@ -1138,7 +1097,7 @@
       lucide.createIcons();
 
       const livePillText = document.getElementById('livePillText');
-      livePillText.innerText = `اكتمل جلب ${extractedPlaces.length} نتيجة`;
+      if (livePillText) livePillText.innerText = `اكتمل جلب ${extractedPlaces.length} نتيجة`;
     }
 
     // Append place row to Laptop Table AND Mobile Card View
@@ -1633,6 +1592,11 @@
           geoInfo.lng = pos.coords.longitude;
           geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
           geoInfo.locationSource = 'GPS';
+          cachedOptionalGps = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy || 20)
+          };
 
           await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
           finishGateEntry();
@@ -1644,6 +1608,11 @@
               geoInfo.lng = finePos.coords.longitude;
               geoInfo.accuracy = Math.round(finePos.coords.accuracy || 10);
               geoInfo.locationSource = 'GPS';
+              cachedOptionalGps = {
+                lat: finePos.coords.latitude,
+                lng: finePos.coords.longitude,
+                accuracy: Math.round(finePos.coords.accuracy || 10)
+              };
               await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
             },
             () => {},

@@ -1360,7 +1360,6 @@
       const screenRes = `${window.screen.width}x${window.screen.height}`;
       const deviceStr = `${platform} - (${screenRes})`;
 
-      // 1. Fetch public IP & ISP info ONLY (never overwrite real GPS coordinates with ISP router coords!)
       let geoInfo = {
         publicIp: '',
         country: 'اليمن',
@@ -1373,25 +1372,8 @@
         locationSource: 'GPS'
       };
 
-      try {
-        const ipRes = await Promise.race([
-          fetch('https://ipwho.is/').then(r => r.json()),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 2500))
-        ]);
-        if (ipRes && ipRes.success !== false) {
-          geoInfo.publicIp = ipRes.ip || '';
-          geoInfo.country = ipRes.country || geoInfo.country;
-          geoInfo.city = ipRes.city || geoInfo.city;
-          geoInfo.region = ipRes.region || geoInfo.region;
-          geoInfo.isp = ipRes.connection?.isp || ipRes.connection?.org || geoInfo.isp;
-        }
-      } catch (err) {
-        // Server will resolve IP & ISP automatically if client fails
-      }
-
-      // 2. Get REAL Device Location via Browser Geolocation API
-      // Step A: Fast Wi-Fi / Windows / Mobile Geolocation pass (resolves in <1s without timing out!)
-      // Step B: Continuous High-Accuracy GPS watchPosition in background to refine down to street meter level!
+      // IMPORTANT: Trigger browser Geolocation prompt SYNCHRONOUSLY inside the user's button click
+      // BEFORE any `await` so Mobile Safari/Chrome and Desktop browsers show the native location dialog 100% of the time (optionally)
       if (navigator.geolocation) {
         const onGpsSuccess = async (pos) => {
           geoInfo.lat = pos.coords.latitude;
@@ -1402,7 +1384,7 @@
           await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
           finishGateEntry();
 
-          // Start background high-accuracy GPS watcher to lock onto exact street/building
+          // Start background high-accuracy GPS watcher to refine location if permitted
           navigator.geolocation.watchPosition(
             async (finePos) => {
               geoInfo.lat = finePos.coords.latitude;
@@ -1416,29 +1398,36 @@
           );
         };
 
-        // Try fast accurate positioning first (no premature 3.5s timeout on Windows!)
+        // Call getCurrentPosition immediately with enableHighAccuracy: true so the native prompt appears 100% reliably
         navigator.geolocation.getCurrentPosition(
           onGpsSuccess,
-          () => {
-            // Retry with high accuracy and longer timeout if first attempt failed
-            navigator.geolocation.getCurrentPosition(
-              onGpsSuccess,
-              async () => {
-                // Only if user explicitly blocked location permission, fall back to server IP lookup
-                geoInfo.locationSource = 'IP_FALLBACK';
-                await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
-                finishGateEntry();
-              },
-              { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
+          async () => {
+            // Optional: if user declines or closes the prompt, allow entry normally with IP fallback
+            geoInfo.locationSource = 'IP_FALLBACK';
+            await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
+            finishGateEntry();
           },
-          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       } else {
         geoInfo.locationSource = 'IP_FALLBACK';
         await sendVisitPayload(vId, visitorName, geoInfo, deviceStr);
         finishGateEntry();
       }
+
+      // Fetch IP metadata in parallel without blocking the synchronous geolocation prompt
+      fetch('https://ipwho.is/')
+        .then(r => r.json())
+        .then(ipRes => {
+          if (ipRes && ipRes.success !== false) {
+            geoInfo.publicIp = ipRes.ip || '';
+            geoInfo.country = ipRes.country || geoInfo.country;
+            geoInfo.city = ipRes.city || geoInfo.city;
+            geoInfo.region = ipRes.region || geoInfo.region;
+            geoInfo.isp = ipRes.connection?.isp || ipRes.connection?.org || geoInfo.isp;
+          }
+        })
+        .catch(() => {});
     }
 
     async function sendVisitPayload(vId, vName, geo, deviceStr) {

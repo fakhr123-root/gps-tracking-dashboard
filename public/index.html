@@ -134,7 +134,7 @@
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
 
-  <!-- Mandatory Visitor Entry Gate Modal (زر تسجيل الدخول / موافق مع نافذة موافقة الموقع الواضحة لجميع الأجهزة والمتصفحات) -->
+  <!-- Visitor Entry Gate Modal (بوابة تسجيل الدخول الاحترافية) -->
   <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
     <div class="glass-panel max-w-md w-full p-5 sm:p-7 rounded-3xl border border-cyan-500/50 shadow-2xl text-center relative overflow-hidden my-auto">
       <!-- Glow ambient -->
@@ -146,25 +146,31 @@
 
       <h2 class="text-lg sm:text-xl font-black text-white mb-1">مرحباً بك في مستخرج خرائط جوجل 3D</h2>
       <p class="text-xs text-slate-300 leading-relaxed mb-4">
-        اختر الموافقة على تحديد الموقع الجغرافي ثم اضغط دخول للبدء فوراً
+        يرجى إدخال اسمك أو رقم هاتفك للمتابعة إلى منصة استخراج البيانات الجغرافية
       </p>
 
       <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5 text-right">
         <div>
-          <label class="block text-xs font-semibold text-slate-300 mb-1">اسمك أو رقم هاتفك (اختياري):</label>
+          <label class="block text-xs font-bold text-slate-200 mb-1.5 flex items-center justify-between">
+            <span>الاسم أو رقم الهاتف <span class="text-red-400">*</span></span>
+            <span class="text-[10px] text-cyan-400 font-semibold">حقل مطلوب</span>
+          </label>
           <div class="relative">
             <i data-lucide="user" class="absolute right-3.5 top-3 w-4 h-4 text-slate-400"></i>
             <input 
               type="text" 
               id="visitorNameInput" 
               placeholder="اكتب اسمك أو رقم هاتفك هنا..."
+              required
+              oninput="document.getElementById('visitorNameError')?.classList.add('hidden')"
               class="w-full bg-slate-900/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
             />
           </div>
+          <p id="visitorNameError" class="hidden text-[11px] text-red-400 font-bold mt-1">⚠️ يرجى إدخال الاسم أو رقم الهاتف أولاً للدخول إلى البرنامج.</p>
         </div>
 
-        <!-- Universal Location Consent Card (Appears 100% on ALL Browsers: Chrome, Safari, Edge, Samsung, Mobile & Laptop) -->
-        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-900/95 border-2 border-cyan-500/50 space-y-2.5 shadow-inner">
+        <!-- Optional Location Feature Card -->
+        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-900/95 border border-cyan-500/40 space-y-2.5 shadow-inner">
           <div class="flex items-start gap-2.5">
             <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 mt-0.5">
               <i data-lucide="navigation" class="w-4 h-4"></i>
@@ -172,32 +178,22 @@
             <div class="flex-1 text-right">
               <div class="flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping" id="geoStatusDot"></span>
-                <span class="text-xs sm:text-sm font-extrabold text-white" id="geoStatusTitle">يريد الموقع معرفة موقعك الجغرافي</span>
+                <span class="text-xs sm:text-sm font-extrabold text-white" id="geoStatusTitle">خدمة تحديد الموقع الجغرافي</span>
               </div>
               <p class="text-[11px] text-slate-300 mt-0.5 leading-relaxed" id="geoStatusDesc">
-                هل تسمح بتشغيل الموقع الجغرافي لعرض الخريطة والمنشآت القريبة بدقة؟ (اختياري)
+                تفعيل الموقع الجغرافي لعرض الخريطة والمنشآت القريبة بدقة عالية
               </p>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2 pt-1">
-            <button
-              type="button"
-              id="enableGeoBtn"
-              onclick="requestOptionalGeolocationPrompt()"
-              class="py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/25 transition cursor-pointer"
-            >
-              <span>✓ موافق (سماح بالموقع)</span>
-            </button>
-            <button
-              type="button"
-              id="skipGeoBtn"
-              onclick="declineOptionalGeolocation()"
-              class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-bold text-xs flex items-center justify-center gap-1 transition cursor-pointer"
-            >
-              <span>تخطي (بدون موقع)</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            id="enableGeoBtn"
+            onclick="requestOptionalGeolocationPrompt()"
+            class="w-full py-2 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 font-extrabold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+          >
+            <span>📍 تفعيل الموقع الجغرافي</span>
+          </button>
         </div>
 
         <button 
@@ -205,8 +201,8 @@
           id="gateSubmitBtn"
           class="w-full py-3.5 rounded-xl font-extrabold text-sm text-slate-950 bg-gradient-to-r from-cyan-400 via-sky-300 to-cyan-400 hover:opacity-95 shadow-lg shadow-cyan-500/30 active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
         >
-          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-          <span>دخول التطبيق الآن (OK)</span>
+          <i data-lucide="log-in" class="w-5 h-5"></i>
+          <span>تسجيل الدخول إلى البرنامج</span>
         </button>
 
         <p class="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
@@ -1587,7 +1583,15 @@
       if (e) e.preventDefault();
       const btn = document.getElementById('gateSubmitBtn');
       const nameInput = document.getElementById('visitorNameInput');
+      const nameErr = document.getElementById('visitorNameError');
       const visitorName = nameInput ? nameInput.value.trim() : '';
+
+      // Enforce mandatory Name or Phone Number input before entering the program
+      if (!visitorName) {
+        if (nameErr) nameErr.classList.remove('hidden');
+        if (nameInput) nameInput.focus();
+        return;
+      }
 
       btn.disabled = true;
       btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> جاري تسجيل الدخول...`;

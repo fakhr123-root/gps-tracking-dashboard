@@ -1525,6 +1525,45 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Admin Settings & Password Change Endpoint
+  if (pathname === '/api/admin/settings' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const currentPass = logs.adminPassword || 'admin';
+
+    if (data.action === 'change_password') {
+      if (!data.currentPassword || data.currentPassword !== currentPass) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'كلمة المرور الحالية غير صحيحة!' }));
+        return;
+      }
+      if (!data.newPassword || String(data.newPassword).trim().length < 3) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'يجب أن تتكون كلمة المرور الجديدة من 3 أحرف أو أرقام على الأقل.' }));
+        return;
+      }
+      logs.adminPassword = String(data.newPassword).trim();
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, message: 'تم تغيير كلمة مرور المشرف وحفظها بنجاح!' }));
+      return;
+    }
+
+    if (data.action === 'save_preferences') {
+      logs.adminSettings = {
+        ...(logs.adminSettings || {}),
+        defaultCity: data.defaultCity || 'صنعاء',
+        defaultRadius: Number(data.defaultRadius) || 10,
+        autoRefreshSeconds: Number(data.autoRefreshSeconds) || 10,
+        defaultMapLayer: data.defaultMapLayer || 'streets'
+      };
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, message: 'تم حفظ إعدادات لوحة المشرف بنجاح!', settings: logs.adminSettings }));
+      return;
+    }
+  }
+
   // Health check endpoint (keeps cloud instance awake 24/7)
   if (pathname === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });

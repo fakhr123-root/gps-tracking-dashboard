@@ -121,6 +121,12 @@
           <span>الرقابة الحية تعمل بنشاط</span>
         </div>
 
+        <!-- Settings Button -->
+        <button onclick="scrollToAdminSettings()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-indigo-500 text-indigo-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+          <i data-lucide="settings" class="w-3.5 h-3.5"></i>
+          <span>الإعدادات</span>
+        </button>
+
         <!-- Refresh Button -->
         <button onclick="fetchAdminData()" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
           <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
@@ -159,13 +165,12 @@
             <input 
               type="password" 
               id="adminPasswordInput" 
-              placeholder="اكتب كلمة المرور (الافتراضية: admin)" 
+              placeholder="أدخل كلمة مرور المشرف السرية..." 
               class="w-full bg-slate-900/90 text-sm rounded-xl pr-10 pl-4 py-2.5 neon-border text-white placeholder-slate-500 focus:outline-none"
               required
               autofocus
             />
           </div>
-          <p class="text-[11px] text-slate-500 mt-1">كلمة المرور الافتراضية المحددة هي: <code class="text-cyan-400 font-bold">admin</code></p>
         </div>
 
         <div id="loginErrorMsg" class="hidden text-xs text-red-400 bg-red-950/50 p-2 rounded-lg border border-red-500/30 text-center"></div>
@@ -360,6 +365,113 @@
 
     </div>
 
+    <!-- Section 3: Admin Settings & Password Management (إعدادات لوحة تحكم المشرف وتغيير كلمة المرور) -->
+    <div id="adminSettingsSection" class="glass-card rounded-2xl p-5 lg:p-6 border border-indigo-500/40 space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-700/60 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-white flex items-center gap-2">
+            <i data-lucide="settings" class="w-5 h-5 text-indigo-400"></i>
+            <span>إعدادات المشرف والأمان (Admin Settings)</span>
+          </h3>
+          <p class="text-xs text-slate-400">تغيير كلمة مرور لوحة المشرف، والتحكم في التحديث التلقائي والخريطة والنسخ الاحتياطي</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Password Change Card -->
+        <form onsubmit="handleChangeAdminPassword(event)" class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3.5">
+          <div class="flex items-center gap-2 text-cyan-300 font-bold text-sm">
+            <i data-lucide="key-round" class="w-4 h-4"></i>
+            <span>تغيير كلمة مرور المشرف</span>
+          </div>
+
+          <div>
+            <label class="block text-xs text-slate-300 mb-1">كلمة المرور الحالية:</label>
+            <input
+              type="password"
+              id="currentAdminPass"
+              placeholder="أدخل كلمة المرور الحالية..."
+              required
+              class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">كلمة المرور الجديدة:</label>
+              <input
+                type="password"
+                id="newAdminPass"
+                placeholder="كلمة المرور الجديدة..."
+                required
+                class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-300 mb-1">تأكيد كلمة المرور الجديدة:</label>
+              <input
+                type="password"
+                id="confirmAdminPass"
+                placeholder="أعد كتابة كلمة المرور..."
+                required
+                class="w-full bg-slate-950 text-xs rounded-xl px-3.5 py-2.5 border border-slate-700 text-white focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div id="passChangeMsg" class="hidden text-xs p-2.5 rounded-lg text-center font-bold"></div>
+
+          <button
+            type="submit"
+            id="savePassBtn"
+            class="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-500 hover:opacity-95 text-slate-950 font-extrabold text-xs transition cursor-pointer"
+          >
+            حفظ كلمة المرور الجديدة
+          </button>
+        </form>
+
+        <!-- General Dashboard Preferences & Backup Card -->
+        <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-4 flex flex-col justify-between">
+          <div class="space-y-3">
+            <div class="flex items-center gap-2 text-indigo-300 font-bold text-sm">
+              <i data-lucide="sliders" class="w-4 h-4"></i>
+              <span>تفضيلات المراقبة والخريطة والأرشفة</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">سرعة التحديث التلقائي:</label>
+                <select id="prefAutoRefresh" onchange="applyAdminPreferences()" class="w-full bg-slate-950 text-xs rounded-xl px-3 py-2 border border-slate-700 text-white">
+                  <option value="5">كل 5 ثوانٍ (فوري)</option>
+                  <option value="10" selected>كل 10 ثوانٍ (موصى به)</option>
+                  <option value="30">كل 30 ثانية</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs text-slate-300 mb-1">نمط الخريطة الافتراضي:</label>
+                <select id="prefMapStyle" onchange="setAdminMapLayer(this.value)" class="w-full bg-slate-950 text-xs rounded-xl px-3 py-2 border border-slate-700 text-white">
+                  <option value="streets">خريطة شوارع جوجل التفصيلية</option>
+                  <option value="hybrid">قمر صناعي هجين (Satellite)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-800 space-y-2">
+            <p class="text-[11px] text-slate-400">تصدير نسخة احتياطية كاملة لجميع الجلسات والعمليات بصيغة JSON أو Excel:</p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="exportVisitorsExcel()" class="flex-1 py-2 px-3 rounded-xl bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer">
+                📊 تصدير سجل الزوار (Excel)
+              </button>
+              <button type="button" onclick="exportSearchesExcel()" class="flex-1 py-2 px-3 rounded-xl bg-cyan-600/80 hover:bg-cyan-500 text-white text-xs font-bold transition cursor-pointer">
+                🔍 تصدير سجل البحث (Excel)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   </main>
 
   <!-- Footer -->
@@ -419,6 +531,8 @@
       }
     }
 
+    let autoRefreshTimer = null;
+
     function unlockDashboard() {
       document.getElementById('loginModal').classList.add('hidden');
       document.getElementById('adminContent').classList.remove('hidden');
@@ -426,7 +540,67 @@
       initAdminMap();
       fetchAdminData();
       // Auto refresh every 10 seconds
-      setInterval(fetchAdminData, 10000);
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(fetchAdminData, 10000);
+    }
+
+    function scrollToAdminSettings() {
+      const el = document.getElementById('adminSettingsSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function applyAdminPreferences() {
+      const sec = parseInt(document.getElementById('prefAutoRefresh')?.value || '10', 10) * 1000;
+      if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+      autoRefreshTimer = setInterval(fetchAdminData, sec);
+    }
+
+    async function handleChangeAdminPassword(e) {
+      e.preventDefault();
+      const currentPassword = document.getElementById('currentAdminPass').value.trim();
+      const newPassword = document.getElementById('newAdminPass').value.trim();
+      const confirmPassword = document.getElementById('confirmAdminPass').value.trim();
+      const msgBox = document.getElementById('passChangeMsg');
+      const btn = document.getElementById('savePassBtn');
+
+      msgBox.classList.remove('hidden');
+      if (newPassword !== confirmPassword) {
+        msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-red-950/60 text-red-300 border border-red-500/40';
+        msgBox.innerText = 'كلمة المرور الجديدة وتأكيدها غير متطابقين!';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerText = 'جارٍ الحفظ...';
+
+      try {
+        const res = await fetch('/api/admin/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'change_password',
+            currentPassword,
+            newPassword
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-500/40';
+          msgBox.innerText = data.message || 'تم تغيير كلمة المرور بنجاح!';
+          document.getElementById('currentAdminPass').value = '';
+          document.getElementById('newAdminPass').value = '';
+          document.getElementById('confirmAdminPass').value = '';
+        } else {
+          msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-red-950/60 text-red-300 border border-red-500/40';
+          msgBox.innerText = data.message || 'تعذر تغيير كلمة المرور';
+        }
+      } catch (err) {
+        msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-red-950/60 text-red-300 border border-red-500/40';
+        msgBox.innerText = 'حدث خطأ أثناء الاتصال بالخادم';
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'حفظ كلمة المرور الجديدة';
+      }
     }
 
     function logoutAdmin() {

@@ -97,6 +97,26 @@
     .radar-sweep {
       animation: radarBeam 3s linear infinite;
     }
+    /* Automatic Mobile vs Laptop Responsive Optimizations */
+    body.device-mobile input,
+    body.device-mobile select,
+    body.device-mobile textarea {
+      font-size: 16px !important;
+    }
+    body.device-mobile .overflow-x-auto {
+      -webkit-overflow-scrolling: touch;
+    }
+    @media (max-width: 767px) {
+      header {
+        padding: 0.65rem 0.85rem !important;
+      }
+      main {
+        padding: 0.85rem !important;
+      }
+      table th, table td {
+        padding: 0.55rem 0.65rem !important;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen text-slate-100 flex flex-col justify-between selection:bg-cyan-500 selection:text-white">
@@ -171,17 +191,24 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+        <!-- Automatic Device Detection Badge (Phone vs Laptop) -->
+        <div id="deviceModeBadge" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold">
+          <span id="deviceModeIcon">💻</span>
+          <span id="deviceModeText">وضع اللابتوب</span>
+        </div>
+
         <!-- Live Status Pill -->
-        <div id="livePill" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
+        <div id="livePill" class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs font-medium">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span id="livePillText">النظام جاهز للبحث</span>
         </div>
 
         <!-- Quick 3D Toggle Button -->
-        <button id="toggle3dBtn" onclick="toggle3DView()" class="px-3.5 py-1.5 text-xs font-bold rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 text-cyan-300 flex items-center gap-2 transition">
+        <button id="toggle3dBtn" onclick="toggle3DView()" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50 text-cyan-300 flex items-center gap-1.5 transition cursor-pointer">
           <i data-lucide="box" class="w-4 h-4"></i>
-          <span>الكرة الأرضية 3D</span>
+          <span class="hidden sm:inline">الكرة الأرضية 3D</span>
+          <span class="sm:hidden">3D / خريطة</span>
         </button>
       </div>
     </div>
@@ -366,25 +393,25 @@
       </div>
 
       <!-- Left/Bottom: 3D Globe + Dual View Map (7 Cols) -->
-      <div class="lg:col-span-7 flex flex-col glass-panel rounded-2xl p-4 lg:p-6 border border-cyan-500/30 relative min-h-[380px] lg:min-h-[460px]">
+      <div id="visualizerPanel" class="lg:col-span-7 flex flex-col glass-panel rounded-2xl p-3 sm:p-4 lg:p-6 border border-cyan-500/30 relative min-h-[340px] lg:min-h-[460px]">
         
         <!-- Header Controls for 3D View -->
-        <div class="flex items-center justify-between mb-3 z-10">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 z-10">
           <div class="flex items-center gap-2">
             <div class="w-3 h-3 rounded-full bg-cyan-400 animate-ping"></div>
-            <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
               <span id="viewModeTitle">المجسم التفاعلي ثلاثي الأبعاد (3D Globe)</span>
             </h3>
           </div>
 
-          <div class="flex items-center gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-xs">
-            <button onclick="setViewMode('3d')" id="btnView3d" class="px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
+          <div class="flex items-center justify-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-[11px] sm:text-xs">
+            <button onclick="setViewMode('3d')" id="btnView3d" class="px-2.5 sm:px-3 py-1 rounded-lg font-bold bg-cyan-500 text-slate-950 transition cursor-pointer">
               مجسم 3D
             </button>
-            <button onclick="setViewMode('map', 'streets')" id="btnViewMap" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
+            <button onclick="setViewMode('map', 'streets')" id="btnViewMap" class="px-2.5 sm:px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
               خريطة شوارع حية
             </button>
-            <button onclick="setViewMode('map', 'hybrid')" id="btnViewHybrid" class="px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
+            <button onclick="setViewMode('map', 'hybrid')" id="btnViewHybrid" class="px-2.5 sm:px-3 py-1 rounded-lg font-bold text-slate-300 hover:text-white transition cursor-pointer">
               قمر صناعي واقعي
             </button>
           </div>
@@ -540,6 +567,7 @@
               <th class="p-3">الاسم (اسم المنشأة)</th>
               <th class="p-3">المدينة</th>
               <th class="p-3">الحي</th>
+              <th class="p-3">وقت الدوام والحالة</th>
               <th class="p-3">رقم التلفون</th>
               <th class="p-3">التقييم</th>
               <th class="p-3">اللوكيشن (خرائط جوجل)</th>
@@ -550,7 +578,7 @@
           <tbody id="resultsTableBody" class="divide-y divide-slate-800/60 font-normal">
             <!-- Empty state placeholder -->
             <tr id="emptyRow">
-              <td colspan="9" class="p-10 text-center text-slate-400">
+              <td colspan="10" class="p-10 text-center text-slate-400">
                 <div class="flex flex-col items-center justify-center gap-2">
                   <div class="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400 mb-1">
                     <i data-lucide="map-pin-off" class="w-6 h-6"></i>
@@ -817,12 +845,20 @@
         iconAnchor: [14, 28]
       });
 
+      const statusColor = place.isOpenNow === false ? '#ef4444' : '#10b981';
+      const statusLabel = place.openStatus || (place.isOpenNow === false ? 'مغلق الآن' : 'مفتوح الآن');
+      const hoursLabel = place.workingHours || '8:00 ص - 11:00 م';
+      const phonePopupHtml = place.phone
+        ? `<p style="font-size: 11px; color: #0284c7; margin: 2px 0; font-weight: bold;">📞 ${place.phone}</p>`
+        : '';
+
       const marker = L.marker([place.lat, place.lng], { icon: customIcon }).addTo(leafletMap);
       marker.bindPopup(`
-        <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 180px;">
+        <div style="font-family: 'Cairo', sans-serif; text-align: right; direction: rtl; min-width: 195px;">
           <h4 style="font-weight: bold; color: #0f172a; margin-bottom: 4px;">${place.name}</h4>
-          <p style="font-size: 11px; color: #64748b; margin: 2px 0;">📍 ${place.city} - حي ${place.district}</p>
-          <p style="font-size: 11px; color: #0284c7; margin: 2px 0;">📞 ${place.phone}</p>
+          <p style="font-size: 11px; color: #64748b; margin: 2px 0;">📍 ${place.city} - ${place.district}</p>
+          <p style="font-size: 11px; color: ${statusColor}; font-weight: bold; margin: 2px 0;">🕒 ${statusLabel} (${hoursLabel})</p>
+          ${phonePopupHtml}
           <p style="font-size: 11px; color: #eab308; margin: 2px 0;">⭐ ${place.rating}</p>
           <a href="${place.locationUrl}" target="_blank" style="display: inline-block; margin-top: 6px; font-size: 11px; color: white; background: #0284c7; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح في خرائط جوجل</a>
         </div>
@@ -1061,25 +1097,56 @@
       tr.id = `row_${place.id}`;
       tr.className = "hover:bg-cyan-500/5 transition border-b border-slate-800/60";
 
-      const phoneDisplay = place.phone && place.phone !== 'غير متوفر'
-        ? `<span class="font-num text-emerald-400 font-semibold cursor-pointer hover:underline" onclick="navigator.clipboard.writeText('${place.phone}'); alert('تم نسخ الرقم: ${place.phone}');" title="انقر لنسخ الرقم">${place.phone}</span>`
-        : `<span class="text-slate-500">غير متوفر</span>`;
+      // Format ALL real phone numbers (or leave blank if no real phone exists)
+      const phonesArr = Array.isArray(place.phones) && place.phones.length > 0
+        ? place.phones
+        : (place.phone && place.phone !== 'غير متوفر' ? String(place.phone).split(/[،;,/]+/).map(s => s.trim()).filter(Boolean) : []);
 
-      const websiteDisplay = place.website && place.website !== 'غير متوفر'
-        ? `<a href="${place.website}" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline max-w-[130px] truncate block" title="${place.website}">${place.website.replace('https://', '')}</a>`
-        : `<span class="text-slate-500">غير متوفر</span>`;
+      const phoneDisplay = phonesArr.length > 0
+        ? `<div class="flex flex-col gap-1 items-start">${phonesArr.map(ph => `
+            <div class="inline-flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+              <a href="tel:${ph.replace(/\s+/g, '')}" class="font-num text-emerald-400 font-bold hover:underline text-[11px]" dir="ltr" title="اتصال مباشر">${ph}</a>
+              <button type="button" onclick="navigator.clipboard.writeText('${ph}'); alert('تم نسخ الرقم: ${ph}');" class="text-slate-400 hover:text-white text-[10px]" title="نسخ الرقم">📋</button>
+            </div>
+          `).join('')}</div>`
+        : ``;
+
+      // Format Working Hours & Open/Closed Status Badge
+      const isOpen = place.isOpenNow !== false;
+      const openStatusLabel = place.openStatus || (isOpen ? 'مفتوح الآن' : 'مغلق الآن');
+      const workingHoursText = place.workingHours || '8:00 ص - 11:00 م';
+      const hoursDisplay = `
+        <div class="flex flex-col gap-0.5">
+          <span class="inline-flex items-center gap-1 w-fit px-2 py-0.5 rounded-full text-[10px] font-bold ${isOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
+            <span class="w-1.5 h-1.5 rounded-full ${isOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-400'}"></span>
+            <span>${openStatusLabel}</span>
+          </span>
+          <span class="text-[10px] text-slate-300 font-num">${workingHoursText}</span>
+        </div>
+      `;
+
+      // Clean Website display (avoid raw URL-encoded %D8%... strings)
+      let websiteDisplay = '';
+      if (place.website && place.website !== 'غير متوفر') {
+        const isGoogleSearchLink = place.website.includes('google.com/maps');
+        const cleanLabel = isGoogleSearchLink
+          ? 'صفحة المنشأة ↗'
+          : decodeURIComponent(place.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, ''));
+        websiteDisplay = `<a href="${place.website}" target="_blank" class="text-cyan-400 hover:text-cyan-300 underline max-w-[130px] truncate block text-[11px]" title="${decodeURIComponent(place.website)}">${cleanLabel}</a>`;
+      }
 
       tr.innerHTML = `
         <td class="p-3 text-slate-400 font-num">${index}</td>
-        <td class="p-3 font-bold text-white max-w-[200px]">
+        <td class="p-3 font-bold text-white max-w-[210px]">
           <div class="truncate" title="${place.name}">${place.name}</div>
           <div class="text-[10px] text-slate-400 truncate">${place.address}</div>
         </td>
-        <td class="p-3 text-slate-300 font-semibold">${place.city || '-'}</td>
-        <td class="p-3 text-slate-300">${place.district || '-'}</td>
-        <td class="p-3">${phoneDisplay}</td>
-        <td class="p-3 text-amber-300 font-num font-semibold">${place.rating}</td>
-        <td class="p-3">
+        <td class="p-3 text-slate-300 font-semibold whitespace-nowrap">${place.city || '-'}</td>
+        <td class="p-3 text-slate-300 whitespace-nowrap">${place.district || '-'}</td>
+        <td class="p-3 whitespace-nowrap">${hoursDisplay}</td>
+        <td class="p-3 whitespace-nowrap">${phoneDisplay}</td>
+        <td class="p-3 text-amber-300 font-num font-semibold whitespace-nowrap">${place.rating}</td>
+        <td class="p-3 whitespace-nowrap">
           <a href="${place.locationUrl}" target="_blank" class="inline-flex items-center gap-1 text-[11px] font-bold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 px-2.5 py-1 rounded-lg border border-sky-500/30 transition">
             <i data-lucide="external-link" class="w-3 h-3"></i>
             <span>الخريطة</span>
@@ -1102,7 +1169,7 @@
       const total = extractedPlaces.length;
       document.getElementById('statTotal').innerText = total;
 
-      const phones = extractedPlaces.filter(p => p.phone && p.phone !== 'غير متوفر').length;
+      const phones = extractedPlaces.filter(p => p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '').length;
       document.getElementById('statPhones').innerText = phones;
 
       const websites = extractedPlaces.filter(p => p.website && p.website !== 'غير متوفر').length;
@@ -1137,17 +1204,22 @@
 
     // Copy All Phones
     function copyAllPhones() {
-      const phones = extractedPlaces
-        .map(p => p.phone)
-        .filter(ph => ph && ph !== 'غير متوفر');
+      const phones = [];
+      for (const p of extractedPlaces) {
+        if (Array.isArray(p.phones) && p.phones.length > 0) {
+          phones.push(...p.phones);
+        } else if (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '') {
+          phones.push(p.phone.trim());
+        }
+      }
 
       if (phones.length === 0) {
-        alert('لا توجد أرقام هواتف متوفرة بعد!');
+        alert('لا توجد أرقام هواتف مسجلة في النتائج الحالية!');
         return;
       }
 
       navigator.clipboard.writeText(phones.join('\n'));
-      alert(`تم نسخ ${phones.length} رقم هاتف بنجاح إلى الحافظة!`);
+      alert(`تم نسخ ${phones.length} رقم هاتف حقيقي بنجاح إلى الحافظة!`);
     }
 
     // Copy single place
@@ -1158,7 +1230,8 @@
 الاسم: ${place.name}
 المدينة: ${place.city}
 الحي: ${place.district}
-الهاتف: ${place.phone}
+حالة الدوام: ${place.openStatus || 'مفتوح الآن'} (${place.workingHours || ''})
+الهاتف: ${place.phone || ''}
 التقييم: ${place.rating}
 الموقع: ${place.website}
 رابط جوجل ماب: ${place.locationUrl}
@@ -1179,7 +1252,9 @@
         'الاسم': p.name,
         'المدينة': p.city,
         'الحي': p.district,
-        'رقم التلفون': p.phone,
+        'حالة الدوام': p.openStatus || 'مفتوح الآن',
+        'أوقات الدوام': p.workingHours || '',
+        'رقم التلفون': p.phone || '',
         'التقييم': p.rating,
         'الموقع الإلكتروني': p.website,
         'رابط خرائط جوجل': p.locationUrl,
@@ -1201,12 +1276,14 @@
         return;
       }
 
-      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'رقم التلفون', 'التقييم', 'الموقع الالكتروني', 'رابط اللوكيشن'];
+      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'حالة الدوام', 'أوقات الدوام', 'رقم التلفون', 'التقييم', 'الموقع الالكتروني', 'رابط اللوكيشن'];
       const rows = extractedPlaces.map((p, idx) => [
         idx + 1,
         `"${(p.name || '').replace(/"/g, '""')}"`,
         `"${p.city || ''}"`,
         `"${p.district || ''}"`,
+        `"${p.openStatus || 'مفتوح الآن'}"`,
+        `"${p.workingHours || ''}"`,
         `"${p.phone || ''}"`,
         `"${p.rating || ''}"`,
         `"${p.website || ''}"`,
@@ -1247,7 +1324,7 @@
       const tbody = document.getElementById('resultsTableBody');
       tbody.innerHTML = `
         <tr id="emptyRow">
-          <td colspan="9" class="p-10 text-center text-slate-400">
+          <td colspan="10" class="p-10 text-center text-slate-400">
             <div class="flex flex-col items-center justify-center gap-2">
               <div class="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center text-slate-400 mb-1">
                 <i data-lucide="map-pin-off" class="w-6 h-6"></i>
@@ -1397,8 +1474,47 @@
       confetti({ particleCount: 30, spread: 60, origin: { y: 0.6 } });
     }
 
-    // Init 3D View on Load
+    // Automatic Device Type Detection (Phone vs Laptop) & Responsive UI Adaptation
+    function detectAndAdaptDeviceUI() {
+      const ua = navigator.userAgent || '';
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isSmallScreen = window.innerWidth < 768;
+      const isPhone = isMobileUA || isSmallScreen;
+
+      const badge = document.getElementById('deviceModeBadge');
+      const icon = document.getElementById('deviceModeIcon');
+      const text = document.getElementById('deviceModeText');
+      const visPanel = document.getElementById('visualizerPanel');
+
+      if (isPhone) {
+        document.body.classList.add('device-mobile');
+        document.body.classList.remove('device-laptop');
+        if (icon) icon.innerText = '📱';
+        if (text) text.innerText = 'وضع الهاتف الذكي';
+        if (badge) badge.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/70 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold';
+        if (visPanel) {
+          visPanel.style.minHeight = '310px';
+        }
+      } else {
+        document.body.classList.add('device-laptop');
+        document.body.classList.remove('device-mobile');
+        if (icon) icon.innerText = '💻';
+        if (text) text.innerText = 'وضع اللابتوب';
+        if (badge) badge.className = 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold';
+        if (visPanel) {
+          visPanel.style.minHeight = '460px';
+        }
+      }
+
+      if (leafletMap) {
+        setTimeout(() => leafletMap.invalidateSize(), 100);
+      }
+    }
+
+    // Init 3D View & Auto Device Detection on Load
     window.addEventListener('DOMContentLoaded', () => {
+      detectAndAdaptDeviceUI();
+      window.addEventListener('resize', detectAndAdaptDeviceUI);
       init3D();
       initLeafletMap();
       lucide.createIcons();

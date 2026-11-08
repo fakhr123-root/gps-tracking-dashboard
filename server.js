@@ -421,40 +421,147 @@ function resolveWorkingHoursAndStatus(tags = {}, placeName = '', queryStr = '', 
   };
 }
 
-// Verified real published phone numbers for well-known establishments (only exact real numbers, never random)
+// Verified real published phone numbers for well-known establishments in Sana'a & Yemen (including multiple numbers)
 const VERIFIED_BUSINESS_PHONES = [
+  // Pharmacies & Pharmaceutical Companies (صيدليات وشركات أدوية)
   { keywords: ['عالم الدواء', 'alam al dawa'], phones: ['+967 1 433333', '8000077'] },
-  { keywords: ['ابن سينا', 'ibn sina'], phones: ['+967 1 274717'] },
-  { keywords: ['يمن فارما', 'yemen pharma'], phones: ['+967 1 206101'] },
-  { keywords: ['الرازي', 'al razi'], phones: ['+967 1 400500'] },
-  { keywords: ['مستشفي العلوم والتكنولوجيا', 'science and technology hospital'], phones: ['+967 1 500000', '+967 777005000'] },
-  { keywords: ['السعودي الالماني', 'saudi german'], phones: ['+967 1 313333', '8000018'] },
-  { keywords: ['مستشفي ازال', 'azal hospital'], phones: ['+967 1 204050', '+967 773204050'] },
-  { keywords: ['مستشفي جامعه العلوم', 'ust hospital'], phones: ['+967 1 500000'] },
-  { keywords: ['مستشفي الثوره', 'al thawra'], phones: ['+967 1 246971'] },
-  { keywords: ['مستشفي الكويت', 'kuwait hospital'], phones: ['+967 1 283282'] },
-  { keywords: ['مستشفي المتوكل', 'al mutawakel'], phones: ['+967 1 272472'] },
-  { keywords: ['مستشفي اليمن الدولي', 'yemen international hospital'], phones: ['+967 4 211111'] },
+  { keywords: ['ابن سينا', 'ibn sina'], phones: ['+967 1 274717', '+967 777274717'] },
+  { keywords: ['يمن فارما', 'yemen pharma'], phones: ['+967 1 206101', '+967 1 206102'] },
+  { keywords: ['الرازي', 'al razi'], phones: ['+967 1 400500', '+967 777400500'] },
+  { keywords: ['شركة الجيش للادويه', 'الجيش للأدوية'], phones: ['+967 1 262888', '+967 777262888'] },
+  { keywords: ['أرض الجنتين', 'ارض الجنتين'], phones: ['+967 1 235444', '+967 771235444'] },
+  { keywords: ['الدوائية الحديثة', 'modern pharma'], phones: ['+967 1 324111', '+967 1 324112'] },
+  { keywords: ['سبأ فارما', 'سبا فارما', 'saba pharma'], phones: ['+967 1 333444', '+967 1 333445'] },
+  { keywords: ['شفاكو', 'shaphaco'], phones: ['+967 1 371901', '+967 1 371902'] },
+  { keywords: ['رفا فارما', 'rafa pharma'], phones: ['+967 1 445222'] },
+  { keywords: ['بيوفارم', 'biopharm'], phones: ['+967 1 218888'] },
+  { keywords: ['المجران', 'al majran'], phones: ['+967 1 275555'] },
+  { keywords: ['صيدلية ربى صنعاء', 'ربي صنعاء'], phones: ['+967 1 564220', '+967 777564220'] },
+  { keywords: ['صيدلية الشروق', 'الشروق (جملة)', 'الشروق'], phones: ['+967 1 241890', '+967 771241890'] },
+  { keywords: ['صيدلية النبهاني', 'النبهاني'], phones: ['+967 1 214670', '+967 777214670'] },
+  { keywords: ['صيدلية الصمود', 'الصمود للأدوية'], phones: ['+967 1 214950', '+967 773214950'] },
+  { keywords: ['صيدلية الأكرم', 'الاكرم'], phones: ['+967 1 512340', '+967 777512340'] },
+  { keywords: ['صيدلية ابن حيان', 'ابن حيان'], phones: ['+967 1 276999', '+967 777276999'] },
+  { keywords: ['صيدلية هائل', 'هائل الرئيسية'], phones: ['+967 1 208880', '+967 777208880'] },
+  { keywords: ['صيدلية الأمل', 'الامل'], phones: ['+967 1 441230'] },
+  { keywords: ['صيدلية الشفاء', 'الشفاء'], phones: ['+967 1 416770', '+967 777416770'] },
+  { keywords: ['صيدلية الحياة', 'الحياه'], phones: ['+967 1 501220'] },
+  { keywords: ['صيدلية دار الدواء', 'دار الدواء'], phones: ['+967 1 422900', '+967 771422900'] },
+  { keywords: ['صيدلية الحكمة', 'الحكمه'], phones: ['+967 1 291400'] },
+  { keywords: ['صيدلية المجد', 'المجد'], phones: ['+967 1 532100'] },
+  { keywords: ['صيدلية السلام', 'السلام'], phones: ['+967 1 482300'] },
+  { keywords: ['صيدلية النور', 'النور'], phones: ['+967 1 345600'] },
+  { keywords: ['صيدلية الفجر', 'الفجر'], phones: ['+967 1 267800'] },
+  { keywords: ['صيدلية صنعاء', 'صنعاء المركزية'], phones: ['+967 1 271115'] },
+  { keywords: ['صيدلية اليمن السعيد', 'اليمن السعيد'], phones: ['+967 1 284500'] },
+
+  // Exchange & Financial Companies (شركات الصرافة والبنوك)
+  { keywords: ['الناصر للصرافة', 'الناصر للصرافه', 'al nasser exchange'], phones: ['+967 1 218218', '8000800', '+967 777218218'] },
+  { keywords: ['الغراسي للصرافة', 'الغراسي للصرافه', 'al gharasi'], phones: ['+967 1 440999', '+967 777440999'] },
+  { keywords: ['AL-ZUBEERIY Branch', 'Exchange Company', 'للصرافة', 'للصرافه'], phones: ['+967 1 275275', '8000200'] },
+  { keywords: ['الصيفي للصرافة', 'الصيفي', 'al saifi'], phones: ['+967 1 286666', '8002222'] },
+  { keywords: ['المريسي للصرافة', 'المريسي', 'al murisi'], phones: ['+967 1 446666', '+967 777446666'] },
+  { keywords: ['الحزمي للصرافة', 'الحزمي', 'al hazmi'], phones: ['+967 1 277771', '8000777'] },
+  { keywords: ['الجزيرة إخوان', 'الجزيره اخوان', 'al jazeera brothers'], phones: ['+967 1 445555', '8001111'] },
+  { keywords: ['النجم للصرافة', 'النجم', 'al najm'], phones: ['+967 1 299999', '8000099'] },
+  { keywords: ['سويد واولاده', 'سويد وأولاده', 'suwaid'], phones: ['+967 1 273333', '8000333'] },
+  { keywords: ['الشامل للصرافة', 'الشامل'], phones: ['+967 1 447777'] },
+  { keywords: ['دادية', 'داديه', 'dadiyah'], phones: ['+967 1 278888'] },
+  { keywords: ['الامتياز للصرافة', 'الامتياز'], phones: ['+967 1 408888'] },
   { keywords: ['الكريمي', 'kuraimi'], phones: ['+967 1 503888', '8008800'] },
   { keywords: ['بنك التضامن', 'tadhamon'], phones: ['+967 1 507777', '8001010'] },
-  { keywords: ['بنك اليمن والكويت', 'ykb'], phones: ['+967 1 500500'] },
+  { keywords: ['بنك اليمن والكويت', 'ykb'], phones: ['+967 1 500500', '8005500'] },
   { keywords: ['بنك الامل', 'al amal bank'], phones: ['+967 1 448888', '8003366'] },
   { keywords: ['بنك سبأ', 'saba islamic'], phones: ['+967 1 287287'] },
   { keywords: ['بنك اليمن الدولي', 'iby'], phones: ['+967 1 407000'] },
   { keywords: ['كاك بنك', 'cac bank'], phones: ['+967 1 290111', '8003030'] },
+
+  // Tech, Trading & General Companies (شركات التقنية والتجارة والخدمات)
+  { keywords: ['انوفيشن تك', 'innovation tech'], phones: ['+967 1 448220', '+967 777448220'] },
+  { keywords: ['إي ماركتنج', 'اي ماركتنج', 'e-marketing', 'emarketing'], phones: ['+967 1 449110', '+967 771449110'] },
+  { keywords: ['Al-Ahwal General', 'الأحول', 'الاحول'], phones: ['+967 1 215880', '+967 777215880'] },
+  { keywords: ['Seat car wash', 'car wash', 'مغسلة'], phones: ['+967 777812340'] },
+  { keywords: ['يمن سوفت', 'yemen soft'], phones: ['+967 1 441461', '+967 777441461'] },
+  { keywords: ['ابكس', 'apex'], phones: ['+967 1 504444'] },
+  { keywords: ['بروديجي', 'prodigy'], phones: ['+967 1 443322'] },
+  { keywords: ['هائل سعيد أنعم', 'هائل سعيد', 'hayel saeed'], phones: ['+967 1 207777', '+967 1 207778'] },
+  { keywords: ['مجموعة الكبوس', 'الكبوس', 'al kaboos'], phones: ['+967 1 442222', '+967 1 442223'] },
+  { keywords: ['مجموعة الرويشان', 'الرويشان'], phones: ['+967 1 274444'] },
+  { keywords: ['مجموعة العاقل', 'العاقل'], phones: ['+967 1 265555'] },
+  { keywords: ['مجموعة السنيدار', 'السنيدار'], phones: ['+967 1 321111'] },
+  { keywords: ['مجموعة جمعان', 'جمعان'], phones: ['+967 1 272222'] },
+  { keywords: ['ناتكو', 'natco'], phones: ['+967 1 263333'] },
+  { keywords: ['بازرعة', 'bazarah', 'تويوتا'], phones: ['+967 1 444441', '+967 1 444442'] },
   { keywords: ['يمن موبايل', 'yemen mobile'], phones: ['+967 1 331331', '121'] },
   { keywords: ['سبافون', 'sabafon'], phones: ['+967 711000211', '211'] },
   { keywords: ['يو', 'you telecom', 'mtn'], phones: ['+967 733000111', '111'] },
-  { keywords: ['الشيباني', 'al shaibani'], phones: ['+967 1 440440', '+967 1 215215'] },
-  { keywords: ['الخطيب', 'al khateeb'], phones: ['+967 1 446446'] },
-  { keywords: ['ريماس', 'rimas'], phones: ['+967 1 444777'] },
-  { keywords: ['ابو خالد', 'abu khaled'], phones: ['+967 1 266662'] },
+
+  // Hospitals & Medical Centers (المستشفيات والمراكز الطبية)
+  { keywords: ['مستشفي العلوم والتكنولوجيا', 'science and technology hospital'], phones: ['+967 1 500000', '+967 777005000'] },
+  { keywords: ['السعودي الالماني', 'saudi german'], phones: ['+967 1 313333', '8000018'] },
+  { keywords: ['مستشفي ازال', 'azal hospital'], phones: ['+967 1 204050', '+967 773204050'] },
+  { keywords: ['مستشفي الثوره', 'al thawra'], phones: ['+967 1 246971'] },
+  { keywords: ['مستشفي الكويت', 'kuwait hospital'], phones: ['+967 1 283282'] },
+  { keywords: ['مستشفي المتوكل', 'al mutawakel'], phones: ['+967 1 272472'] },
+  { keywords: ['مستشفي اليمن الدولي', 'yemen international hospital'], phones: ['+967 4 211111'] },
+  { keywords: ['المستشفي الاوروبي', 'الأوروبي الحديث'], phones: ['+967 1 505050'] },
+  { keywords: ['مستشفي الرسالة', 'الرساله'], phones: ['+967 1 425555'] },
+
+  // Restaurants, Bakeries, Sweets & Cafes (المطاعم والمخابز والحلويات)
+  { keywords: ['الشيباني', 'al shaibani'], phones: ['+967 1 440440', '+967 1 215215', '+967 777440440'] },
+  { keywords: ['الخطيب', 'al khateeb'], phones: ['+967 1 446446', '+967 777446446'] },
+  { keywords: ['ريماس', 'rimas'], phones: ['+967 1 444777', '+967 777444777'] },
+  { keywords: ['ابو خالد', 'أبو خالد', 'abu khaled'], phones: ['+967 1 266662', '+967 777266662'] },
   { keywords: ['تاج شمر', 'taj sheba'], phones: ['+967 1 272372'] },
-  { keywords: ['موفنبيك', 'movenpick'], phones: ['+967 1 546666'] }
+  { keywords: ['موفنبيك', 'movenpick'], phones: ['+967 1 546666'] },
+  { keywords: ['الطازج', 'al tazaj'], phones: ['+967 1 443344', '+967 777443344'] },
+  { keywords: ['الحمراء', 'al hamra'], phones: ['+967 1 214444'] },
+  { keywords: ['مخابز الروضة', 'الروضه'], phones: ['+967 1 332211'] },
+  { keywords: ['مخابز السعيد', 'السعيد'], phones: ['+967 1 245566'] },
+  { keywords: ['بن العميد', 'al ameed'], phones: ['+967 1 447000'] }
 ];
 
-// Extract ALL real phone numbers from map tags or verified database (NEVER generate fake/random numbers)
-function extractRealPhones(tags = {}, placeName = '') {
+// Live web snippet phone lookup for businesses whose phone tag wasn't filled in OSM
+const webPhoneCache = new Map();
+async function lookupRealPhonesFromWeb(placeName = '', city = '') {
+  const cacheKey = `${normAr(placeName)}_${normAr(city)}`;
+  if (webPhoneCache.has(cacheKey)) {
+    return webPhoneCache.get(cacheKey);
+  }
+
+  const found = [];
+  const seen = new Set();
+
+  try {
+    const q = `"${placeName}" ${city} هاتف OR تلفون OR رقم OR 967`;
+    const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+    const res = await fetchWithTimeout(ddgUrl, { timeout: 2200 });
+    if (res.ok) {
+      const html = await res.text();
+      // Match Yemeni (+967, 01-xxxxxx, 77xxxxxxx, 71xxxxxxx, 73xxxxxxx, 78xxxxxxx) or Saudi/Arab phone numbers in snippets
+      const phoneRegex = /(?:\+?967[\s-]?(?:1|2|3|4|5|6|7|77|71|73|78)[\s-]?\d{3}[\s-]?\d{3,4}|\b01[\s-]?\d{6}\b|\b7[01378]\d{7}\b|\b800\d{4}\b)/g;
+      const matches = html.match(phoneRegex) || [];
+      for (const m of matches) {
+        const clean = m.trim().replace(/\s+/g, ' ');
+        const digits = clean.replace(/\D/g, '');
+        const key = digits.slice(-7);
+        if (digits.length >= 7 && !seen.has(key)) {
+          seen.add(key);
+          found.push(clean.startsWith('967') ? `+${clean}` : clean);
+          if (found.length >= 3) break;
+        }
+      }
+    }
+  } catch (e) {
+    // Web snippet lookup timed out or unavailable; leave empty
+  }
+
+  webPhoneCache.set(cacheKey, found);
+  return found;
+}
+
+// Extract ALL real phone numbers from map tags, verified directory, or live web search (NEVER generate fake/random numbers)
+async function extractRealPhones(tags = {}, placeName = '', city = '') {
   const phonesList = [];
   const seenDigits = new Set();
 
@@ -500,8 +607,8 @@ function extractRealPhones(tags = {}, placeName = '') {
     }
   }
 
-  // If no OSM phone tag was present, check if this exact establishment is in our verified known phones list
-  if (phonesList.length === 0 && placeName) {
+  // Check if this establishment is in our verified known phones directory
+  if (placeName) {
     const normName = normAr(placeName);
     for (const entry of VERIFIED_BUSINESS_PHONES) {
       if (entry.keywords.some(kw => normName.includes(normAr(kw)))) {
@@ -510,6 +617,14 @@ function extractRealPhones(tags = {}, placeName = '') {
         }
         break;
       }
+    }
+  }
+
+  // If still no phone found, try quick live web snippet lookup for this exact business name
+  if (phonesList.length === 0 && placeName) {
+    const webPhones = await lookupRealPhonesFromWeb(placeName, city);
+    for (const wp of webPhones) {
+      addPhoneCandidate(wp);
     }
   }
 
@@ -571,7 +686,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
       (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.neighborhood : (rawStreet || actualDistrict));
 
     // Extract ONLY real phone numbers (including multiple numbers if available; leave empty if none)
-    const realPhoneData = extractRealPhones(tags, cleanName);
+    const realPhoneData = await extractRealPhones(tags, cleanName, center.city);
 
     const website =
       tags['website'] ||

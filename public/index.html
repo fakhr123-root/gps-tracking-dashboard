@@ -2,7 +2,12 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#070d17">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="GeoRadar 3D">
+  <link rel="manifest" href="/manifest.json">
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   
   <!-- Tailwind CSS -->
@@ -260,14 +265,90 @@
         </div>
       </div>
 
-      <!-- Left: Circular Icon Buttons matching Screenshot 1 ([🔔] [☰]) -->
-      <div class="flex items-center gap-2.5">
-        <button type="button" onclick="exportToExcel()" title="تصدير النتائج إلى Excel" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-slate-300 hover:text-emerald-300 flex items-center justify-center transition cursor-pointer">
-          <i data-lucide="bell" class="w-4 h-4"></i>
+      <!-- Left: Circular Icon Buttons matching Screenshot 1 + Install/Share/Settings -->
+      <div class="flex items-center gap-2">
+        <button type="button" id="installPwaBtn" onclick="installAppPrompt()" title="تثبيت البرنامج كتطبيق على جهازك" class="px-3.5 py-2 rounded-full bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.25)]">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
+          <span class="hidden sm:inline">تثبيت التطبيق</span>
         </button>
-        <button type="button" onclick="toggleAdvancedDrawer()" title="إعدادات البحث المتقدمة والتصدير" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
-          <i data-lucide="menu" class="w-4 h-4"></i>
+        <button type="button" onclick="shareAppLink()" title="مشاركة رابط التطبيق" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-slate-300 hover:text-emerald-300 flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="share-2" class="w-4 h-4"></i>
         </button>
+        <button type="button" onclick="openAppSettingsModal()" title="إعدادات التطبيق والتصدير" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- App Settings, Share & Install Modal (إعدادات تطبيق المستخرج) -->
+    <div id="appSettingsModal" class="hidden fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+      <div class="portal-modal-card max-w-lg w-full p-6 rounded-3xl text-right space-y-4 relative">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+              <i data-lucide="sliders" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-black text-white">إعدادات التطبيق والخصائص</h3>
+              <p class="text-[11px] text-slate-400">تخصيص عمل التطبيق وتثبيته ومشاركته</p>
+            </div>
+          </div>
+          <button type="button" onclick="closeAppSettingsModal()" class="w-8 h-8 rounded-lg bg-slate-900 text-slate-400 hover:text-white flex items-center justify-center cursor-pointer">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Default Preferences -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+            <label class="block text-slate-300 font-bold mb-1">المدينة الافتراضية عند الفتح:</label>
+            <input type="text" id="prefDefaultCity" value="صنعاء" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400" />
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+            <label class="block text-slate-300 font-bold mb-1">عدد النتائج الافتراضي:</label>
+            <select id="prefDefaultLimit" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400">
+              <option value="10">10 نتائج</option>
+              <option value="20" selected>20 نتيجة</option>
+              <option value="50">50 نتيجة</option>
+              <option value="100">100 نتيجة</option>
+            </select>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+            <label class="block text-slate-300 font-bold mb-1">وضع الخريطة الافتراضي:</label>
+            <select id="prefDefaultView" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400">
+              <option value="3d" selected>كرة أرضية ثلاثية الأبعاد (3D)</option>
+              <option value="streets">خريطة شوارع ثنائية الأبعاد (2D)</option>
+              <option value="hybrid">قمر صناعي واقعي (Satellite)</option>
+            </select>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
+            <label class="block text-slate-300 font-bold mb-1">طريقة عرض النتائج:</label>
+            <select id="prefDefaultDisplay" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400">
+              <option value="cards" selected>البطاقات الفاخرة (3 أعمدة)</option>
+              <option value="table">الجدول التفصيلي الكامل</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Export & Quick Tools -->
+        <div class="bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800 space-y-2">
+          <div class="text-xs font-bold text-emerald-300">أدوات التصدير والمشاركة السريعة:</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+            <button type="button" onclick="exportToExcel()" class="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold cursor-pointer">📊 Excel</button>
+            <button type="button" onclick="copyAllPhones()" class="py-2 px-3 rounded-xl bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 font-bold cursor-pointer">📋 نسخ الأرقام</button>
+            <button type="button" onclick="installAppPrompt()" class="py-2 px-3 rounded-xl bg-teal-600/30 border border-teal-500/40 text-teal-300 font-bold cursor-pointer">📲 تثبيت التطبيق</button>
+            <button type="button" onclick="shareAppLink()" class="py-2 px-3 rounded-xl bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold cursor-pointer">📤 مشاركة الرابط</button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 pt-1">
+          <button type="button" onclick="saveExtractorUserPreferences()" class="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-xs cursor-pointer">
+            حفظ الإعدادات وتطبيقها
+          </button>
+          <button type="button" onclick="closeAppSettingsModal()" class="px-5 py-3 rounded-2xl bg-slate-800 text-slate-300 font-bold text-xs cursor-pointer">
+            إغلاق
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1353,9 +1434,109 @@
       setTimeout(() => modal.classList.add('hidden'), 400);
     }
 
+    // PWA Installation & App Settings / Share Handlers
+    let deferredPwaPrompt = null;
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPwaPrompt = e;
+    });
+
+    async function installAppPrompt() {
+      if (deferredPwaPrompt) {
+        deferredPwaPrompt.prompt();
+        await deferredPwaPrompt.userChoice;
+        deferredPwaPrompt = null;
+      } else {
+        alert('لتثبيت التطبيق على هاتفك أو جهازك:\n• في أندرويد/كروم: اضغط قائمة المتصفح (⋮) ثم اختر "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية".\n• في آيفون (Safari): اضغط زر المشاركة (⬆️) ثم اختر "إضافة إلى الشاشة الرئيسية".');
+      }
+    }
+
+    async function shareAppLink() {
+      const shareData = {
+        title: 'GeoRadar 3D Studio - مستخرج خرائط جوجل',
+        text: 'تطبيق استخراج أرقام ومواقع الشركات والمنشآت من خرائط جوجل ثلاثي الأبعاد:',
+        url: window.location.origin
+      };
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+        } else {
+          await navigator.clipboard.writeText(window.location.origin);
+          alert('تم نسخ رابط التطبيق بنجاح! يمكنك الآن لصقه ومشاركته في أي مكان.');
+        }
+      } catch (e) {}
+    }
+
+    function openAppSettingsModal() {
+      document.getElementById('appSettingsModal')?.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeAppSettingsModal() {
+      document.getElementById('appSettingsModal')?.classList.add('hidden');
+    }
+
+    function saveExtractorUserPreferences() {
+      const city = document.getElementById('prefDefaultCity')?.value.trim() || 'صنعاء';
+      const limit = document.getElementById('prefDefaultLimit')?.value || '20';
+      const view = document.getElementById('prefDefaultView')?.value || '3d';
+      const display = document.getElementById('prefDefaultDisplay')?.value || 'cards';
+
+      localStorage.setItem('georadar_user_prefs', JSON.stringify({ city, limit, view, display }));
+
+      document.getElementById('locationInput').value = city;
+      setLimit(parseInt(limit, 10));
+
+      if (view === '3d') setViewMode('3d');
+      else if (view === 'hybrid') setViewMode('map', 'hybrid');
+      else setViewMode('map', 'streets');
+
+      if ((display === 'table' && !isTableView) || (display === 'cards' && isTableView)) {
+        toggleResultsViewMode();
+      }
+
+      closeAppSettingsModal();
+      handleSearch(new Event('submit'));
+    }
+
+    function loadExtractorUserPreferences() {
+      try {
+        const raw = localStorage.getItem('georadar_user_prefs');
+        if (!raw) return;
+        const prefs = JSON.parse(raw);
+        if (prefs.city) {
+          document.getElementById('locationInput').value = prefs.city;
+          const pc = document.getElementById('prefDefaultCity');
+          if (pc) pc.value = prefs.city;
+        }
+        if (prefs.limit) {
+          setLimit(parseInt(prefs.limit, 10));
+          const pl = document.getElementById('prefDefaultLimit');
+          if (pl) pl.value = String(prefs.limit);
+        }
+        if (prefs.view) {
+          const pv = document.getElementById('prefDefaultView');
+          if (pv) pv.value = prefs.view;
+          if (prefs.view === '3d') setViewMode('3d');
+          else if (prefs.view === 'hybrid') setViewMode('map', 'hybrid');
+          else setViewMode('map', 'streets');
+        }
+        if (prefs.display === 'table' && !isTableView) {
+          const pd = document.getElementById('prefDefaultDisplay');
+          if (pd) pd.value = 'table';
+          toggleResultsViewMode();
+        }
+      } catch (e) {}
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      }
       init3D();
       initLeafletMap();
+      loadExtractorUserPreferences();
       initOptionalGeolocationCheck();
       lucide.createIcons();
       // Immediately populate the 3-column Bento grid with real Google Maps businesses so it looks 100% like Screenshot 1!

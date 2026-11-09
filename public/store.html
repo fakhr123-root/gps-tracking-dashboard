@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#070d17">
+  <title>متجر تحميل GeoRadar 3D Studio الرسمي</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@600;800;900&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { font-family: 'Cairo', system-ui, sans-serif; }
+    .font-num { font-family: 'Orbitron', 'Cairo', monospace; }
+    body {
+      background-color: #070d17;
+      background-image:
+        radial-gradient(circle at 20% 25%, rgba(16, 185, 129, 0.16) 0%, transparent 55%),
+        radial-gradient(circle at 80% 75%, rgba(6, 182, 212, 0.12) 0%, transparent 55%);
+      color: #f8fafc;
+      min-height: 100vh;
+    }
+    .store-card {
+      background: linear-gradient(155deg, rgba(16, 36, 45, 0.85) 0%, rgba(10, 18, 30, 0.96) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.75);
+    }
+  </style>
+</head>
+<body class="p-4 sm:p-8 flex items-center justify-center">
+  <div class="store-card max-w-3xl w-full rounded-[32px] p-6 sm:p-10 space-y-8">
+    <!-- App Header (Play Store Style) -->
+    <div class="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-right">
+      <img src="/icons/icon-512.png" alt="GeoRadar 3D" class="w-28 h-28 rounded-3xl border-2 border-emerald-400/60 shadow-[0_0_35px_rgba(16,185,129,0.4)] shrink-0" />
+      <div class="space-y-2 flex-1">
+        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>تطبيق رسمي موثّق • خالٍ من الإعلانات</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-black text-white">GeoRadar 3D Studio - مستخرج خرائط جوجل</h1>
+        <p class="text-xs sm:text-sm text-slate-300">الرادار الجغرافي ثلاثي الأبعاد لاستخراج بيانات وأرقام ومواقع الشركات والمنشآت الحية</p>
+
+        <!-- Store Stats Row -->
+        <div class="flex flex-wrap items-center justify-center sm:justify-start gap-6 pt-2 text-xs">
+          <div>
+            <div class="font-num font-black text-base text-amber-400">4.9 ★</div>
+            <div class="text-slate-400">التقييم العام</div>
+          </div>
+          <div class="h-7 w-px bg-slate-800"></div>
+          <div>
+            <div class="font-num font-black text-base text-emerald-400">1.5 MB</div>
+            <div class="text-slate-400">حجم الحزمة</div>
+          </div>
+          <div class="h-7 w-px bg-slate-800"></div>
+          <div>
+            <div class="font-black text-base text-cyan-400">الكل</div>
+            <div class="text-slate-400">الفئة العمرية</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Direct Store Download Buttons for All Devices -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <!-- Android APK Direct Download -->
+      <a href="/downloads/GeoRadar-3D-Studio.apk" download="GeoRadar-3D-Studio.apk" class="p-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 text-slate-950 hover:opacity-95 transition flex items-center justify-between shadow-[0_0_30px_rgba(16,185,129,0.35)]">
+        <div class="flex items-center gap-3 text-right">
+          <div class="w-11 h-11 rounded-xl bg-slate-950/15 flex items-center justify-center">
+            <i data-lucide="smartphone" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black">تنزيل للأندرويد (Android APK)</div>
+            <div class="text-[11px] font-bold opacity-80">تثبيت مباشر لجميع هواتف أندرويد</div>
+          </div>
+        </div>
+        <i data-lucide="download" class="w-5 h-5"></i>
+      </a>
+
+      <!-- Windows EXE Direct Download -->
+      <a href="/downloads/GeoRadar-3D-Studio.exe" download="GeoRadar-3D-Studio.exe" class="p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 border border-cyan-400/50 text-white transition flex items-center justify-between shadow-lg">
+        <div class="flex items-center gap-3 text-right">
+          <div class="w-11 h-11 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 flex items-center justify-center">
+            <i data-lucide="monitor" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="text-sm font-black">تنزيل للكمبيوتر (Windows EXE)</div>
+            <div class="text-[11px] text-slate-400 font-bold">نسخة ويندوز 10 و 11 الرسمية</div>
+          </div>
+        </div>
+        <i data-lucide="download" class="w-5 h-5 text-cyan-400"></i>
+      </a>
+    </div>
+  </div>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

@@ -150,62 +150,56 @@
 </head>
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
 
-  <!-- Redesigned Futuristic Holographic Entry Portal (Optional Name & Non-Blocking!) -->
-  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 overflow-y-auto">
+  <!-- Two-Step Holographic Onboarding Portal: Step 1 (Allow Location) -> Next -> Step 2 (Login Name/Phone) -> Next -> Explorer -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none"></div>
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none"></div>
 
-      <!-- Glowing Radar Emblem -->
-      <div class="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-        <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.5s;"></div>
-        <div class="absolute inset-1.5 rounded-full border border-cyan-400/50"></div>
-        <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.6)]">
-          <i data-lucide="radar" class="w-7 h-7 text-slate-950"></i>
+      <!-- Step Progress Indicator (1 -> 2) -->
+      <div class="flex items-center justify-center gap-2 mb-4 relative z-10">
+        <div id="stepBadge1" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
+          <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">1</span>
+          <span>السماح بالموقع</span>
+        </div>
+        <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
+        <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
+          <span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span>
+          <span>تسجيل الدخول</span>
         </div>
       </div>
 
-      <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-[11px] font-bold mb-2">
-        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        <span>GeoRadar 3D Studio</span>
-      </div>
-
-      <h2 class="text-xl font-black text-white mb-1">بوابة الرادار الجغرافي ثلاثي الأبعاد</h2>
-      <p class="text-xs text-slate-400 leading-relaxed mb-5">
-        استكشف بيانات الشركات والأرقام الموثقة ومواقعها الحية على الكرة الأرضية
-      </p>
-
-      <form onsubmit="handleVisitorGateEntry(event)" class="space-y-4 text-right">
-        <!-- Optional Name/Phone Field (NOT mandatory anymore!) -->
-        <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
-          <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
-            <span>الاسم أو المعرّف:</span>
-            <span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-emerald-400 font-semibold">اختياري</span>
-          </label>
-          <div class="relative">
-            <i data-lucide="user" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
-            <input 
-              type="text" 
-              id="visitorNameInput" 
-              placeholder="يمكنك كتابة اسمك أو الدخول مباشرة..."
-              class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 border border-slate-700/80 focus:border-emerald-400 text-white placeholder-slate-500 focus:outline-none transition"
-            />
+      <!-- ==================== STEP 1: LOCATION PERMISSION SCREEN ==================== -->
+      <div id="gateStep1Location" class="space-y-4">
+        <!-- Glowing GPS Radar Emblem -->
+        <div class="relative w-20 h-20 mx-auto mb-2 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
+          <div class="absolute inset-1.5 rounded-full border border-cyan-400/50"></div>
+          <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.6)]">
+            <i data-lucide="map-pin" class="w-7 h-7 text-slate-950"></i>
           </div>
         </div>
 
-        <!-- Sleek GPS Status Pill -->
-        <div id="geoPermissionBox" class="px-4 py-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/35 flex items-center justify-between gap-3">
-          <div class="flex items-center gap-2.5 text-right">
-            <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
-              <i data-lucide="navigation" class="w-4 h-4"></i>
-            </div>
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping" id="geoStatusDot"></span>
-                <span class="text-xs font-extrabold text-white" id="geoStatusTitle">رادار الموقع الجغرافي</span>
+        <h2 class="text-xl font-black text-white">واجهة السماح بالموقع الجغرافي</h2>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          يرجى السماح بفتح الموقع الجغرافي أولاً لتفعيل الرادار ثلاثي الأبعاد، وبعد فتح الموقع اضغط على <strong class="text-emerald-300">التالي</strong> للانتقال إلى تسجيل الدخول
+        </p>
+
+        <!-- Location Status & Activation Box -->
+        <div id="geoPermissionBox" class="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/35 text-right space-y-3">
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                <i data-lucide="navigation" class="w-5 h-5"></i>
               </div>
-              <p class="text-[10px] text-slate-300 mt-0.5" id="geoStatusDesc">لعرض أقرب الشركات لموقعك تلقائياً</p>
+              <div>
+                <div class="flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" id="geoStatusDot"></span>
+                  <span class="text-xs font-extrabold text-white" id="geoStatusTitle">بانتظار السماح بالموقع الجغرافي...</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-0.5" id="geoStatusDesc">اضغط على زر "فتح الموقع" بالأسفل ثم اختر (سماح / Allow)</p>
+              </div>
             </div>
           </div>
 
@@ -213,22 +207,82 @@
             type="button"
             id="enableGeoBtn"
             onclick="requestOptionalGeolocationPrompt()"
-            class="px-3 py-1.5 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-300 font-bold text-xs shrink-0 transition cursor-pointer"
+            class="w-full py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/60 text-emerald-300 font-black text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
           >
-            تفعيل
+            <i data-lucide="locate-fixed" class="w-4 h-4"></i>
+            <span id="enableGeoBtnText">📍 السماح بالموقع وفتح الرادار</span>
           </button>
         </div>
 
-        <!-- 1-Click Direct Launch Button -->
-        <button 
-          type="submit" 
-          id="gateSubmitBtn"
-          class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
+        <!-- Step 1 "Next" Button (Disabled until Location is opened!) -->
+        <button
+          type="button"
+          id="step1NextBtn"
+          onclick="goToLoginStep2()"
+          disabled
+          class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
         >
-          <i data-lucide="sparkles" class="w-5 h-5"></i>
-          <span>تشغيل الرادار والدخول المباشر</span>
+          <span id="step1NextBtnText">التالي (يرجى فتح الموقع أولاً)</span>
+          <i data-lucide="arrow-left" class="w-4 h-4"></i>
         </button>
-      </form>
+      </div>
+
+      <!-- ==================== STEP 2: LOGIN SCREEN (NAME OR PHONE) ==================== -->
+      <div id="gateStep2Login" class="hidden space-y-4">
+        <!-- Glowing User Radar Emblem -->
+        <div class="relative w-20 h-20 mx-auto mb-2 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border-2 border-cyan-400/40 animate-ping" style="animation-duration: 2.5s;"></div>
+          <div class="absolute inset-1.5 rounded-full border border-emerald-400/50"></div>
+          <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-cyan-400 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(34,211,238,0.5)]">
+            <i data-lucide="user-check" class="w-7 h-7 text-slate-950"></i>
+          </div>
+        </div>
+
+        <h2 class="text-xl font-black text-white">واجهة تسجيل الدخول</h2>
+        <p class="text-xs text-slate-300 leading-relaxed">
+          تم تفعيل الموقع بنجاح! قم بتعبئة الاسم أو رقم الهاتف ثم اضغط على <strong class="text-emerald-300">التالي</strong> للدخول إلى واجهة المستكشف
+        </p>
+
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-4 text-right">
+          <!-- Confirmed Location Badge -->
+          <div class="px-3.5 py-2.5 rounded-xl bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-xs">
+            <div class="flex items-center gap-2 text-emerald-300 font-bold">
+              <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+              <span>الموقع الجغرافي مفتوح ومتصل ✓</span>
+            </div>
+            <span class="text-[10px] text-slate-400 font-num">GPS Active</span>
+          </div>
+
+          <!-- Name or Phone Input Field -->
+          <div class="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-2">
+            <label class="block text-xs font-extrabold text-white flex items-center justify-between">
+              <span>الاسم أو رقم الهاتف:</span>
+              <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold">تسجيل الدخول</span>
+            </label>
+            <div class="relative">
+              <i data-lucide="user" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
+              <input 
+                type="text" 
+                id="visitorNameInput" 
+                required
+                placeholder="اكتب اسمك أو رقم هاتفك هنا..."
+                class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-3 border border-slate-700/80 focus:border-emerald-400 text-white placeholder-slate-500 focus:outline-none transition"
+              />
+            </div>
+            <p id="loginNameError" class="hidden text-[11px] text-red-400 font-bold pt-1">يرجى إدخال الاسم أو رقم الهاتف للمتابعة</p>
+          </div>
+
+          <!-- Step 2 "Next" Button -> Enters Explorer -->
+          <button 
+            type="submit" 
+            id="gateSubmitBtn"
+            class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>التالي والدخول إلى المستكشف</span>
+            <i data-lucide="arrow-left" class="w-5 h-5"></i>
+          </button>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -1289,14 +1343,62 @@
     // Optional Geolocation & Non-Mandatory Entry Handler
     let cachedOptionalGps = null;
 
-    function requestOptionalGeolocationPrompt() {
+    // Step 1 -> "Next" button: faded & untouchable until location is allowed
+    function setStep1NextEnabled(enabled) {
+      const nextBtn = document.getElementById('step1NextBtn');
+      const nextTxt = document.getElementById('step1NextBtnText');
+      if (!nextBtn) return;
+      nextBtn.disabled = !enabled;
+      if (enabled) {
+        nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
+        if (nextTxt) nextTxt.innerText = 'التالي';
+      } else {
+        nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2";
+        if (nextTxt) nextTxt.innerText = 'التالي (يرجى فتح الموقع أولاً)';
+      }
+    }
+
+    function markLocationGranted() {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const dotEl = document.getElementById('geoStatusDot');
-      const btnEl = document.getElementById('enableGeoBtn');
+      const btnTxt = document.getElementById('enableGeoBtnText');
+      if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
+      if (titleEl) titleEl.innerText = 'تم فتح الموقع الجغرافي بنجاح ✓';
+      if (descEl) descEl.innerText = 'اضغط الآن على زر "التالي" للانتقال لتسجيل الدخول';
+      if (btnTxt) btnTxt.innerText = '✓ الموقع مفتوح';
+      setStep1NextEnabled(true);
+    }
 
-      if (!navigator.geolocation) return;
-      if (btnEl) btnEl.innerText = 'جاري...';
+    function goToLoginStep2() {
+      if (!cachedOptionalGps) return; // Location must be allowed first
+      document.getElementById('gateStep1Location')?.classList.add('hidden');
+      document.getElementById('gateStep2Login')?.classList.remove('hidden');
+
+      const b1 = document.getElementById('stepBadge1');
+      const b2 = document.getElementById('stepBadge2');
+      const line = document.getElementById('stepConnectorLine');
+      if (b1) b1.className = "px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold flex items-center gap-1.5";
+      if (b2) {
+        b2.className = "px-3 py-1 rounded-full bg-cyan-500/20 border border-cyan-400/60 text-cyan-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(34,211,238,0.3)]";
+        const num = b2.querySelector('span');
+        if (num) num.className = "w-4 h-4 rounded-full bg-cyan-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
+      }
+      if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
+      lucide.createIcons();
+      setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
+    }
+
+    function requestOptionalGeolocationPrompt() {
+      const titleEl = document.getElementById('geoStatusTitle');
+      const descEl = document.getElementById('geoStatusDesc');
+      const btnTxt = document.getElementById('enableGeoBtnText');
+
+      if (!navigator.geolocation) {
+        if (titleEl) titleEl.innerText = 'جهازك لا يدعم تحديد الموقع';
+        return;
+      }
+      if (btnTxt) btnTxt.innerText = 'جاري فتح الموقع...';
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -1305,50 +1407,46 @@
             lng: pos.coords.longitude,
             accuracy: Math.round(pos.coords.accuracy || 15)
           };
-          if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400';
-          if (titleEl) titleEl.innerText = 'الموقع الجغرافي مفعّل ✓';
-          if (descEl) descEl.innerText = 'يتم ترتيب أقرب المنشآت لموقعك أولاً';
-          if (btnEl) btnEl.innerText = '✓ مفعّل';
+          markLocationGranted();
           renderUserGpsPinOnMap();
         },
         () => {
-          if (btnEl) btnEl.innerText = 'تفعيل';
+          if (btnTxt) btnTxt.innerText = '📍 إعادة المحاولة والسماح بالموقع';
+          if (titleEl) titleEl.innerText = 'لم يتم السماح بالموقع ✗';
+          if (descEl) descEl.innerText = 'فعّل الموقع (GPS) من إعدادات المتصفح ثم اضغط إعادة المحاولة';
+          setStep1NextEnabled(false);
         },
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     }
 
     async function initOptionalGeolocationCheck() {
+      setStep1NextEnabled(false);
       if (!navigator.geolocation) return;
       try {
         if (navigator.permissions && navigator.permissions.query) {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
           if (perm.state === 'granted') {
-            const titleEl = document.getElementById('geoStatusTitle');
-            const btnEl = document.getElementById('enableGeoBtn');
-            if (titleEl) titleEl.innerText = 'الموقع الجغرافي مفعّل ✓';
-            if (btnEl) btnEl.innerText = '✓ مفعّل';
-            navigator.geolocation.getCurrentPosition((pos) => {
-              cachedOptionalGps = {
-                lat: pos.coords.latitude,
-                lng: pos.coords.longitude,
-                accuracy: Math.round(pos.coords.accuracy || 15)
-              };
-              renderUserGpsPinOnMap();
-            }, () => {}, { enableHighAccuracy: true, timeout: 10000 });
-          } else if (perm.state === 'prompt') {
+            // Already allowed before: fetch silently, then unlock "Next"
             requestOptionalGeolocationPrompt();
           }
         }
       } catch (e) {}
     }
 
-    // Entry Gate Handler (Name/Phone is now completely OPTIONAL!)
+    // Entry Gate Handler (Step 2: Name/Phone required -> Explorer)
     async function handleVisitorGateEntry(e) {
       if (e) e.preventDefault();
       const btn = document.getElementById('gateSubmitBtn');
       const nameInput = document.getElementById('visitorNameInput');
-      const visitorName = (nameInput && nameInput.value.trim()) ? nameInput.value.trim() : 'زائر مباشر';
+      const errEl = document.getElementById('loginNameError');
+      if (!nameInput || !nameInput.value.trim()) {
+        if (errEl) errEl.classList.remove('hidden');
+        nameInput?.focus();
+        return;
+      }
+      if (errEl) errEl.classList.add('hidden');
+      const visitorName = nameInput.value.trim();
 
       btn.disabled = true;
       btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> جاري التشغيل...`;

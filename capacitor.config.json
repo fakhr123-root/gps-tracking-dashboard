@@ -1,0 +1,19 @@
+{
+  "appId": "com.georadar3d.studio",
+  "appName": "GeoRadar 3D Studio",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://gps-tracking-dashboard-sctg.onrender.com",
+    "cleartext": false,
+    "errorPath": "offline.html"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#070d17"
+  },
+  "ios": {
+    "backgroundColor": "#070d17",
+    "contentInset": "always"
+  }
+}

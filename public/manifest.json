@@ -1,26 +1,83 @@
 {
+  "id": "/",
   "name": "GeoRadar 3D Studio - مستخرج خرائط جوجل",
   "short_name": "GeoRadar 3D",
-  "description": "منصة استخراج بيانات الشركات والأرقام الموثقة والمواقع التفاعلية من خرائط جوجل ثلاثية الأبعاد",
+  "description": "التطبيق الرسمي لاستخراج بيانات وأرقام ومواقع الشركات والمنشآت الحية عبر الرادار الجغرافي ثلاثي الأبعاد",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
   "background_color": "#070d17",
-  "theme_color": "#10b981",
-  "orientation": "any",
+  "theme_color": "#070d17",
+  "orientation": "portrait-primary",
+  "categories": [
+    "business",
+    "navigation",
+    "productivity",
+    "utilities"
+  ],
+  "iarc_rating_id": "e84b072d-71b3-4d3e-86ae-31a8ce4e53b7",
+  "prefer_related_applications": false,
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='42' fill='%23070d17'/><circle cx='96' cy='96' r='70' fill='none' stroke='%2310b981' stroke-width='6'/><circle cx='96' cy='96' r='44' fill='none' stroke='%2322d3ee' stroke-width='4' stroke-dasharray='12 8'/><circle cx='96' cy='96' r='18' fill='%2310b981'/></svg>",
+      "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='110' fill='%23070d17'/><circle cx='256' cy='256' r='190' fill='none' stroke='%2310b981' stroke-width='14'/><circle cx='256' cy='256' r='120' fill='none' stroke='%2322d3ee' stroke-width='10' stroke-dasharray='28 18'/><circle cx='256' cy='256' r='48' fill='%2310b981'/></svg>",
+      "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/store-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "استوديو الرادار الجغرافي ثلاثي الأبعاد لسطح المكتب"
+    },
+    {
+      "src": "/screenshots/store-mobile.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "واجهة تطبيق الهواتف الذكية لاستخراج المنشآت والأرقام"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "البحث عن الشركات القريبة",
+      "short_name": "الشركات",
+      "description": "فتح الرادار والبحث عن أقرب الشركات",
+      "url": "/?category=companies",
+      "icons": [
+        {
+          "src": "/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,42 @@
+{
+  "packageId": "com.georadar3d.studio",
+  "host": "gps-tracking-dashboard-sctg.onrender.com",
+  "name": "GeoRadar 3D Studio",
+  "launcherName": "GeoRadar 3D",
+  "display": "standalone",
+  "themeColor": "#070d17",
+  "navigationColor": "#070d17",
+  "navigationColorDark": "#070d17",
+  "navigationDividerColor": "#070d17",
+  "navigationDividerColorDark": "#070d17",
+  "backgroundColor": "#070d17",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://gps-tracking-dashboard-sctg.onrender.com/icons/icon-512.png",
+  "maskableIconUrl": "https://gps-tracking-dashboard-sctg.onrender.com/icons/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./android.keystore",
+    "alias": "georadar3d"
+  },
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://gps-tracking-dashboard-sctg.onrender.com/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": false,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://gps-tracking-dashboard-sctg.onrender.com/",
+  "minSdkVersion": 21,
+  "orientation": "portrait"
+}

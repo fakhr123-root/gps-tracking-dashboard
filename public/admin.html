@@ -2,7 +2,11 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#050912">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
   <title>مركز قيادة المشرف - Admin Command Center</title>
   
   <!-- Tailwind CSS -->
@@ -20,7 +24,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
   <style>
-    * { font-family: 'Cairo', system-ui, sans-serif; }
+    * {
+      font-family: 'Cairo', system-ui, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      overscroll-behavior: none !important;
+      overscroll-behavior-y: none !important;
+      -webkit-overflow-scrolling: touch;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    input, textarea, select, .font-num {
+      user-select: text;
+      -webkit-user-select: text;
+    }
     .font-num { font-family: 'Orbitron', 'Cairo', monospace; }
     body {
       background-color: #050912;

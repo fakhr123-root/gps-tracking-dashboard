@@ -1,14 +1,8 @@
-[
-  {
-    "relation": [
-      "delegate_permission/common.handle_all_urls"
-    ],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.georadar3d.studio",
-      "sha256_cert_fingerprints": [
-        "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
-      ]
-    }
-  }
-]
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.onrender.gps_tracking_dashboard_sctg.twa",
+        "sha256_cert_fingerprints": ["79:64:65:7F:1D:92:3C:EF:C2:17:3F:58:B7:05:E0:9C:C1:4C:6D:25:F8:ED:12:F9:CE:C3:5A:1E:79:36:1C:BA"]
+      }
+    }]

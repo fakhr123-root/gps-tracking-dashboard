@@ -1710,6 +1710,36 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Admin Delete Visitors Endpoint (supports: 'all', 'last_day', 'selected')
+  if (pathname === '/api/admin/delete-visitors' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const mode = data.mode || 'selected';
+    const idsToDelete = new Set(Array.isArray(data.ids) ? data.ids : []);
+    const nowMs = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    if (mode === 'all') {
+      logs.visitors = [];
+    } else if (mode === 'last_day') {
+      logs.visitors = logs.visitors.filter(v => {
+        const t = new Date(v.firstSeen || v.lastSeen || 0).getTime();
+        return (nowMs - t) > oneDayMs;
+      });
+    } else if (mode === 'selected' && idsToDelete.size > 0) {
+      logs.visitors = logs.visitors.filter(v => !idsToDelete.has(v.id));
+    }
+
+    saveAdminLogs(logs);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      visitors: logs.visitors,
+      searches: logs.searches
+    }));
+    return;
+  }
+
   // Real-time Search Endpoint (SSE Streaming)
   if (pathname === '/api/search') {
     const query = parsedUrl.query.query || '';

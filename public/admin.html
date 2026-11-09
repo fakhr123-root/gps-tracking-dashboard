@@ -464,24 +464,41 @@
 
         <!-- TAB 3: VISITORS & DEVICES PERMANENT ARCHIVE -->
         <section id="section_visitors" class="hidden space-y-4">
-          <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
+          <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
             <div>
               <h3 class="text-base font-black text-white flex items-center gap-2">
                 <i data-lucide="users" class="w-5 h-5 text-cyan-400"></i>
                 <span>سجل الزوار والأجهزة الدائم</span>
               </h3>
-              <p class="text-xs text-slate-400">اضغط على "فحص بالرادار" لأي زائر لعرض موقعه في بطاقة الفاحص على الخريطة</p>
+              <p class="text-xs text-slate-400">اضغط على "فحص بالرادار" لأي زائر لعرض موقعه، أو استخدم أزرار الحذف لإدارة السجلات</p>
             </div>
-            <button onclick="exportVisitorsExcel()" class="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i>
-              <span>تصدير الزوار Excel</span>
-            </button>
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="deleteVisitors('selected')" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+                <span>حذف المحدد</span>
+              </button>
+              <button onclick="deleteVisitors('last_day')" class="px-3 py-1.5 rounded-xl bg-orange-500/15 hover:bg-orange-500/30 border border-orange-500/40 text-orange-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+                <span>حذف آخر 24 ساعة</span>
+              </button>
+              <button onclick="deleteVisitors('all')" class="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                <span>حذف الكل</span>
+              </button>
+              <button onclick="exportVisitorsExcel()" class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>تصدير الزوار Excel</span>
+              </button>
+            </div>
           </div>
 
           <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
             <table class="w-full text-right text-xs">
               <thead class="bg-slate-900 text-cyan-300 font-bold border-b border-slate-800">
                 <tr>
+                  <th class="p-3 w-8 text-center">
+                    <input type="checkbox" id="selectAllVisitorsCheckbox" onchange="toggleSelectAllVisitors(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                  </th>
                   <th class="p-3">#</th>
                   <th class="p-3">الاسم / الجلسة</th>
                   <th class="p-3">IP</th>
@@ -490,6 +507,7 @@
                   <th class="p-3">الشبكة والجهاز</th>
                   <th class="p-3">وقت الدخول</th>
                   <th class="p-3 text-center">التتبع</th>
+                  <th class="p-3 text-center">حذف</th>
                 </tr>
               </thead>
               <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60"></tbody>
@@ -1064,7 +1082,8 @@
       const tbody = document.getElementById('visitorsTableBody');
       const mobileCards = document.getElementById('mobileVisitorsCards');
       if (visitors.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
+        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات تسجيل دخول بعد</div>`;
         return;
       }
 
@@ -1077,6 +1096,9 @@
 
         return `
           <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
+            <td class="p-3 text-center">
+              <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400 cursor-pointer" />
+            </td>
             <td class="p-3 text-slate-400 font-num font-bold">${idx + 1}</td>
             <td class="p-3 font-bold text-white">${v.visitorName || 'زائر'}</td>
             <td class="p-3 font-num text-cyan-300">${v.ip}</td>
@@ -1097,6 +1119,11 @@
                 </a>
               </div>
             </td>
+            <td class="p-3 text-center">
+              <button onclick="deleteSingleVisitor('${v.id}')" title="حذف الزائر" class="p-1.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 text-red-300 transition cursor-pointer">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </td>
           </tr>
         `;
       }).join('');
@@ -1105,8 +1132,14 @@
         mobileCards.innerHTML = visitors.map((v, idx) => `
           <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
             <div class="flex items-center justify-between">
-              <strong class="text-white text-sm">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
-              <span class="text-cyan-400 font-num text-xs">${v.ip}</span>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400" />
+                <strong class="text-white text-sm">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
+              </label>
+              <div class="flex items-center gap-2">
+                <span class="text-cyan-400 font-num text-xs">${v.ip}</span>
+                <button onclick="deleteSingleVisitor('${v.id}')" class="px-2 py-0.5 rounded bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
+              </div>
             </div>
             <div class="text-xs text-emerald-400">📍 ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
             <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
@@ -1114,6 +1147,57 @@
         `).join('');
       }
       lucide.createIcons();
+    }
+
+    function toggleSelectAllVisitors(checked) {
+      document.querySelectorAll('.visitor-row-checkbox').forEach(b => { b.checked = checked; });
+    }
+
+    async function deleteSingleVisitor(id) {
+      await executeVisitorDeletion('selected', [id]);
+    }
+
+    async function deleteVisitors(mode) {
+      if (mode === 'all') {
+        if (!confirm('هل أنت متأكد من حذف جميع سجلات الزوار والأجهزة؟')) return;
+        await executeVisitorDeletion('all', []);
+      } else if (mode === 'last_day') {
+        if (!confirm('هل تريد حذف سجلات الزوار لآخر 24 ساعة؟')) return;
+        await executeVisitorDeletion('last_day', []);
+      } else if (mode === 'selected') {
+        const checked = Array.from(document.querySelectorAll('.visitor-row-checkbox:checked')).map(cb => cb.value);
+        if (checked.length === 0) return alert('يرجى تحديد زائر واحد على الأقل!');
+        await executeVisitorDeletion('selected', checked);
+      }
+    }
+
+    async function executeVisitorDeletion(mode, ids = []) {
+      try {
+        const res = await fetch('/api/admin/delete-visitors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode, ids })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          const localArch = loadLocalArchive();
+          const nowMs = Date.now();
+          const oneDayMs = 24 * 60 * 60 * 1000;
+          const idSet = new Set(ids);
+
+          let updatedVisitors = localArch.visitors || [];
+          if (mode === 'all') updatedVisitors = [];
+          else if (mode === 'last_day') updatedVisitors = updatedVisitors.filter(v => (nowMs - new Date(v.firstSeen || v.lastSeen || 0).getTime()) > oneDayMs);
+          else if (mode === 'selected') updatedVisitors = updatedVisitors.filter(v => !idSet.has(v.id));
+
+          saveLocalArchive(updatedVisitors, data.searches || localArch.searches || []);
+          const selectAllCb = document.getElementById('selectAllVisitorsCheckbox');
+          if (selectAllCb) selectAllCb.checked = false;
+          await fetchAdminData();
+        }
+      } catch (e) {
+        alert('تعذر حذف سجلات الزوار');
+      }
     }
 
     function exportSearchesExcel() {

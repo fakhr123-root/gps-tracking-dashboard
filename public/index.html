@@ -761,7 +761,7 @@
   </main>
 
   <!-- Mobile Bottom Navigation -->
-  <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-4 py-2 flex items-center justify-around">
+  <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-2 py-2 flex items-center justify-around">
     <button type="button" onclick="document.getElementById('searchForm').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[11px] font-bold">
       <i data-lucide="search" class="w-4 h-4"></i>
       <span>البحث</span>
@@ -770,7 +770,11 @@
       <i data-lucide="layout-grid" class="w-4 h-4"></i>
       <span>البطاقات</span>
     </button>
-    <button type="button" onclick="document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-teal-400 text-[11px] font-bold">
+    <button type="button" onclick="setViewMode('map', 'streets'); document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth', block:'center'})" class="flex flex-col items-center gap-0.5 text-emerald-300 text-[11px] font-bold">
+      <i data-lucide="map-pin" class="w-4 h-4"></i>
+      <span>الخريطة والموقع</span>
+    </button>
+    <button type="button" onclick="setViewMode('3d'); document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth', block:'center'})" class="flex flex-col items-center gap-0.5 text-teal-400 text-[11px] font-bold">
       <i data-lucide="globe" class="w-4 h-4"></i>
       <span>الرادار 3D</span>
     </button>
@@ -1395,6 +1399,10 @@
         leafletMap.flyTo([entry.place.lat, entry.place.lng], 16, { duration: 0.75 });
         entry.marker.openPopup();
       }
+
+      if (switchToMap) {
+        document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     }
 
     function setViewMode(mode, mapStyle = 'streets') {
@@ -1625,7 +1633,7 @@
       const detailedLocation = (place.address && place.address.trim() && place.address !== 'غير متوفر')
         ? place.address.trim()
         : cityDistrictLabel;
-      const googleMapsDirectUrl = place.locationUrl || `https://www.google.com/maps/search/?api=1&query=${Number(place.lat || 0)},${Number(place.lng || 0)}`;
+      const googleMapsDirectUrl = `https://www.google.com/maps?q=${Number(place.lat || 0).toFixed(6)},${Number(place.lng || 0).toFixed(6)}`;
 
       if (bentoContainer) {
         const card = document.createElement('div');
@@ -2231,6 +2239,9 @@
     window.addEventListener('DOMContentLoaded', () => {
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+      }
+      if ('caches' in window) {
+        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
       detectUserDeviceProfile();
       init3D();

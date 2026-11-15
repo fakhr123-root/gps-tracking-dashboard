@@ -826,7 +826,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         workingHours: hoursInfo.workingHours,
         lat: parseFloat(pLat.toFixed(6)),
         lng: parseFloat(pLng.toFixed(6)),
-        locationUrl: `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`,
+        locationUrl: `https://www.google.com/maps?q=${pLat.toFixed(6)},${pLng.toFixed(6)}`,
         website: website,
         address: fullAddress,
         source: 'خرائط جوجل (Google Maps مباشر)'
@@ -898,7 +898,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       workingHours: hoursInfo.workingHours,
       lat: parseFloat(pLat.toFixed(6)),
       lng: parseFloat(pLng.toFixed(6)),
-      locationUrl: `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`,
+      locationUrl: `https://www.google.com/maps?q=${pLat.toFixed(6)},${pLng.toFixed(6)}`,
       website: website,
       address: `${center.city} - ${streetName} (${actualDistrict})`,
       source: sourceLabel
@@ -2077,6 +2077,28 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Self-cleaning Service Worker endpoint so phones that cached an older version immediately purge their cache and reload the latest UI
+  if (pathname === '/sw.js') {
+    res.writeHead(200, {
+      'Content-Type': 'text/javascript; charset=utf-8',
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    res.end(`
+      self.addEventListener('install', () => self.skipWaiting());
+      self.addEventListener('activate', (event) => {
+        event.waitUntil(
+          caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+            .then(() => self.registration.unregister())
+            .then(() => self.clients.matchAll({ type: 'window' }))
+            .then((clients) => clients.forEach((client) => client.navigate(client.url)))
+        );
+      });
+    `);
+    return;
+  }
+
   // Static file serving
   let reqPath = pathname === '/' ? '/index.html' : pathname;
   let filePath = path.join(PUBLIC_DIR, reqPath);
@@ -2096,7 +2118,12 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const headers = { 'Content-Type': contentType };
+    const headers = {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    };
 
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);

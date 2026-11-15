@@ -1923,7 +1923,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
   return Array.from(mapByKey.values());
 }
 
-const VALID_IG_USERNAME_REGEX = /^[a-z0-9._]{3,30}$/;
+const VALID_IG_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
 
 function normalizeIgUsername(raw = '') {
   return String(raw || '').trim().replace(/^@+/, '').toLowerCase();
@@ -1969,14 +1969,14 @@ async function recordVisitor(info) {
       return {
         authError: true,
         code: 'INVALID_USERNAME',
-        message: 'اليوزر يجب أن يكون بالإنجليزي سمول فقط (a-z) مع الأرقام (0-9) أو النقطة (.) والشرطة السفلية (_) بدون مسافات أو حروف عربية (3 إلى 30 حرفاً).'
+        message: 'اسم المستخدم يجب أن يكون بحروف إنجليزية صغيرة (a-z) أو أرقام (0-9) أو (.) و(_) فقط.'
       };
     }
-    if (!cleanPassword || cleanPassword.length < 3) {
+    if (!cleanPassword || cleanPassword.length < 1) {
       return {
         authError: true,
         code: 'INVALID_PASSWORD',
-        message: 'يرجى إدخال كلمة سر (رمز) للحساب لا تقل عن 3 أحرف أو أرقام.'
+        message: 'يرجى إدخال كلمة المرور.'
       };
     }
 
@@ -1987,7 +1987,7 @@ async function recordVisitor(info) {
         return {
           authError: true,
           code: 'USERNAME_TAKEN',
-          message: `عذراً، هذا اليوزر (@${rawUsername}) محجوز ومستخدم مسبقاً لشخص آخر! لا يمكن التسجيل بنفس اليوزر. اختر يوزر آخر، أو اضغط (تسجيل الدخول) إذا كان هذا حسابك.`
+          message: `اسم المستخدم (${rawUsername}) مستخدم مسبقاً! اختر اسم مستخدم آخر، أو اضغط على (تسجيل الدخول) بالأسفل إذا كان هذا حسابك.`
         };
       }
     } else if (authMode === 'login') {
@@ -1995,14 +1995,14 @@ async function recordVisitor(info) {
         return {
           authError: true,
           code: 'ACCOUNT_NOT_FOUND',
-          message: `اليوزر (@${rawUsername}) غير موجود في سجل الحسابات! إذا لم يكن لديك حساب مسبق، اضغط على (إنشاء حساب جديد) للتسجيل به.`
+          message: `اسم المستخدم (${rawUsername}) غير مسجل مسبقاً! اضغط على زر (إنشاء حساب جديد) بالأسفل لإنشاء الحساب.`
         };
       }
       if (existingAccount.password !== cleanPassword) {
         return {
           authError: true,
           code: 'WRONG_PASSWORD',
-          message: `كلمة السر (الرمز) غير صحيحة لليوزر (@${rawUsername})! يرجى إدخال نفس الرمز المحفوظ لهذا الحساب.`
+          message: `كلمة المرور غير صحيحة لحساب (${rawUsername})!`
         };
       }
     } else if (authMode === 'resume') {
@@ -2010,7 +2010,7 @@ async function recordVisitor(info) {
         return {
           authError: true,
           code: 'WRONG_PASSWORD',
-          message: `انتهت صلاحية الجلسة أو أن الرمز غير مطابق للحساب (@${rawUsername})، يرجى تسجيل الدخول مجدداً.`
+          message: `كلمة المرور غير مطابقة للحساب (${rawUsername})، يرجى تسجيل الدخول مجدداً.`
         };
       }
     }

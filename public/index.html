@@ -384,150 +384,158 @@
       </div>
     </div>
 
-    <!-- MAIN FULL-WIDTH ORGANIZED WORKSPACE -->
-    <div class="w-full flex flex-col gap-4 flex-1 pt-1">
+    <!-- MAIN FULL-WIDTH ORGANIZED WORKSPACE (Divided into 2 Spacious Sections: 1. Setup & Area Scan -> 2. Extracted Results) -->
+    <div class="w-full flex flex-col gap-6 flex-1 pt-2">
 
-      <!-- Search Bar, Unified Toolbar, Interactive Map Studio (When Opened), and Wide Cards Grid -->
-      <div class="w-full flex flex-col gap-3.5">
-
-        <!-- 1. Clear & Simple Search Bar -->
-        <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-2.5">
-          <div class="flex items-center justify-between bg-[#111927]/95 border border-slate-700/80 focus-within:border-emerald-400 rounded-full px-4 py-2.5 shadow-inner transition gap-2">
-            <div class="flex items-center gap-2.5 flex-1 min-w-0">
-              <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
-              <input
-                type="text"
-                id="queryInput"
-                oninput="onQueryInputChange(this.value)"
-                placeholder="اكتب ما تريد البحث عنه (مثال: صيدليات، مطاعم، شركات...) أو اختر من الأسفل"
-                class="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
-              />
-            </div>
-
-            <div class="flex items-center gap-2 shrink-0">
-              <input
-                type="text"
-                id="locationInput"
-                value="صنعاء"
-                placeholder="المدينة"
-                class="w-24 bg-slate-900/90 text-center text-xs font-bold text-emerald-300 rounded-full py-1.5 px-2.5 border border-slate-700/80 focus:outline-none focus:border-emerald-400"
-              />
-              <button
-                type="submit"
-                id="searchBtn"
-                class="px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.35)]"
-                title="بدء البحث"
-              >
-                <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                <span>بحث</span>
-              </button>
+      <!-- ==================== SECTION 1: SPACIOUS SEARCH & AREA SCANNER SETUP ==================== -->
+      <section class="w-full studio-card rounded-3xl p-4 sm:p-6 border border-emerald-500/35 shadow-xl space-y-5">
+        
+        <!-- Section 1 Header -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-800/80">
+          <div class="flex items-center gap-2.5">
+            <span class="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-num font-black text-xs flex items-center justify-center">1</span>
+            <div>
+              <h2 class="text-sm sm:text-base font-black text-white">أولاً: إعداد بيانات البحث أو المسح الشامل بالخريطة</h2>
+              <p class="text-[11px] text-slate-400">يمكنك تحديد نشاط معين أو ترك الخانة فارغة ورسم دائرة بالخريطة لمسح واستخراج كل ما بداخلها</p>
             </div>
           </div>
+          <button type="button" onclick="clearCategoryAndFilters()" title="إعادة ضبط الخيارات" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs text-slate-300 hover:text-emerald-300 font-bold cursor-pointer transition">
+            ↺ تفريغ وإعادة ضبط
+          </button>
+        </div>
 
-          <!-- Collapsible Neighborhood Input & Quick Copy Bar -->
-          <div id="advancedSearchDrawer" class="hidden p-3.5 rounded-2xl studio-card space-y-2.5 text-xs">
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <div class="flex-1">
-                <label class="block text-[11px] font-bold text-slate-300 mb-1">تحديد حي أو شارع معين (اتركه فارغاً لتغطية المدينة كاملة):</label>
+        <!-- Step A: Spacious Inputs Grid (Activity + City + Optional Neighborhood) -->
+        <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+            
+            <!-- Activity Input (6 cols) -->
+            <div class="md:col-span-6 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-2xl px-4 py-2.5 transition">
+              <label class="block text-[11px] font-bold text-emerald-300 mb-1">النشاط المطلوب (اختياري — اتركه فارغاً لمسح جميع الأنشطة):</label>
+              <div class="flex items-center gap-2">
+                <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                <input
+                  type="text"
+                  id="queryInput"
+                  oninput="onQueryInputChange(this.value)"
+                  placeholder="مثال: صيدليات، شركات، مطاعم... (أو اتركه فارغاً لمسح شامل)"
+                  class="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <!-- City Input (3 cols) -->
+            <div class="md:col-span-3 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-2xl px-4 py-2.5 transition">
+              <label class="block text-[11px] font-bold text-cyan-300 mb-1">المدينة:</label>
+              <div class="flex items-center gap-2">
+                <i data-lucide="map-pin" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+                <input
+                  type="text"
+                  id="locationInput"
+                  value="صنعاء"
+                  placeholder="المدينة (مثال: صنعاء)"
+                  class="w-full bg-transparent text-sm font-bold text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <!-- Neighborhood Input (3 cols) -->
+            <div class="md:col-span-3 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-2xl px-4 py-2.5 transition">
+              <label class="block text-[11px] font-bold text-slate-300 mb-1">الحي / الشارع (اختياري):</label>
+              <div class="flex items-center gap-2">
+                <i data-lucide="navigation" class="w-4 h-4 text-teal-400 shrink-0"></i>
                 <input
                   type="text"
                   id="neighborhoodInput"
-                  placeholder="مثال: حدة، السبعين، التحرير، شارع الزبيري..."
-                  class="w-full bg-slate-950/90 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400"
+                  placeholder="مثال: حدة، التحرير، السبعين..."
+                  class="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
                 />
               </div>
-              <div class="flex flex-wrap items-center gap-1.5 sm:pt-5">
-                <button type="button" onclick="copyAllPhones()" class="px-3 py-2 rounded-xl bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 font-bold cursor-pointer">📞 نسخ كل الهواتف</button>
-                <button type="button" onclick="copyAllCoordinates()" class="px-3 py-2 rounded-xl bg-teal-600/30 border border-teal-500/40 text-teal-300 font-bold cursor-pointer">📍 نسخ كل الإحداثيات</button>
+            </div>
+
+          </div>
+
+          <!-- Step B: Quick Optional Categories -->
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 space-y-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-xs text-slate-300 font-bold ml-1">اختيار سريع للنشاط (اختياري):</span>
+              <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>شركات</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>صيدليات</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>صرافة</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>بنوك</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>مطاعم</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span>فنادق</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>مستشفيات</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('محلات تجارية', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>محلات وأسواق</span>
+              </button>
+            </div>
+
+            <!-- Step C: Area Scope & Filters + Action Buttons -->
+            <div class="pt-3 border-t border-slate-800/80 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="text-xs text-slate-300 font-bold ml-1">نطاق المسح والفلترة:</span>
+                <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition border-cyan-400/50 text-cyan-200" title="افتح الخريطة وارسم دائرة لمسح واستخراج جميع المواقع بداخلها">
+                  <i data-lucide="circle-dot" class="w-4 h-4 text-cyan-400"></i>
+                  <span>🗺️ رسم دائرة بالخريطة ومسح ما بداخلها</span>
+                </button>
+                <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: المدينة كاملة">
+                  <i data-lucide="globe-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>المدينة كاملة</span>
+                </button>
+                <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: التي لها رقم هاتف فقط">
+                  <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>لها هاتف</span>
+                </button>
+                <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: المفتوحة الآن فقط">
+                  <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>مفتوح الآن</span>
+                </button>
+              </div>
+
+              <!-- Primary Execute Search / Scan Buttons -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  id="searchBtn"
+                  class="flex-1 sm:flex-initial justify-center px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm flex items-center gap-2 transition cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.4)]"
+                >
+                  <i data-lucide="radar" class="w-4 h-4"></i>
+                  <span>🚀 ابدأ المسح واستخراج البيانات الآن</span>
+                </button>
               </div>
             </div>
           </div>
         </form>
 
-        <!-- 2. Clean, Uncluttered Unified Toolbar for Mobile & Desktop (Categories + Optional Filters + Area & Excel Actions) -->
-        <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 space-y-2.5 shadow-sm">
+        <!-- WIDE INTERACTIVE MAP & CIRCLE DRAWING STUDIO (Opens right inside the Setup Studio when user clicks "رسم دائرة بالخريطة") -->
+        <div id="visualizerPanel" class="hidden w-full studio-card rounded-3xl overflow-hidden border-2 border-cyan-400/50 shadow-[0_20px_60px_rgba(0,0,0,0.65)] flex-col">
           
-          <!-- Row A: Optional Quick Categories (Horizontal scroll on mobile, clean row on desktop) -->
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar flex-1">
-              <span class="text-[11px] text-slate-400 font-bold shrink-0 ml-1">النشاط (اختياري):</span>
-              <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>شركات</span>
-              </button>
-              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>صيدليات</span>
-              </button>
-              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>صرافة</span>
-              </button>
-              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>بنوك</span>
-              </button>
-              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>مطاعم</span>
-              </button>
-              <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span>فنادق</span>
-              </button>
-            </div>
-            <button type="button" onclick="clearCategoryAndFilters()" title="إلغاء جميع الاختيارات والفلاتر" class="shrink-0 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] text-slate-300 hover:text-emerald-300 font-bold cursor-pointer transition">
-              إعادة ضبط ↺
-            </button>
-          </div>
-
-          <!-- Row B: Clean Action & Filter Bar (Select what you want first, then click Start Search!) -->
-          <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
-            <div class="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-1.5">
-              <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: التي لها رقم هاتف فقط">
-                <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>لها هاتف</span>
-              </button>
-              <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: المفتوحة الآن فقط">
-                <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>مفتوح الآن</span>
-              </button>
-              <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: المدينة كاملة">
-                <i data-lucide="globe-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>المدينة كاملة</span>
-              </button>
-              <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: رسم دائرة على الخريطة">
-                <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-cyan-400"></i>
-                <span>رسم دائرة بالخريطة</span>
-              </button>
-              <button type="button" id="btnNeighborhoodToggle" onclick="toggleAdvancedDrawer()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد حي أو شارع معين">
-                <span>تحديد حي</span>
-                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
-              </button>
-            </div>
-
-            <div class="col-span-2 sm:col-span-1 flex items-center justify-end gap-1.5">
-              <button type="button" onclick="handleSearch(new Event('submit'))" class="flex-1 sm:flex-initial justify-center px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow-[0_0_20px_rgba(16,185,129,0.4)]">
-                <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                <span>ابدأ البحث الآن</span>
-              </button>
-              <button type="button" onclick="exportToExcel()" class="flex-1 sm:flex-initial justify-center px-3.5 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-                <span>Excel + الإحداثيات</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. WIDE, ORGANIZED INTERACTIVE MAP & CIRCLE DRAWING STUDIO (Appears cleanly when user clicks "رسم دائرة بالخريطة" or "بالرادار") -->
-        <div id="visualizerPanel" class="hidden w-full studio-card rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_20px_60px_rgba(0,0,0,0.65)] flex-col">
-          
-          <!-- Map Studio Header Toolbar (Outside the map so it NEVER covers the map streets!) -->
+          <!-- Map Studio Header Toolbar -->
           <div class="bg-slate-950/95 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2.5">
               <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0">
                 <i data-lucide="circle-dot" class="w-5 h-5"></i>
               </div>
               <div>
-                <h3 class="text-xs sm:text-sm font-black text-white" id="drawnCircleTitle">🗺️ الخريطة التفاعلية وتحديد المنطقة بالرسم</h3>
-                <p class="text-[11px] text-emerald-300 font-bold" id="drawnCircleCoordsText">انقر في أي مكان على الخريطة لوضع دائرة التحديد، أو اسحب لتكبير وتصغير الدائرة</p>
+                <h3 class="text-xs sm:text-sm font-black text-white" id="drawnCircleTitle">🗺️ الخريطة التفاعلية ومسح المنطقة المرسومة</h3>
+                <p class="text-[11px] text-emerald-300 font-bold" id="drawnCircleCoordsText">انقر في أي مكان على الخريطة لوضع الدائرة، ثم اضغط "مسح شامل للدائرة المرسومة" لاستخراج كافة المواقع والأرقام بداخلها</p>
               </div>
             </div>
 
@@ -544,7 +552,7 @@
           </div>
 
           <!-- Wide, Unobstructed Map Canvas -->
-          <div class="relative w-full h-[360px] sm:h-[450px]">
+          <div class="relative w-full h-[360px] sm:h-[440px]">
             <div id="globeContainer" class="hidden w-full h-full">
               <canvas id="globeCanvas" class="w-full h-full"></canvas>
             </div>
@@ -556,15 +564,15 @@
             </div>
           </div>
 
-          <!-- Map Studio Footer: Circle Size Control & Confirm Search Button -->
-          <div id="drawnCircleBanner" class="bg-slate-950/95 border-t border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+          <!-- Map Studio Footer: Circle Size Control & Full Radar Scan Buttons -->
+          <div id="drawnCircleBanner" class="bg-slate-950/95 border-t border-slate-800 px-4 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-slate-300 font-bold">نصف قطر الدائرة:</span>
               <div class="flex items-center gap-1">
+                <button type="button" onclick="onDrawnCircleSliderChange(0.5)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">0.5 كم</button>
                 <button type="button" onclick="onDrawnCircleSliderChange(1)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">1 كم</button>
                 <button type="button" onclick="onDrawnCircleSliderChange(2)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">2 كم</button>
                 <button type="button" onclick="onDrawnCircleSliderChange(5)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">5 كم</button>
-                <button type="button" onclick="onDrawnCircleSliderChange(10)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">10 كم</button>
               </div>
               <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded-xl border border-slate-800">
                 <input type="range" id="circleRadiusSlider" min="0.2" max="20" step="0.2" value="2.0" oninput="onDrawnCircleSliderChange(this.value)" class="w-28 sm:w-36 h-1.5 accent-cyan-400 cursor-pointer" />
@@ -572,39 +580,72 @@
               </div>
             </div>
 
-            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button type="button" onclick="handleSearch(new Event('submit'))" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
-                <i data-lucide="search" class="w-4 h-4"></i>
-                <span>اعتماد الدائرة وبدء البحث الآن</span>
+            <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end">
+              <button type="button" onclick="scanAllActivitiesInDrawnCircle()" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg" title="يمسح ويستخرج جميع المحلات والشركات والصيدليات والمطاعم والخدمات داخل الدائرة المرسومة بدون الحاجة لتحديد نشاط">
+                <i data-lucide="radar" class="w-4 h-4"></i>
+                <span>📡 مسح شامل لكل ما في الدائرة المرسومة (بدون تحديد نشاط)</span>
               </button>
-              <button type="button" onclick="clearDrawnCircle(false)" class="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-400/40 text-red-300 font-bold text-xs cursor-pointer">
-                🗑️ مسح الدائرة
+              <button type="button" onclick="handleSearch(new Event('submit'))" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-emerald-500/25 hover:bg-emerald-500/40 border border-emerald-400/60 text-emerald-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                <span>بحث بالنشاط المحدد داخل الدائرة</span>
+              </button>
+              <button type="button" onclick="clearDrawnCircle(false)" class="px-3 py-2.5 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-400/40 text-red-300 font-bold text-xs cursor-pointer">
+                ✕ إلغاء تحديد الدائرة
               </button>
             </div>
           </div>
 
         </div>
 
-        <!-- Slim Progress Indicator -->
-        <div id="progressContainer" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-2xl px-4 py-2">
-          <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-            <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[180px] truncate">جارٍ سحب البيانات من خرائط جوجل...</span>
-            <span id="progressRatio" class="text-white font-num font-bold shrink-0 bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 rounded-full">0 نتيجة</span>
+      </section>
+
+      <!-- ==================== SECTION 2: EXTRACTED RESULTS & EXPORT SECTION ==================== -->
+      <section id="resultsSectionAnchor" class="w-full space-y-3.5">
+        
+        <!-- Section 2 Header & Export Bar -->
+        <div class="studio-card rounded-2xl p-3.5 sm:px-5 border border-slate-800 flex flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2.5">
+            <span class="w-7 h-7 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 font-num font-black text-xs flex items-center justify-center">2</span>
+            <div>
+              <h2 class="text-sm sm:text-base font-black text-white">ثانياً: النتائج والمواقع المستخرجة</h2>
+              <p class="text-[11px] text-slate-400">تظهر هنا جميع المواقع وأرقام الهواتف والإحداثيات التي تم استخراجها فورياً</p>
+            </div>
           </div>
-          <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-1.5">
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="exportToExcel()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+              <span>تنزيل Excel + الإحداثيات</span>
+            </button>
+            <button type="button" onclick="copyAllPhones()" class="px-3.5 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer transition">
+              📞 نسخ كل الأرقام
+            </button>
+            <button type="button" onclick="copyAllCoordinates()" class="px-3.5 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 border border-teal-500/40 text-teal-300 text-xs font-bold cursor-pointer transition">
+              📍 نسخ الإحداثيات
+            </button>
+          </div>
+        </div>
+
+        <!-- Slim Live Progress Indicator -->
+        <div id="progressContainer" class="hidden bg-slate-900/95 border border-emerald-500/40 rounded-2xl px-4 py-3 shadow-lg">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[180px] truncate">جارٍ مسح المنطقة وسحب البيانات من خرائط جوجل...</span>
+            <span id="progressRatio" class="text-white font-num font-bold shrink-0 bg-emerald-500/20 border border-emerald-500/40 px-3 py-0.5 rounded-full">0 موقع مستخرج</span>
+          </div>
+          <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden mt-2">
             <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
           </div>
         </div>
 
-        <!-- 4. Full-Width Spacious Bento Cards Grid (Up to 4 columns on wide screens, 2 on tablet, 1 on phone) -->
-        <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 max-h-[620px] overflow-y-auto pr-1 pt-1">
+        <!-- Full-Width Spacious Bento Cards Grid (Natural page scroll without nested scroll lag on mobile!) -->
+        <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-1">
           <div class="col-span-full studio-card p-6 rounded-2xl text-center space-y-3 border border-emerald-500/30">
             <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center mx-auto text-emerald-300">
               <i data-lucide="compass" class="w-6 h-6"></i>
             </div>
-            <h3 class="text-base font-black text-white">مرحباً بك في مستخرج خرائط جوجل والرادار الحي</h3>
+            <h3 class="text-base font-black text-white">جاهز لمسح واستخراج المواقع</h3>
             <p class="text-xs text-slate-300 max-w-lg mx-auto leading-relaxed">
-              اختر النشاط التجاري والمنطقة المطلوبة (<strong class="text-emerald-300">المدينة كاملة، تحديد حي، أو رسم دائرة بالخريطة</strong>) ثم اضغط على <strong class="text-cyan-300">ابدأ البحث الآن</strong> لاستخراج كافة البيانات والإحداثيات وتصديرها إلى Excel.
+              قم بتعبئة بيانات البحث في القسم الأول بالأعلى، أو اضغط على <strong class="text-cyan-300">🗺️ رسم دائرة بالخريطة ومسح ما بداخلها</strong> لاستخراج جميع المواقع والمنشآت داخل المنطقة المرسومة تلقائياً.
             </p>
           </div>
         </div>
@@ -628,7 +669,7 @@
           </table>
         </div>
 
-      </div>
+      </section>
 
     </div>
 
@@ -1343,6 +1384,31 @@
       }
     }
 
+    function scanAllActivitiesInDrawnCircle() {
+      // Clear any previous activity/category selection so it performs a 100% comprehensive radar scan of the drawn area
+      const qInput = document.getElementById('queryInput');
+      if (qInput) qInput.value = '';
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      lastActiveQuery = '__FULL_SCAN__';
+
+      // Ensure a circle is placed on the map if the user hasn't clicked on the map yet
+      if (!drawnCircleState) {
+        if (!leafletMap) initLeafletMap();
+        const c = leafletMap.getCenter();
+        const rKm = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+        updateDrawnCircleOnMap(c.lat, c.lng, rKm);
+      }
+
+      document.getElementById('btnFullCityMode')?.classList.remove('active');
+      document.getElementById('btnDrawCircleMode')?.classList.add('active');
+
+      // Start the comprehensive scan and smoothly scroll down to the results section
+      handleSearch(new Event('submit'));
+      setTimeout(() => {
+        document.getElementById('resultsSectionAnchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
+    }
+
     function activateFullCitySearch() {
       const btn = document.getElementById('btnFullCityMode');
       const isAlreadyActive = btn && btn.classList.contains('active');
@@ -1393,18 +1459,20 @@
       }
     }
 
-    function addMapMarker(place, index) {
+    function addMapMarker(place, index, forceCreate = false) {
       if (!leafletMap) initLeafletMap(place.lat, place.lng);
+      // Cap live DOM markers during streaming at 100 to prevent mobile GPU/DOM lag; create on-demand if focused
+      if (!forceCreate && mapMarkers.length >= 100) return null;
 
       const customIcon = L.divIcon({
         className: 'custom-numbered-pin',
         html: `
-          <div style="background: linear-gradient(135deg, #10b981, #06b6d4); min-width: 26px; height: 26px; padding: 0 5px; border-radius: 999px; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 12px rgba(16,185,129,0.8); color: #022c22; font-weight: 900; font-size: 11px; font-family: 'Orbitron', sans-serif;">
+          <div style="background: linear-gradient(135deg, #10b981, #06b6d4); min-width: 24px; height: 24px; padding: 0 4px; border-radius: 999px; border: 2px solid #ffffff; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.45); color: #022c22; font-weight: 900; font-size: 10px; font-family: 'Orbitron', sans-serif;">
             ${index}
           </div>
         `,
-        iconSize: [26, 26],
-        iconAnchor: [13, 26]
+        iconSize: [24, 24],
+        iconAnchor: [12, 24]
       });
 
       const hasPhone = place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '';
@@ -1422,39 +1490,38 @@
           <a href="${place.locationUrl}" target="_blank" style="display: inline-block; margin-top: 5px; font-size: 11px; font-weight:bold; color: white; background: #10b981; padding: 4px 10px; border-radius: 6px; text-decoration: none;">فتح في خرائط جوجل ↗</a>
         </div>
       `);
-      mapMarkers.push({ id: place.id, marker, place });
+      const entry = { id: place.id, marker, place };
+      mapMarkers.push(entry);
+      return entry;
     }
 
     function focusPlaceOnRadar(placeId, switchToMap = false) {
-      const entry = mapMarkers.find(m => m.id === placeId);
+      let entry = mapMarkers.find(m => m.id === placeId);
+      if (!entry) {
+        const idx = extractedPlaces.findIndex(p => p.id === placeId);
+        if (idx !== -1) {
+          entry = addMapMarker(extractedPlaces[idx], idx + 1, true);
+        }
+      }
       if (!entry) return;
 
       if (switchToMap) {
         showMobileMapPanel();
-        if (viewMode === '3d') {
-          setViewMode('map', 'streets');
-        }
+        setViewMode('map', 'streets');
       }
 
-      if (viewMode === '3d') {
-        const pos = latLngToVector3(entry.place.lat, entry.place.lng, globeRadius);
-        if (controls && camera) {
-          controls.autoRotate = false;
-          camera.position.set(pos.x * 2.1, pos.y * 2.1 + 1.5, pos.z * 2.1);
-          camera.lookAt(0, 0, 0);
-        }
-      } else if (leafletMap) {
+      if (leafletMap) {
         setTimeout(() => {
           leafletMap.invalidateSize();
-          leafletMap.flyTo([entry.place.lat, entry.place.lng], 16, { duration: 0.75 });
+          leafletMap.flyTo([entry.place.lat, entry.place.lng], 16, { duration: 0.65 });
           entry.marker.openPopup();
-        }, 120);
+        }, 100);
       }
 
       if (switchToMap) {
         setTimeout(() => {
           document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
+        }, 80);
       }
     }
 
@@ -1518,12 +1585,46 @@
       if (l) l.innerText = `${selectedRadius} كم (المنطقة كاملة)`;
     }
 
+    let pendingStreamedPlaces = [];
+    let streamRenderRafId = null;
+    let liveExtractedPhonesTotal = 0;
+
+    function flushPendingStreamedPlaces() {
+      streamRenderRafId = null;
+      if (pendingStreamedPlaces.length === 0) return;
+
+      const batch = pendingStreamedPlaces.splice(0, pendingStreamedPlaces.length);
+      const bentoContainer = document.getElementById('bentoCardsWrapper');
+      const tbody = document.getElementById('resultsTableBody');
+      const cardFrag = document.createDocumentFragment();
+      const rowFrag = document.createDocumentFragment();
+
+      for (let i = 0; i < batch.length; i++) {
+        const { place, idx } = batch[i];
+        const built = buildPlaceDomElements(place, idx);
+        if (built.card) cardFrag.appendChild(built.card);
+        if (built.tr) rowFrag.appendChild(built.tr);
+        addMapMarker(place, idx, false);
+      }
+
+      if (bentoContainer) bentoContainer.appendChild(cardFrag);
+      if (tbody) tbody.appendChild(rowFrag);
+
+      updateStats();
+    }
+
     function handleSearch(e) {
       if (e && e.preventDefault) e.preventDefault();
 
       if (currentEventSource) {
         currentEventSource.close();
       }
+      if (streamRenderRafId) {
+        cancelAnimationFrame(streamRenderRafId);
+        streamRenderRafId = null;
+      }
+      pendingStreamedPlaces = [];
+      liveExtractedPhonesTotal = 0;
 
       const query = document.getElementById('queryInput').value.trim();
       const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
@@ -1531,7 +1632,7 @@
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
       lastActiveQuery = query || '__EMPTY__';
 
-      // Sync category pills highlight with what is typed in queryInput (or unselect all if custom)
+      // Sync category pills highlight with what is typed in queryInput (or unselect all if custom/empty)
       document.querySelectorAll('.cat-pill').forEach(b => {
         const txt = b.innerText.trim();
         if (query && (txt === query || (txt === 'صرافة' && query === 'شركات الصرافة'))) {
@@ -1547,14 +1648,11 @@
       const progressRatio = document.getElementById('progressRatio');
 
       progressContainer.classList.remove('hidden');
-      progressBar.style.width = '15%';
-      progressRatio.innerText = `جارٍ استخراج المنطقة كاملة...`;
+      progressBar.style.width = '18%';
+      progressRatio.innerText = drawnCircleState
+        ? (query ? `جارٍ استخراج (${query}) داخل الدائرة...` : `جارٍ المسح الشامل للدائرة المرسومة...`)
+        : `جارٍ استخراج المنطقة كاملة...`;
 
-      if (pinGroup) {
-        while (pinGroup.children.length > 0) {
-          pinGroup.remove(pinGroup.children[0]);
-        }
-      }
       mapMarkers.forEach(m => leafletMap && leafletMap.removeLayer(m.marker));
       mapMarkers = [];
 
@@ -1597,7 +1695,7 @@
         const data = JSON.parse(event.data);
         const percent = data.total > 0 ? Math.min(Math.round((data.current / data.total) * 100), 98) : 85;
         progressBar.style.width = `${percent}%`;
-        progressRatio.innerText = `تم استخراج ${data.current} نتيجة`;
+        progressRatio.innerText = `تم استخراج ${data.current} موقع`;
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -1608,27 +1706,31 @@
       currentEventSource.addEventListener('place', (event) => {
         const place = JSON.parse(event.data);
         extractedPlaces.push(place);
-
         const idx = extractedPlaces.length;
-        appendPlaceRow(place, idx);
-        add3DPin(place.lat, place.lng);
-        addMapMarker(place, idx);
+
+        const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
+          (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
+        if (hasPhone) liveExtractedPhonesTotal++;
 
         if (idx === 1 && leafletMap && !drawnCircleState) {
           leafletMap.setView([place.lat, place.lng], 12);
         }
 
-        updateStats();
-        applyResultsFilter();
+        pendingStreamedPlaces.push({ place, idx });
+        if (!streamRenderRafId) {
+          streamRenderRafId = requestAnimationFrame(flushPendingStreamedPlaces);
+        }
       });
 
       currentEventSource.addEventListener('complete', () => {
+        flushPendingStreamedPlaces();
         progressBar.style.width = '100%';
-        setTimeout(() => progressContainer.classList.add('hidden'), 1800);
+        setTimeout(() => progressContainer.classList.add('hidden'), 1500);
         finishSearch();
       });
 
       currentEventSource.addEventListener('error', () => {
+        flushPendingStreamedPlaces();
         finishSearch();
       });
     }
@@ -1638,19 +1740,16 @@
         currentEventSource.close();
         currentEventSource = null;
       }
-      lucide.createIcons();
     }
 
-    // Build Clean, Organized Bento Card for Mobile & Desktop with Full Location / Address & Direct Map Button
-    function appendPlaceRow(place, index) {
-      const tbody = document.getElementById('resultsTableBody');
-      const bentoContainer = document.getElementById('bentoCardsWrapper');
-
+    // Build Clean, Fast Bento Card & Row with Inline SVGs (Zero DOM Reflow Lag on Mobile)
+    function buildPlaceDomElements(place, index) {
       const phonesArr = Array.isArray(place.phones) && place.phones.length > 0
         ? place.phones
         : (place.phone && place.phone !== 'غير متوفر' ? String(place.phone).split(/[،;,/]+/).map(s => s.trim()).filter(Boolean) : []);
 
       const primaryPhone = phonesArr[0] || '';
+      const hasPhone = Boolean(primaryPhone);
       const cleanDigits = primaryPhone.replace(/[^\d+]/g, '');
       const whatsappNumber = cleanDigits.startsWith('+') ? cleanDigits.slice(1) : (cleanDigits.startsWith('00') ? cleanDigits.slice(2) : (cleanDigits.length <= 9 ? '967' + cleanDigits.replace(/^0/, '') : cleanDigits));
 
@@ -1664,105 +1763,99 @@
         : cityDistrictLabel;
       const googleMapsDirectUrl = `https://www.google.com/maps?q=${Number(place.lat || 0).toFixed(6)},${Number(place.lng || 0).toFixed(6)}`;
 
-      if (bentoContainer) {
-        const card = document.createElement('div');
-        card.id = `bento_${place.id}`;
-        card.className = "studio-card p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between gap-2.5 cursor-pointer";
-        card.onmouseenter = () => focusPlaceOnRadar(place.id, false);
-        card.onclick = (ev) => {
-          if (ev.target.closest('a, button')) return;
-          focusPlaceOnRadar(place.id, true);
-        };
+      let matchesFilter = true;
+      if (filterOnlyPhone && !hasPhone) matchesFilter = false;
+      if (filterOnlyOpen && !isOpen) matchesFilter = false;
 
-        card.innerHTML = `
-          <!-- Top Bar: Rating ★ on Right | Radar Focus & Copy on Left -->
-          <div class="flex items-center justify-between gap-1.5">
-            <span class="px-2 py-0.5 rounded-md bg-slate-950/80 text-amber-400 font-num font-bold text-xs flex items-center gap-1 border border-amber-500/20">
-              <span>★</span>
-              <span>${ratingClean}</span>
-            </span>
-            <div class="flex items-center gap-1">
-              <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" title="عرض موقع المحل على خريطة الرادار" class="px-2 py-0.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/35 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer">
-                <i data-lucide="crosshair" class="w-3 h-3"></i>
-                <span>بالرادار</span>
-              </button>
-              <button type="button" onclick="copySingleDetails('${place.id}')" title="نسخ كافة بيانات وموقع المنشأة" class="p-1 rounded-md bg-slate-900/80 text-teal-300/80 hover:text-white transition cursor-pointer">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-              </button>
-            </div>
-          </div>
+      const card = document.createElement('div');
+      card.id = `bento_${place.id}`;
+      card.className = "studio-card p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between gap-2.5 cursor-pointer";
+      if (!matchesFilter) card.style.display = 'none';
+      card.onclick = (ev) => {
+        if (ev.target.closest('a, button')) return;
+        focusPlaceOnRadar(place.id, true);
+      };
 
-          <!-- Center Title & Specific Location / Address Box -->
-          <div class="text-right space-y-1.5">
-            <h4 class="text-sm sm:text-base font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
-            
-            <!-- Dedicated Specific Place Location Box -->
-            <a href="${googleMapsDirectUrl}" target="_blank" title="اضغط لفتح موقع (${place.name}) في خرائط جوجل: ${detailedLocation}" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950/85 hover:bg-emerald-950/50 border border-emerald-500/35 text-right flex items-start gap-1.5 transition group">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
-              <div class="min-w-0 flex-1">
-                <div class="text-[11px] font-bold text-emerald-300 truncate">${cityDistrictLabel}</div>
-                <div class="text-[10px] text-slate-300 truncate">${detailedLocation}</div>
-              </div>
-              <i data-lucide="external-link" class="w-3 h-3 text-slate-400 group-hover:text-emerald-300 shrink-0 mt-0.5"></i>
-            </a>
-          </div>
-
-          <!-- Verified Phone Badge + Coordinates (Latitude & Longitude) -->
-          <div class="flex flex-col items-stretch gap-1.5">
-            <div class="flex items-center justify-between gap-1.5">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold">
-                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20 shrink-0"></i>
-                <span class="font-num truncate" dir="ltr">${primaryPhone ? primaryPhone : 'موقع موثق بالخريطة'}</span>
-              </div>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}">${openStatusLabel}</span>
-            </div>
-
-            <button type="button" onclick="copySingleCoords(${Number(place.lat || 0)}, ${Number(place.lng || 0)}, '${(place.name || '').replace(/'/g, '')}')" title="انقر لنسخ خطوط الطول والعرض" class="w-full px-2.5 py-1 rounded-lg bg-slate-950/75 hover:bg-slate-900 border border-cyan-500/30 text-cyan-300 text-[10px] font-num flex items-center justify-between gap-1 cursor-pointer transition">
-              <span>🧭 الإحداثيات:</span>
-              <span dir="ltr" class="font-bold text-emerald-300">${Number(place.lat || 0).toFixed(5)}, ${Number(place.lng || 0).toFixed(5)}</span>
+      card.innerHTML = `
+        <!-- Top Bar: Rating ★ on Right | Map Focus & Copy on Left -->
+        <div class="flex items-center justify-between gap-1.5">
+          <span class="px-2 py-0.5 rounded-md bg-slate-950/80 text-amber-400 font-num font-bold text-xs flex items-center gap-1 border border-amber-500/20">
+            <span>★</span>
+            <span>${ratingClean}</span>
+          </span>
+          <div class="flex items-center gap-1">
+            <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" title="عرض موقع المنشأة على الخريطة التفاعلية" class="px-2 py-0.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/35 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer">
+              <span>🎯 بالخريطة</span>
+            </button>
+            <button type="button" onclick="copySingleDetails('${place.id}')" title="نسخ كافة بيانات وموقع المنشأة" class="px-1.5 py-0.5 rounded-md bg-slate-900/80 text-teal-300/80 hover:text-white text-[11px] transition cursor-pointer">
+              📋
             </button>
           </div>
+        </div>
 
-          <!-- Bottom 3 Clear Action Buttons: Location on Map + Call + WhatsApp -->
-          <div class="grid grid-cols-3 gap-1.5 pt-1">
-            <a href="${googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-200 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="فتح موقع المحل على الخريطة">
-              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-300 shrink-0"></i>
-              <span>الموقع</span>
-            </a>
-            <a href="${primaryPhone ? 'tel:' + primaryPhone.replace(/\s+/g, '') : googleMapsDirectUrl}" ${primaryPhone ? '' : 'target="_blank"'} class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="${primaryPhone ? 'اتصال: ' + primaryPhone : 'فتح الموقع'}">
-              <i data-lucide="phone" class="w-3.5 h-3.5 shrink-0"></i>
-              <span>اتصال</span>
-            </a>
-            <a href="${primaryPhone ? 'https://wa.me/' + whatsappNumber : googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="مراسلة واتساب">
-              <i data-lucide="message-circle" class="w-3.5 h-3.5 shrink-0"></i>
-              <span>واتساب</span>
-            </a>
+        <!-- Center Title & Specific Location / Address Box -->
+        <div class="text-right space-y-1.5">
+          <h4 class="text-sm sm:text-base font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
+          
+          <a href="${googleMapsDirectUrl}" target="_blank" title="اضغط لفتح موقع (${place.name}) في خرائط جوجل: ${detailedLocation}" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950/85 hover:bg-emerald-950/50 border border-emerald-500/35 text-right flex items-start gap-1.5 transition group">
+            <span class="text-emerald-400 shrink-0 text-xs mt-0.5">📍</span>
+            <div class="min-w-0 flex-1">
+              <div class="text-[11px] font-bold text-emerald-300 truncate">${cityDistrictLabel}</div>
+              <div class="text-[10px] text-slate-300 truncate">${detailedLocation}</div>
+            </div>
+            <span class="text-slate-400 group-hover:text-emerald-300 shrink-0 text-[10px] mt-0.5">↗</span>
+          </a>
+        </div>
+
+        <!-- Verified Phone Badge + Coordinates (Latitude & Longitude) -->
+        <div class="flex flex-col items-stretch gap-1.5">
+          <div class="flex items-center justify-between gap-1.5">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold">
+              <span class="text-emerald-400 text-xs shrink-0">✔</span>
+              <span class="font-num truncate" dir="ltr">${primaryPhone ? primaryPhone : 'موقع موثق بالخريطة'}</span>
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}">${openStatusLabel}</span>
           </div>
-        `;
-        bentoContainer.appendChild(card);
-      }
 
-      if (tbody) {
-        const tr = document.createElement('tr');
-        tr.id = `row_${place.id}`;
-        tr.className = "hover:bg-emerald-500/10 transition border-b border-slate-800/60";
-        tr.innerHTML = `
-          <td class="p-3 text-emerald-400 font-num font-bold">${index}</td>
-          <td class="p-3 font-bold text-white">${place.name}</td>
-          <td class="p-3 text-slate-300">
-            <div class="font-bold text-emerald-300">${cityDistrictLabel}</div>
-            <div class="text-[11px] text-slate-400">${detailedLocation}</div>
-          </td>
-          <td class="p-3 font-num text-cyan-300 font-bold" dir="ltr">${Number(place.lat || 0).toFixed(6)}, ${Number(place.lng || 0).toFixed(6)}</td>
-          <td class="p-3 text-slate-300">${openStatusLabel} (${place.workingHours || ''})</td>
-          <td class="p-3 font-num text-emerald-400 font-bold" dir="ltr">${phonesArr.join(' | ')}</td>
-          <td class="p-3 text-amber-400 font-num font-bold">${place.rating}</td>
-          <td class="p-3"><a href="${googleMapsDirectUrl}" target="_blank" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold inline-flex items-center gap-1">📍 الموقع بالخريطة ↗</a></td>
-        `;
-        tbody.appendChild(tr);
-      }
+          <button type="button" onclick="copySingleCoords(${Number(place.lat || 0)}, ${Number(place.lng || 0)}, '${(place.name || '').replace(/'/g, '')}')" title="انقر لنسخ خطوط الطول والعرض" class="w-full px-2.5 py-1 rounded-lg bg-slate-950/75 hover:bg-slate-900 border border-cyan-500/30 text-cyan-300 text-[10px] font-num flex items-center justify-between gap-1 cursor-pointer transition">
+            <span>🧭 الإحداثيات:</span>
+            <span dir="ltr" class="font-bold text-emerald-300">${Number(place.lat || 0).toFixed(5)}, ${Number(place.lng || 0).toFixed(5)}</span>
+          </button>
+        </div>
 
-      lucide.createIcons();
+        <!-- Bottom 3 Clear Action Buttons: Location on Map + Call + WhatsApp -->
+        <div class="grid grid-cols-3 gap-1.5 pt-1">
+          <a href="${googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-200 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="فتح موقع المنشأة على الخريطة">
+            <span>📍 الموقع</span>
+          </a>
+          <a href="${primaryPhone ? 'tel:' + primaryPhone.replace(/\s+/g, '') : googleMapsDirectUrl}" ${primaryPhone ? '' : 'target="_blank"'} class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="${primaryPhone ? 'اتصال: ' + primaryPhone : 'فتح الموقع'}">
+            <span>📞 اتصال</span>
+          </a>
+          <a href="${primaryPhone ? 'https://wa.me/' + whatsappNumber : googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="مراسلة واتساب">
+            <span>💬 واتساب</span>
+          </a>
+        </div>
+      `;
+
+      const tr = document.createElement('tr');
+      tr.id = `row_${place.id}`;
+      tr.className = "hover:bg-emerald-500/10 transition border-b border-slate-800/60";
+      if (!matchesFilter) tr.style.display = 'none';
+      tr.innerHTML = `
+        <td class="p-3 text-emerald-400 font-num font-bold">${index}</td>
+        <td class="p-3 font-bold text-white">${place.name}</td>
+        <td class="p-3 text-slate-300">
+          <div class="font-bold text-emerald-300">${cityDistrictLabel}</div>
+          <div class="text-[11px] text-slate-400">${detailedLocation}</div>
+        </td>
+        <td class="p-3 font-num text-cyan-300 font-bold" dir="ltr">${Number(place.lat || 0).toFixed(6)}, ${Number(place.lng || 0).toFixed(6)}</td>
+        <td class="p-3 text-slate-300">${openStatusLabel} (${place.workingHours || ''})</td>
+        <td class="p-3 font-num text-emerald-400 font-bold" dir="ltr">${phonesArr.join(' | ')}</td>
+        <td class="p-3 text-amber-400 font-num font-bold">${place.rating}</td>
+        <td class="p-3"><a href="${googleMapsDirectUrl}" target="_blank" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold inline-flex items-center gap-1">📍 الموقع بالخريطة ↗</a></td>
+      `;
+
+      return { card, tr };
     }
 
     function updateStats() {
@@ -1770,12 +1863,8 @@
       const totalEl = document.getElementById('statTotal');
       if (totalEl) totalEl.innerText = total.toLocaleString();
 
-      const phonesCount = extractedPlaces.filter(p =>
-        (Array.isArray(p.phones) && p.phones.length > 0) ||
-        (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')
-      ).length;
       const phonesEl = document.getElementById('statPhones');
-      if (phonesEl) phonesEl.innerText = phonesCount.toLocaleString();
+      if (phonesEl) phonesEl.innerText = liveExtractedPhonesTotal.toLocaleString();
     }
 
     function copySingleCoords(lat, lng, name) {
@@ -1869,7 +1958,11 @@
     }
 
     function clearAllResults(resetArray = true) {
-      if (resetArray) extractedPlaces = [];
+      if (resetArray) {
+        extractedPlaces = [];
+        liveExtractedPhonesTotal = 0;
+        pendingStreamedPlaces = [];
+      }
       const tbody = document.getElementById('resultsTableBody');
       if (tbody) tbody.innerHTML = '';
       const bento = document.getElementById('bentoCardsWrapper');
@@ -2322,7 +2415,6 @@
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
       detectUserDeviceProfile();
-      init3D();
       initLeafletMap();
       loadExtractorUserPreferences();
       initOptionalGeolocationCheck();

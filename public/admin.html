@@ -213,13 +213,8 @@
     <!-- Main Framed Command Window (Right Icon Sidebar + Left Main Area) -->
     <div class="command-frame rounded-3xl overflow-hidden flex flex-col lg:flex-row flex-1 min-h-[680px]">
 
-      <!-- RIGHT VERTICAL ICON SIDEBAR (Exactly like Mockup!) -->
+      <!-- RIGHT VERTICAL ICON SIDEBAR -->
       <aside class="hidden lg:flex flex-col items-center justify-between w-28 bg-slate-950/85 border-l border-slate-800/90 py-6 shrink-0">
-        <!-- Top Stacked Layers Logo -->
-        <div class="w-12 h-12 rounded-2xl bg-gradient-to-b from-emerald-400/20 to-indigo-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-lg shadow-emerald-500/15">
-          <i data-lucide="layers" class="w-6 h-6"></i>
-        </div>
-
         <!-- Center Navigation Icons -->
         <div class="w-full flex flex-col gap-2">
           <button type="button" id="nav_radar" onclick="switchAdminTab('radar')" class="sidebar-icon-btn active w-full py-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
@@ -252,27 +247,19 @@
       <!-- MAIN COMMAND WORKSPACE (Left of Sidebar) -->
       <div class="flex-1 flex flex-col p-4 sm:p-6 gap-4 min-w-0">
 
-        <!-- Inner Header Row: Right "قيادة المشرف" | Left Profile, Notification Badge & Quick Actions -->
+        <!-- Inner Header Row: Right "قيادة المشرف" | Left Functional Quick Actions Only -->
         <div class="flex items-center justify-between">
           <h2 class="text-base sm:text-lg font-black text-white">قيادة المشرف</h2>
 
-          <div class="flex items-center gap-2.5">
-            <a href="/" class="px-3 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition">
+          <div class="flex items-center gap-2">
+            <a href="/" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-emerald-300 flex items-center gap-1.5 transition">
               <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
               <span>واجهة المستخرج</span>
             </a>
-            <button type="button" onclick="fetchAdminData()" title="تحديث البيانات" class="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-cyan-300 flex items-center justify-center cursor-pointer">
-              <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i>
+            <button type="button" onclick="fetchAdminData()" title="تحديث البيانات" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-xs font-bold text-cyan-300 flex items-center gap-1.5 cursor-pointer transition">
+              <i data-lucide="refresh-cw" id="refreshIcon" class="w-3.5 h-3.5"></i>
+              <span>تحديث</span>
             </button>
-            <div class="relative w-8 h-8 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 flex items-center justify-center">
-              <i data-lucide="bell" class="w-4 h-4"></i>
-              <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white font-num text-[9px] font-bold flex items-center justify-center" id="notifBadgeCount">1</span>
-            </div>
-            <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 p-0.5">
-              <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center text-emerald-300">
-                <i data-lucide="user" class="w-4 h-4"></i>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -566,20 +553,16 @@
               <div class="space-y-3">
                 <div class="flex items-center gap-2 text-cyan-300 font-bold text-sm">
                   <i data-lucide="sliders" class="w-4 h-4"></i>
-                  <span>إعدادات الرادار والتحديث</span>
+                  <span>إعدادات الرادار والتحديث التلقائي</span>
                 </div>
                 <div>
-                  <label class="block text-xs text-slate-300 mb-1">سرعة التحديث التلقائي:</label>
+                  <label class="block text-xs text-slate-300 mb-1">سرعة التحديث التلقائي للبيانات:</label>
                   <select id="prefAutoRefresh" onchange="applyAdminPreferences()" class="w-full bg-slate-950 text-xs rounded-xl px-3 py-2.5 border border-slate-700 text-white">
                     <option value="5">كل 5 ثوانٍ</option>
                     <option value="10" selected>كل 10 ثوانٍ</option>
                     <option value="30">كل 30 ثانية</option>
                   </select>
                 </div>
-              </div>
-              <div class="flex gap-2">
-                <button type="button" onclick="exportVisitorsExcel()" class="flex-1 py-2.5 rounded-xl bg-emerald-600 text-white text-xs font-bold cursor-pointer">تصدير الزوار Excel</button>
-                <button type="button" onclick="exportSearchesExcel()" class="flex-1 py-2.5 rounded-xl bg-cyan-600 text-white text-xs font-bold cursor-pointer">تصدير البحث Excel</button>
               </div>
             </div>
           </div>
@@ -592,10 +575,10 @@
   </main>
 
   <!-- Mobile Bottom Navigation Bar -->
-  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-3 py-2 flex items-center justify-around">
+  <nav class="lg:hidden fixed bottom-0 inset-x-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-2 py-2 flex items-center justify-around">
     <button type="button" onclick="switchAdminTab('radar')" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[10px] font-bold">
       <i data-lucide="radio" class="w-4 h-4"></i>
-      <span>الرادار المباشر</span>
+      <span>الرادار</span>
     </button>
     <button type="button" onclick="switchAdminTab('searches')" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[10px] font-bold">
       <i data-lucide="search" class="w-4 h-4"></i>
@@ -608,6 +591,10 @@
     <button type="button" onclick="switchAdminTab('settings')" class="flex flex-col items-center gap-0.5 text-amber-400 text-[10px] font-bold">
       <i data-lucide="lock" class="w-4 h-4"></i>
       <span>الأمان</span>
+    </button>
+    <button type="button" onclick="logoutAdmin()" class="flex flex-col items-center gap-0.5 text-red-400 text-[10px] font-bold">
+      <i data-lucide="log-out" class="w-4 h-4"></i>
+      <span>خروج</span>
     </button>
   </nav>
 
@@ -846,23 +833,31 @@
     function cleanAdminIsp(rawIsp = '', country = 'اليمن', ip = '') {
       const s = String(rawIsp || '').trim();
       const c = String(country || '');
-      if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation/i.test(s) || s === 'مزود الإنترنت' || s === 'يمن نت / مزود الخدمة') {
-        if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
-          return 'يمن نت / اليمن للاتصالات (YemenNet ISP)';
+      if (/Public Telecommunication|YemenNet|PTC|TeleYemen|يمن نت/i.test(s)) return 'يمن نت للاتصالات (YemenNet)';
+      if (/Yemen Mobile|يمن موبايل/i.test(s)) return 'يمن موبايل 4G (Yemen Mobile)';
+      if (/Sabafon|سبأفون|سبافون/i.test(s)) return 'سبأفون للاتصالات (Sabafon)';
+      if (/\bYOU\b|MTN|شركة YOU/i.test(s)) return 'شركة YOU للاتصالات (YOU Telecom)';
+      if (/AdenNet|عدن نت/i.test(s)) return 'عدن نت للاتصالات (AdenNet)';
+      if (/Starlink|SpaceX/i.test(s)) return 'ستارلينك الفضائي (Starlink)';
+      if (/STC|Saudi Telecom|الاتصالات السعودية/i.test(s)) return 'الاتصالات السعودية (STC)';
+      if (/Mobily|Etihad Etisalat|موبايلي/i.test(s)) return 'موبايلي السعودية (Mobily)';
+      if (/Zain|زين/i.test(s)) return 'زين للاتصالات (Zain)';
+
+      if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation/i.test(s) || s === 'مزود الإنترنت') {
+        if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('82.114.') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
+          return 'يمن نت للاتصالات (YemenNet)';
         }
         return 'شبكة اتصالات محلية (Telecom ISP)';
       }
-      if (/Public Telecommunication|YemenNet|PTC|TeleYemen/i.test(s)) return `يمن نت للاتصالات (${s})`;
-      if (/Yemen Mobile/i.test(s)) return `يمن موبايل 4G (${s})`;
-      if (/Sabafon/i.test(s)) return `سبأفون للاتصالات (${s})`;
-      if (/YOU|MTN/i.test(s)) return `شركة YOU للاتصالات (${s})`;
-      if (/AdenNet/i.test(s)) return `عدن نت (${s})`;
-      return s;
+      return s.replace(/(\([^\)]+\))\s*\)+/g, '$1').trim();
     }
 
     function cleanAdminDevice(rawDevice = '') {
       const d = String(rawDevice || '').trim();
       if (d && (d.includes('هاتف') || d.includes('لابتوب') || d.includes('آيباد') || d.includes('كمبيوتر')) && !d.includes('Win32') && !d.includes('Linux arm')) {
+        if (d.includes('هاتف أندرويد (2312') || d.includes('هاتف أندرويد (230') || d.includes('هاتف أندرويد (220')) {
+          return d.replace('هاتف أندرويد (', 'هاتف شاومي / ريدمي (Xiaomi ');
+        }
         return d;
       }
       const resMatch = d.match(/\((\d+x\d+)\)/);
@@ -893,7 +888,13 @@
           map.set(key, {
             ...cleanedItem,
             loginCount: cleanedItem.loginCount || 1,
-            previousLogs: Array.isArray(cleanedItem.previousLogs) ? [...cleanedItem.previousLogs] : [],
+            previousLogs: Array.isArray(cleanedItem.previousLogs)
+              ? cleanedItem.previousLogs.map(snap => ({
+                  ...snap,
+                  isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snap.ip || cleanedItem.ip),
+                  device: cleanAdminDevice(snap.device)
+                }))
+              : [],
             sessionSearches: Array.isArray(cleanedItem.sessionSearches) ? [...cleanedItem.sessionSearches] : []
           });
         } else {
@@ -917,8 +918,13 @@
           }
           if (Array.isArray(cleanedItem.previousLogs)) {
             for (const snap of cleanedItem.previousLogs) {
-              const dup = primary.previousLogs.some(p => p.previousLastSeen === snap.previousLastSeen && p.lat === snap.lat);
-              if (!dup) primary.previousLogs.push(snap);
+              const cleanedSnap = {
+                ...snap,
+                isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snap.ip || cleanedItem.ip),
+                device: cleanAdminDevice(snap.device)
+              };
+              const dup = primary.previousLogs.some(p => p.previousLastSeen === cleanedSnap.previousLastSeen && p.lat === cleanedSnap.lat);
+              if (!dup) primary.previousLogs.push(cleanedSnap);
             }
           }
         }

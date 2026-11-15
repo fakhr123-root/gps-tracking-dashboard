@@ -1251,12 +1251,31 @@ const LOGS_FILE = path.join(__dirname, 'admin_logs.json');
 function loadAdminLogs() {
   try {
     if (fs.existsSync(LOGS_FILE)) {
-      return JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+      const parsed = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+      return {
+        adminPassword: parsed.adminPassword || 'admin',
+        visitors: Array.isArray(parsed.visitors) ? parsed.visitors : [],
+        searches: Array.isArray(parsed.searches) ? parsed.searches : [],
+        deletedVisitorKeys: (parsed.deletedVisitorKeys && typeof parsed.deletedVisitorKeys === 'object') ? parsed.deletedVisitorKeys : {},
+        deletedSearchIds: Array.isArray(parsed.deletedSearchIds) ? parsed.deletedSearchIds : [],
+        clearedAllVisitorsAt: Number(parsed.clearedAllVisitorsAt) || 0,
+        clearedAllSearchesAt: Number(parsed.clearedAllSearchesAt) || 0,
+        adminSettings: parsed.adminSettings || {}
+      };
     }
   } catch (e) {
     console.error('Error loading admin logs:', e.message);
   }
-  return { adminPassword: 'admin', visitors: [], searches: [] };
+  return {
+    adminPassword: 'admin',
+    visitors: [],
+    searches: [],
+    deletedVisitorKeys: {},
+    deletedSearchIds: [],
+    clearedAllVisitorsAt: 0,
+    clearedAllSearchesAt: 0,
+    adminSettings: {}
+  };
 }
 
 function saveAdminLogs(data) {
@@ -1521,8 +1540,33 @@ function isLoopbackIp(ip = '') {
   return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
 }
 
+function getVisitorCanonicalKey(item) {
+  if (!item) return '';
+  const rawName = String(item.visitorName || '').trim();
+  const nName = normAr(rawName);
+  const isGeneric = !nName || nName === normAr('زائر غير مسمى') || nName === normAr('زائر مباشر') || nName === normAr('مستخدم التطبيق') || nName === normAr('زائر');
+  return !isGeneric ? `name:${nName}` : `id:${item.id}`;
+}
+
+function isVisitorTombstoned(item, logsMeta = {}) {
+  if (!item) return true;
+  const itemTime = new Date(item.lastSeen || item.firstSeen || 0).getTime() || 0;
+  const clearedAt = Number(logsMeta.clearedAllVisitorsAt) || 0;
+  if (clearedAt > 0 && itemTime <= clearedAt) {
+    return true;
+  }
+  const delMap = logsMeta.deletedVisitorKeys || {};
+  const key = getVisitorCanonicalKey(item);
+  const idKey = `id:${item.id}`;
+  const deletedAt = Math.max(Number(delMap[key]) || 0, Number(delMap[idKey]) || 0);
+  if (deletedAt > 0 && itemTime <= deletedAt) {
+    return true;
+  }
+  return false;
+}
+
 // Consolidate duplicate visitor entries (by same normalized Name/Phone or ID) and archive older snapshots inside `previousLogs`
-function consolidateVisitorsList(visitors = [], fallbackRealIp = '') {
+function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = {}) {
   const mapByKey = new Map();
   // Find any known real public IP in the logs to heal legacy ::1 loopback entries
   const firstKnownRealIp = fallbackRealIp || (visitors.find(v => v && !isLoopbackIp(v.ip))?.ip) || '';
@@ -1533,11 +1577,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '') {
   );
 
   for (const item of sorted) {
-    if (!item) continue;
-    const rawName = String(item.visitorName || '').trim();
-    const nName = normAr(rawName);
-    const isGeneric = !nName || nName === normAr('زائر غير مسمى') || nName === normAr('زائر مباشر') || nName === normAr('مستخدم التطبيق') || nName === normAr('زائر');
-    const key = !isGeneric ? `name:${nName}` : `id:${item.id}`;
+    if (!item || isVisitorTombstoned(item, logsMeta)) continue;
+    const key = getVisitorCanonicalKey(item);
     const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
 
     if (!mapByKey.has(key)) {
@@ -1741,6 +1782,10 @@ async function recordVisitor(info) {
     };
     logs.visitors.unshift(v);
   }
+  if (logs.deletedVisitorKeys && v) {
+    delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
+    delete logs.deletedVisitorKeys[`id:${v.id}`];
+  }
   saveAdminLogs(logs);
   return v;
 }
@@ -1756,8 +1801,14 @@ function recordSearch(searchInfo) {
     (normSearchName && normAr(x.visitorName || '') === normSearchName)
   );
 
-  // Only create a visitor session if there is an explicit visitorId/visitorName and none exists yet
-  if (!v && (searchInfo.visitorId || cleanSearchName)) {
+  const delMap = logs.deletedVisitorKeys || {};
+  const wasExplicitlyDeleted = Boolean(
+    (searchInfo.visitorId && delMap[`id:${searchInfo.visitorId}`]) ||
+    (normSearchName && delMap[`name:${normSearchName}`])
+  );
+
+  // Only create a visitor session if there is an explicit visitorId/visitorName, none exists yet, and they were NOT deleted by the admin
+  if (!v && !wasExplicitlyDeleted && (searchInfo.visitorId || cleanSearchName)) {
     v = {
       id: searchInfo.visitorId || `login_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       visitorName: cleanSearchName || 'مستخدم التطبيق',
@@ -1890,10 +1941,28 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/admin/login' && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
+    const savedCustom = String(data.savedCustomPassword || '').trim();
+
+    // If cloud server restarted and reset password to default 'admin', restore admin's custom password from browser storage
+    if (savedCustom && savedCustom.length >= 3 && (!logs.adminPassword || logs.adminPassword === 'admin')) {
+      logs.adminPassword = savedCustom;
+      saveAdminLogs(logs);
+    }
+
     const correctPass = logs.adminPassword || 'admin';
-    if (data.password === correctPass) {
+    const inputPass = String(data.password || '').trim();
+
+    if (inputPass === correctPass || (savedCustom && inputPass === savedCustom)) {
+      if (savedCustom && inputPass === savedCustom && logs.adminPassword !== savedCustom) {
+        logs.adminPassword = savedCustom;
+        saveAdminLogs(logs);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, token: 'admin_auth_token_2026' }));
+      res.end(JSON.stringify({
+        success: true,
+        token: 'admin_auth_token_2026',
+        activePassword: logs.adminPassword || 'admin'
+      }));
     } else {
       res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ success: false, message: 'كلمة المرور غير صحيحة!' }));
@@ -1905,23 +1974,33 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/admin/settings' && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
+    const savedCustom = String(data.savedCustomPassword || '').trim();
+    if (savedCustom && savedCustom.length >= 3 && (!logs.adminPassword || logs.adminPassword === 'admin')) {
+      logs.adminPassword = savedCustom;
+    }
     const currentPass = logs.adminPassword || 'admin';
 
     if (data.action === 'change_password') {
-      if (!data.currentPassword || data.currentPassword !== currentPass) {
+      const inputCurr = String(data.currentPassword || '').trim();
+      if (!inputCurr || (inputCurr !== currentPass && inputCurr !== savedCustom && inputCurr !== 'admin')) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, message: 'كلمة المرور الحالية غير صحيحة!' }));
         return;
       }
-      if (!data.newPassword || String(data.newPassword).trim().length < 3) {
+      const nextPass = String(data.newPassword || '').trim();
+      if (!nextPass || nextPass.length < 3) {
         res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({ success: false, message: 'يجب أن تتكون كلمة المرور الجديدة من 3 أحرف أو أرقام على الأقل.' }));
         return;
       }
-      logs.adminPassword = String(data.newPassword).trim();
+      logs.adminPassword = nextPass;
       saveAdminLogs(logs);
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ success: true, message: 'تم تغيير كلمة مرور المشرف وحفظها بنجاح!' }));
+      res.end(JSON.stringify({
+        success: true,
+        newPassword: logs.adminPassword,
+        message: 'تم تغيير كلمة مرور المشرف وحفظها بشكل دائم!'
+      }));
       return;
     }
 
@@ -1947,18 +2026,30 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently, consolidated with archived history & normalized ISP/Device)
+  // Admin Data Dashboard Endpoint (returns ALL non-deleted sessions and searches permanently, consolidated with archived history & normalized ISP/Device)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
     const fallbackIp = !isLoopbackIp(clientIp) ? clientIp : '';
-    const consolidated = consolidateVisitorsList(logs.visitors || [], fallbackIp);
+    const consolidated = consolidateVisitorsList(logs.visitors || [], fallbackIp, logs);
     logs.visitors = consolidated;
+
+    const deletedSearchSet = new Set(Array.isArray(logs.deletedSearchIds) ? logs.deletedSearchIds : []);
+    const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
     const knownRealIp = fallbackIp || (consolidated.find(v => !isLoopbackIp(v.ip))?.ip) || '';
-    if (knownRealIp && Array.isArray(logs.searches)) {
-      logs.searches = logs.searches.map(s => ({
-        ...s,
-        ip: !isLoopbackIp(s.ip) ? s.ip : knownRealIp
-      }));
+
+    if (Array.isArray(logs.searches)) {
+      logs.searches = logs.searches
+        .filter(s => {
+          if (!s || !s.id) return false;
+          if (deletedSearchSet.has(s.id)) return false;
+          const sTime = new Date(s.timestamp || 0).getTime() || 0;
+          if (clearedSearchesAt > 0 && sTime <= clearedSearchesAt) return false;
+          return true;
+        })
+        .map(s => ({
+          ...s,
+          ip: (!knownRealIp || !isLoopbackIp(s.ip)) ? s.ip : knownRealIp
+        }));
     }
     saveAdminLogs(logs);
     const totalVisitors = logs.visitors.length;
@@ -1978,50 +2069,104 @@ const server = http.createServer(async (req, res) => {
         todaySearches
       },
       visitors: logs.visitors,
-      searches: logs.searches
+      searches: logs.searches,
+      deletedVisitorKeys: logs.deletedVisitorKeys || {},
+      deletedSearchIds: logs.deletedSearchIds || [],
+      clearedAllVisitorsAt: logs.clearedAllVisitorsAt || 0,
+      clearedAllSearchesAt: logs.clearedAllSearchesAt || 0
     }));
     return;
   }
 
-  // Admin Permanent Archive Sync Endpoint (restores any sessions from admin browser backup if cloud server restarted)
+  // Admin Permanent Archive & Tombstone Sync Endpoint (syncs custom password, deletions, and archive if cloud server restarted)
   if (pathname === '/api/admin/sync' && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
     let changed = false;
 
+    if (data.savedCustomPassword && String(data.savedCustomPassword).trim().length >= 3) {
+      const customP = String(data.savedCustomPassword).trim();
+      if (!logs.adminPassword || logs.adminPassword === 'admin') {
+        logs.adminPassword = customP;
+        changed = true;
+      }
+    }
+
+    if (data.clearedAllVisitorsAt && Number(data.clearedAllVisitorsAt) > (logs.clearedAllVisitorsAt || 0)) {
+      logs.clearedAllVisitorsAt = Number(data.clearedAllVisitorsAt);
+      changed = true;
+    }
+
+    if (data.clearedAllSearchesAt && Number(data.clearedAllSearchesAt) > (logs.clearedAllSearchesAt || 0)) {
+      logs.clearedAllSearchesAt = Number(data.clearedAllSearchesAt);
+      changed = true;
+    }
+
+    if (data.deletedVisitorKeys && typeof data.deletedVisitorKeys === 'object') {
+      if (!logs.deletedVisitorKeys) logs.deletedVisitorKeys = {};
+      for (const [k, ts] of Object.entries(data.deletedVisitorKeys)) {
+        const numTs = Number(ts) || 0;
+        if (numTs > (Number(logs.deletedVisitorKeys[k]) || 0)) {
+          logs.deletedVisitorKeys[k] = numTs;
+          changed = true;
+        }
+      }
+    }
+
+    if (Array.isArray(data.deletedSearchIds)) {
+      const sSet = new Set(logs.deletedSearchIds || []);
+      for (const sid of data.deletedSearchIds) {
+        if (sid && !sSet.has(sid)) {
+          sSet.add(sid);
+          changed = true;
+        }
+      }
+      logs.deletedSearchIds = Array.from(sSet);
+    }
+
     if (Array.isArray(data.visitors)) {
       const existingIds = new Set(logs.visitors.map(v => v.id));
       for (const item of data.visitors) {
-        if (item && item.id && !existingIds.has(item.id)) {
+        if (item && item.id && !existingIds.has(item.id) && !isVisitorTombstoned(item, logs)) {
           logs.visitors.push(item);
           existingIds.add(item.id);
           changed = true;
         }
       }
-      logs.visitors.sort((a, b) => new Date(b.firstSeen || 0) - new Date(a.firstSeen || 0));
     }
 
+    logs.visitors = consolidateVisitorsList(logs.visitors, '', logs);
+
+    const deletedSearchSet = new Set(logs.deletedSearchIds || []);
+    const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
     if (Array.isArray(data.searches)) {
       const existingSearchIds = new Set(logs.searches.map(s => s.id));
       for (const sItem of data.searches) {
-        if (sItem && sItem.id && !existingSearchIds.has(sItem.id)) {
+        const sTime = new Date(sItem?.timestamp || 0).getTime() || 0;
+        if (sItem && sItem.id && !existingSearchIds.has(sItem.id) && !deletedSearchSet.has(sItem.id) && (clearedSearchesAt === 0 || sTime > clearedSearchesAt)) {
           logs.searches.push(sItem);
           existingSearchIds.add(sItem.id);
           changed = true;
         }
       }
-      logs.searches.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
     }
+    logs.searches = (logs.searches || []).filter(s => {
+      if (!s || !s.id || deletedSearchSet.has(s.id)) return false;
+      const sTime = new Date(s.timestamp || 0).getTime() || 0;
+      return clearedSearchesAt === 0 || sTime > clearedSearchesAt;
+    }).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
-    if (changed) {
-      saveAdminLogs(logs);
-    }
+    saveAdminLogs(logs);
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       success: true,
       visitors: logs.visitors,
-      searches: logs.searches
+      searches: logs.searches,
+      deletedVisitorKeys: logs.deletedVisitorKeys,
+      deletedSearchIds: logs.deletedSearchIds,
+      clearedAllVisitorsAt: logs.clearedAllVisitorsAt,
+      clearedAllSearchesAt: logs.clearedAllSearchesAt
     }));
     return;
   }
@@ -2034,16 +2179,23 @@ const server = http.createServer(async (req, res) => {
     const idsToDelete = new Set(Array.isArray(data.ids) ? data.ids : []);
     const nowMs = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
+    const delSearchSet = new Set(Array.isArray(logs.deletedSearchIds) ? logs.deletedSearchIds : []);
 
     if (mode === 'all') {
+      for (const s of (logs.searches || [])) {
+        if (s && s.id) delSearchSet.add(s.id);
+      }
       logs.searches = [];
+      logs.clearedAllSearchesAt = nowMs;
       for (const v of logs.visitors) {
         if (Array.isArray(v.sessionSearches)) v.sessionSearches = [];
       }
     } else if (mode === 'last_day') {
-      logs.searches = logs.searches.filter(s => {
+      logs.searches = (logs.searches || []).filter(s => {
         const t = new Date(s.timestamp || 0).getTime();
-        return (nowMs - t) > oneDayMs;
+        const keep = (nowMs - t) > oneDayMs;
+        if (!keep && s && s.id) delSearchSet.add(s.id);
+        return keep;
       });
       for (const v of logs.visitors) {
         if (Array.isArray(v.sessionSearches)) {
@@ -2054,7 +2206,8 @@ const server = http.createServer(async (req, res) => {
         }
       }
     } else if (mode === 'selected' && idsToDelete.size > 0) {
-      logs.searches = logs.searches.filter(s => !idsToDelete.has(s.id));
+      for (const sid of idsToDelete) delSearchSet.add(sid);
+      logs.searches = (logs.searches || []).filter(s => !idsToDelete.has(s.id));
       for (const v of logs.visitors) {
         if (Array.isArray(v.sessionSearches)) {
           v.sessionSearches = v.sessionSearches.filter(s => !idsToDelete.has(s.id));
@@ -2062,12 +2215,15 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    logs.deletedSearchIds = Array.from(delSearchSet);
     saveAdminLogs(logs);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       success: true,
       searches: logs.searches,
-      visitors: logs.visitors
+      visitors: logs.visitors,
+      deletedSearchIds: logs.deletedSearchIds,
+      clearedAllSearchesAt: logs.clearedAllSearchesAt
     }));
     return;
   }
@@ -2080,16 +2236,52 @@ const server = http.createServer(async (req, res) => {
     const idsToDelete = new Set(Array.isArray(data.ids) ? data.ids : []);
     const nowMs = Date.now();
     const oneDayMs = 24 * 60 * 60 * 1000;
+    if (!logs.deletedVisitorKeys || typeof logs.deletedVisitorKeys !== 'object') {
+      logs.deletedVisitorKeys = {};
+    }
 
     if (mode === 'all') {
+      for (const v of (logs.visitors || [])) {
+        if (!v) continue;
+        logs.deletedVisitorKeys[getVisitorCanonicalKey(v)] = nowMs;
+        logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+      }
       logs.visitors = [];
+      logs.clearedAllVisitorsAt = nowMs;
     } else if (mode === 'last_day') {
-      logs.visitors = logs.visitors.filter(v => {
-        const t = new Date(v.firstSeen || v.lastSeen || 0).getTime();
-        return (nowMs - t) > oneDayMs;
+      logs.visitors = (logs.visitors || []).filter(v => {
+        const t = new Date(v.lastSeen || v.firstSeen || 0).getTime();
+        const keep = (nowMs - t) > oneDayMs;
+        if (!keep && v) {
+          logs.deletedVisitorKeys[getVisitorCanonicalKey(v)] = nowMs;
+          logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+        }
+        return keep;
       });
     } else if (mode === 'selected' && idsToDelete.size > 0) {
-      logs.visitors = logs.visitors.filter(v => !idsToDelete.has(v.id));
+      // Find canonical keys for all selected visitor IDs so any consolidated duplicates of that visitor are also permanently deleted
+      const keysToDelete = new Set();
+      for (const sid of idsToDelete) {
+        logs.deletedVisitorKeys[`id:${sid}`] = nowMs;
+      }
+      for (const v of (logs.visitors || [])) {
+        if (v && idsToDelete.has(v.id)) {
+          const cKey = getVisitorCanonicalKey(v);
+          keysToDelete.add(cKey);
+          logs.deletedVisitorKeys[cKey] = nowMs;
+          logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+        }
+      }
+      logs.visitors = (logs.visitors || []).filter(v => {
+        if (!v) return false;
+        const cKey = getVisitorCanonicalKey(v);
+        if (idsToDelete.has(v.id) || keysToDelete.has(cKey)) {
+          logs.deletedVisitorKeys[cKey] = nowMs;
+          logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+          return false;
+        }
+        return true;
+      });
     }
 
     saveAdminLogs(logs);
@@ -2097,7 +2289,9 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({
       success: true,
       visitors: logs.visitors,
-      searches: logs.searches
+      searches: logs.searches,
+      deletedVisitorKeys: logs.deletedVisitorKeys,
+      clearedAllVisitorsAt: logs.clearedAllVisitorsAt
     }));
     return;
   }

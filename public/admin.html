@@ -627,7 +627,11 @@
       }
     }
 
+    const ADMIN_CUSTOM_PASS_KEY = 'georadar_admin_custom_pass';
+
     window.addEventListener('DOMContentLoaded', () => {
+      try { localStorage.removeItem('admin_permanent_archive_v1'); } catch (e) {}
+      syncAdminStateWithServer();
       const token = sessionStorage.getItem('admin_token');
       if (token === 'admin_auth_token_2026') {
         unlockDashboard();
@@ -637,6 +641,7 @@
     async function handleAdminLogin(e) {
       e.preventDefault();
       const pass = document.getElementById('adminPasswordInput').value.trim();
+      const savedCustomPassword = (localStorage.getItem(ADMIN_CUSTOM_PASS_KEY) || '').trim();
       const errBox = document.getElementById('loginErrorMsg');
       const btn = document.getElementById('loginSubmitBtn');
 
@@ -648,12 +653,15 @@
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pass })
+          body: JSON.stringify({ password: pass, savedCustomPassword })
         });
         const data = await res.json();
 
         if (res.ok && data.success) {
           sessionStorage.setItem('admin_token', data.token);
+          if (data.activePassword && data.activePassword !== 'admin') {
+            localStorage.setItem(ADMIN_CUSTOM_PASS_KEY, data.activePassword);
+          }
           unlockDashboard();
         } else {
           errBox.innerText = data.message || "كلمة المرور غير صحيحة!";
@@ -690,6 +698,7 @@
       const currentPassword = document.getElementById('currentAdminPass').value.trim();
       const newPassword = document.getElementById('newAdminPass').value.trim();
       const confirmPassword = document.getElementById('confirmAdminPass').value.trim();
+      const savedCustomPassword = (localStorage.getItem(ADMIN_CUSTOM_PASS_KEY) || '').trim();
       const msgBox = document.getElementById('passChangeMsg');
       const btn = document.getElementById('savePassBtn');
 
@@ -705,12 +714,19 @@
         const res = await fetch('/api/admin/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'change_password', currentPassword, newPassword })
+          body: JSON.stringify({
+            action: 'change_password',
+            currentPassword,
+            newPassword,
+            savedCustomPassword
+          })
         });
         const data = await res.json();
         if (res.ok && data.success) {
+          localStorage.setItem(ADMIN_CUSTOM_PASS_KEY, newPassword);
+          sessionStorage.setItem('admin_token', 'admin_auth_token_2026');
           msgBox.className = 'text-xs p-2.5 rounded-lg text-center font-bold bg-emerald-950/60 text-emerald-300 border border-emerald-500/40';
-          msgBox.innerText = data.message || 'تم تغيير كلمة المرور بنجاح!';
+          msgBox.innerText = data.message || 'تم تغيير كلمة المرور وحفظها بشكل دائم!';
           document.getElementById('currentAdminPass').value = '';
           document.getElementById('newAdminPass').value = '';
           document.getElementById('confirmAdminPass').value = '';
@@ -806,19 +822,76 @@
       }
     }
 
-    const ARCHIVE_STORAGE_KEY = 'admin_permanent_archive_v1';
+    const ARCHIVE_STORAGE_KEY = 'admin_permanent_archive_v2';
 
     function loadLocalArchive() {
       try {
         const raw = localStorage.getItem(ARCHIVE_STORAGE_KEY);
-        if (raw) return JSON.parse(raw);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            visitors: Array.isArray(parsed.visitors) ? parsed.visitors : [],
+            searches: Array.isArray(parsed.searches) ? parsed.searches : [],
+            deletedVisitorKeys: (parsed.deletedVisitorKeys && typeof parsed.deletedVisitorKeys === 'object') ? parsed.deletedVisitorKeys : {},
+            deletedSearchIds: Array.isArray(parsed.deletedSearchIds) ? parsed.deletedSearchIds : [],
+            clearedAllVisitorsAt: Number(parsed.clearedAllVisitorsAt) || 0,
+            clearedAllSearchesAt: Number(parsed.clearedAllSearchesAt) || 0
+          };
+        }
       } catch (e) {}
-      return { visitors: [], searches: [] };
+      return {
+        visitors: [],
+        searches: [],
+        deletedVisitorKeys: {},
+        deletedSearchIds: [],
+        clearedAllVisitorsAt: 0,
+        clearedAllSearchesAt: 0
+      };
     }
 
-    function saveLocalArchive(visitors, searches) {
+    function saveLocalArchive(visitors, searches, extraMeta = {}) {
       try {
-        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify({ visitors, searches }));
+        const existing = loadLocalArchive();
+        const payload = {
+          visitors: Array.isArray(visitors) ? visitors : existing.visitors,
+          searches: Array.isArray(searches) ? searches : existing.searches,
+          deletedVisitorKeys: extraMeta.deletedVisitorKeys || existing.deletedVisitorKeys || {},
+          deletedSearchIds: extraMeta.deletedSearchIds || existing.deletedSearchIds || [],
+          clearedAllVisitorsAt: extraMeta.clearedAllVisitorsAt !== undefined ? extraMeta.clearedAllVisitorsAt : (existing.clearedAllVisitorsAt || 0),
+          clearedAllSearchesAt: extraMeta.clearedAllSearchesAt !== undefined ? extraMeta.clearedAllSearchesAt : (existing.clearedAllSearchesAt || 0)
+        };
+        localStorage.setItem(ARCHIVE_STORAGE_KEY, JSON.stringify(payload));
+      } catch (e) {}
+    }
+
+    function isVisitorDeletedByTombstone(v, deletedVisitorKeys = {}, clearedAllVisitorsAt = 0) {
+      if (!v) return true;
+      const vTime = new Date(v.lastSeen || v.firstSeen || 0).getTime() || 0;
+      if (clearedAllVisitorsAt > 0 && vTime <= clearedAllVisitorsAt) return true;
+      const cKey = normVisitorKey(v);
+      const idKey = `id:${v.id}`;
+      const delTs = Math.max(Number(deletedVisitorKeys[cKey]) || 0, Number(deletedVisitorKeys[idKey]) || 0);
+      if (delTs > 0 && vTime <= delTs) return true;
+      return false;
+    }
+
+    async function syncAdminStateWithServer() {
+      try {
+        const localArch = loadLocalArchive();
+        const savedCustomPassword = (localStorage.getItem(ADMIN_CUSTOM_PASS_KEY) || '').trim();
+        await fetch('/api/admin/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            savedCustomPassword,
+            visitors: localArch.visitors || [],
+            searches: localArch.searches || [],
+            deletedVisitorKeys: localArch.deletedVisitorKeys || {},
+            deletedSearchIds: localArch.deletedSearchIds || [],
+            clearedAllVisitorsAt: localArch.clearedAllVisitorsAt || 0,
+            clearedAllSearchesAt: localArch.clearedAllSearchesAt || 0
+          })
+        });
       } catch (e) {}
     }
 
@@ -966,22 +1039,60 @@
           const data = await res.json();
           const localArch = loadLocalArchive();
 
-          // Prioritize server's consolidated visitors list and merge any local archive entries into the same user profile with archiving
-          const combinedRawVisitors = [...(data.visitors || []), ...(localArch.visitors || [])];
-          const mergedVisitors = mergeAndArchiveVisitors(combinedRawVisitors);
+          // Merge tombstones from both browser and server so deleted records NEVER reappear even after a cloud server restart
+          const mergedDeletedVisitorKeys = {
+            ...(data.deletedVisitorKeys || {}),
+            ...(localArch.deletedVisitorKeys || {})
+          };
+          for (const [k, vTs] of Object.entries(data.deletedVisitorKeys || {})) {
+            const localTs = Number(localArch.deletedVisitorKeys?.[k]) || 0;
+            mergedDeletedVisitorKeys[k] = Math.max(Number(vTs) || 0, localTs);
+          }
+
+          const mergedClearedVisitorsAt = Math.max(
+            Number(data.clearedAllVisitorsAt) || 0,
+            Number(localArch.clearedAllVisitorsAt) || 0
+          );
+
+          const mergedDeletedSearchSet = new Set([
+            ...(data.deletedSearchIds || []),
+            ...(localArch.deletedSearchIds || [])
+          ]);
+
+          const mergedClearedSearchesAt = Math.max(
+            Number(data.clearedAllSearchesAt) || 0,
+            Number(localArch.clearedAllSearchesAt) || 0
+          );
+
+          // Filter out any tombstoned visitors BEFORE merging
+          const combinedRawVisitors = [...(data.visitors || []), ...(localArch.visitors || [])]
+            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
+          const mergedVisitors = mergeAndArchiveVisitors(combinedRawVisitors)
+            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
 
           const searchMap = new Map();
-          for (const s of (localArch.searches || [])) {
-            if (s && s.id) searchMap.set(s.id, s);
-          }
-          for (const s of (data.searches || [])) {
-            if (s && s.id) searchMap.set(s.id, s);
+          for (const s of [...(localArch.searches || []), ...(data.searches || [])]) {
+            if (!s || !s.id || mergedDeletedSearchSet.has(s.id)) continue;
+            const sTime = new Date(s.timestamp || 0).getTime() || 0;
+            if (mergedClearedSearchesAt > 0 && sTime <= mergedClearedSearchesAt) continue;
+            searchMap.set(s.id, s);
           }
           const mergedSearches = Array.from(searchMap.values()).sort(
             (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
           );
 
-          saveLocalArchive(mergedVisitors, mergedSearches);
+          const mergedDeletedSearchIds = Array.from(mergedDeletedSearchSet);
+          saveLocalArchive(mergedVisitors, mergedSearches, {
+            deletedVisitorKeys: mergedDeletedVisitorKeys,
+            deletedSearchIds: mergedDeletedSearchIds,
+            clearedAllVisitorsAt: mergedClearedVisitorsAt,
+            clearedAllSearchesAt: mergedClearedSearchesAt
+          });
+
+          // If the server had stale visitors that were already tombstoned locally, sync the tombstones back to the server
+          if ((data.visitors || []).length !== mergedVisitors.length || (localStorage.getItem(ADMIN_CUSTOM_PASS_KEY) || '').trim()) {
+            syncAdminStateWithServer();
+          }
 
           const gpsCount = mergedVisitors.filter(v => v.locationSource !== 'IP').length;
 
@@ -1196,13 +1307,31 @@
           const nowMs = Date.now();
           const oneDayMs = 24 * 60 * 60 * 1000;
           const idSet = new Set(ids);
+          const delSearchSet = new Set([...(localArch.deletedSearchIds || []), ...(data.deletedSearchIds || [])]);
+          let clearedAllSearchesAt = Math.max(Number(localArch.clearedAllSearchesAt) || 0, Number(data.clearedAllSearchesAt) || 0);
 
           let updatedSearches = localArch.searches || [];
-          if (mode === 'all') updatedSearches = [];
-          else if (mode === 'last_day') updatedSearches = updatedSearches.filter(s => (nowMs - new Date(s.timestamp || 0).getTime()) > oneDayMs);
-          else if (mode === 'selected') updatedSearches = updatedSearches.filter(s => !idSet.has(s.id));
+          if (mode === 'all') {
+            updatedSearches.forEach(s => s && s.id && delSearchSet.add(s.id));
+            updatedSearches = [];
+            clearedAllSearchesAt = nowMs;
+          } else if (mode === 'last_day') {
+            updatedSearches = updatedSearches.filter(s => {
+              const keep = (nowMs - new Date(s.timestamp || 0).getTime()) > oneDayMs;
+              if (!keep && s && s.id) delSearchSet.add(s.id);
+              return keep;
+            });
+          } else if (mode === 'selected') {
+            ids.forEach(id => delSearchSet.add(id));
+            updatedSearches = updatedSearches.filter(s => !idSet.has(s.id));
+          }
 
-          saveLocalArchive(data.visitors || localArch.visitors || [], updatedSearches);
+          saveLocalArchive(data.visitors || localArch.visitors || [], updatedSearches, {
+            deletedVisitorKeys: localArch.deletedVisitorKeys || {},
+            deletedSearchIds: Array.from(delSearchSet),
+            clearedAllVisitorsAt: localArch.clearedAllVisitorsAt || 0,
+            clearedAllSearchesAt
+          });
           await fetchAdminData();
         }
       } catch (e) {
@@ -1367,13 +1496,59 @@
           const nowMs = Date.now();
           const oneDayMs = 24 * 60 * 60 * 1000;
           const idSet = new Set(ids);
+          const delVisitorKeys = {
+            ...(localArch.deletedVisitorKeys || {}),
+            ...(data.deletedVisitorKeys || {})
+          };
+          let clearedAllVisitorsAt = Math.max(Number(localArch.clearedAllVisitorsAt) || 0, Number(data.clearedAllVisitorsAt) || 0);
 
           let updatedVisitors = localArch.visitors || [];
-          if (mode === 'all') updatedVisitors = [];
-          else if (mode === 'last_day') updatedVisitors = updatedVisitors.filter(v => (nowMs - new Date(v.firstSeen || v.lastSeen || 0).getTime()) > oneDayMs);
-          else if (mode === 'selected') updatedVisitors = updatedVisitors.filter(v => !idSet.has(v.id));
+          if (mode === 'all') {
+            updatedVisitors.forEach(v => {
+              if (!v) return;
+              delVisitorKeys[normVisitorKey(v)] = nowMs;
+              delVisitorKeys[`id:${v.id}`] = nowMs;
+            });
+            updatedVisitors = [];
+            clearedAllVisitorsAt = nowMs;
+          } else if (mode === 'last_day') {
+            updatedVisitors = updatedVisitors.filter(v => {
+              const keep = (nowMs - new Date(v.lastSeen || v.firstSeen || 0).getTime()) > oneDayMs;
+              if (!keep && v) {
+                delVisitorKeys[normVisitorKey(v)] = nowMs;
+                delVisitorKeys[`id:${v.id}`] = nowMs;
+              }
+              return keep;
+            });
+          } else if (mode === 'selected') {
+            const keysToDelete = new Set();
+            ids.forEach(sid => { delVisitorKeys[`id:${sid}`] = nowMs; });
+            [...(currentAdminData.visitors || []), ...updatedVisitors].forEach(v => {
+              if (v && idSet.has(v.id)) {
+                const cKey = normVisitorKey(v);
+                keysToDelete.add(cKey);
+                delVisitorKeys[cKey] = nowMs;
+                delVisitorKeys[`id:${v.id}`] = nowMs;
+              }
+            });
+            updatedVisitors = updatedVisitors.filter(v => {
+              if (!v) return false;
+              const cKey = normVisitorKey(v);
+              if (idSet.has(v.id) || keysToDelete.has(cKey)) {
+                delVisitorKeys[cKey] = nowMs;
+                delVisitorKeys[`id:${v.id}`] = nowMs;
+                return false;
+              }
+              return true;
+            });
+          }
 
-          saveLocalArchive(updatedVisitors, data.searches || localArch.searches || []);
+          saveLocalArchive(updatedVisitors, data.searches || localArch.searches || [], {
+            deletedVisitorKeys: delVisitorKeys,
+            deletedSearchIds: localArch.deletedSearchIds || [],
+            clearedAllVisitorsAt,
+            clearedAllSearchesAt: localArch.clearedAllSearchesAt || 0
+          });
           const selectAllCb = document.getElementById('selectAllVisitorsCheckbox');
           if (selectAllCb) selectAllCb.checked = false;
           await fetchAdminData();

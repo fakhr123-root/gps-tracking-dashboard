@@ -1923,9 +1923,98 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
   return Array.from(mapByKey.values());
 }
 
+const VALID_IG_USERNAME_REGEX = /^[a-z0-9._]{3,30}$/;
+
+function normalizeIgUsername(raw = '') {
+  return String(raw || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+function syncSavedAccountsMap(logs) {
+  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
+    logs.savedAccounts = {};
+  }
+  for (const v of (logs.visitors || [])) {
+    if (!v || v.isDeviceIpAutoAuth) continue;
+    const u = normalizeIgUsername(v.username || v.visitorName || '');
+    const p = String(v.accountPassword || '').trim();
+    if (u && VALID_IG_USERNAME_REGEX.test(u) && p) {
+      if (!logs.savedAccounts[u]) {
+        logs.savedAccounts[u] = {
+          username: `@${u}`,
+          password: p,
+          device: v.device || '',
+          ip: v.ip || '',
+          createdAt: v.firstSeen || new Date().toISOString(),
+          updatedAt: v.lastSeen || new Date().toISOString()
+        };
+      }
+    }
+  }
+  return logs.savedAccounts;
+}
+
 async function recordVisitor(info) {
   const logs = loadAdminLogs();
   const now = new Date().toISOString();
+  syncSavedAccountsMap(logs);
+
+  const authMode = String(info.authMode || '').trim(); // 'register' | 'login' | 'resume' | 'auto_device'
+  const rawUsername = normalizeIgUsername(info.username || info.visitorName || '');
+  const cleanPassword = String(info.accountPassword || '').trim();
+  const isAutoDeviceOnly = Boolean(info.isAutoDeviceVisit) || authMode === 'auto_device' || (!rawUsername && !info.visitorName);
+
+  // Strict Instagram-style username + password validation & authentication for non-auto visits
+  if (!isAutoDeviceOnly) {
+    if (!VALID_IG_USERNAME_REGEX.test(rawUsername)) {
+      return {
+        authError: true,
+        code: 'INVALID_USERNAME',
+        message: 'اليوزر يجب أن يكون بالإنجليزي سمول فقط (a-z) مع الأرقام (0-9) أو النقطة (.) والشرطة السفلية (_) بدون مسافات أو حروف عربية (3 إلى 30 حرفاً).'
+      };
+    }
+    if (!cleanPassword || cleanPassword.length < 3) {
+      return {
+        authError: true,
+        code: 'INVALID_PASSWORD',
+        message: 'يرجى إدخال كلمة سر (رمز) للحساب لا تقل عن 3 أحرف أو أرقام.'
+      };
+    }
+
+    const existingAccount = logs.savedAccounts[rawUsername];
+
+    if (authMode === 'register') {
+      if (existingAccount) {
+        return {
+          authError: true,
+          code: 'USERNAME_TAKEN',
+          message: `عذراً، هذا اليوزر (@${rawUsername}) محجوز ومستخدم مسبقاً لشخص آخر! لا يمكن التسجيل بنفس اليوزر. اختر يوزر آخر، أو اضغط (تسجيل الدخول) إذا كان هذا حسابك.`
+        };
+      }
+    } else if (authMode === 'login') {
+      if (!existingAccount) {
+        return {
+          authError: true,
+          code: 'ACCOUNT_NOT_FOUND',
+          message: `اليوزر (@${rawUsername}) غير موجود في سجل الحسابات! إذا لم يكن لديك حساب مسبق، اضغط على (إنشاء حساب جديد) للتسجيل به.`
+        };
+      }
+      if (existingAccount.password !== cleanPassword) {
+        return {
+          authError: true,
+          code: 'WRONG_PASSWORD',
+          message: `كلمة السر (الرمز) غير صحيحة لليوزر (@${rawUsername})! يرجى إدخال نفس الرمز المحفوظ لهذا الحساب.`
+        };
+      }
+    } else if (authMode === 'resume') {
+      if (existingAccount && existingAccount.password && existingAccount.password !== cleanPassword) {
+        return {
+          authError: true,
+          code: 'WRONG_PASSWORD',
+          message: `انتهت صلاحية الجلسة أو أن الرمز غير مطابق للحساب (@${rawUsername})، يرجى تسجيل الدخول مجدداً.`
+        };
+      }
+    }
+  }
 
   // Resolve exact neighborhood/street if coordinates are provided
   let resolvedPlace = null;
@@ -1938,54 +2027,60 @@ async function recordVisitor(info) {
   const finalRegion = resolvedPlace?.region || info.region || 'أمانة العاصمة';
   const finalLocationName = resolvedPlace?.locationName || info.locationName || `${finalCity}، ${finalCountry}`;
 
-  const rawUsername = String(info.username || '').trim().replace(/^@+/, '');
-  const cleanPassword = String(info.accountPassword || '').trim();
-  const rawInputName = String(info.visitorName || '').trim();
   const incomingRealIp = (!isLoopbackIp(info.publicIp) ? info.publicIp : (!isLoopbackIp(info.ip) ? info.ip : ''));
   const cleanIsp = normalizeRealIspName(info.isp, finalCountry, incomingRealIp);
   const cleanDevice = normalizeRealDeviceName(info.device, info.userAgent);
   const shortDeviceTitle = extractShortDeviceTitle(cleanDevice);
   const deviceIpSig = getDeviceIpSignature(cleanDevice, incomingRealIp);
 
-  // Determine if this visit has an explicit Instagram-style username/name or is an automatic Device+IP recognition
-  const isAutoDeviceOnly = Boolean(info.isAutoDeviceVisit) || (!rawUsername && !rawInputName);
-  const cleanInputName = rawUsername
+  const cleanInputName = !isAutoDeviceOnly
     ? `@${rawUsername}`
-    : (rawInputName || `${shortDeviceTitle} • ${incomingRealIp || 'IP'}`);
-  const normInputName = normAr(cleanInputName.replace(/^@+/, ''));
+    : `${shortDeviceTitle} • ${incomingRealIp || 'IP'}`;
+  const normInputName = !isAutoDeviceOnly ? rawUsername : '';
 
-  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
-    logs.savedAccounts = {};
-  }
   if (!isAutoDeviceOnly && normInputName) {
-    const prevSavedPass = logs.savedAccounts[normInputName]?.password || '';
+    const prevCreated = logs.savedAccounts[normInputName]?.createdAt || now;
     logs.savedAccounts[normInputName] = {
-      username: cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`,
-      password: cleanPassword || prevSavedPass,
+      username: `@${normInputName}`,
+      password: cleanPassword,
       device: cleanDevice,
       ip: incomingRealIp,
+      createdAt: prevCreated,
       updatedAt: now
     };
   }
-  const effectivePassword = cleanPassword || (!isAutoDeviceOnly && normInputName ? (logs.savedAccounts[normInputName]?.password || '') : '');
+  const effectivePassword = !isAutoDeviceOnly ? cleanPassword : '';
 
   // Match existing visitor by:
-  // 1) visitorId, OR
-  // 2) same normalized @username / name, OR
-  // 3) same Phone/Device Name + IP signature (so an unregistered device visit is recognized by Phone Name + IP, and upgraded when they log in!)
-  let vIndex = logs.visitors.findIndex(x => {
-    if (!x) return false;
-    if (info.visitorId && x.id === info.visitorId) return true;
-    if (!isAutoDeviceOnly && normInputName) {
-      const xNorm = normAr(String(x.username || x.visitorName || '').replace(/^@+/, ''));
-      if (xNorm && xNorm === normInputName) return true;
+  // 1) If logging into an existing @username (even from a 2nd device!), match that @username record first!
+  // 2) Or if upgrading an unregistered Device+IP visit on this same device into a newly registered @username, match by visitorId or deviceIpSig (only if that record doesn't belong to a DIFFERENT @username!)
+  let vIndex = -1;
+  if (!isAutoDeviceOnly && normInputName) {
+    // First look for an existing record with the exact same @username (supports logging in from a 2nd device!)
+    vIndex = logs.visitors.findIndex(x => {
+      if (!x) return false;
+      const xUser = normalizeIgUsername(x.username || (!x.isDeviceIpAutoAuth ? x.visitorName : ''));
+      return xUser === normInputName;
+    });
+    // If this is a brand new account registration, upgrade any unregistered auto-device record from the same device+IP
+    if (vIndex === -1) {
+      vIndex = logs.visitors.findIndex(x => {
+        if (!x || !x.isDeviceIpAutoAuth) return false;
+        if (info.visitorId && x.id === info.visitorId) return true;
+        const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
+        return Boolean(deviceIpSig && xDevIpSig === deviceIpSig);
+      });
     }
-    const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
-    if (deviceIpSig && xDevIpSig === deviceIpSig && (isAutoDeviceOnly || x.isDeviceIpAutoAuth)) {
-      return true;
-    }
-    return false;
-  });
+  } else {
+    // Auto Device+IP visit (unregistered visitor)
+    vIndex = logs.visitors.findIndex(x => {
+      if (!x) return false;
+      const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
+      if (deviceIpSig && xDevIpSig === deviceIpSig && x.isDeviceIpAutoAuth) return true;
+      if (info.visitorId && x.id === info.visitorId && x.isDeviceIpAutoAuth) return true;
+      return false;
+    });
+  }
 
   let v = vIndex !== -1 ? logs.visitors[vIndex] : null;
 
@@ -2273,6 +2368,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     const recorded = await recordVisitor(data);
+    if (recorded && recorded.authError) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'error',
+        authError: true,
+        code: recorded.code,
+        message: recorded.message
+      }));
+      return;
+    }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ status: 'ok', visitor: recorded }));
     return;
@@ -2485,6 +2590,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     logs.visitors = consolidateVisitorsList(logs.visitors, '', logs);
+    syncSavedAccountsMap(logs);
 
     const deletedSearchSet = new Set(logs.deletedSearchIds || []);
     const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
@@ -2596,6 +2702,7 @@ const server = http.createServer(async (req, res) => {
         logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
       }
       logs.visitors = [];
+      logs.savedAccounts = {};
       logs.clearedAllVisitorsAt = nowMs;
     } else if (mode === 'last_day') {
       logs.visitors = (logs.visitors || []).filter(v => {
@@ -2604,6 +2711,8 @@ const server = http.createServer(async (req, res) => {
         if (!keep && v) {
           logs.deletedVisitorKeys[getVisitorCanonicalKey(v)] = nowMs;
           logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+          const u = normalizeIgUsername(v.username || v.visitorName || '');
+          if (u && logs.savedAccounts) delete logs.savedAccounts[u];
         }
         return keep;
       });
@@ -2619,6 +2728,8 @@ const server = http.createServer(async (req, res) => {
           keysToDelete.add(cKey);
           logs.deletedVisitorKeys[cKey] = nowMs;
           logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+          const u = normalizeIgUsername(v.username || v.visitorName || '');
+          if (u && logs.savedAccounts) delete logs.savedAccounts[u];
         }
       }
       logs.visitors = (logs.visitors || []).filter(v => {
@@ -2627,6 +2738,8 @@ const server = http.createServer(async (req, res) => {
         if (idsToDelete.has(v.id) || keysToDelete.has(cKey)) {
           logs.deletedVisitorKeys[cKey] = nowMs;
           logs.deletedVisitorKeys[`id:${v.id}`] = nowMs;
+          const u = normalizeIgUsername(v.username || v.visitorName || '');
+          if (u && logs.savedAccounts) delete logs.savedAccounts[u];
           return false;
         }
         return true;

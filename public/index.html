@@ -270,26 +270,48 @@
         </button>
       </div>
 
-      <!-- ==================== STEP 2: INSTAGRAM-STYLE ACCOUNT LOGIN (USERNAME + PASSWORD/CODE) ==================== -->
-      <div id="gateStep2Login" class="hidden space-y-4">
+      <!-- ==================== STEP 2: INSTAGRAM-STYLE ACCOUNT LOGIN / SIGN UP (STRICT ENGLISH USERNAME + PASSWORD) ==================== -->
+      <div id="gateStep2Login" class="hidden space-y-3.5">
         <!-- Instagram-Style Gradient Avatar Emblem -->
-        <div class="relative w-20 h-20 mx-auto mb-1 flex items-center justify-center">
+        <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full bg-gradient-to-tr from-amber-500 via-pink-500 to-purple-600 animate-pulse opacity-35 blur-md"></div>
-          <div class="w-16 h-16 rounded-full p-[2.5px] bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-cyan-400 shadow-[0_0_30px_rgba(217,70,239,0.4)]">
+          <div class="w-14 h-14 rounded-full p-[2.5px] bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-cyan-400 shadow-[0_0_25px_rgba(217,70,239,0.4)]">
             <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
-              <i data-lucide="at-sign" class="w-7 h-7 text-fuchsia-400"></i>
+              <i data-lucide="at-sign" class="w-6 h-6 text-fuchsia-400"></i>
             </div>
           </div>
         </div>
 
         <div class="space-y-1">
-          <h2 class="text-xl font-black text-white">تسجيل الدخول بالحساب (اليوزر والرمز)</h2>
-          <p class="text-[11px] text-slate-300 leading-relaxed">
-            سجّل دخولك عبر <strong class="text-fuchsia-300">اليوزر (@username)</strong> و<strong class="text-emerald-300">الرمز (كلمة المرور)</strong> ليتم حفظ حسابك تلقائياً مع التعرّف على جهازك والـ IP
+          <h2 id="gateAuthHeaderTitle" class="text-lg sm:text-xl font-black text-white">إنشاء حساب جديد أو تسجيل الدخول</h2>
+          <p id="gateAuthHeaderSub" class="text-[11px] text-slate-300 leading-relaxed">
+            اليوزر بالإنجليزي سمول فقط (<span class="text-fuchsia-300 font-num font-bold">a-z, 0-9, . , _</span>) مع كلمة سر محفوظة للدخول من أي جهاز
           </p>
         </div>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5 text-right">
+        <!-- Mode Switcher Tabs: Login vs Create New Account -->
+        <div class="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-slate-950 border border-slate-800">
+          <button
+            type="button"
+            id="tabBtnRegister"
+            onclick="setGateAuthMode('register')"
+            class="py-2 px-3 rounded-xl font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-gradient-to-r from-fuchsia-500 to-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(217,70,239,0.35)]"
+          >
+            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+            <span>إنشاء حساب جديد</span>
+          </button>
+          <button
+            type="button"
+            id="tabBtnLogin"
+            onclick="setGateAuthMode('login')"
+            class="py-2 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer text-slate-300 hover:text-white bg-transparent"
+          >
+            <i data-lucide="log-in" class="w-3.5 h-3.5"></i>
+            <span>تسجيل دخول (لدي حساب)</span>
+          </button>
+        </div>
+
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3 text-right">
           <!-- Auto Device + IP Recognition Status Badge -->
           <div class="px-3.5 py-2 rounded-xl bg-emerald-950/50 border border-emerald-500/40 flex items-center justify-between text-[11px]">
             <div class="flex items-center gap-2 text-emerald-300 font-bold">
@@ -299,28 +321,35 @@
             <span class="text-[10px] text-cyan-300 font-num font-bold">Auto-ID ✓</span>
           </div>
 
-          <!-- Instagram-Style Account Card (Username + Password/Code) -->
+          <!-- Instagram-Style Account Card (Strict English Username + Password/Code) -->
           <div class="bg-slate-900/95 p-4 rounded-2xl border border-slate-700/80 space-y-3 shadow-inner">
-            <!-- Username (@user) Field -->
+            <!-- Username (@user) Field - English lowercase, digits, '.', '_' ONLY -->
             <div class="space-y-1.5">
               <label class="block text-xs font-extrabold text-white flex items-center justify-between">
                 <span class="flex items-center gap-1.5">
                   <i data-lucide="at-sign" class="w-3.5 h-3.5 text-fuchsia-400"></i>
-                  <span>اسم المستخدم (اليوزر) أو رقم الهاتف:</span>
+                  <span id="usernameFieldLabel">اليوزر (إنجليزي سمول فقط):</span>
                 </span>
-                <span class="px-2 py-0.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-[10px] text-fuchsia-300 font-bold">@Username</span>
+                <span class="px-2 py-0.5 rounded-full bg-fuchsia-500/15 border border-fuchsia-500/30 text-[10px] text-fuchsia-300 font-num font-bold" dir="ltr">a-z • 0-9 • . • _</span>
               </label>
-              <div class="relative">
-                <span class="absolute right-3.5 top-2.5 text-fuchsia-400 font-num font-black text-sm">@</span>
+              <div class="relative" dir="ltr">
+                <span class="absolute left-3.5 top-2.5 text-fuchsia-400 font-num font-black text-sm">@</span>
                 <input 
                   type="text" 
                   id="visitorNameInput" 
                   required
+                  dir="ltr"
+                  minlength="3"
+                  maxlength="30"
                   autocomplete="username"
-                  placeholder="اكتب اليوزر (مثال: fakhr_123) أو اسمك..."
-                  class="w-full bg-slate-950/95 text-sm rounded-xl pr-9 pl-4 py-2.5 border border-slate-700/80 focus:border-fuchsia-400 text-white placeholder-slate-500 focus:outline-none transition font-bold"
+                  oninput="sanitizeInstagramUsernameInput(this)"
+                  placeholder="fakhr_123.ye"
+                  class="w-full bg-slate-950/95 text-sm rounded-xl pl-8 pr-4 py-2.5 border border-slate-700/80 focus:border-fuchsia-400 text-white placeholder-slate-600 focus:outline-none transition font-num font-bold tracking-wide"
                 />
               </div>
+              <p id="usernameFormatHint" class="text-[10px] text-slate-400 font-semibold">
+                مسموح فقط: حروف إنجليزية صغيرة (<span class="text-fuchsia-300 font-num">a-z</span>) وأرقام (<span class="text-fuchsia-300 font-num">0-9</span>) ونقطة (<span class="text-fuchsia-300 font-num">.</span>) وشرطة (<span class="text-fuchsia-300 font-num">_</span>)
+              </p>
             </div>
 
             <!-- Account Password / Code Field -->
@@ -328,19 +357,19 @@
               <label class="block text-xs font-extrabold text-white flex items-center justify-between">
                 <span class="flex items-center gap-1.5">
                   <i data-lucide="key-round" class="w-3.5 h-3.5 text-emerald-400"></i>
-                  <span>رمز الحساب / كلمة المرور:</span>
+                  <span id="passwordFieldLabel">كلمة السر / الرمز الخاص بالحساب:</span>
                 </span>
-                <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold">حفظ مع الرمز</span>
+                <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold">يحفظ في السجل</span>
               </label>
-              <div class="relative">
-                <i data-lucide="lock" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
+              <div class="relative" dir="ltr">
                 <input 
                   type="password" 
                   id="visitorPasswordInput" 
-                   required
+                  required
+                  minlength="3"
                   autocomplete="current-password"
-                  placeholder="أدخل رمز الحساب أو كلمة المرور..."
-                  class="w-full bg-slate-950/95 text-sm rounded-xl pr-10 pl-10 py-2.5 border border-slate-700/80 focus:border-emerald-400 text-white placeholder-slate-500 focus:outline-none transition font-num"
+                  placeholder="••••••••"
+                  class="w-full bg-slate-950/95 text-sm rounded-xl pl-10 pr-4 py-2.5 border border-slate-700/80 focus:border-emerald-400 text-white placeholder-slate-600 focus:outline-none transition font-num"
                 />
                 <button
                   type="button"
@@ -353,26 +382,20 @@
               </div>
             </div>
 
-            <!-- Auto-Save Account + Code Indicator -->
-            <div class="pt-1 flex items-center justify-between text-[11px] text-slate-300">
-              <label class="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" id="saveAccountCredsCheck" checked class="accent-emerald-400 w-3.5 h-3.5 rounded cursor-pointer" />
-                <span class="font-bold text-emerald-300">حفظ الحساب مع الرمز تلقائياً للدخول السريع</span>
-              </label>
-              <span class="text-[10px] text-slate-400">Instagram Login Style</span>
+            <!-- Error / Validation Box -->
+            <div id="loginNameError" class="hidden p-2.5 rounded-xl bg-red-950/70 border border-red-500/50 text-[11px] text-red-300 font-bold leading-relaxed">
+              يرجى إدخال اليوزر ورمز الحساب للمتابعة
             </div>
-
-            <p id="loginNameError" class="hidden text-[11px] text-red-400 font-bold pt-1">يرجى إدخال اليوزر ورمز الحساب للمتابعة وحفظ الحساب</p>
           </div>
 
-          <!-- Step 2 "Save Account & Enter Explorer" Button -->
+          <!-- Step 2 Submit Button -->
           <button 
             type="submit" 
             id="gateSubmitBtn"
             class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
           >
-            <i data-lucide="shield-check" class="w-5 h-5"></i>
-            <span>حفظ الحساب مع الرمز والدخول إلى المستكشف</span>
+            <i data-lucide="user-plus" class="w-5 h-5"></i>
+            <span id="gateSubmitBtnText">إنشاء الحساب وحفظ الرمز والدخول</span>
           </button>
         </form>
       </div>
@@ -2049,6 +2072,61 @@
     // Persistent Session & Geolocation Handler
     let cachedOptionalGps = null;
     let hasSentAutoDeviceIpVisit = false;
+    let currentGateAuthMode = 'register'; // 'register' (إنشاء حساب جديد) | 'login' (تسجيل دخول بحساب موجود)
+    const IG_USERNAME_REGEX = /^[a-z0-9._]{3,30}$/;
+
+    function sanitizeInstagramUsernameInput(inputEl) {
+      if (!inputEl) return;
+      const original = inputEl.value;
+      // Convert uppercase A-Z to lowercase a-z and strip anything outside a-z, 0-9, '.', '_'
+      const cleaned = original.toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9._]/g, '');
+      const hintEl = document.getElementById('usernameFormatHint');
+      if (original.replace(/^@+/, '').toLowerCase() !== cleaned) {
+        inputEl.value = cleaned;
+        if (hintEl) {
+          hintEl.className = "text-[10px] text-amber-300 font-bold";
+          hintEl.innerHTML = `⚠️ تم استبعاد الرموز غير المسموحة — اليوزر يقبل فقط حروف إنجليزية سمول (<span class="font-num">a-z</span>) وأرقام (<span class="font-num">0-9</span>) و(<span class="font-num">.</span>) و(<span class="font-num">_</span>)`;
+        }
+      } else {
+        inputEl.value = cleaned;
+        if (hintEl) {
+          hintEl.className = "text-[10px] text-slate-400 font-semibold";
+          hintEl.innerHTML = `مسموح فقط: حروف إنجليزية صغيرة (<span class="text-fuchsia-300 font-num">a-z</span>) وأرقام (<span class="text-fuchsia-300 font-num">0-9</span>) ونقطة (<span class="text-fuchsia-300 font-num">.</span>) وشرطة (<span class="text-fuchsia-300 font-num">_</span>)`;
+        }
+      }
+    }
+
+    function setGateAuthMode(mode) {
+      currentGateAuthMode = mode === 'login' ? 'login' : 'register';
+      const tabReg = document.getElementById('tabBtnRegister');
+      const tabLog = document.getElementById('tabBtnLogin');
+      const titleEl = document.getElementById('gateAuthHeaderTitle');
+      const subEl = document.getElementById('gateAuthHeaderSub');
+      const submitBtn = document.getElementById('gateSubmitBtn');
+      const errEl = document.getElementById('loginNameError');
+      if (errEl) errEl.classList.add('hidden');
+
+      if (currentGateAuthMode === 'register') {
+        if (tabReg) tabReg.className = "py-2 px-3 rounded-xl font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-gradient-to-r from-fuchsia-500 to-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(217,70,239,0.35)]";
+        if (tabLog) tabLog.className = "py-2 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer text-slate-300 hover:text-white bg-transparent";
+        if (titleEl) titleEl.innerText = 'إنشاء حساب جديد (يوزر + كلمة سر)';
+        if (subEl) subEl.innerHTML = `اختر يوزر إنجليزي سمول غير مستخدم مسبقاً (<span class="text-fuchsia-300 font-num font-bold">a-z, 0-9, . , _</span>) مع كلمة سر لحفظ حسابك`;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<i data-lucide="user-plus" class="w-5 h-5"></i><span id="gateSubmitBtnText">إنشاء الحساب وحفظ الرمز والدخول</span>`;
+        }
+      } else {
+        if (tabLog) tabLog.className = "py-2 px-3 rounded-xl font-black text-xs transition flex items-center justify-center gap-1.5 cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.35)]";
+        if (tabReg) tabReg.className = "py-2 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer text-slate-300 hover:text-white bg-transparent";
+        if (titleEl) titleEl.innerText = 'تسجيل الدخول بحساب مسجل مسبقاً';
+        if (subEl) subEl.innerHTML = `أدخل اليوزر الإنجليزي (<span class="text-emerald-300 font-num font-bold">@username</span>) ونفس كلمة السر المحفوظة لحسابك`;
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = `<i data-lucide="log-in" class="w-5 h-5"></i><span id="gateSubmitBtnText">تسجيل الدخول بالحساب والدخول للمستكشف</span>`;
+        }
+      }
+      lucide.createIcons();
+    }
 
     function getOrCreateDeviceVisitorId() {
       let vId = (localStorage.getItem('gmaps_visitor_id') || '').trim();
@@ -2061,13 +2139,14 @@
 
     function getSavedVisitorSession() {
       const savedId = (localStorage.getItem('gmaps_visitor_id') || '').trim();
-      const savedName = (localStorage.getItem('gmaps_visitor_name') || '').trim();
+      const savedName = (localStorage.getItem('gmaps_visitor_name') || '').trim().replace(/^@+/, '').toLowerCase();
       const savedPass = (localStorage.getItem('gmaps_visitor_password') || '').trim();
+      const isValidIg = IG_USERNAME_REGEX.test(savedName) && savedPass.length >= 3;
       return {
-        hasSession: Boolean(savedId && savedName),
+        hasSession: Boolean(savedId && isValidIg),
         visitorId: savedId,
-        visitorName: savedName,
-        accountPassword: savedPass
+        visitorName: isValidIg ? savedName : '',
+        accountPassword: isValidIg ? savedPass : ''
       };
     }
 
@@ -2116,7 +2195,7 @@
             accuracy: cachedOptionalGps ? cachedOptionalGps.accuracy : null,
             locationSource: cachedOptionalGps ? 'GPS' : 'IP_FALLBACK'
           };
-          await sendVisitPayload(vId, '', geoInfo, deviceStr, '', '');
+          await sendVisitPayload(vId, '', geoInfo, deviceStr, '', '', 'auto_device');
         }
       } catch (e) {}
     }
@@ -2135,10 +2214,10 @@
       if (gateSwitchBtn) {
         if (session.hasSession) {
           gateSwitchBtn.classList.remove('hidden');
-          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب آخر (الحالي: ${displayUser})`;
+          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب آخر / إنشاء حساب (الحالي: ${displayUser})`;
         } else {
           gateSwitchBtn.classList.remove('hidden');
-          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب آخر / يوزر جديد`;
+          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب موجود / إنشاء حساب جديد`;
         }
       }
     }
@@ -2153,11 +2232,7 @@
       if (nameInput) nameInput.value = '';
       const passInput = document.getElementById('visitorPasswordInput');
       if (passInput) passInput.value = '';
-      const submitBtn = document.getElementById('gateSubmitBtn');
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = `<i data-lucide="shield-check" class="w-5 h-5"></i><span>حفظ الحساب مع الرمز والدخول إلى المستكشف</span>`;
-      }
+      setGateAuthMode('login');
 
       const b2 = document.getElementById('stepBadge2');
       if (b2) {
@@ -2199,7 +2274,7 @@
         if (nextTxt) {
           nextTxt.innerText = session.hasSession
             ? `الدخول بالحساب المحفوظ (${displayUser})`
-            : 'التالي (تسجيل الدخول باليوزر والرمز)';
+            : 'التالي (إنشاء حساب أو تسجيل الدخول)';
         }
       } else {
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2";
@@ -2225,7 +2300,7 @@
       if (descEl) {
         descEl.innerText = session.hasSession
           ? `مرحباً بعودتك (${displayUser}) — الحساب والرمز محفوظان، اضغط للدخول مباشرة`
-          : 'تم التعرّف على جهازك والـ IP تلقائياً — اضغط "التالي" لتسجيل اليوزر والرمز';
+          : 'تم التعرّف على جهازك والـ IP تلقائياً — اضغط "التالي" لإنشاء حساب أو تسجيل الدخول';
       }
       if (btnTxt) btnTxt.innerText = '✓ الموقع مفتوح';
       setStep1NextEnabled(true);
@@ -2255,7 +2330,21 @@
         locationSource: 'GPS'
       };
 
-      await sendVisitPayload(session.visitorId, session.visitorName, geoInfo, deviceStr, session.visitorName, session.accountPassword);
+      const resp = await sendVisitPayload(session.visitorId, session.visitorName, geoInfo, deviceStr, session.visitorName, session.accountPassword, 'resume');
+      if (resp && resp.authError) {
+        // Saved password didn't match server; clear saved session and show login screen
+        localStorage.removeItem('gmaps_visitor_name');
+        localStorage.removeItem('gmaps_visitor_password');
+        setGateAuthMode('login');
+        document.getElementById('gateStep1Location')?.classList.add('hidden');
+        document.getElementById('gateStep2Login')?.classList.remove('hidden');
+        const errEl = document.getElementById('loginNameError');
+        if (errEl) {
+          errEl.innerText = resp.message || 'يرجى تسجيل الدخول مجدداً';
+          errEl.classList.remove('hidden');
+        }
+        return;
+      }
       finishGateEntry();
     }
 
@@ -2368,33 +2457,43 @@
       } catch (e) {}
     }
 
-    // Entry Gate Handler (Step 2: Instagram-style Username + Password/Code -> Explorer)
+    // Entry Gate Handler (Step 2: Strict English Username + Password/Code -> Register or Login)
     async function handleVisitorGateEntry(e) {
       if (e) e.preventDefault();
       const btn = document.getElementById('gateSubmitBtn');
       const nameInput = document.getElementById('visitorNameInput');
       const passInput = document.getElementById('visitorPasswordInput');
       const errEl = document.getElementById('loginNameError');
-      const rawUsername = (nameInput ? nameInput.value : '').trim().replace(/^@+/, '');
+
+      if (nameInput) sanitizeInstagramUsernameInput(nameInput);
+      const rawUsername = (nameInput ? nameInput.value : '').trim().replace(/^@+/, '').toLowerCase();
       const rawPassword = (passInput ? passInput.value : '').trim();
 
-      if (!rawUsername || !rawPassword) {
-        if (errEl) errEl.classList.remove('hidden');
-        if (!rawUsername) nameInput?.focus();
-        else passInput?.focus();
+      if (!IG_USERNAME_REGEX.test(rawUsername)) {
+        if (errEl) {
+          errEl.innerText = '⚠️ اليوزر يجب أن يتكون من 3 إلى 30 حرفاً بالإنجليزي سمول (a-z) وأرقام (0-9) ونقطة (.) وشرطة (_) فقط!';
+          errEl.classList.remove('hidden');
+        }
+        nameInput?.focus();
         return;
       }
+
+      if (!rawPassword || rawPassword.length < 3) {
+        if (errEl) {
+          errEl.innerText = '⚠️ يرجى إدخال كلمة سر (رمز) لا تقل عن 3 أحرف أو أرقام!';
+          errEl.classList.remove('hidden');
+        }
+        passInput?.focus();
+        return;
+      }
+
       if (errEl) errEl.classList.add('hidden');
       const visitorName = rawUsername;
 
       btn.disabled = true;
-      btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> جاري حفظ الحساب والرمز والدخول...`;
+      btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-slate-950 border-t-transparent rounded-full ml-2"></span> ${currentGateAuthMode === 'register' ? 'جاري التحقق من اليوزر وإنشاء الحساب...' : 'جاري التحقق من اليوزر وكلمة السر...'}`;
 
-      // Reuse existing visitorId on this device so the automatic Device+IP record upgrades cleanly
       const vId = getOrCreateDeviceVisitorId();
-      localStorage.setItem('gmaps_visitor_name', visitorName);
-      localStorage.setItem('gmaps_visitor_password', rawPassword);
-      updateAccountButtonsUI();
 
       const [devProfile, netInfo] = await Promise.all([
         detectUserDeviceProfile(),
@@ -2416,9 +2515,30 @@
         locationSource: cachedOptionalGps ? 'GPS' : 'GPS'
       };
 
-      if (cachedOptionalGps) {
-        await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword);
+      const completeAuthAttempt = async () => {
+        const resp = await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword, currentGateAuthMode);
+        if (resp && resp.authError) {
+          if (errEl) {
+            errEl.innerText = `❌ ${resp.message}`;
+            errEl.classList.remove('hidden');
+          }
+          btn.disabled = false;
+          setGateAuthMode(currentGateAuthMode);
+          if (errEl) errEl.classList.remove('hidden');
+          return;
+        }
+        // Success! Save valid English username + password to localStorage and enter Explorer
+        if (resp && resp.visitor && resp.visitor.id) {
+          localStorage.setItem('gmaps_visitor_id', resp.visitor.id);
+        }
+        localStorage.setItem('gmaps_visitor_name', visitorName);
+        localStorage.setItem('gmaps_visitor_password', rawPassword);
+        updateAccountButtonsUI();
         finishGateEntry();
+      };
+
+      if (cachedOptionalGps) {
+        await completeAuthAttempt();
         return;
       }
 
@@ -2430,26 +2550,23 @@
             geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
             geoInfo.locationSource = 'GPS';
             cachedOptionalGps = { lat: geoInfo.lat, lng: geoInfo.lng, accuracy: geoInfo.accuracy };
-            await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword);
-            finishGateEntry();
+            await completeAuthAttempt();
           },
           async () => {
             geoInfo.locationSource = 'IP_FALLBACK';
-            await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword);
-            finishGateEntry();
+            await completeAuthAttempt();
           },
           { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
       } else {
         geoInfo.locationSource = 'IP_FALLBACK';
-        await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword);
-        finishGateEntry();
+        await completeAuthAttempt();
       }
     }
 
-    async function sendVisitPayload(vId, vName, geo, deviceStr, username = '', accountPassword = '') {
+    async function sendVisitPayload(vId, vName, geo, deviceStr, username = '', accountPassword = '', authMode = '') {
       try {
-        await fetch('/api/log-visit', {
+        const res = await fetch('/api/log-visit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2457,6 +2574,8 @@
             visitorName: vName || '',
             username: username || vName || '',
             accountPassword: accountPassword || '',
+            authMode: authMode || '',
+            isAutoDeviceVisit: authMode === 'auto_device',
             publicIp: geo.publicIp,
             localIp: geo.localIp,
             asn: geo.asn,
@@ -2472,7 +2591,10 @@
             device: deviceStr
           })
         });
-      } catch (err) {}
+        return await res.json();
+      } catch (err) {
+        return { status: 'network_error' };
+      }
     }
 
     function finishGateEntry() {

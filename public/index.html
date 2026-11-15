@@ -365,11 +365,11 @@
       </div>
     </div>
 
-    <!-- MAIN SPLIT-SCREEN STUDIO WITH SUBTLE VERTICAL DIVIDER -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 pt-1">
+    <!-- MAIN FULL-WIDTH ORGANIZED WORKSPACE -->
+    <div class="w-full flex flex-col gap-4 flex-1 pt-1">
 
-      <!-- RIGHT SIDE (7 Cols on Desktop): Search Bar, Category Pills, Filter Pills, 3-Column Bento Grid -->
-      <div class="lg:col-span-7 lg:border-l lg:border-slate-800/80 lg:pl-6 flex flex-col gap-3.5 order-1">
+      <!-- Search Bar, Unified Toolbar, Interactive Map Studio (When Opened), and Wide Cards Grid -->
+      <div class="w-full flex flex-col gap-3.5">
 
         <!-- 1. Clear & Simple Search Bar -->
         <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-2.5">
@@ -496,31 +496,76 @@
           </div>
         </div>
 
-        <!-- Active Drawn Circle Control Banner (Appears when user draws or activates circle tool) -->
-        <div id="drawnCircleBanner" class="hidden p-3 rounded-2xl bg-cyan-950/50 border border-cyan-400/50 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div class="flex items-center gap-2">
-            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-ping"></span>
-            <div>
-              <div class="font-black text-cyan-300" id="drawnCircleTitle">✏️ وضع رسم الدائرة: اضغط واسحب على الخريطة لتحديد المنطقة</div>
-              <div class="text-[11px] text-slate-300 font-num" id="drawnCircleCoordsText">أو انقر في أي مكان على الخريطة لوضع دائرة البحث</div>
+        <!-- 3. WIDE, ORGANIZED INTERACTIVE MAP & CIRCLE DRAWING STUDIO (Appears cleanly when user clicks "رسم دائرة بالخريطة" or "بالرادار") -->
+        <div id="visualizerPanel" class="hidden w-full studio-card rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_20px_60px_rgba(0,0,0,0.65)] flex-col">
+          
+          <!-- Map Studio Header Toolbar (Outside the map so it NEVER covers the map streets!) -->
+          <div class="bg-slate-950/95 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 shrink-0">
+                <i data-lucide="circle-dot" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h3 class="text-xs sm:text-sm font-black text-white" id="drawnCircleTitle">🗺️ الخريطة التفاعلية وتحديد المنطقة بالرسم</h3>
+                <p class="text-[11px] text-emerald-300 font-bold" id="drawnCircleCoordsText">انقر في أي مكان على الخريطة لوضع دائرة التحديد، أو اسحب لتكبير وتصغير الدائرة</p>
+              </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" id="mapDrawCircleBtn" onclick="enableCircleDrawTool()" class="px-3 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-black shadow cursor-pointer flex items-center gap-1">
+                <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+                <span>تفعيل الرسم</span>
+              </button>
+              <button type="button" onclick="setViewMode('map', 'streets')" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer">🗺️ شوارع</button>
+              <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-cyan-500/40 text-cyan-300 text-xs font-bold cursor-pointer">🛰️ قمر صناعي</button>
+              <button type="button" onclick="centerMapOnUserGps()" class="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/40 text-amber-300 text-xs font-bold cursor-pointer">📍 موقعي</button>
+              <button type="button" onclick="hideMobileMapPanel()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-red-500/30 border border-slate-700 hover:border-red-400/50 text-slate-200 hover:text-red-200 text-xs font-bold cursor-pointer">✕ إغلاق الخريطة</button>
             </div>
           </div>
-          <div class="flex items-center gap-2">
-            <div class="flex items-center gap-1 bg-slate-950/80 px-2.5 py-1 rounded-xl border border-slate-700">
-              <span class="text-[10px] text-slate-400">حجم الدائرة:</span>
-              <input type="range" id="circleRadiusSlider" min="0.2" max="15" step="0.2" value="2.0" oninput="onDrawnCircleSliderChange(this.value)" class="w-20 h-1.5 accent-cyan-400 cursor-pointer" />
-              <span id="circleRadiusValueLabel" class="text-[11px] font-num font-bold text-cyan-300">2.0 كم</span>
+
+          <!-- Wide, Unobstructed Map Canvas -->
+          <div class="relative w-full h-[360px] sm:h-[450px]">
+            <div id="globeContainer" class="hidden w-full h-full">
+              <canvas id="globeCanvas" class="w-full h-full"></canvas>
             </div>
-            <button type="button" onclick="handleSearch(new Event('submit'))" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs cursor-pointer">
-              🔍 استخراج داخل الدائرة
-            </button>
-            <button type="button" onclick="clearDrawnCircle(true)" class="px-2.5 py-1.5 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-400/40 text-red-300 font-bold text-xs cursor-pointer">
-              ✕ مسح الدائرة
-            </button>
+            <div id="mapContainer" class="w-full h-full relative z-10">
+              <div id="leafletMap" class="w-full h-full"></div>
+              <div id="mapDrawHintOverlay" class="hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-[1000] px-4 py-1.5 rounded-full bg-slate-950/90 border border-cyan-400/60 text-center text-[11px] font-bold text-cyan-300 shadow-xl pointer-events-none whitespace-nowrap">
+                ✏️ انقر على المنطقة المطلوبة في الخريطة أو اسحب لرسم الدائرة
+              </div>
+            </div>
           </div>
+
+          <!-- Map Studio Footer: Circle Size Control & Confirm Search Button -->
+          <div id="drawnCircleBanner" class="bg-slate-950/95 border-t border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="text-slate-300 font-bold">نصف قطر الدائرة:</span>
+              <div class="flex items-center gap-1">
+                <button type="button" onclick="onDrawnCircleSliderChange(1)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">1 كم</button>
+                <button type="button" onclick="onDrawnCircleSliderChange(2)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">2 كم</button>
+                <button type="button" onclick="onDrawnCircleSliderChange(5)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">5 كم</button>
+                <button type="button" onclick="onDrawnCircleSliderChange(10)" class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[11px] font-num text-cyan-300 cursor-pointer">10 كم</button>
+              </div>
+              <div class="flex items-center gap-2 bg-slate-900 px-3 py-1 rounded-xl border border-slate-800">
+                <input type="range" id="circleRadiusSlider" min="0.2" max="20" step="0.2" value="2.0" oninput="onDrawnCircleSliderChange(this.value)" class="w-28 sm:w-36 h-1.5 accent-cyan-400 cursor-pointer" />
+                <span id="circleRadiusValueLabel" class="text-xs font-num font-black text-emerald-400 min-w-[45px]">2.0 كم</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <button type="button" onclick="handleSearch(new Event('submit'))" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-lg">
+                <i data-lucide="search" class="w-4 h-4"></i>
+                <span>اعتماد الدائرة وبدء البحث الآن</span>
+              </button>
+              <button type="button" onclick="clearDrawnCircle(false)" class="px-3 py-2 rounded-xl bg-red-500/20 hover:bg-red-500/35 border border-red-400/40 text-red-300 font-bold text-xs cursor-pointer">
+                🗑️ مسح الدائرة
+              </button>
+            </div>
+          </div>
+
         </div>
 
-        <!-- Slim Progress Indicator (No overlapping text!) -->
+        <!-- Slim Progress Indicator -->
         <div id="progressContainer" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-2xl px-4 py-2">
           <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
             <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[180px] truncate">جارٍ سحب البيانات من خرائط جوجل...</span>
@@ -531,21 +576,21 @@
           </div>
         </div>
 
-        <!-- 4. 3-Column Bento Cards Grid (Shows clear welcome guidance until user searches or selects a category!) -->
-        <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[540px] overflow-y-auto pr-1 pt-1">
+        <!-- 4. Full-Width Spacious Bento Cards Grid (Up to 4 columns on wide screens, 2 on tablet, 1 on phone) -->
+        <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5 max-h-[620px] overflow-y-auto pr-1 pt-1">
           <div class="col-span-full studio-card p-6 rounded-2xl text-center space-y-3 border border-emerald-500/30">
             <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center mx-auto text-emerald-300">
               <i data-lucide="compass" class="w-6 h-6"></i>
             </div>
             <h3 class="text-base font-black text-white">مرحباً بك في مستخرج خرائط جوجل والرادار الحي</h3>
             <p class="text-xs text-slate-300 max-w-lg mx-auto leading-relaxed">
-              اكتب النشاط التجاري في مربع البحث بالأعلى أو اختر أي تصنيف اختياري (<strong class="text-emerald-300">شركات، صيدليات، صرافة، بنوك، مطاعم، فنادق</strong>)، أو اضغط على <strong class="text-cyan-300">رسم دائرة لتحديد منطقة</strong> على الخريطة لاستخراج كافة البيانات والإحداثيات وتصديرها إلى Excel.
+              اختر النشاط التجاري والمنطقة المطلوبة (<strong class="text-emerald-300">المدينة كاملة، تحديد حي، أو رسم دائرة بالخريطة</strong>) ثم اضغط على <strong class="text-cyan-300">ابدأ البحث الآن</strong> لاستخراج كافة البيانات والإحداثيات وتصديرها إلى Excel.
             </p>
           </div>
         </div>
 
         <!-- Optional Table View -->
-        <div id="desktopResultsTableWrapper" class="hidden overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/85 max-h-[540px]">
+        <div id="desktopResultsTableWrapper" class="hidden overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/85 max-h-[620px]">
           <table class="w-full text-right text-xs">
             <thead class="bg-slate-900 text-emerald-300 font-bold border-b border-slate-800 sticky top-0 z-10">
               <tr>
@@ -561,36 +606,6 @@
             </thead>
             <tbody id="resultsTableBody" class="divide-y divide-slate-800/60"></tbody>
           </table>
-        </div>
-
-      </div>
-
-      <!-- LEFT SIDE (5 Cols on Desktop): Interactive Map (Hidden on Mobile by default; appears on Mobile ONLY when user asks to Draw Circle or View on Map!) -->
-      <div id="visualizerPanel" class="hidden lg:flex lg:col-span-5 flex-col items-center justify-center relative order-2 py-2">
-        
-        <div class="relative w-full max-w-[465px] h-[350px] sm:h-[440px] xl:h-[480px] flex items-center justify-center">
-          
-          <!-- Hidden 3D Canvas fallback -->
-          <div id="globeContainer" class="hidden w-full h-full">
-            <canvas id="globeCanvas" class="w-full h-full"></canvas>
-          </div>
-
-          <!-- Interactive 2D Street / Satellite Radar Map -->
-          <div id="mapContainer" class="w-full h-full rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative z-10">
-            <div id="leafletMap" class="w-full h-full"></div>
-            <div class="absolute top-3 right-3 z-[1000] flex flex-wrap gap-1.5">
-              <button type="button" id="mapDrawCircleBtn" onclick="startDrawCircleOnMap()" class="px-2.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[11px] font-black shadow-lg cursor-pointer">⭕ رسم دائرة</button>
-              <button type="button" onclick="setViewMode('map', 'streets')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold shadow-lg cursor-pointer">شوارع</button>
-              <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold shadow-lg cursor-pointer">قمر صناعي</button>
-              <button type="button" onclick="centerMapOnUserGps()" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow-lg cursor-pointer">📍 موقعي</button>
-              <button type="button" onclick="hideMobileMapPanel()" class="lg:hidden px-2.5 py-1.5 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-[11px] font-black shadow-lg cursor-pointer">✕ إخفاء الخريطة</button>
-            </div>
-            <!-- Floating Draw Hint Overlay inside Map -->
-            <div id="mapDrawHintOverlay" class="hidden absolute bottom-3 inset-x-3 z-[1000] px-3 py-2 rounded-xl bg-slate-950/95 border border-cyan-400/60 text-center text-[11px] font-bold text-cyan-300 shadow-xl pointer-events-none">
-              ✏️ اسحب بالماوس أو الإصبع على الخريطة لرسم الدائرة وتحديد المنطقة (أو انقر لتحديد المركز)
-            </div>
-          </div>
-
         </div>
 
       </div>
@@ -1004,9 +1019,27 @@
       setupMapCircleDrawingEvents();
     }
 
+    function enableCircleDrawTool() {
+      isDrawingCircleMode = true;
+      document.getElementById('btnFullCityMode')?.classList.remove('active');
+      document.getElementById('btnDrawCircleMode')?.classList.add('active');
+      const hint = document.getElementById('mapDrawHintOverlay');
+      if (hint) hint.classList.remove('hidden');
+      if (leafletMap) {
+        leafletMap.getContainer().style.cursor = 'crosshair';
+      }
+    }
+
     function setupMapCircleDrawingEvents() {
       if (!leafletMap) return;
       const mapEl = leafletMap.getContainer();
+
+      // Clicking anywhere on the map places/moves the circle center immediately
+      leafletMap.on('click', (e) => {
+        if (!isDrawingCircleMode && !drawnCircleState) return;
+        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+        updateDrawnCircleOnMap(e.latlng.lat, e.latlng.lng, sliderVal);
+      });
 
       leafletMap.on('mousedown', (e) => {
         if (!isDrawingCircleMode) return;
@@ -1014,7 +1047,7 @@
         leafletMap.dragging.disable();
         const startLat = e.latlng.lat;
         const startLng = e.latlng.lng;
-        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 1.5;
+        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
         updateDrawnCircleOnMap(startLat, startLng, sliderVal);
       });
 
@@ -1022,7 +1055,7 @@
         if (!isDrawingCircleMode || !isDraggingCircle || !drawnCircleState) return;
         const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, e.latlng.lat, e.latlng.lng);
         if (distKm && distKm > 0.15) {
-          const clampedKm = Math.min(Math.max(distKm, 0.2), 25);
+          const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
           updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
         }
       });
@@ -1045,7 +1078,7 @@
         isDraggingCircle = true;
         leafletMap.dragging.disable();
         const pt = leafletMap.mouseEventToLatLng(ev.touches[0]);
-        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 1.5;
+        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
         updateDrawnCircleOnMap(pt.lat, pt.lng, sliderVal);
       }, { passive: true });
 
@@ -1054,7 +1087,7 @@
         const pt = leafletMap.mouseEventToLatLng(ev.touches[0]);
         const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, pt.lat, pt.lng);
         if (distKm && distKm > 0.15) {
-          const clampedKm = Math.min(Math.max(distKm, 0.2), 25);
+          const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
           updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
         }
       }, { passive: true });
@@ -1092,22 +1125,27 @@
       } else {
         const centerIcon = L.divIcon({
           className: 'drawn-circle-center',
-          html: `<div style="width:14px;height:14px;border-radius:50%;background:#22d3ee;border:2px solid #fff;box-shadow:0 0 12px #22d3ee;"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7]
+          html: `<div style="width:16px;height:16px;border-radius:50%;background:#22d3ee;border:2.5px solid #fff;box-shadow:0 0 14px #22d3ee;cursor:grab;"></div>`,
+          iconSize: [16, 16],
+          iconAnchor: [8, 8]
         });
-        drawnCenterMarker = L.marker([lat, lng], { icon: centerIcon }).addTo(leafletMap);
+        drawnCenterMarker = L.marker([lat, lng], { icon: centerIcon, draggable: true }).addTo(leafletMap);
+        drawnCenterMarker.on('drag', (ev) => {
+          const pos = ev.target.getLatLng();
+          const curR = drawnCircleState ? drawnCircleState.radiusKm : 2.0;
+          updateDrawnCircleOnMap(pos.lat, pos.lng, curR);
+        });
       }
 
       const banner = document.getElementById('drawnCircleBanner');
       if (banner) banner.classList.remove('hidden');
       const titleEl = document.getElementById('drawnCircleTitle');
-      if (titleEl) titleEl.innerText = `⭕ تم تحديد منطقة الدائرة المرسومة (${radiusKm.toFixed(2)} كم)`;
+      if (titleEl) titleEl.innerText = `⭕ تم تحديد منطقة الدائرة المرسومة (${radiusKm.toFixed(1)} كم)`;
       const coordsEl = document.getElementById('drawnCircleCoordsText');
-      if (coordsEl) coordsEl.innerText = `المركز — خط العرض (Lat): ${lat.toFixed(5)} | خط الطول (Lng): ${lng.toFixed(5)}`;
+      if (coordsEl) coordsEl.innerText = `المركز: ${lat.toFixed(5)}, ${lng.toFixed(5)} — انقر في أي مكان لنقل الدائرة أو غيّر حجمها من الشريط بالأسفل`;
 
       const slider = document.getElementById('circleRadiusSlider');
-      if (slider) slider.value = Math.min(Math.max(radiusKm, 0.2), 15);
+      if (slider) slider.value = Math.min(Math.max(radiusKm, 0.2), 20);
       const valLbl = document.getElementById('circleRadiusValueLabel');
       if (valLbl) valLbl.innerText = `${radiusKm.toFixed(1)} كم`;
     }
@@ -1142,18 +1180,18 @@
       document.getElementById('btnDrawCircleMode')?.classList.add('active');
       showMobileMapPanel();
       setViewMode('map', 'streets');
-      isDrawingCircleMode = true;
-      const banner = document.getElementById('drawnCircleBanner');
-      if (banner) banner.classList.remove('hidden');
-      const hint = document.getElementById('mapDrawHintOverlay');
-      if (hint) hint.classList.remove('hidden');
-      if (leafletMap) {
-        leafletMap.getContainer().style.cursor = 'crosshair';
-        setTimeout(() => leafletMap.invalidateSize(), 200);
-      }
+      enableCircleDrawTool();
       setTimeout(() => {
+        if (leafletMap) {
+          leafletMap.invalidateSize();
+          if (!drawnCircleState) {
+            const c = leafletMap.getCenter();
+            const rKm = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+            updateDrawnCircleOnMap(c.lat, c.lng, rKm);
+          }
+        }
         document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      }, 150);
     }
 
     function onDrawnCircleSliderChange(val) {
@@ -1185,11 +1223,11 @@
           drawnCenterMarker = null;
         }
       }
-      document.getElementById('drawnCircleBanner')?.classList.add('hidden');
+      const titleEl = document.getElementById('drawnCircleTitle');
+      if (titleEl) titleEl.innerText = '🗺️ الخريطة التفاعلية وتحديد المنطقة بالرسم';
+      const coordsEl = document.getElementById('drawnCircleCoordsText');
+      if (coordsEl) coordsEl.innerText = 'انقر على "تفعيل الرسم" أو انقر في أي مكان على الخريطة لوضع دائرة التحديد';
       document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
-      if (window.innerWidth < 1024) {
-        hideMobileMapPanel();
-      }
       if (resetToFullCity) {
         setRadius(50);
       }

@@ -154,9 +154,26 @@
     @media (max-width: 767px) {
       main { padding-bottom: 4rem !important; }
     }
+
+    /* Hide external translation banners while keeping full DOM translation active */
+    .goog-te-banner-frame.skiptranslate,
+    .goog-te-gadget-icon,
+    #goog-gt-tt,
+    .goog-te-balloon-frame,
+    div#goog-gt- {
+      display: none !important;
+    }
+    body {
+      top: 0px !important;
+    }
+    .skiptranslate iframe {
+      visibility: hidden !important;
+      display: none !important;
+    }
   </style>
 </head>
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
+  <div id="google_translate_element" class="hidden"></div>
 
   <!-- Native App Offline Screen Overlay (Replaces any browser error when internet drops) -->
   <div id="nativeOfflineOverlay" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-[#070d17]/95 backdrop-blur-xl p-5">
@@ -189,16 +206,41 @@
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none"></div>
 
       <!-- Step Progress Indicator (1 -> 2) -->
-      <div class="flex items-center justify-center gap-2 mb-4 relative z-10">
+      <div class="flex items-center justify-center gap-2 mb-3 relative z-10">
         <div id="stepBadge1" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
           <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">1</span>
-          <span>السماح بالموقع</span>
+          <span id="i18n_step1Badge">السماح بالموقع</span>
         </div>
         <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
         <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
           <span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span>
-          <span>تسجيل الدخول</span>
+          <span id="i18n_step2Badge">تسجيل الدخول</span>
         </div>
+      </div>
+
+      <!-- Auto-Detected Phone Language & Optional World Language Switcher at Start of Login -->
+      <div class="flex items-center justify-between gap-2 mb-4 px-3 py-2 rounded-2xl bg-slate-900/90 border border-emerald-500/35 relative z-10 text-right">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 text-xs shrink-0">
+            🌐
+          </div>
+          <div class="min-w-0">
+            <div id="gateDetectedLangHint" class="text-[10px] text-slate-400 font-bold leading-tight truncate">
+              تم التعرف تلقائياً حسب لغة الهاتف:
+            </div>
+            <div id="gateCurrentLangDisplay" class="text-xs font-black text-emerald-300 truncate notranslate">
+              العربية (Arabic)
+            </div>
+          </div>
+        </div>
+        <button
+          type="button"
+          onclick="openWorldLanguageModal()"
+          class="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[11px] font-extrabold flex items-center gap-1 shrink-0 cursor-pointer transition"
+        >
+          <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-300"></i>
+          <span id="gateChangeLangBtnText">تغيير اللغة</span>
+        </button>
       </div>
 
       <!-- ==================== STEP 1: LOCATION PERMISSION SCREEN ==================== -->
@@ -407,6 +449,42 @@
         <div id="settingsPasswordMsg" class="hidden text-[11px] font-bold px-1"></div>
       </form>
 
+      <!-- 2.5 Optional World Language Switcher (All Languages of the World) -->
+      <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
+            <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>تغيير اللغة (اختياري — كل لغات العالم)</span>
+          </div>
+          <button
+            type="button"
+            onclick="resetToPhoneDetectedLanguage()"
+            class="px-2 py-0.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 text-[10px] font-bold cursor-pointer transition"
+          >
+            📱 لغة الهاتف تلقائياً
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <select
+            id="settingsQuickLangSelect"
+            onchange="applySelectedWorldLanguage(this.value, false)"
+            class="flex-1 bg-slate-950 border border-emerald-500/35 rounded-xl px-2.5 py-2 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none notranslate"
+          ></select>
+          <button
+            type="button"
+            onclick="openWorldLanguageModal()"
+            class="px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-xs font-black flex items-center gap-1 shrink-0 cursor-pointer transition"
+          >
+            <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            <span>كل اللغات</span>
+          </button>
+        </div>
+        <div id="settingsLangStatusNote" class="text-[10px] text-slate-400 font-semibold px-0.5">
+          يتم التعرف تلقائياً على لغة هاتفك ويمكنك اختيار أي لغة من لغات العالم
+        </div>
+      </div>
+
       <!-- 3. Useful Extractor Settings for the User -->
       <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/25 space-y-2.5">
         <div class="text-xs font-extrabold text-cyan-300 flex items-center gap-1.5">
@@ -470,6 +548,56 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- WORLD LANGUAGES MODAL (🌍 جميع لغات العالم + التعرف التلقائي حسب لغة الهاتف) -->
+  <div id="worldLanguagePickerModal" class="hidden fixed inset-0 z-[9998] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="w-full max-w-[460px] rounded-2xl bg-[#071521] border border-emerald-500/45 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-right space-y-3.5 max-h-[90vh] flex flex-col">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-2.5 border-b border-emerald-500/20 shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 text-sm">
+            🌍
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black text-white">اختيار لغة التطبيق (جميع لغات العالم)</h3>
+            <p id="worldLangDetectedBanner" class="text-[10px] text-emerald-300 font-bold">تم التعرف تلقائياً على لغة هاتفك</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeWorldLanguageModal()" class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-red-500/20 border border-slate-700 text-slate-300 hover:text-red-300 flex items-center justify-center text-xs font-bold cursor-pointer transition">
+          ✕
+        </button>
+      </div>
+
+      <!-- Auto-Detect Phone Language Quick Button -->
+      <button
+        type="button"
+        onclick="resetToPhoneDetectedLanguage(); closeWorldLanguageModal();"
+        class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-500/20 via-teal-500/20 to-cyan-500/20 hover:from-emerald-500/30 hover:to-cyan-500/30 border border-emerald-400/50 text-emerald-200 text-xs font-black flex items-center justify-between gap-2 shrink-0 cursor-pointer transition"
+      >
+        <span class="flex items-center gap-1.5">
+          <span>📱</span>
+          <span>استخدام لغة الهاتف التلقائية:</span>
+          <strong id="modalDetectedPhoneLangName" class="text-white notranslate">العربية</strong>
+        </span>
+        <span class="px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 text-[10px] font-black">تلقائي ✓</span>
+      </button>
+
+      <!-- Search Input for All World Languages -->
+      <div class="relative shrink-0">
+        <input
+          type="text"
+          id="worldLangSearchInput"
+          oninput="renderWorldLanguageList(this.value)"
+          placeholder="ابحث عن أي لغة في العالم (العربية، English, Français, Türkçe...)"
+          class="w-full bg-slate-950 text-xs rounded-xl pr-3.5 pl-9 py-2.5 border border-emerald-500/35 focus:border-emerald-400 text-white placeholder-slate-400 focus:outline-none font-bold"
+        />
+        <i data-lucide="search" class="w-4 h-4 text-emerald-400 absolute left-3 top-2.5 pointer-events-none"></i>
+      </div>
+
+      <!-- Scrollable List of All World Languages -->
+      <div id="worldLanguagesGridList" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 overflow-y-auto pr-1 flex-1 min-h-[220px] max-h-[52vh] notranslate"></div>
     </div>
   </div>
 
@@ -2788,6 +2916,442 @@
       } catch (e) {}
     }
 
+    // ==================== WORLD LANGUAGES SYSTEM (135+ Languages + Auto Phone Detection) ====================
+    const WORLD_LANGUAGES = [
+      { code: 'ar', native: 'العربية', arName: 'العربية', enName: 'Arabic', rtl: true },
+      { code: 'en', native: 'English', arName: 'الإنجليزية', enName: 'English' },
+      { code: 'fr', native: 'Français', arName: 'الفرنسية', enName: 'French' },
+      { code: 'es', native: 'Español', arName: 'الإسبانية', enName: 'Spanish' },
+      { code: 'de', native: 'Deutsch', arName: 'الألمانية', enName: 'German' },
+      { code: 'tr', native: 'Türkçe', arName: 'التركية', enName: 'Turkish' },
+      { code: 'ru', native: 'Русский', arName: 'الروسية', enName: 'Russian' },
+      { code: 'zh-CN', native: '中文 (简体)', arName: 'الصينية المبسطة', enName: 'Chinese Simplified' },
+      { code: 'zh-TW', native: '中文 (繁體)', arName: 'الصينية التقليدية', enName: 'Chinese Traditional' },
+      { code: 'hi', native: 'हिन्दी', arName: 'الهندية', enName: 'Hindi' },
+      { code: 'ur', native: 'اردو', arName: 'الأردية', enName: 'Urdu', rtl: true },
+      { code: 'id', native: 'Bahasa Indonesia', arName: 'الإندونيسية', enName: 'Indonesian' },
+      { code: 'ms', native: 'Bahasa Melayu', arName: 'الملايوية (الماليزية)', enName: 'Malay' },
+      { code: 'fa', native: 'فارسی', arName: 'الفارسية', enName: 'Persian', rtl: true },
+      { code: 'pt', native: 'Português', arName: 'البرتغالية', enName: 'Portuguese' },
+      { code: 'it', native: 'Italiano', arName: 'الإيطالية', enName: 'Italian' },
+      { code: 'ja', native: '日本語', arName: 'اليابانية', enName: 'Japanese' },
+      { code: 'ko', native: '한국어', arName: 'الكورية', enName: 'Korean' },
+      { code: 'sw', native: 'Kiswahili', arName: 'السواحيلية', enName: 'Swahili' },
+      { code: 'bn', native: 'বাংলা', arName: 'البنغالية', enName: 'Bengali' },
+      { code: 'nl', native: 'Nederlands', arName: 'الهولندية', enName: 'Dutch' },
+      { code: 'pl', native: 'Polski', arName: 'البولندية', enName: 'Polish' },
+      { code: 'uk', native: 'Українська', arName: 'الأوكرانية', enName: 'Ukrainian' },
+      { code: 'vi', native: 'Tiếng Việt', arName: 'الفيتنامية', enName: 'Vietnamese' },
+      { code: 'th', native: 'ไทย', arName: 'التايلاندية', enName: 'Thai' },
+      { code: 'el', native: 'Ελληνικά', arName: 'اليونانية', enName: 'Greek' },
+      { code: 'sv', native: 'Svenska', arName: 'السويدية', enName: 'Swedish' },
+      { code: 'no', native: 'Norsk', arName: 'النرويجية', enName: 'Norwegian' },
+      { code: 'da', native: 'Dansk', arName: 'الدنماركية', enName: 'Danish' },
+      { code: 'fi', native: 'Suomi', arName: 'الفنلندية', enName: 'Finnish' },
+      { code: 'ro', native: 'Română', arName: 'الرومانية', enName: 'Romanian' },
+      { code: 'cs', native: 'Čeština', arName: 'التشيكية', enName: 'Czech' },
+      { code: 'hu', native: 'Magyar', arName: 'المجرية (الهنغارية)', enName: 'Hungarian' },
+      { code: 'bg', native: 'Български', arName: 'البلغارية', enName: 'Bulgarian' },
+      { code: 'sr', native: 'Српски', arName: 'الصربية', enName: 'Serbian' },
+      { code: 'hr', native: 'Hrvatski', arName: 'الكرواتية', enName: 'Croatian' },
+      { code: 'bs', native: 'Bosanski', arName: 'البوسنية', enName: 'Bosnian' },
+      { code: 'sq', native: 'Shqip', arName: 'الألبانية', enName: 'Albanian' },
+      { code: 'sk', native: 'Slovenčina', arName: 'السلوفاكية', enName: 'Slovak' },
+      { code: 'sl', native: 'Slovenščina', arName: 'السلوفينية', enName: 'Slovenian' },
+      { code: 'lt', native: 'Lietuvių', arName: 'الليتوانية', enName: 'Lithuanian' },
+      { code: 'lv', native: 'Latviešu', arName: 'اللاتفية', enName: 'Latvian' },
+      { code: 'et', native: 'Eesti', arName: 'الإستونية', enName: 'Estonian' },
+      { code: 'is', native: 'Íslenska', arName: 'الآيسلندية', enName: 'Icelandic' },
+      { code: 'ga', native: 'Gaeilge', arName: 'الأيرلندية', enName: 'Irish' },
+      { code: 'cy', native: 'Cymraeg', arName: 'الويلزية', enName: 'Welsh' },
+      { code: 'gd', native: 'Gàidhlig', arName: 'الاسكتلندية الغيلية', enName: 'Scots Gaelic' },
+      { code: 'mt', native: 'Malti', arName: 'المالطية', enName: 'Maltese' },
+      { code: 'ca', native: 'Català', arName: 'الكتالونية', enName: 'Catalan' },
+      { code: 'eu', native: 'Euskara', arName: 'الباسكية', enName: 'Basque' },
+      { code: 'gl', native: 'Galego', arName: 'الجاليكية', enName: 'Galician' },
+      { code: 'lb', native: 'Lëtzebuergesch', arName: 'اللوكسمبورغية', enName: 'Luxembourgish' },
+      { code: 'be', native: 'Беларуская', arName: 'البيلاروسية', enName: 'Belarusian' },
+      { code: 'mk', native: 'Македонски', arName: 'المقدونية', enName: 'Macedonian' },
+      { code: 'ka', native: 'ქართული', arName: 'الجورجية', enName: 'Georgian' },
+      { code: 'hy', native: 'Հայերեն', arName: 'الأرمنية', enName: 'Armenian' },
+      { code: 'az', native: 'Azərbaycan', arName: 'الأذربيجانية', enName: 'Azerbaijani' },
+      { code: 'kk', native: 'Қазақ тілі', arName: 'الكازاخية', enName: 'Kazakh' },
+      { code: 'uz', native: 'Oʻzbek', arName: 'الأوزبكية', enName: 'Uzbek' },
+      { code: 'tg', native: 'Тоҷикӣ', arName: 'الطاجيكية', enName: 'Tajik' },
+      { code: 'tk', native: 'Türkmençe', arName: 'التركمانية', enName: 'Turkmen' },
+      { code: 'ky', native: 'Кыргызча', arName: 'القيرغيزية', enName: 'Kyrgyz' },
+      { code: 'mn', native: 'Монгол', arName: 'المنغولية', enName: 'Mongolian' },
+      { code: 'ps', native: 'پښتو', arName: 'البشتوية', enName: 'Pashto', rtl: true },
+      { code: 'ku', native: 'Kurdî (Kurmanji)', arName: 'الكردية (الكرمانجية)', enName: 'Kurdish' },
+      { code: 'ckb', native: 'کوردیی سۆرانی', arName: 'الكردية (السورانية)', enName: 'Kurdish Sorani', rtl: true },
+      { code: 'sd', native: 'سنڌي', arName: 'السندية', enName: 'Sindhi', rtl: true },
+      { code: 'ug', native: 'ئۇيغۇرچە', arName: 'الأويغورية', enName: 'Uyghur', rtl: true },
+      { code: 'pa', native: 'ਪੰਜਾਬੀ', arName: 'البنجابية', enName: 'Punjabi' },
+      { code: 'ta', native: 'தமிழ்', arName: 'التاميلية', enName: 'Tamil' },
+      { code: 'te', native: 'తెలుగు', arName: 'التيلجو', enName: 'Telugu' },
+      { code: 'mr', native: 'मराठी', arName: 'الماراثية', enName: 'Marathi' },
+      { code: 'gu', native: 'ગુજરાતી', arName: 'الغوجاراتية', enName: 'Gujarati' },
+      { code: 'kn', native: 'ಕನ್ನಡ', arName: 'الكانادا', enName: 'Kannada' },
+      { code: 'ml', native: 'മലയാളം', arName: 'المالايالامية', enName: 'Malayalam' },
+      { code: 'si', native: 'සිංහල', arName: 'السنهالية', enName: 'Sinhala' },
+      { code: 'ne', native: 'नेपाली', arName: 'النيبالية', enName: 'Nepali' },
+      { code: 'or', native: 'ଓଡ଼ିଆ', arName: 'الأوديا', enName: 'Odia' },
+      { code: 'as', native: 'অসমীয়া', arName: 'الأسامية', enName: 'Assamese' },
+      { code: 'my', native: 'မြန်မာ', arName: 'البورمية', enName: 'Myanmar (Burmese)' },
+      { code: 'km', native: 'ខ្មែរ', arName: 'الخميرية (كمبوديا)', enName: 'Khmer' },
+      { code: 'lo', native: 'ລາວ', arName: 'اللاوية', enName: 'Lao' },
+      { code: 'tl', native: 'Filipino / Tagalog', arName: 'الفلبينية (التاغالوغية)', enName: 'Filipino' },
+      { code: 'jv', native: 'Basa Jawa', arName: 'الجاوية', enName: 'Javanese' },
+      { code: 'su', native: 'Basa Sunda', arName: 'السوندانية', enName: 'Sundanese' },
+      { code: 'ceb', native: 'Cebuano', arName: 'السيبوانية', enName: 'Cebuano' },
+      { code: 'am', native: 'አማርኛ', arName: 'الأمهرية (إثيوبيا)', enName: 'Amharic' },
+      { code: 'ti', native: 'ትግርኛ', arName: 'التيغرينية', enName: 'Tigrinya' },
+      { code: 'om', native: 'Afaan Oromoo', arName: 'الأورومو', enName: 'Oromo' },
+      { code: 'so', native: 'Soomaali', arName: 'الصومالية', enName: 'Somali' },
+      { code: 'ha', native: 'Hausa', arName: 'الهوسا', enName: 'Hausa' },
+      { code: 'yo', native: 'Yorùbá', arName: 'اليوروبا', enName: 'Yoruba' },
+      { code: 'ig', native: 'Igbo', arName: 'الإيغبو', enName: 'Igbo' },
+      { code: 'af', native: 'Afrikaans', arName: 'الأفريكانية', enName: 'Afrikaans' },
+      { code: 'zu', native: 'isiZulu', arName: 'الزولو', enName: 'Zulu' },
+      { code: 'xh', native: 'isiXhosa', arName: 'الخوسا', enName: 'Xhosa' },
+      { code: 'st', native: 'Sesotho', arName: 'السوتو', enName: 'Sesotho' },
+      { code: 'sn', native: 'ChiShona', arName: 'الشونا', enName: 'Shona' },
+      { code: 'ny', native: 'Chichewa', arName: 'التشيتشيوا', enName: 'Chichewa' },
+      { code: 'rw', native: 'Ikinyarwanda', arName: 'الكينيارواندا', enName: 'Kinyarwanda' },
+      { code: 'lg', native: 'Luganda', arName: 'اللوغندية', enName: 'Luganda' },
+      { code: 'mg', native: 'Malagasy', arName: 'المالاغاشية (مدغشقر)', enName: 'Malagasy' },
+      { code: 'bm', native: 'Bamanankan', arName: 'البامبارا', enName: 'Bambara' },
+      { code: 'ee', native: 'Eʋegbe', arName: 'الإيوي', enName: 'Ewe' },
+      { code: 'ak', native: 'Twi / Akan', arName: 'الأكان (توي)', enName: 'Twi' },
+      { code: 'ln', native: 'Lingála', arName: 'اللينغالا', enName: 'Lingala' },
+      { code: 'ht', native: 'Kreyòl Ayisyen', arName: 'الكريولية الهايتية', enName: 'Haitian Creole' },
+      { code: 'qu', native: 'Runasimi (Quechua)', arName: 'الكيتشوا', enName: 'Quechua' },
+      { code: 'gn', native: 'Avañeʼẽ (Guaraní)', arName: 'الغوارانية', enName: 'Guarani' },
+      { code: 'ay', native: 'Aymar aru', arName: 'الأيمارا', enName: 'Aymara' },
+      { code: 'mi', native: 'Te Reo Māori', arName: 'الماورية', enName: 'Maori' },
+      { code: 'sm', native: 'Gagana Sāmoa', arName: 'الساموية', enName: 'Samoan' },
+      { code: 'haw', native: 'ʻŌlelo Hawaiʻi', arName: 'الهاوايية', enName: 'Hawaiian' },
+      { code: 'eo', native: 'Esperanto', arName: 'الإسبرانتو', enName: 'Esperanto' },
+      { code: 'la', native: 'Latina', arName: 'اللاتينية', enName: 'Latin' },
+      { code: 'co', native: 'Corsu', arName: 'الكورسيكية', enName: 'Corsican' },
+      { code: 'fy', native: 'Frysk', arName: 'الفريزية', enName: 'Frisian' },
+      { code: 'tt', native: 'Татарча', arName: 'التترية', enName: 'Tatar' },
+      { code: 'dv', native: 'ދިވެހި', arName: 'المالديفية (ديفيهي)', enName: 'Dhivehi', rtl: true },
+      { code: 'yi', native: 'ייִדיש', arName: 'اليديشية', enName: 'Yiddish', rtl: true },
+      { code: 'he', native: 'עברית', arName: 'العبرية', enName: 'Hebrew', rtl: true }
+    ];
+
+    const USER_LANG_STORAGE_KEY = 'georadar_user_lang';
+    const USER_LANG_MODE_KEY = 'georadar_user_lang_mode'; // 'auto' | 'manual'
+    let currentActiveLangCode = 'ar';
+    let googleTranslateLoaded = false;
+
+    function detectPhoneLanguageCode() {
+      try {
+        const rawList = (navigator.languages && navigator.languages.length > 0)
+          ? navigator.languages
+          : [navigator.language || navigator.userLanguage || 'ar'];
+        for (const raw of rawList) {
+          if (!raw) continue;
+          const clean = String(raw).trim();
+          const exact = WORLD_LANGUAGES.find(l => l.code.toLowerCase() === clean.toLowerCase());
+          if (exact) return exact.code;
+          const base = clean.split('-')[0].split('_')[0].toLowerCase();
+          if (base === 'zh') {
+            return clean.toLowerCase().includes('tw') || clean.toLowerCase().includes('hk') ? 'zh-TW' : 'zh-CN';
+          }
+          const matched = WORLD_LANGUAGES.find(l => l.code.toLowerCase() === base);
+          if (matched) return matched.code;
+        }
+      } catch (e) {}
+      return 'ar';
+    }
+
+    function getLanguageMeta(code = 'ar') {
+      return WORLD_LANGUAGES.find(l => l.code.toLowerCase() === String(code || '').toLowerCase()) || WORLD_LANGUAGES[0];
+    }
+
+    // Core UI translations for immediate response before/alongside full DOM translation
+    const CORE_UI_TRANSLATIONS = {
+      ar: {
+        step1Badge: 'السماح بالموقع',
+        step2Badge: 'تسجيل الدخول',
+        detectedHintAuto: 'تم التعرف تلقائياً حسب لغة الهاتف:',
+        detectedHintManual: 'اللغة المختارة حالياً:',
+        changeLangBtn: 'تغيير اللغة',
+        geoHeader: 'واجهة السماح بالموقع الجغرافي',
+        enableGeoBtn: '📍 السماح بالموقع وفتح الرادار',
+        loginHeader: 'تسجيل الدخول',
+        registerHeader: 'إنشاء حساب جديد',
+        usernamePlaceholder: 'اسم المستخدم',
+        passwordPlaceholder: 'كلمة المرور'
+      },
+      en: {
+        step1Badge: 'Allow Location',
+        step2Badge: 'Sign In',
+        detectedHintAuto: 'Auto-detected from phone language:',
+        detectedHintManual: 'Selected language:',
+        changeLangBtn: 'Change Language',
+        geoHeader: 'Location Permission Portal',
+        enableGeoBtn: '📍 Allow Location & Open Radar',
+        loginHeader: 'Sign In',
+        registerHeader: 'Create New Account',
+        usernamePlaceholder: 'Username',
+        passwordPlaceholder: 'Password'
+      },
+      fr: {
+        step1Badge: 'Autoriser la position',
+        step2Badge: 'Connexion',
+        detectedHintAuto: 'Détecté selon la langue du téléphone :',
+        detectedHintManual: 'Langue sélectionnée :',
+        changeLangBtn: 'Changer de langue',
+        geoHeader: 'Autorisation de localisation GPS',
+        enableGeoBtn: '📍 Autoriser la position',
+        loginHeader: 'Connexion',
+        registerHeader: 'Créer un compte',
+        usernamePlaceholder: "Nom d'utilisateur",
+        passwordPlaceholder: 'Mot de passe'
+      },
+      es: {
+        step1Badge: 'Permitir ubicación',
+        step2Badge: 'Iniciar sesión',
+        detectedHintAuto: 'Detectado según el idioma del teléfono:',
+        detectedHintManual: 'Idioma seleccionado:',
+        changeLangBtn: 'Cambiar idioma',
+        geoHeader: 'Permiso de Ubicación Geográfica',
+        enableGeoBtn: '📍 Permitir ubicación y abrir radar',
+        loginHeader: 'Iniciar sesión',
+        registerHeader: 'Crear cuenta nueva',
+        usernamePlaceholder: 'Nombre de usuario',
+        passwordPlaceholder: 'Contraseña'
+      },
+      tr: {
+        step1Badge: 'Konuma İzin Ver',
+        step2Badge: 'Giriş Yap',
+        detectedHintAuto: 'Telefon diline göre algılandı:',
+        detectedHintManual: 'Seçilen dil:',
+        changeLangBtn: 'Dili Değiştir',
+        geoHeader: 'Konum İzni Ekranı',
+        enableGeoBtn: '📍 Konuma İzin Ver ve Radarı Aç',
+        loginHeader: 'Giriş Yap',
+        registerHeader: 'Yeni Hesap Oluştur',
+        usernamePlaceholder: 'Kullanıcı adı',
+        passwordPlaceholder: 'Şifre'
+      },
+      de: {
+        step1Badge: 'Standort erlauben',
+        step2Badge: 'Anmelden',
+        detectedHintAuto: 'Automatisch über Gerätesprache erkannt:',
+        detectedHintManual: 'Ausgewählte Sprache:',
+        changeLangBtn: 'Sprache ändern',
+        geoHeader: 'Standortfreigabe aktivieren',
+        enableGeoBtn: '📍 Standort erlauben & Radar öffnen',
+        loginHeader: 'Anmelden',
+        registerHeader: 'Neues Konto erstellen',
+        usernamePlaceholder: 'Benutzername',
+        passwordPlaceholder: 'Passwort'
+      },
+      ru: {
+        step1Badge: 'Разрешить геолокацию',
+        step2Badge: 'Вход',
+        detectedHintAuto: 'Определено по языку телефона:',
+        detectedHintManual: 'Выбранный язык:',
+        changeLangBtn: 'Изменить язык',
+        geoHeader: 'Разрешение доступа к геолокации',
+        enableGeoBtn: '📍 Разрешить геолокацию',
+        loginHeader: 'Вход в аккаунт',
+        registerHeader: 'Создать новый аккаунт',
+        usernamePlaceholder: 'Имя пользователя',
+        passwordPlaceholder: 'Пароль'
+      }
+    };
+
+    function populateSettingsQuickLangDropdown() {
+      const sel = document.getElementById('settingsQuickLangSelect');
+      if (!sel) return;
+      sel.innerHTML = WORLD_LANGUAGES.map(l =>
+        `<option value="${l.code}">${l.native} — ${l.arName} (${l.enName})</option>`
+      ).join('');
+      sel.value = currentActiveLangCode;
+    }
+
+    function renderWorldLanguageList(searchQuery = '') {
+      const grid = document.getElementById('worldLanguagesGridList');
+      if (!grid) return;
+      const q = String(searchQuery || '').trim().toLowerCase();
+      const filtered = q
+        ? WORLD_LANGUAGES.filter(l =>
+            l.native.toLowerCase().includes(q) ||
+            l.arName.toLowerCase().includes(q) ||
+            l.enName.toLowerCase().includes(q) ||
+            l.code.toLowerCase().includes(q)
+          )
+        : WORLD_LANGUAGES;
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-2 text-center py-6 text-xs text-slate-400">لا توجد لغة مطابقة للبحث</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(l => {
+        const isSelected = l.code.toLowerCase() === currentActiveLangCode.toLowerCase();
+        return `
+          <button
+            type="button"
+            onclick="applySelectedWorldLanguage('${l.code}', false); closeWorldLanguageModal();"
+            class="p-2.5 rounded-xl text-right flex items-center justify-between gap-2 cursor-pointer transition border ${
+              isSelected
+                ? 'bg-emerald-500/25 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                : 'bg-slate-900/90 hover:bg-slate-800 border-slate-800 hover:border-emerald-500/40 text-slate-200'
+            }"
+          >
+            <div class="min-w-0">
+              <div class="text-xs font-black ${isSelected ? 'text-emerald-300' : 'text-white'} truncate">${l.native}</div>
+              <div class="text-[10px] text-slate-400 truncate">${l.arName} • ${l.enName}</div>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-slate-950 text-[10px] font-num font-bold ${isSelected ? 'text-emerald-300 border border-emerald-400/50' : 'text-slate-400'}" dir="ltr">
+              ${isSelected ? '✓' : l.code.toUpperCase()}
+            </span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function openWorldLanguageModal() {
+      const modal = document.getElementById('worldLanguagePickerModal');
+      if (!modal) return;
+      const wasHidden = modal.classList.contains('hidden');
+      const phoneLang = getLanguageMeta(detectPhoneLanguageCode());
+      const phoneLbl = document.getElementById('modalDetectedPhoneLangName');
+      if (phoneLbl) phoneLbl.innerText = `${phoneLang.native} (${phoneLang.arName})`;
+      const searchIn = document.getElementById('worldLangSearchInput');
+      if (searchIn) searchIn.value = '';
+      renderWorldLanguageList('');
+      modal.classList.remove('hidden');
+      if (wasHidden && typeof pushAppHistoryStep === 'function') pushAppHistoryStep('language_modal');
+      lucide.createIcons();
+    }
+
+    function closeWorldLanguageModal() {
+      document.getElementById('worldLanguagePickerModal')?.classList.add('hidden');
+    }
+
+    function ensureGoogleTranslateScriptLoaded() {
+      if (googleTranslateLoaded) return;
+      googleTranslateLoaded = true;
+      window.googleTranslateElementInit = function () {
+        try {
+          new google.translate.TranslateElement({
+            pageLanguage: 'ar',
+            autoDisplay: false
+          }, 'google_translate_element');
+        } catch (e) {}
+      };
+      const s = document.createElement('script');
+      s.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
+      s.async = true;
+      document.head.appendChild(s);
+    }
+
+    function triggerGoogleTranslateLanguage(langCode) {
+      const target = String(langCode || 'ar').trim();
+      if (target === 'ar') {
+        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = `googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${location.hostname};`;
+        const combo = document.querySelector('.goog-te-combo');
+        if (combo && combo.value) {
+          combo.value = 'ar';
+          combo.dispatchEvent(new Event('change'));
+        }
+        return;
+      }
+
+      document.cookie = `googtrans=/ar/${target}; path=/;`;
+      document.cookie = `googtrans=/ar/${target}; path=/; domain=${location.hostname};`;
+      ensureGoogleTranslateScriptLoaded();
+
+      let attempts = 0;
+      const trySelect = () => {
+        attempts++;
+        const combo = document.querySelector('.goog-te-combo');
+        if (combo) {
+          if (combo.value !== target) {
+            combo.value = target;
+            combo.dispatchEvent(new Event('change'));
+          }
+        } else if (attempts < 25) {
+          setTimeout(trySelect, 250);
+        }
+      };
+      trySelect();
+    }
+
+    function applySelectedWorldLanguage(langCode = 'ar', isAutoDetected = false) {
+      const meta = getLanguageMeta(langCode);
+      currentActiveLangCode = meta.code;
+
+      localStorage.setItem(USER_LANG_STORAGE_KEY, meta.code);
+      localStorage.setItem(USER_LANG_MODE_KEY, isAutoDetected ? 'auto' : 'manual');
+
+      const dict = CORE_UI_TRANSLATIONS[meta.code] || CORE_UI_TRANSLATIONS[meta.code.split('-')[0]] || null;
+
+      // Update Gate Language Bar
+      const gateHint = document.getElementById('gateDetectedLangHint');
+      const gateDisp = document.getElementById('gateCurrentLangDisplay');
+      const gateBtnTxt = document.getElementById('gateChangeLangBtnText');
+      if (gateHint) {
+        gateHint.innerText = isAutoDetected
+          ? (dict ? dict.detectedHintAuto : 'تم التعرف تلقائياً حسب لغة الهاتف:')
+          : (dict ? dict.detectedHintManual : 'اللغة المختارة حالياً:');
+      }
+      if (gateDisp) {
+        gateDisp.innerText = `${meta.native} (${meta.arName})`;
+      }
+      if (gateBtnTxt && dict) {
+        gateBtnTxt.innerText = dict.changeLangBtn;
+      }
+
+      if (dict) {
+        const b1 = document.getElementById('i18n_step1Badge');
+        const b2 = document.getElementById('i18n_step2Badge');
+        if (b1) b1.innerText = dict.step1Badge;
+        if (b2) b2.innerText = dict.step2Badge;
+        const uIn = document.getElementById('visitorNameInput');
+        const pIn = document.getElementById('visitorPasswordInput');
+        if (uIn) uIn.placeholder = dict.usernamePlaceholder;
+        if (pIn) pIn.placeholder = dict.passwordPlaceholder;
+      }
+
+      const sel = document.getElementById('settingsQuickLangSelect');
+      if (sel && sel.value !== meta.code) sel.value = meta.code;
+
+      const noteEl = document.getElementById('settingsLangStatusNote');
+      if (noteEl) {
+        noteEl.innerText = isAutoDetected
+          ? `📱 تم الضبط تلقائياً حسب لغة الهاتف: ${meta.native} (${meta.arName})`
+          : `🌍 اللغة المختارة: ${meta.native} (${meta.arName})`;
+      }
+
+      triggerGoogleTranslateLanguage(meta.code);
+    }
+
+    function resetToPhoneDetectedLanguage() {
+      const detected = detectPhoneLanguageCode();
+      applySelectedWorldLanguage(detected, true);
+    }
+
+    function initWorldLanguageSystem() {
+      populateSettingsQuickLangDropdown();
+      const savedMode = localStorage.getItem(USER_LANG_MODE_KEY);
+      const savedLang = localStorage.getItem(USER_LANG_STORAGE_KEY);
+      if (savedMode === 'manual' && savedLang) {
+        applySelectedWorldLanguage(savedLang, false);
+      } else {
+        const phoneLang = detectPhoneLanguageCode();
+        applySelectedWorldLanguage(phoneLang, true);
+      }
+    }
+
     // Smart Step-Back & Double-Tap-to-Exit Navigation Handler
     let lastBackTapTime = 0;
     let backExitToastTimer = null;
@@ -2815,6 +3379,14 @@
 
       window.addEventListener('popstate', () => {
         if (allowRealAppExit) return;
+
+        // 0. If World Language Picker Modal is open -> close it (step back 1 step)
+        const langModal = document.getElementById('worldLanguagePickerModal');
+        if (langModal && !langModal.classList.contains('hidden')) {
+          closeWorldLanguageModal();
+          pushAppHistoryStep('root');
+          return;
+        }
 
         // 1. If User Settings Modal is open -> close it (step back 1 step)
         const settingsModal = document.getElementById('userSettingsModal');
@@ -2881,6 +3453,7 @@
       if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
+      initWorldLanguageSystem();
       detectUserDeviceProfile();
       initLeafletMap();
       loadExtractorUserPreferences();

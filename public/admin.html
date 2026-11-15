@@ -871,16 +871,26 @@
       return d;
     }
 
+    function isLoopbackAdminIp(ip = '') {
+      const s = String(ip || '').trim();
+      return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
+    }
+
     function mergeAndArchiveVisitors(list = []) {
       const map = new Map();
+      const firstRealIp = (list.find(x => x && !isLoopbackAdminIp(x.ip))?.ip) || '';
       const sorted = [...list].sort(
         (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
       );
       for (const item of sorted) {
         if (!item || !item.id) continue;
+        const resolvedIp = !isLoopbackAdminIp(item.ip) ? item.ip : (firstRealIp || item.ip);
         const cleanedItem = {
           ...item,
-          isp: cleanAdminIsp(item.isp, item.country, item.ip),
+          ip: resolvedIp,
+          localIp: item.localIp || '',
+          asn: item.asn || '',
+          isp: cleanAdminIsp(item.isp, item.country, resolvedIp),
           device: cleanAdminDevice(item.device)
         };
         const key = normVisitorKey(cleanedItem);
@@ -889,16 +899,27 @@
             ...cleanedItem,
             loginCount: cleanedItem.loginCount || 1,
             previousLogs: Array.isArray(cleanedItem.previousLogs)
-              ? cleanedItem.previousLogs.map(snap => ({
-                  ...snap,
-                  isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snap.ip || cleanedItem.ip),
-                  device: cleanAdminDevice(snap.device)
-                }))
+              ? cleanedItem.previousLogs.map(snap => {
+                  const snapIp = !isLoopbackAdminIp(snap.ip) ? snap.ip : resolvedIp;
+                  return {
+                    ...snap,
+                    ip: snapIp,
+                    localIp: snap.localIp || cleanedItem.localIp || '',
+                    isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snapIp),
+                    device: cleanAdminDevice(snap.device)
+                  };
+                })
               : [],
             sessionSearches: Array.isArray(cleanedItem.sessionSearches) ? [...cleanedItem.sessionSearches] : []
           });
         } else {
           const primary = map.get(key);
+          if (isLoopbackAdminIp(primary.ip) && !isLoopbackAdminIp(cleanedItem.ip)) {
+            primary.ip = cleanedItem.ip;
+          }
+          if (!primary.localIp && cleanedItem.localIp) {
+            primary.localIp = cleanedItem.localIp;
+          }
           if (primary.id !== cleanedItem.id) {
             primary.loginCount = (primary.loginCount || 1) + (cleanedItem.loginCount || 1);
             primary.previousLogs.push({
@@ -906,6 +927,7 @@
               previousLastSeen: cleanedItem.lastSeen || cleanedItem.firstSeen,
               visitorName: cleanedItem.visitorName,
               ip: cleanedItem.ip,
+              localIp: cleanedItem.localIp || '',
               city: cleanedItem.city,
               region: cleanedItem.region,
               locationName: cleanedItem.locationName,
@@ -918,9 +940,11 @@
           }
           if (Array.isArray(cleanedItem.previousLogs)) {
             for (const snap of cleanedItem.previousLogs) {
+              const snapIp = !isLoopbackAdminIp(snap.ip) ? snap.ip : resolvedIp;
               const cleanedSnap = {
                 ...snap,
-                isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snap.ip || cleanedItem.ip),
+                ip: snapIp,
+                isp: cleanAdminIsp(snap.isp, snap.country || cleanedItem.country, snapIp),
                 device: cleanAdminDevice(snap.device)
               };
               const dup = primary.previousLogs.some(p => p.previousLastSeen === cleanedSnap.previousLastSeen && p.lat === cleanedSnap.lat);
@@ -1242,7 +1266,14 @@
               </div>
               ${archiveHtml}
             </td>
-            <td class="p-3 font-num text-cyan-300">${v.ip}</td>
+            <td class="p-3 font-num text-cyan-300 space-y-1">
+              <div class="font-bold text-cyan-300 flex items-center gap-1" dir="ltr">
+                <span>${v.ip}</span>
+                <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold">IP حقيقي ✓</span>
+              </div>
+              ${v.localIp ? `<div class="text-[10px] text-amber-300" dir="ltr">LAN: ${v.localIp}</div>` : ''}
+              ${v.asn ? `<div class="text-[10px] text-slate-400" dir="ltr">${v.asn}</div>` : ''}
+            </td>
             <td class="p-3 text-emerald-400 font-bold">
               📍 ${v.city || 'صنعاء'} (الحالي)
               <span class="block text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</span>

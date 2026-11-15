@@ -1482,9 +1482,38 @@ function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
   return d;
 }
 
+// Extract authentic client IP from Cloudflare / Render / Reverse Proxy headers
+function extractRealClientIp(req) {
+  const candidates = [
+    req.headers['cf-connecting-ip'],
+    req.headers['true-client-ip'],
+    req.headers['x-real-ip'],
+    req.headers['x-client-ip'],
+    ...(req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',') : []),
+    req.socket?.remoteAddress
+  ];
+
+  for (const raw of candidates) {
+    if (!raw) continue;
+    const cleaned = String(raw).trim().replace(/^::ffff:/i, '');
+    if (cleaned && cleaned !== '::1' && cleaned !== '127.0.0.1' && cleaned !== '0.0.0.0') {
+      return cleaned;
+    }
+  }
+  return '127.0.0.1';
+}
+
+function isLoopbackIp(ip = '') {
+  const s = String(ip || '').trim();
+  return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
+}
+
 // Consolidate duplicate visitor entries (by same normalized Name/Phone or ID) and archive older snapshots inside `previousLogs`
-function consolidateVisitorsList(visitors = []) {
+function consolidateVisitorsList(visitors = [], fallbackRealIp = '') {
   const mapByKey = new Map();
+  // Find any known real public IP in the logs to heal legacy ::1 loopback entries
+  const firstKnownRealIp = fallbackRealIp || (visitors.find(v => v && !isLoopbackIp(v.ip))?.ip) || '';
+
   // Sort newest lastSeen first so the main record holds the latest state and older records become archived snapshots
   const sorted = [...visitors].sort(
     (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
@@ -1496,24 +1525,39 @@ function consolidateVisitorsList(visitors = []) {
     const nName = normAr(rawName);
     const isGeneric = !nName || nName === normAr('زائر غير مسمى') || nName === normAr('زائر مباشر') || nName === normAr('مستخدم التطبيق') || nName === normAr('زائر');
     const key = !isGeneric ? `name:${nName}` : `id:${item.id}`;
+    const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
 
     if (!mapByKey.has(key)) {
       mapByKey.set(key, {
         ...item,
-        isp: normalizeRealIspName(item.isp, item.country, item.ip),
+        ip: resolvedIp,
+        localIp: item.localIp || '',
+        asn: item.asn || '',
+        isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
         sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
         previousLogs: Array.isArray(item.previousLogs)
-          ? item.previousLogs.map(snap => ({
-              ...snap,
-              isp: normalizeRealIspName(snap.isp, snap.country || item.country, snap.ip || item.ip),
-              device: normalizeRealDeviceName(snap.device, item.userAgent)
-            }))
+          ? item.previousLogs.map(snap => {
+              const snapIp = !isLoopbackIp(snap.ip) ? snap.ip : resolvedIp;
+              return {
+                ...snap,
+                ip: snapIp,
+                localIp: snap.localIp || item.localIp || '',
+                isp: normalizeRealIspName(snap.isp, snap.country || item.country, snapIp),
+                device: normalizeRealDeviceName(snap.device, item.userAgent)
+              };
+            })
           : []
       });
     } else {
       const primary = mapByKey.get(key);
+      if (isLoopbackIp(primary.ip) && !isLoopbackIp(resolvedIp)) {
+        primary.ip = resolvedIp;
+      }
+      if (!primary.localIp && item.localIp) {
+        primary.localIp = item.localIp;
+      }
       primary.pageViews = (primary.pageViews || 1) + (item.pageViews || 1);
       primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
       primary.searchesCount = (primary.searchesCount || 0) + (item.searchesCount || 0);
@@ -1528,19 +1572,23 @@ function consolidateVisitorsList(visitors = []) {
         archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
         previousLastSeen: item.lastSeen || item.firstSeen,
         visitorName: item.visitorName,
-        ip: item.ip,
+        ip: resolvedIp,
+        localIp: item.localIp || '',
         city: item.city,
         region: item.region,
         locationName: item.locationName,
         lat: item.lat,
         lng: item.lng,
         locationSource: item.locationSource || 'GPS',
-        device: item.device
+        device: normalizeRealDeviceName(item.device, item.userAgent)
       });
 
       if (Array.isArray(item.previousLogs)) {
         for (const oldSnap of item.previousLogs) {
-          primary.previousLogs.push(oldSnap);
+          primary.previousLogs.push({
+            ...oldSnap,
+            ip: !isLoopbackIp(oldSnap.ip) ? oldSnap.ip : resolvedIp
+          });
         }
       }
 
@@ -1572,7 +1620,8 @@ async function recordVisitor(info) {
 
   const cleanInputName = String(info.visitorName || '').trim();
   const normInputName = normAr(cleanInputName);
-  const cleanIsp = normalizeRealIspName(info.isp, finalCountry, info.publicIp || info.ip);
+  const incomingRealIp = (!isLoopbackIp(info.publicIp) ? info.publicIp : (!isLoopbackIp(info.ip) ? info.ip : ''));
+  const cleanIsp = normalizeRealIspName(info.isp, finalCountry, incomingRealIp);
   const cleanDevice = normalizeRealDeviceName(info.device, info.userAgent);
 
   // Match existing visitor by visitorId OR by same normalized Name/Phone so we UPDATE the record instead of creating duplicates!
@@ -1592,7 +1641,8 @@ async function recordVisitor(info) {
       archivedAt: now,
       previousLastSeen: v.lastSeen || v.firstSeen || now,
       visitorName: v.visitorName,
-      ip: v.ip,
+      ip: !isLoopbackIp(v.ip) ? v.ip : (incomingRealIp || v.ip),
+      localIp: v.localIp || '',
       city: v.city,
       region: v.region,
       locationName: v.locationName,
@@ -1618,10 +1668,18 @@ async function recordVisitor(info) {
     if (cleanInputName && cleanInputName !== 'زائر غير مسمى') {
       v.visitorName = cleanInputName;
     }
-    if (info.publicIp) {
-      v.ip = info.publicIp;
-    } else if (info.ip && (!v.ip || v.ip === '::1' || v.ip === '127.0.0.1')) {
-      v.ip = info.ip;
+    // Always update with the latest real IP on every visit
+    if (incomingRealIp) {
+      v.ip = incomingRealIp;
+    }
+    if (info.localIp) {
+      v.localIp = info.localIp;
+    }
+    if (info.asn) {
+      v.asn = info.asn;
+    }
+    if (info.userAgent) {
+      v.userAgent = info.userAgent;
     }
 
     // Update coordinates if new info is from GPS or if previous wasn't GPS
@@ -1646,7 +1704,10 @@ async function recordVisitor(info) {
     v = {
       id: info.visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       visitorName: cleanInputName || 'زائر غير مسمى',
-      ip: info.publicIp || info.ip || '127.0.0.1',
+      ip: incomingRealIp || info.ip || '127.0.0.1',
+      localIp: info.localIp || '',
+      asn: info.asn || '',
+      userAgent: info.userAgent || '',
       country: finalCountry,
       city: finalCity,
       region: finalRegion,
@@ -1758,30 +1819,38 @@ const server = http.createServer(async (req, res) => {
 
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
-  const clientIp = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.socket.remoteAddress || '127.0.0.1';
+  const clientIp = extractRealClientIp(req);
 
   // Log visitor entry endpoint
   if (pathname === '/api/log-visit' && req.method === 'POST') {
     const data = await readRequestBody(req);
     data.userAgent = req.headers['user-agent'] || '';
-    const realClientIp = (data.publicIp && data.publicIp !== '::1' && data.publicIp !== '127.0.0.1')
-      ? data.publicIp
-      : (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1' ? clientIp : '');
+    const realClientIp = (!isLoopbackIp(data.publicIp))
+      ? String(data.publicIp).trim()
+      : (!isLoopbackIp(clientIp) ? clientIp : '');
     data.ip = realClientIp || clientIp;
 
     // Query ip-api specifically for the VISITOR'S IP (`/${realClientIp}`) so we NEVER get the Render/Amazon server's own ISP!
-    if (!data.isp || /Amazon|AWS|Cloudflare|Render|مزود الإنترنت/i.test(data.isp)) {
+    if (!data.isp || /Amazon|AWS|Cloudflare|Render|مزود الإنترنت/i.test(data.isp) || !realClientIp) {
       try {
         const targetIpSegment = realClientIp ? `/${encodeURIComponent(realClientIp)}` : '';
-        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${targetIpSegment}?fields=status,country,regionName,city,district,lat,lon,isp,org,query&lang=ar`, { timeout: 3500 });
+        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${targetIpSegment}?fields=status,country,regionName,city,district,lat,lon,isp,org,as,query&lang=ar`, { timeout: 3500 });
         if (ipRes.ok) {
           const ipJson = await ipRes.json();
           if (ipJson && ipJson.status === 'success') {
-            data.publicIp = ipJson.query || data.ip;
-            data.ip = data.publicIp;
+            if (!realClientIp && ipJson.query && !/Amazon|AWS|Cloudflare|Render/i.test(ipJson.isp || ipJson.org || '')) {
+              data.publicIp = ipJson.query;
+              data.ip = ipJson.query;
+            } else if (realClientIp) {
+              data.publicIp = realClientIp;
+              data.ip = realClientIp;
+            }
             const fetchedIsp = ipJson.isp || ipJson.org || '';
             if (fetchedIsp && !/Amazon|AWS|Cloudflare|Render/i.test(fetchedIsp)) {
               data.isp = fetchedIsp;
+            }
+            if (!data.asn && ipJson.as) {
+              data.asn = String(ipJson.as).split(' ')[0];
             }
             data.country = data.country || ipJson.country;
             data.city = data.city || ipJson.city;
@@ -1868,8 +1937,16 @@ const server = http.createServer(async (req, res) => {
   // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently, consolidated with archived history & normalized ISP/Device)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
-    const consolidated = consolidateVisitorsList(logs.visitors || []);
+    const fallbackIp = !isLoopbackIp(clientIp) ? clientIp : '';
+    const consolidated = consolidateVisitorsList(logs.visitors || [], fallbackIp);
     logs.visitors = consolidated;
+    const knownRealIp = fallbackIp || (consolidated.find(v => !isLoopbackIp(v.ip))?.ip) || '';
+    if (knownRealIp && Array.isArray(logs.searches)) {
+      logs.searches = logs.searches.map(s => ({
+        ...s,
+        ip: !isLoopbackIp(s.ip) ? s.ip : knownRealIp
+      }));
+    }
     saveAdminLogs(logs);
     const totalVisitors = logs.visitors.length;
     const totalSearches = logs.searches.length;

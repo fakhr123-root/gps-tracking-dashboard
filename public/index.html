@@ -800,6 +800,11 @@
     </button>
   </nav>
 
+  <!-- Double-Tap to Exit Toast Notification -->
+  <div id="backExitToast" class="hidden fixed bottom-16 left-1/2 -translate-x-1/2 z-[9999] px-4 py-2 rounded-full bg-slate-900/95 border border-emerald-400/60 text-emerald-300 text-xs font-extrabold shadow-[0_10px_30px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap">
+    اضغط رجوع مرة أخرى للخروج من التطبيق
+  </div>
+
   <script>
     lucide.createIcons();
 
@@ -1405,8 +1410,10 @@
     function showMobileMapPanel() {
       const panel = document.getElementById('visualizerPanel');
       if (panel) {
+        const wasHidden = panel.classList.contains('hidden');
         panel.classList.remove('hidden');
         panel.classList.add('flex');
+        if (wasHidden && typeof pushAppHistoryStep === 'function') pushAppHistoryStep('map');
       }
     }
 
@@ -2623,7 +2630,12 @@
       const passIn = document.getElementById('settingsNewPasswordInput');
       const session = getSavedVisitorSession();
       if (passIn) passIn.value = session.accountPassword || '';
-      document.getElementById('userSettingsModal')?.classList.remove('hidden');
+      const modal = document.getElementById('userSettingsModal');
+      if (modal) {
+        const wasHidden = modal.classList.contains('hidden');
+        modal.classList.remove('hidden');
+        if (wasHidden && typeof pushAppHistoryStep === 'function') pushAppHistoryStep('settings');
+      }
       lucide.createIcons();
     }
 
@@ -2803,6 +2815,88 @@
       } catch (e) {}
     }
 
+    // Smart Step-Back & Double-Tap-to-Exit Navigation Handler
+    let lastBackTapTime = 0;
+    let backExitToastTimer = null;
+    let allowRealAppExit = false;
+
+    function pushAppHistoryStep(stepName = 'step') {
+      try {
+        history.pushState({ appGuard: true, step: stepName, ts: Date.now() }, '', location.href);
+      } catch (e) {}
+    }
+
+    function showBackExitToast() {
+      const toast = document.getElementById('backExitToast');
+      if (!toast) return;
+      toast.classList.remove('hidden');
+      if (backExitToastTimer) clearTimeout(backExitToastTimer);
+      backExitToastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 2200);
+    }
+
+    function initSmartBackAndDoubleTapExit() {
+      // Seed history state so the first hardware/browser Back button triggers popstate instead of leaving the app
+      pushAppHistoryStep('root');
+
+      window.addEventListener('popstate', () => {
+        if (allowRealAppExit) return;
+
+        // 1. If User Settings Modal is open -> close it (step back 1 step)
+        const settingsModal = document.getElementById('userSettingsModal');
+        if (settingsModal && !settingsModal.classList.contains('hidden')) {
+          closeUserSettingsModal();
+          pushAppHistoryStep('root');
+          return;
+        }
+
+        // 2. If Map / Circle Drawing Panel is open -> close it and return to search/results
+        const mapPanel = document.getElementById('visualizerPanel');
+        if (mapPanel && !mapPanel.classList.contains('hidden')) {
+          hideMobileMapPanel();
+          pushAppHistoryStep('root');
+          return;
+        }
+
+        // 3. If Table View is active -> step back to Cards View
+        if (isTableView) {
+          toggleResultsViewMode();
+          pushAppHistoryStep('root');
+          return;
+        }
+
+        // 4. If Visitor Gate Modal is open on Step 2 (Login) -> step back to Step 1 (Location)
+        const gateModal = document.getElementById('visitorGateModal');
+        const step2Login = document.getElementById('gateStep2Login');
+        const step1Loc = document.getElementById('gateStep1Location');
+        if (gateModal && !gateModal.classList.contains('hidden') && step2Login && !step2Login.classList.contains('hidden')) {
+          step2Login.classList.add('hidden');
+          step1Loc?.classList.remove('hidden');
+          pushAppHistoryStep('root');
+          return;
+        }
+
+        // 5. If user scrolled deep down into results -> step back smoothly to top search bar
+        if (window.scrollY > 220) {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+          pushAppHistoryStep('root');
+          return;
+        }
+
+        // 6. At the main root screen: require 2 consecutive back presses within 2.2 seconds to exit
+        const now = Date.now();
+        if (now - lastBackTapTime < 2200) {
+          allowRealAppExit = true;
+          history.back();
+        } else {
+          lastBackTapTime = now;
+          showBackExitToast();
+          pushAppHistoryStep('root');
+        }
+      });
+    }
+
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
     });
@@ -2818,6 +2912,7 @@
       initLeafletMap();
       loadExtractorUserPreferences();
       initOptionalGeolocationCheck();
+      initSmartBackAndDoubleTapExit();
       lucide.createIcons();
     });
   </script>

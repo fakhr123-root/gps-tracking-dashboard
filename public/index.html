@@ -352,8 +352,12 @@
         </div>
       </div>
 
-      <!-- Left: Circular Icon Buttons matching Screenshot 1 (Official App Mode - No Web Link Install Buttons) -->
-      <div class="flex items-center gap-2.5">
+      <!-- Left: Device Auto-Detection Badge + Circular Icon Buttons -->
+      <div class="flex items-center gap-2">
+        <div id="deviceModeBadge" class="px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 shadow-sm">
+          <i id="deviceModeIcon" data-lucide="laptop" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span id="deviceModeText">واجهة اللابتوب</span>
+        </div>
         <button type="button" onclick="centerMapOnUserGps()" title="تحديد موقعي على الرادار" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition cursor-pointer">
           <i data-lucide="locate-fixed" class="w-4 h-4"></i>
         </button>
@@ -431,34 +435,35 @@
       <!-- RIGHT SIDE (7 Cols on Desktop): Search Bar, Category Pills, Filter Pills, 3-Column Bento Grid -->
       <div class="lg:col-span-7 lg:border-l lg:border-slate-800/80 lg:pl-6 flex flex-col gap-3.5 order-1">
 
-        <!-- 1. Sleek Capsule Search Bar (Matching Screenshot 1!) -->
+        <!-- 1. Clear & Simple Search Bar -->
         <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-2.5">
-          <div class="flex items-center justify-between bg-[#111927]/95 border border-slate-700/80 focus-within:border-emerald-400 rounded-full px-4 py-2.5 shadow-inner transition">
-            <div class="flex items-center gap-2.5 flex-1">
-              <i data-lucide="search" class="w-4 h-4 text-slate-400 shrink-0"></i>
+          <div class="flex items-center justify-between bg-[#111927]/95 border border-slate-700/80 focus-within:border-emerald-400 rounded-full px-4 py-2.5 shadow-inner transition gap-2">
+            <div class="flex items-center gap-2.5 flex-1 min-w-0">
+              <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
               <input
                 type="text"
                 id="queryInput"
-                placeholder="البحث"
+                placeholder="اكتب ما تريد البحث عنه (مثال: صيدليات، مطاعم، شركات...) أو اختر من الأسفل"
                 class="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
               />
             </div>
 
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 shrink-0">
               <input
                 type="text"
                 id="locationInput"
                 value="صنعاء"
                 placeholder="المدينة"
-                class="w-20 bg-slate-900/90 text-center text-xs font-bold text-emerald-300 rounded-full py-1 px-2 border border-slate-700/80 focus:outline-none focus:border-emerald-400"
+                class="w-24 bg-slate-900/90 text-center text-xs font-bold text-emerald-300 rounded-full py-1.5 px-2.5 border border-slate-700/80 focus:outline-none focus:border-emerald-400"
               />
               <button
                 type="submit"
                 id="searchBtn"
-                class="w-8 h-8 rounded-full bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-300 flex items-center justify-center transition cursor-pointer"
+                class="px-4 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.35)]"
                 title="بدء البحث"
               >
-                <i data-lucide="search" class="w-4 h-4"></i>
+                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                <span>بحث</span>
               </button>
             </div>
           </div>
@@ -498,48 +503,57 @@
           </div>
         </form>
 
-        <!-- 2. Category Pills Row (Matching Screenshot 1!) -->
-        <div class="flex flex-wrap items-center gap-2">
-          <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill active px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>شركات</span>
-          </button>
-          <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>صيدليات</span>
-          </button>
-          <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <span>صرافة</span>
-          </button>
-          <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <span>بنوك</span>
-          </button>
-          <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <span>مطاعم</span>
-          </button>
-          <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-            <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span>فنادق</span>
-          </button>
+        <!-- 2. Optional Category Pills Row (Unselected by default - User clicks optionally to select or unselect) -->
+        <div class="bg-slate-900/55 border border-slate-800/80 rounded-2xl p-3 space-y-2">
+          <div class="flex items-center justify-between text-[11px] text-slate-300">
+            <span class="font-bold flex items-center gap-1.5">
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>اختيار سريع للنشاط (اختياري — اضغط للاختيار أو الإلغاء):</span>
+            </span>
+            <button type="button" onclick="clearCategoryAndFilters()" class="text-[11px] text-slate-400 hover:text-emerald-300 font-bold cursor-pointer">إعادة ضبط الفلاتر ↺</button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>شركات</span>
+            </button>
+            <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>صيدليات</span>
+            </button>
+            <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <span>صرافة</span>
+            </button>
+            <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <span>بنوك</span>
+            </button>
+            <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <span>مطاعم</span>
+            </button>
+            <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
+              <span>فنادق</span>
+            </button>
+          </div>
         </div>
 
-        <!-- 3. Smart Filter Pills + Area Selection Tools (Full City | Draw Circle | Export Excel) -->
-        <div class="flex flex-wrap items-center justify-between gap-2">
+        <!-- 3. Clear & Optional Area / Filter Controls + Excel Export -->
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-2.5">
           <div class="flex flex-wrap items-center gap-1.5">
-            <button type="button" id="pill_all" onclick="setSmartFilter('all')" class="smart-pill active px-3.5 py-1.5 rounded-full text-xs cursor-pointer">
-              الكل
+            <span class="text-[11px] text-slate-400 font-bold ml-1">تصفية اختيارية:</span>
+            <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن التي يتوفر لها رقم هاتف فقط (اضغط للتفعيل أو الإلغاء)">
+              <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>فقط التي لها رقم هاتف</span>
             </button>
-            <button type="button" id="pill_phone" onclick="setSmartFilter('phone')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer">
-              مع هاتف
+            <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن المفتوحة حالياً فقط (اضغط للتفعيل أو الإلغاء)">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>المفتوحة الآن</span>
             </button>
-            <button type="button" id="pill_open" onclick="setSmartFilter('open')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold cursor-pointer">
-              مفتوح الآن
-            </button>
-            <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="px-3.5 py-1.5 rounded-full bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
+            <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="px-3.5 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
               <i data-lucide="globe-2" class="w-3.5 h-3.5"></i>
-              <span>المدينة كاملة</span>
+              <span>بحث في المدينة كاملة</span>
             </button>
-            <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="px-3.5 py-1.5 rounded-full bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/60 text-cyan-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+            <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="px-3.5 py-1.5 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/60 text-cyan-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
               <i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>
               <span>رسم دائرة لتحديد منطقة</span>
             </button>
@@ -548,10 +562,10 @@
           <div class="flex items-center gap-1.5">
             <button type="button" onclick="exportToExcel()" class="px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
               <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-              <span>Excel + الإحداثيات</span>
+              <span>تنزيل Excel + الإحداثيات</span>
             </button>
             <button type="button" onclick="toggleAdvancedDrawer()" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <span>خيارات</span>
+              <span>تحديد حي / خيارات</span>
               <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
             </button>
           </div>
@@ -581,20 +595,28 @@
           </div>
         </div>
 
-        <!-- Slim Progress Indicator -->
-        <div id="progressContainer" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-full px-4 py-1.5">
-          <div class="flex items-center justify-between text-[11px]">
-            <span id="statusMessage" class="text-emerald-300 font-bold truncate">جارٍ سحب البيانات من خرائط جوجل...</span>
-            <span id="progressRatio" class="text-white font-num font-bold">0 / 0</span>
+        <!-- Slim Progress Indicator (No overlapping text!) -->
+        <div id="progressContainer" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-2xl px-4 py-2">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[180px] truncate">جارٍ سحب البيانات من خرائط جوجل...</span>
+            <span id="progressRatio" class="text-white font-num font-bold shrink-0 bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 rounded-full">0 نتيجة</span>
           </div>
-          <div class="w-full bg-slate-950 h-1 rounded-full overflow-hidden mt-1">
+          <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-1.5">
             <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
           </div>
         </div>
 
-        <!-- 4. 3-Column Bento Cards Grid (100% Matching Screenshot 1!) -->
+        <!-- 4. 3-Column Bento Cards Grid (Shows clear welcome guidance until user searches or selects a category!) -->
         <div id="bentoCardsWrapper" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 max-h-[540px] overflow-y-auto pr-1 pt-1">
-          <!-- Cards populated here -->
+          <div class="col-span-full studio-card p-6 rounded-2xl text-center space-y-3 border border-emerald-500/30">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 flex items-center justify-center mx-auto text-emerald-300">
+              <i data-lucide="compass" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-base font-black text-white">مرحباً بك في مستخرج خرائط جوجل والرادار الحي</h3>
+            <p class="text-xs text-slate-300 max-w-lg mx-auto leading-relaxed">
+              اكتب النشاط التجاري في مربع البحث بالأعلى أو اختر أي تصنيف اختياري (<strong class="text-emerald-300">شركات، صيدليات، صرافة، بنوك، مطاعم، فنادق</strong>)، أو اضغط على <strong class="text-cyan-300">رسم دائرة لتحديد منطقة</strong> على الخريطة لاستخراج كافة البيانات والإحداثيات وتصديرها إلى Excel.
+            </p>
+          </div>
         </div>
 
         <!-- Optional Table View -->
@@ -762,8 +784,47 @@
     let currentEventSource = null;
     let selectedRadius = 35;
     let viewMode = '3d';
-    let currentSmartFilter = 'all';
+    let filterOnlyPhone = false;
+    let filterOnlyOpen = false;
     let isTableView = false;
+
+    // Auto-detect Mobile Phone vs Laptop/Desktop & adapt UI + telemetry
+    function detectUserDeviceProfile() {
+      const ua = navigator.userAgent || '';
+      const isMobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+      const isSmallScreen = window.innerWidth <= 768;
+      const isMobile = isMobileUa || isSmallScreen;
+
+      let osName = 'كمبيوتر / لابتوب';
+      if (/Android/i.test(ua)) osName = 'هاتف أندرويد (Android)';
+      else if (/iPhone|iPad|iPod/i.test(ua)) osName = 'هاتف آيفون (iPhone/iOS)';
+      else if (/Win/i.test(ua)) osName = 'لابتوب / كمبيوتر (Windows)';
+      else if (/Mac/i.test(ua)) osName = 'لابتوب (MacBook)';
+      else if (/Linux/i.test(ua)) osName = 'لابتوب (Linux)';
+
+      document.body.classList.toggle('device-mobile', isMobile);
+      document.body.classList.toggle('device-desktop', !isMobile);
+
+      const badgeTxt = document.getElementById('deviceModeText');
+      const badgeIcon = document.getElementById('deviceModeIcon');
+      if (badgeTxt) {
+        badgeTxt.innerText = isMobile ? `📱 ${osName}` : `💻 ${osName}`;
+      }
+      if (badgeIcon) {
+        badgeIcon.setAttribute('data-lucide', isMobile ? 'smartphone' : 'laptop');
+      }
+
+      const screenRes = `${window.screen.width}x${window.screen.height}`;
+      return {
+        isMobile,
+        osName,
+        deviceLabel: `${isMobile ? 'هاتف محمول' : 'لابتوب / كمبيوتر'} (${osName} - ${screenRes})`
+      };
+    }
+
+    window.addEventListener('resize', () => {
+      detectUserDeviceProfile();
+    });
 
     // Interactive Drawn Circle State
     let isDrawingCircleMode = false;
@@ -798,11 +859,30 @@
     }
 
     function triggerCategorySearch(category, btnEl) {
+      const isAlreadyActive = btnEl && btnEl.classList.contains('active');
       document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
-      if (btnEl) btnEl.classList.add('active');
       const q = document.getElementById('queryInput');
+
+      if (isAlreadyActive) {
+        // Optional toggle-off: clicking an already active category unselects it!
+        if (q) q.value = '';
+        return;
+      }
+
+      if (btnEl) btnEl.classList.add('active');
       if (q) q.value = category;
       handleSearch(new Event('submit'));
+    }
+
+    function clearCategoryAndFilters() {
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      filterOnlyPhone = false;
+      filterOnlyOpen = false;
+      document.getElementById('pill_phone')?.classList.remove('active');
+      document.getElementById('pill_open')?.classList.remove('active');
+      const q = document.getElementById('queryInput');
+      if (q) q.value = '';
+      applyResultsFilter();
     }
 
     function toggleResultsViewMode() {
@@ -1253,15 +1333,14 @@
       }
     }
 
-    function setSmartFilter(filterType) {
-      currentSmartFilter = filterType;
-      ['all', 'phone', 'open'].forEach(k => {
-        const el = document.getElementById(`pill_${k}`);
-        if (el) {
-          if (k === filterType) el.classList.add('active');
-          else el.classList.remove('active');
-        }
-      });
+    function toggleOptionalFilter(filterType) {
+      if (filterType === 'phone') {
+        filterOnlyPhone = !filterOnlyPhone;
+        document.getElementById('pill_phone')?.classList.toggle('active', filterOnlyPhone);
+      } else if (filterType === 'open') {
+        filterOnlyOpen = !filterOnlyOpen;
+        document.getElementById('pill_open')?.classList.toggle('active', filterOnlyOpen);
+      }
       applyResultsFilter();
     }
 
@@ -1271,8 +1350,8 @@
         const isOpen = p.isOpenNow !== false;
 
         let matchesSmart = true;
-        if (currentSmartFilter === 'phone') matchesSmart = hasPhone;
-        else if (currentSmartFilter === 'open') matchesSmart = isOpen;
+        if (filterOnlyPhone && !hasPhone) matchesSmart = false;
+        if (filterOnlyOpen && !isOpen) matchesSmart = false;
 
         const rowEl = document.getElementById(`row_${p.id}`);
         if (rowEl) rowEl.style.display = matchesSmart ? '' : 'none';
@@ -1300,10 +1379,20 @@
         currentEventSource.close();
       }
 
-      const query = document.getElementById('queryInput').value.trim() || 'شركات';
+      const query = document.getElementById('queryInput').value.trim();
       const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
       const neighborhood = document.getElementById('neighborhoodInput')?.value.trim() || '';
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
+
+      // Sync category pills highlight with what is typed in queryInput (or unselect all if custom)
+      document.querySelectorAll('.cat-pill').forEach(b => {
+        const txt = b.innerText.trim();
+        if (query && (txt === query || (txt === 'صرافة' && query === 'شركات الصرافة'))) {
+          b.classList.add('active');
+        } else {
+          b.classList.remove('active');
+        }
+      });
 
       const progressContainer = document.getElementById('progressContainer');
       const progressBar = document.getElementById('progressBar');
@@ -1658,9 +1747,8 @@
       const session = getSavedVisitorSession();
       if (!session.hasSession || !cachedOptionalGps) return;
 
-      const platform = navigator.platform || 'Desktop';
-      const screenRes = `${window.screen.width}x${window.screen.height}`;
-      const deviceStr = `${platform} - (${screenRes})`;
+      const devProfile = detectUserDeviceProfile();
+      const deviceStr = devProfile.deviceLabel;
 
       const geoInfo = {
         publicIp: '',
@@ -1800,9 +1888,8 @@
       }
       localStorage.setItem('gmaps_visitor_name', visitorName);
 
-      const platform = navigator.platform || 'Desktop';
-      const screenRes = `${window.screen.width}x${window.screen.height}`;
-      const deviceStr = `${platform} - (${screenRes})`;
+      const devProfile = detectUserDeviceProfile();
+      const deviceStr = devProfile.deviceLabel;
 
       let geoInfo = {
         publicIp: '',
@@ -1993,14 +2080,12 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
       }
+      detectUserDeviceProfile();
       init3D();
       initLeafletMap();
       loadExtractorUserPreferences();
       initOptionalGeolocationCheck();
       lucide.createIcons();
-      // Immediately populate the 3-column Bento grid with real Google Maps businesses so it looks 100% like Screenshot 1!
-      document.getElementById('queryInput').value = 'شركات';
-      handleSearch(new Event('submit'));
     });
   </script>
 </body>

@@ -412,12 +412,16 @@
           <span class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 text-[10px] font-bold">متصل ✓</span>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 pt-1">
-          <button type="button" onclick="closeUserSettingsModal(); switchToAnotherAccount();" class="py-2 px-2.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition">
+        <div class="grid grid-cols-3 gap-1.5 pt-1">
+          <button type="button" onclick="handleUserLogoutAccount()" class="py-2 px-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/45 text-amber-200 text-[11px] font-extrabold flex items-center justify-center gap-1 cursor-pointer transition">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            <span>تسجيل الخروج</span>
+          </button>
+          <button type="button" onclick="closeUserSettingsModal(); switchToAnotherAccount();" class="py-2 px-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 text-[11px] font-extrabold flex items-center justify-center gap-1 cursor-pointer transition">
             <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
             <span>تغيير الحساب</span>
           </button>
-          <button type="button" onclick="handleUserDeleteAccount()" class="py-2 px-2.5 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-[11px] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer transition">
+          <button type="button" onclick="handleUserDeleteAccount()" class="py-2 px-2 rounded-xl bg-red-500/15 hover:bg-red-500/30 border border-red-500/40 text-red-300 text-[11px] font-extrabold flex items-center justify-center gap-1 cursor-pointer transition">
             <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
             <span>حذف الحساب</span>
           </button>
@@ -2837,6 +2841,11 @@
       }
     }
 
+    function handleUserLogoutAccount() {
+      closeUserSettingsModal();
+      switchToAnotherAccount();
+    }
+
     async function handleUserDeleteAccount() {
       const session = getSavedVisitorSession();
       const displayUser = session.visitorName ? `@${session.visitorName}` : 'حسابك الحالي';
@@ -2897,9 +2906,10 @@
           if (pc) pc.value = prefs.city;
         }
         if (prefs.view) {
+          const validView = prefs.view === 'hybrid' ? 'hybrid' : 'streets';
           const pv = document.getElementById('prefDefaultView');
-          if (pv) pv.value = prefs.view;
-          if (prefs.view === 'hybrid') setViewMode('map', 'hybrid');
+          if (pv) pv.value = validView;
+          if (validView === 'hybrid') setViewMode('map', 'hybrid');
           else setViewMode('map', 'streets');
         }
         if (prefs.phoneFilter) {

@@ -466,15 +466,15 @@
           <div id="mobileSearchesCards" class="flex-col gap-3"></div>
         </section>
 
-        <!-- TAB 3: VISITORS & DEVICES PERMANENT ARCHIVE -->
+        <!-- TAB 3: VISITORS & DEVICES PERMANENT ARCHIVE + USERNAME SEARCH & INSPECTOR -->
         <section id="section_visitors" class="hidden space-y-4">
           <div class="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-3 bg-slate-900/80 p-4 rounded-2xl border border-slate-800">
             <div>
               <h3 class="text-base font-black text-white flex items-center gap-2">
                 <i data-lucide="users" class="w-5 h-5 text-cyan-400"></i>
-                <span>سجل الزوار والأجهزة الدائم</span>
+                <span>سجل اليوزرات المسجلة والزوار والأجهزة الدائم</span>
               </h3>
-              <p class="text-xs text-slate-400">اضغط على "فحص بالرادار" لأي زائر لعرض موقعه، أو استخدم أزرار الحذف لإدارة السجلات</p>
+              <p class="text-xs text-slate-400">يتم حفظ كل يوزر جديد مع رمزه بدون تكرار — ابحث بأي يوزر بالأسفل لمعرفة من أين سجل دخول وكل شيء عنه</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
               <button onclick="deleteVisitors('selected')" class="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer">
@@ -491,9 +491,62 @@
               </button>
               <button onclick="exportVisitorsExcel()" class="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white flex items-center gap-1.5 transition cursor-pointer">
                 <i data-lucide="download" class="w-3.5 h-3.5"></i>
-                <span>تصدير الزوار Excel</span>
+                <span>تصدير اليوزرات Excel</span>
               </button>
             </div>
+          </div>
+
+          <!-- ==================== USERNAME SEARCH & FULL USER INTELLIGENCE DOSSIER ==================== -->
+          <div class="p-4 rounded-2xl bg-slate-900/90 border border-fuchsia-500/35 space-y-3 shadow-[0_0_25px_rgba(217,70,239,0.08)]">
+            <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              <div class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/40 flex items-center justify-center text-fuchsia-300 shrink-0">
+                  <i data-lucide="at-sign" class="w-5 h-5"></i>
+                </div>
+                <div>
+                  <h4 class="text-sm font-black text-white flex items-center gap-2">
+                    <span>البحث باليوزر وكشف كامل بيانات الحساب (@username)</span>
+                    <span id="uniqueUsernamesCountBadge" class="px-2 py-0.5 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/40 text-fuchsia-300 text-[10px] font-num">0 يوزر مسجل</span>
+                  </h4>
+                  <p class="text-[11px] text-slate-400">ابحث باسم اليوزر أو اضغط على أي يوزر محفوظ بالأسفل لعرض من أين سجل دخول، رمزه، أجهزته، وعمليات بحثه</p>
+                </div>
+              </div>
+
+              <!-- Search Input Box -->
+              <div class="flex items-center gap-2 min-w-[280px] sm:min-w-[360px]">
+                <div class="relative flex-1">
+                  <i data-lucide="search" class="w-4 h-4 text-fuchsia-400 absolute right-3 top-2.5"></i>
+                  <input
+                    type="text"
+                    id="adminUsernameSearchInput"
+                    oninput="handleAdminUsernameSearch(this.value)"
+                    placeholder="ابحث باليوزر (@username) أو الـ IP أو الهاتف..."
+                    class="w-full bg-slate-950 text-xs rounded-xl pr-9 pl-3 py-2.5 border border-fuchsia-500/40 focus:border-fuchsia-400 text-white placeholder-slate-500 focus:outline-none font-bold"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onclick="clearAdminUsernameSearch()"
+                  class="px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer shrink-0"
+                >
+                  عرض الكل
+                </button>
+              </div>
+            </div>
+
+            <!-- Saved Unique Usernames Quick Chips -->
+            <div class="pt-1 border-t border-slate-800/80">
+              <div class="text-[11px] text-slate-400 font-bold mb-1.5 flex items-center gap-1.5">
+                <i data-lucide="bookmark-check" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>اليوزرات المسجلة المحفوظة (اضغط على أي يوزر لعرض ملفه الكامل):</span>
+              </div>
+              <div id="savedUsernamesQuickList" class="flex flex-wrap items-center gap-1.5">
+                <span class="text-[11px] text-slate-500">لا توجد يوزرات مسجلة بعد</span>
+              </div>
+            </div>
+
+            <!-- Full Intelligence Dossier for Selected/Searched Username -->
+            <div id="usernameFullDossierPanel" class="hidden pt-3 border-t border-fuchsia-500/30"></div>
           </div>
 
           <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/80">
@@ -1383,16 +1436,284 @@
       }
     }
 
-    function renderVisitors(visitors = [], allSearches = []) {
-      const tbody = document.getElementById('visitorsTableBody');
-      const mobileCards = document.getElementById('mobileVisitorsCards');
-      if (visitors.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد عمليات تسجيل دخول بعد</td></tr>`;
-        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد عمليات تسجيل دخول بعد</div>`;
+    let currentAdminUsernameQuery = '';
+    let selectedDossierVisitorId = '';
+
+    function handleAdminUsernameSearch(rawVal = '') {
+      currentAdminUsernameQuery = String(rawVal || '').trim().toLowerCase().replace(/^@+/, '');
+      const allVisitors = currentAdminData.visitors || [];
+      const allSearches = currentAdminData.searches || [];
+      if (currentAdminUsernameQuery) {
+        const matched = allVisitors.find(v => {
+          const u = String(v.username || v.visitorName || '').toLowerCase().replace(/^@+/, '');
+          const ip = String(v.ip || '').toLowerCase();
+          const dev = String(v.device || '').toLowerCase();
+          const city = String(v.city || '').toLowerCase();
+          return u.includes(currentAdminUsernameQuery) || ip.includes(currentAdminUsernameQuery) || dev.includes(currentAdminUsernameQuery) || city.includes(currentAdminUsernameQuery);
+        });
+        selectedDossierVisitorId = matched ? matched.id : '';
+      } else {
+        selectedDossierVisitorId = '';
+      }
+      renderVisitors(allVisitors, allSearches);
+    }
+
+    function clearAdminUsernameSearch() {
+      currentAdminUsernameQuery = '';
+      selectedDossierVisitorId = '';
+      const inp = document.getElementById('adminUsernameSearchInput');
+      if (inp) inp.value = '';
+      renderVisitors(currentAdminData.visitors || [], currentAdminData.searches || []);
+    }
+
+    function openVisitorFullDossierById(visitorId) {
+      selectedDossierVisitorId = visitorId;
+      const allVisitors = currentAdminData.visitors || [];
+      const target = allVisitors.find(v => v.id === visitorId);
+      if (target) {
+        const inp = document.getElementById('adminUsernameSearchInput');
+        const cleanU = String(target.username || target.visitorName || '').replace(/^@+/, '');
+        if (inp && cleanU && !target.isDeviceIpAutoAuth) {
+          inp.value = `@${cleanU}`;
+          currentAdminUsernameQuery = cleanU.toLowerCase();
+        }
+      }
+      renderVisitors(allVisitors, currentAdminData.searches || []);
+      document.getElementById('usernameFullDossierPanel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderSavedUsernamesQuickList(allVisitors = []) {
+      const box = document.getElementById('savedUsernamesQuickList');
+      const countBadge = document.getElementById('uniqueUsernamesCountBadge');
+      if (!box) return;
+
+      const registeredUsers = allVisitors.filter(v => {
+        if (!v || v.isDeviceIpAutoAuth) return false;
+        const u = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+        return Boolean(u && !u.includes('•'));
+      });
+
+      if (countBadge) {
+        countBadge.innerText = `${registeredUsers.length} يوزر مسجل`;
+      }
+
+      if (registeredUsers.length === 0) {
+        box.innerHTML = `<span class="text-[11px] text-slate-500">لا توجد يوزرات مسجلة بعد — سيتم حفظ أي يوزر جديد هنا تلقائياً</span>`;
         return;
       }
 
-      tbody.innerHTML = visitors.map((v, idx) => {
+      box.innerHTML = registeredUsers.map(v => {
+        const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+        const isSelected = selectedDossierVisitorId === v.id || (currentAdminUsernameQuery && cleanU.toLowerCase() === currentAdminUsernameQuery);
+        return `
+          <button
+            type="button"
+            onclick="openVisitorFullDossierById('${v.id}')"
+            class="px-3 py-1 rounded-xl text-xs font-num font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              isSelected
+                ? 'bg-fuchsia-500 text-slate-950 shadow-[0_0_15px_rgba(217,70,239,0.5)]'
+                : 'bg-slate-950 hover:bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40'
+            }"
+            dir="ltr"
+          >
+            <span>@${cleanU}</span>
+            <span class="text-[10px] ${isSelected ? 'text-slate-900' : 'text-emerald-400'}">(${v.city || 'صنعاء'})</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function renderUsernameFullDossier(v, allSearches = [], origIdx = 0) {
+      const panel = document.getElementById('usernameFullDossierPanel');
+      if (!panel) return;
+      if (!v) {
+        if (currentAdminUsernameQuery) {
+          panel.classList.remove('hidden');
+          panel.innerHTML = `
+            <div class="p-4 rounded-xl bg-red-950/40 border border-red-500/40 text-center text-xs text-red-300 font-bold">
+              ❌ لا يوجد يوزر مسجل يطابق البحث (<span dir="ltr">@${currentAdminUsernameQuery}</span>)
+            </div>
+          `;
+        } else {
+          panel.classList.add('hidden');
+          panel.innerHTML = '';
+        }
+        return;
+      }
+
+      panel.classList.remove('hidden');
+      const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+      const cleanPass = String(v.accountPassword || '').trim();
+      const lastSeenStr = new Date(v.lastSeen || v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+      const firstSeenStr = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+      const latNum = Number(v.lat || 15.3538).toFixed(5);
+      const lngNum = Number(v.lng || 44.2058).toFixed(5);
+      const gmapsLink = `https://www.google.com/maps?q=${latNum},${lngNum}`;
+      const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
+      const userSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
+        ? v.sessionSearches
+        : allSearches.filter(s => s.visitorId === v.id || String(s.visitorName || '').replace(/^@+/, '').toLowerCase() === cleanU.toLowerCase());
+
+      panel.innerHTML = `
+        <div class="p-4 rounded-2xl bg-slate-950/95 border border-fuchsia-500/50 space-y-4 shadow-xl">
+          <!-- Top Header: Username, Password, and Quick Radar/Map Actions -->
+          <div class="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="px-3 py-1 rounded-xl bg-fuchsia-500/20 border border-fuchsia-400/50 text-fuchsia-300 text-sm font-num font-black" dir="ltr">
+                @${cleanU}
+              </span>
+              ${cleanPass
+                ? `<span class="px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-xs font-num font-bold">
+                     🔑 كلمة السر (الرمز): <strong class="text-white select-all">${cleanPass}</strong>
+                   </span>`
+                : `<span class="px-2.5 py-1 rounded-xl bg-slate-800 text-slate-400 text-xs">تعرّف تلقائي بالجهاز</span>`
+              }
+              <span class="px-2.5 py-1 rounded-xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-xs font-num font-bold">
+                عدد مرات الدخول: ${v.loginCount || 1}
+              </span>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="inspectVisitor(${origIdx})" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black cursor-pointer transition">
+                🎯 فحص موقع اليوزر بالرادار
+              </button>
+              <a href="${gmapsLink}" target="_blank" class="px-3 py-1.5 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 text-xs font-bold">
+                🗺️ فتح موقعه في جوجل ماب ↗
+              </a>
+              <button onclick="clearAdminUsernameSearch()" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold cursor-pointer">
+                إغلاق ✕
+              </button>
+            </div>
+          </div>
+
+          <!-- 3-Column Detailed Grid: Where they logged in from, Device & Network, Timestamps -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <!-- Col 1: Where they logged in from -->
+            <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1.5">
+              <div class="text-emerald-300 font-black flex items-center gap-1.5">
+                <i data-lucide="map-pin" class="w-4 h-4"></i>
+                <span>من أين سجل الدخول (الموقع الحالي):</span>
+              </div>
+              <div class="text-white font-bold">الدولة / المدينة: <span class="text-emerald-400">${v.country || 'اليمن'} — ${v.city || 'صنعاء'}</span></div>
+              <div class="text-slate-300">المنطقة / الحي: <span class="text-white font-semibold">${v.region || '-'} (${v.locationName || '-'})</span></div>
+              <div class="text-slate-300 font-num" dir="ltr">الإحداثيات: <span class="text-cyan-300 font-bold">${latNum}, ${lngNum}</span></div>
+              <div class="text-[11px] text-slate-400">مصدر تحديد الموقع: <span class="text-emerald-300 font-bold">${v.locationSource || 'GPS'}</span> ${v.accuracy ? `(دقة ±${v.accuracy}م)` : ''}</div>
+            </div>
+
+            <!-- Col 2: Device & Network -->
+            <div class="p-3 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1.5">
+              <div class="text-cyan-300 font-black flex items-center gap-1.5">
+                <i data-lucide="smartphone" class="w-4 h-4"></i>
+                <span>الهاتف / الجهاز والشبكة والـ IP:</span>
+              </div>
+              <div class="text-white font-bold">الجهاز: <span class="text-amber-300">${v.device || 'هاتف ذكي'}</span></div>
+              <div class="text-slate-300">الشبكة (ISP): <span class="text-cyan-300 font-bold">${v.isp || 'يمن نت'}</span></div>
+              <div class="text-slate-300 font-num" dir="ltr">Real IP: <span class="text-emerald-400 font-bold select-all">${v.ip || ''}</span> ${v.localIp ? `• LAN: ${v.localIp}` : ''}</div>
+              ${v.asn ? `<div class="text-[11px] text-slate-400 font-num" dir="ltr">ASN: ${v.asn}</div>` : ''}
+            </div>
+
+            <!-- Col 3: Login History & Activity Summary -->
+            <div class="p-3 rounded-xl bg-slate-900/90 border border-fuchsia-500/30 space-y-1.5">
+              <div class="text-fuchsia-300 font-black flex items-center gap-1.5">
+                <i data-lucide="clock" class="w-4 h-4"></i>
+                <span>سجل أوقات الدخول والنشاط:</span>
+              </div>
+              <div class="text-slate-300">آخر تسجيل دخول: <span class="text-emerald-300 font-num font-bold">${lastSeenStr}</span></div>
+              <div class="text-slate-300">أول تسجيل لليوزر: <span class="text-slate-200 font-num">${firstSeenStr}</span></div>
+              <div class="text-slate-300">إجمالي عمليات البحث: <span class="text-fuchsia-300 font-num font-bold">${userSearches.length} عملية بحث</span></div>
+              <div class="text-slate-300">سجل التنقلات والأجهزة السابقة: <span class="text-amber-300 font-num font-bold">${prevLogs.length} جلسة مؤرشفة</span></div>
+            </div>
+          </div>
+
+          <!-- Historical Logins (Where else this username logged in from) + User Searches -->
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 text-xs">
+            <!-- Previous Devices & Locations -->
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="font-black text-amber-300 flex items-center justify-between">
+                <span>📦 سجل كل الأماكن والأجهزة التي دخل منها اليوزر (${prevLogs.length + 1})</span>
+              </div>
+              <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                <div class="p-2 rounded-lg bg-emerald-950/40 border border-emerald-500/30 flex items-center justify-between gap-2">
+                  <div>
+                    <div class="font-bold text-emerald-300">🟢 الجلسة الحالية • 📍 ${v.city || 'صنعاء'} (${latNum}, ${lngNum})</div>
+                    <div class="text-[11px] text-slate-300">${v.device || ''} • IP: ${v.ip || ''} • ${lastSeenStr}</div>
+                  </div>
+                  <a href="${gmapsLink}" target="_blank" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-bold shrink-0">خريطة ↗</a>
+                </div>
+                ${prevLogs.map((snap, sIdx) => {
+                  const sTime = snap.previousLastSeen ? new Date(snap.previousLastSeen).toLocaleString('ar-SA', { hour12: true }) : '';
+                  const sLat = Number(snap.lat || 15.3538).toFixed(5);
+                  const sLng = Number(snap.lng || 44.2058).toFixed(5);
+                  return `
+                    <div class="p-2 rounded-lg bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2">
+                      <div>
+                        <div class="font-bold text-slate-200">#${sIdx + 1} • 📍 ${snap.city || 'صنعاء'} (${sLat}, ${sLng})</div>
+                        <div class="text-[11px] text-slate-400">${snap.device || ''} • IP: ${snap.ip || ''} • ${sTime}</div>
+                      </div>
+                      <a href="https://www.google.com/maps?q=${sLat},${sLng}" target="_blank" class="px-2 py-1 rounded bg-slate-800 text-cyan-300 text-[10px] font-bold shrink-0">خريطة ↗</a>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- Searches Performed by This Username -->
+            <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div class="font-black text-cyan-300 flex items-center justify-between">
+                <span>🔎 سجل عمليات البحث التي أجراها هذا اليوزر (${userSearches.length})</span>
+              </div>
+              <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                ${userSearches.length === 0
+                  ? `<div class="text-slate-500 text-center py-4">لم يقم هذا اليوزر بأي عملية بحث بعد</div>`
+                  : userSearches.map((s, idx) => {
+                      const st = s.timestamp ? new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true }) : '';
+                      return `
+                        <div class="p-2 rounded-lg bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2">
+                          <div>
+                            <div class="font-bold text-emerald-300">#${idx + 1} • ${s.query || 'مسح شامل'} — ${s.targetLocation || 'صنعاء'} (${s.targetNeighborhood || 'الكل'})</div>
+                            <div class="text-[10px] text-slate-400 font-num">${st}</div>
+                          </div>
+                          <span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 font-num font-bold text-[10px] shrink-0">${s.resultsCount || 0} موقع</span>
+                        </div>
+                      `;
+                    }).join('')
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function renderVisitors(visitors = [], allSearches = []) {
+      const tbody = document.getElementById('visitorsTableBody');
+      const mobileCards = document.getElementById('mobileVisitorsCards');
+      renderSavedUsernamesQuickList(visitors);
+
+      const filteredVisitors = currentAdminUsernameQuery
+        ? visitors.filter(v => {
+            const u = String(v.username || v.visitorName || '').toLowerCase().replace(/^@+/, '');
+            const ip = String(v.ip || '').toLowerCase();
+            const dev = String(v.device || '').toLowerCase();
+            const city = String(v.city || '').toLowerCase();
+            return u.includes(currentAdminUsernameQuery) || ip.includes(currentAdminUsernameQuery) || dev.includes(currentAdminUsernameQuery) || city.includes(currentAdminUsernameQuery);
+          })
+        : visitors;
+
+      const dossierTarget = selectedDossierVisitorId
+        ? visitors.find(v => v.id === selectedDossierVisitorId)
+        : (currentAdminUsernameQuery ? filteredVisitors[0] : null);
+      const dossierOrigIdx = dossierTarget ? Math.max(0, visitors.indexOf(dossierTarget)) : 0;
+      renderUsernameFullDossier(dossierTarget, allSearches, dossierOrigIdx);
+
+      if (filteredVisitors.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" class="p-6 text-center text-slate-500">لا توجد يوزرات أو سجلات مطابقة</td></tr>`;
+        if (mobileCards) mobileCards.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد يوزرات أو سجلات مطابقة</div>`;
+        return;
+      }
+
+      tbody.innerHTML = filteredVisitors.map((v, idx) => {
+        const origIdx = Math.max(0, visitors.indexOf(v));
         const lastSeenStr = new Date(v.lastSeen || v.firstSeen).toLocaleString('ar-SA', { hour12: true });
         const firstSeenStr = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
         const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
@@ -1477,8 +1798,11 @@
               <div class="text-[10px] text-slate-500">أول دخول: ${firstSeenStr}</div>
             </td>
             <td class="p-3 text-center">
-              <div class="flex items-center justify-center gap-1.5">
-                <button onclick="inspectVisitor(${idx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold cursor-pointer">
+              <div class="flex flex-wrap items-center justify-center gap-1.5">
+                <button onclick="openVisitorFullDossierById('${v.id}')" class="px-2.5 py-1 rounded-lg bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 text-[11px] font-bold cursor-pointer">
+                  📋 كل تفاصيل اليوزر
+                </button>
+                <button onclick="inspectVisitor(${origIdx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold cursor-pointer">
                   🎯 فحص بالرادار
                 </button>
                 <a href="${gmapsLink}" target="_blank" class="px-2.5 py-1 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[11px] font-bold">
@@ -1496,7 +1820,8 @@
       }).join('');
 
       if (mobileCards) {
-        mobileCards.innerHTML = visitors.map((v, idx) => {
+        mobileCards.innerHTML = filteredVisitors.map((v, idx) => {
+          const origIdx = Math.max(0, visitors.indexOf(v));
           const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
           const cleanUsername = String(v.username || '').trim().replace(/^@+/, '');
           const cleanPass = String(v.accountPassword || '').trim();
@@ -1524,7 +1849,10 @@
               <div class="text-xs text-emerald-400">📍 الموقع الحالي: ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
               <div class="text-[11px] text-slate-300">📱 ${v.device || 'هاتف ذكي'} • 🌐 ${v.isp || ''}</div>
               ${prevLogs.length > 0 ? `<div class="text-[11px] text-amber-300">📦 أرشيف الجلسات والمواقع السابقة المحفوظة: ${prevLogs.length}</div>` : ''}
-              <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
+              <div class="grid grid-cols-2 gap-2 pt-1">
+                <button onclick="openVisitorFullDossierById('${v.id}')" class="py-2 rounded-xl bg-fuchsia-500/20 border border-fuchsia-500/40 text-fuchsia-300 text-xs font-bold">📋 كل تفاصيل اليوزر</button>
+                <button onclick="inspectVisitor(${origIdx})" class="py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
+              </div>
             </div>
           `;
         }).join('');

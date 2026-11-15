@@ -257,17 +257,6 @@
           <span id="step1NextBtnText">التالي (يرجى فتح الموقع أولاً)</span>
           <i data-lucide="arrow-left" class="w-4 h-4"></i>
         </button>
-
-        <!-- Switch to Another Account Button in Entry Screen -->
-        <button
-          type="button"
-          id="switchAccountGateBtn"
-          onclick="switchToAnotherAccount()"
-          class="w-full py-2.5 rounded-2xl font-bold text-xs text-cyan-300 hover:text-white bg-slate-900/90 hover:bg-cyan-500/20 border border-cyan-500/40 transition flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <i data-lucide="user-plus" class="w-4 h-4 text-cyan-400"></i>
-          <span id="switchAccountGateBtnText">تسجيل الدخول بحساب آخر (تغيير الحساب)</span>
-        </button>
       </div>
 
       <!-- ==================== STEP 2: INSTAGRAM-STYLE ACCOUNT LOGIN / SIGN UP (STRICT ENGLISH USERNAME + PASSWORD) ==================== -->
@@ -2139,8 +2128,15 @@
 
     function getSavedVisitorSession() {
       const savedId = (localStorage.getItem('gmaps_visitor_id') || '').trim();
-      const savedName = (localStorage.getItem('gmaps_visitor_name') || '').trim().replace(/^@+/, '').toLowerCase();
+      const rawSavedName = (localStorage.getItem('gmaps_visitor_name') || '').trim().replace(/^@+/, '');
+      const savedName = rawSavedName.toLowerCase();
       const savedPass = (localStorage.getItem('gmaps_visitor_password') || '').trim();
+      // Purge any legacy Arabic or invalid username from localStorage immediately
+      if (rawSavedName && !IG_USERNAME_REGEX.test(savedName)) {
+        localStorage.removeItem('gmaps_visitor_name');
+        localStorage.removeItem('gmaps_visitor_password');
+        return { hasSession: false, visitorId: savedId, visitorName: '', accountPassword: '' };
+      }
       const isValidIg = IG_USERNAME_REGEX.test(savedName) && savedPass.length >= 3;
       return {
         hasSession: Boolean(savedId && isValidIg),
@@ -2258,30 +2254,22 @@
       lucide.createIcons();
     }
 
-    // Step 1 -> "Next" button: faded & untouchable until location is allowed
+    // Step 1 -> "Next" button: faded & untouchable until location is allowed (No login info on Step 1)
     function setStep1NextEnabled(enabled) {
       const nextBtn = document.getElementById('step1NextBtn');
       const nextTxt = document.getElementById('step1NextBtnText');
-      const session = getSavedVisitorSession();
-      const displayUser = session.visitorName
-        ? (session.visitorName.startsWith('@') ? session.visitorName : `@${session.visitorName}`)
-        : '';
       updateAccountButtonsUI();
       if (!nextBtn) return;
       nextBtn.disabled = !enabled;
       if (enabled) {
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
         if (nextTxt) {
-          nextTxt.innerText = session.hasSession
-            ? `الدخول بالحساب المحفوظ (${displayUser})`
-            : 'التالي (إنشاء حساب أو تسجيل الدخول)';
+          nextTxt.innerText = 'التالي';
         }
       } else {
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2";
         if (nextTxt) {
-          nextTxt.innerText = session.hasSession
-            ? `يرجى السماح بالموقع أولاً للمتابعة (${displayUser})`
-            : 'التالي (يرجى فتح الموقع أولاً)';
+          nextTxt.innerText = 'التالي (يرجى فتح الموقع أولاً)';
         }
       }
     }
@@ -2291,16 +2279,10 @@
       const descEl = document.getElementById('geoStatusDesc');
       const dotEl = document.getElementById('geoStatusDot');
       const btnTxt = document.getElementById('enableGeoBtnText');
-      const session = getSavedVisitorSession();
-      const displayUser = session.visitorName
-        ? (session.visitorName.startsWith('@') ? session.visitorName : `@${session.visitorName}`)
-        : '';
       if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
       if (titleEl) titleEl.innerText = 'تم فتح الموقع الجغرافي بنجاح ✓';
       if (descEl) {
-        descEl.innerText = session.hasSession
-          ? `مرحباً بعودتك (${displayUser}) — الحساب والرمز محفوظان، اضغط للدخول مباشرة`
-          : 'تم التعرّف على جهازك والـ IP تلقائياً — اضغط "التالي" لإنشاء حساب أو تسجيل الدخول';
+        descEl.innerText = 'تم تفعيل الموقع الجغرافي بنجاح — اضغط على زر "التالي" للمتابعة';
       }
       if (btnTxt) btnTxt.innerText = '✓ الموقع مفتوح';
       setStep1NextEnabled(true);
@@ -2426,17 +2408,6 @@
       }
       if (passInput && session.accountPassword) {
         passInput.value = session.accountPassword;
-      }
-
-      if (session.hasSession) {
-        const b2 = document.getElementById('stepBadge2');
-        const line = document.getElementById('stepConnectorLine');
-        const displayUser = session.visitorName.startsWith('@') ? session.visitorName : `@${session.visitorName}`;
-        if (b2) {
-          b2.innerHTML = `<span class="w-4 h-4 rounded-full bg-emerald-500 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">✓</span><span>محفوظ: ${displayUser}</span>`;
-          b2.className = "px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5";
-        }
-        if (line) line.className = "w-6 h-0.5 bg-emerald-500/50 rounded-full";
       }
 
       updateAccountButtonsUI();

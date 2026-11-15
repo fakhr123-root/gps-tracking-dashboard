@@ -1338,6 +1338,71 @@ async function reverseGeocodeCoords(lat, lng) {
   return null;
 }
 
+// Consolidate duplicate visitor entries (by same normalized Name/Phone or ID) and archive older snapshots inside `previousLogs`
+function consolidateVisitorsList(visitors = []) {
+  const mapByKey = new Map();
+  // Sort newest lastSeen first so the main record holds the latest state and older records become archived snapshots
+  const sorted = [...visitors].sort(
+    (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
+  );
+
+  for (const item of sorted) {
+    if (!item) continue;
+    const rawName = String(item.visitorName || '').trim();
+    const nName = normAr(rawName);
+    const isGeneric = !nName || nName === normAr('زائر غير مسمى') || nName === normAr('زائر مباشر') || nName === normAr('مستخدم التطبيق') || nName === normAr('زائر');
+    const key = !isGeneric ? `name:${nName}` : `id:${item.id}`;
+
+    if (!mapByKey.has(key)) {
+      mapByKey.set(key, {
+        ...item,
+        loginCount: item.loginCount || 1,
+        sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
+        previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : []
+      });
+    } else {
+      const primary = mapByKey.get(key);
+      primary.pageViews = (primary.pageViews || 1) + (item.pageViews || 1);
+      primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
+      primary.searchesCount = (primary.searchesCount || 0) + (item.searchesCount || 0);
+
+      // Keep earliest firstSeen
+      if (item.firstSeen && (!primary.firstSeen || new Date(item.firstSeen) < new Date(primary.firstSeen))) {
+        primary.firstSeen = item.firstSeen;
+      }
+
+      // Archive this older duplicate record inside `previousLogs`
+      primary.previousLogs.push({
+        archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
+        previousLastSeen: item.lastSeen || item.firstSeen,
+        visitorName: item.visitorName,
+        ip: item.ip,
+        city: item.city,
+        region: item.region,
+        locationName: item.locationName,
+        lat: item.lat,
+        lng: item.lng,
+        locationSource: item.locationSource || 'GPS',
+        device: item.device
+      });
+
+      if (Array.isArray(item.previousLogs)) {
+        for (const oldSnap of item.previousLogs) {
+          primary.previousLogs.push(oldSnap);
+        }
+      }
+
+      if (Array.isArray(item.sessionSearches)) {
+        for (const s of item.sessionSearches) {
+          primary.sessionSearches.push(s);
+        }
+      }
+    }
+  }
+
+  return Array.from(mapByKey.values());
+}
+
 async function recordVisitor(info) {
   const logs = loadAdminLogs();
   const now = new Date().toISOString();
@@ -1353,12 +1418,50 @@ async function recordVisitor(info) {
   const finalRegion = resolvedPlace?.region || info.region || 'أمانة العاصمة';
   const finalLocationName = resolvedPlace?.locationName || info.locationName || `${finalCity}، ${finalCountry}`;
 
-  let v = logs.visitors.find(x => x.id === info.visitorId);
+  const cleanInputName = String(info.visitorName || '').trim();
+  const normInputName = normAr(cleanInputName);
+
+  // Match existing visitor by visitorId OR by same normalized Name/Phone so we UPDATE the record instead of creating duplicates!
+  let vIndex = logs.visitors.findIndex(x =>
+    (info.visitorId && x.id === info.visitorId) ||
+    (normInputName && normInputName !== normAr('زائر غير مسمى') && normInputName !== normAr('زائر مباشر') && normAr(x.visitorName || '') === normInputName)
+  );
+
+  let v = vIndex !== -1 ? logs.visitors[vIndex] : null;
+
   if (v) {
+    // Archive previous session/location snapshot before updating with the new login/location data
+    if (!Array.isArray(v.previousLogs)) {
+      v.previousLogs = [];
+    }
+    v.previousLogs.unshift({
+      archivedAt: now,
+      previousLastSeen: v.lastSeen || v.firstSeen || now,
+      visitorName: v.visitorName,
+      ip: v.ip,
+      city: v.city,
+      region: v.region,
+      locationName: v.locationName,
+      lat: v.lat,
+      lng: v.lng,
+      locationSource: v.locationSource || 'GPS',
+      device: v.device
+    });
+    // Keep up to 50 historical snapshots per user
+    if (v.previousLogs.length > 50) {
+      v.previousLogs = v.previousLogs.slice(0, 50);
+    }
+
+    // Keep the latest visitorId linked if provided
+    if (info.visitorId) {
+      v.id = info.visitorId;
+    }
     v.lastSeen = now;
     v.pageViews = (v.pageViews || 1) + 1;
-    if (info.visitorName && info.visitorName !== 'زائر غير مسمى') {
-      v.visitorName = info.visitorName;
+    v.loginCount = (v.loginCount || 1) + 1;
+
+    if (cleanInputName && cleanInputName !== 'زائر غير مسمى') {
+      v.visitorName = cleanInputName;
     }
     if (info.publicIp) {
       v.ip = info.publicIp;
@@ -1366,7 +1469,7 @@ async function recordVisitor(info) {
       v.ip = info.ip;
     }
 
-    // Only overwrite coordinates if new info is from GPS or if previous wasn't GPS
+    // Update coordinates if new info is from GPS or if previous wasn't GPS
     const isNewGps = info.locationSource === 'GPS';
     if (info.lat && info.lng && (isNewGps || v.locationSource !== 'GPS')) {
       v.lat = Number(info.lat);
@@ -1380,10 +1483,14 @@ async function recordVisitor(info) {
     }
     if (info.isp) v.isp = info.isp;
     if (info.device) v.device = info.device;
+
+    // Move updated visitor to the top of the list
+    logs.visitors.splice(vIndex, 1);
+    logs.visitors.unshift(v);
   } else {
     v = {
       id: info.visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      visitorName: info.visitorName || 'زائر غير مسمى',
+      visitorName: cleanInputName || 'زائر غير مسمى',
       ip: info.publicIp || info.ip || '127.0.0.1',
       country: finalCountry,
       city: finalCity,
@@ -1398,8 +1505,10 @@ async function recordVisitor(info) {
       firstSeen: now,
       lastSeen: now,
       pageViews: 1,
+      loginCount: 1,
       searchesCount: 0,
-      sessionSearches: []
+      sessionSearches: [],
+      previousLogs: []
     };
     logs.visitors.unshift(v);
   }
@@ -1410,13 +1519,19 @@ async function recordVisitor(info) {
 function recordSearch(searchInfo) {
   const logs = loadAdminLogs();
   const now = new Date().toISOString();
-  let v = logs.visitors.find(x => x.id === searchInfo.visitorId);
+  const cleanSearchName = String(searchInfo.visitorName || '').trim();
+  const normSearchName = normAr(cleanSearchName);
 
-  // If a user searched without an existing session entry, create a permanent session entry automatically
-  if (!v) {
+  let v = logs.visitors.find(x =>
+    (searchInfo.visitorId && x.id === searchInfo.visitorId) ||
+    (normSearchName && normAr(x.visitorName || '') === normSearchName)
+  );
+
+  // Only create a visitor session if there is an explicit visitorId/visitorName and none exists yet
+  if (!v && (searchInfo.visitorId || cleanSearchName)) {
     v = {
       id: searchInfo.visitorId || `login_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-      visitorName: searchInfo.visitorName || 'مستخدم التطبيق',
+      visitorName: cleanSearchName || 'مستخدم التطبيق',
       ip: searchInfo.ip || '127.0.0.1',
       country: 'اليمن',
       city: searchInfo.location || 'صنعاء',
@@ -1431,18 +1546,20 @@ function recordSearch(searchInfo) {
       firstSeen: now,
       lastSeen: now,
       pageViews: 1,
+      loginCount: 1,
       searchesCount: 0,
-      sessionSearches: []
+      sessionSearches: [],
+      previousLogs: []
     };
     logs.visitors.unshift(v);
   }
 
   const record = {
     id: `srch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    visitorId: v.id,
-    visitorName: v.visitorName || searchInfo.visitorName || 'زائر',
-    ip: v.ip || searchInfo.ip || '127.0.0.1',
-    visitorLocation: v.locationName || searchInfo.visitorLocation || 'اليمن',
+    visitorId: v ? v.id : (searchInfo.visitorId || 'guest'),
+    visitorName: v ? v.visitorName : (cleanSearchName || 'زائر'),
+    ip: v ? v.ip : (searchInfo.ip || '127.0.0.1'),
+    visitorLocation: v ? v.locationName : (searchInfo.visitorLocation || 'اليمن'),
     query: searchInfo.query || 'غير محدد (جميع الأنشطة)',
     targetLocation: searchInfo.location || 'صنعاء',
     targetNeighborhood: searchInfo.neighborhood || 'الكل',
@@ -1452,19 +1569,21 @@ function recordSearch(searchInfo) {
   };
   logs.searches.unshift(record);
 
-  // Update visitor session searches count & attach search to session history permanently
-  v.searchesCount = (v.searchesCount || 0) + 1;
-  v.lastSeen = now;
-  if (!Array.isArray(v.sessionSearches)) {
-    v.sessionSearches = [];
+  if (v) {
+    // Update visitor session searches count & attach search to session history permanently
+    v.searchesCount = (v.searchesCount || 0) + 1;
+    v.lastSeen = now;
+    if (!Array.isArray(v.sessionSearches)) {
+      v.sessionSearches = [];
+    }
+    v.sessionSearches.unshift({
+      query: record.query,
+      targetLocation: record.targetLocation,
+      targetNeighborhood: record.targetNeighborhood,
+      resultsCount: record.resultsCount,
+      timestamp: now
+    });
   }
-  v.sessionSearches.unshift({
-    query: record.query,
-    targetLocation: record.targetLocation,
-    targetNeighborhood: record.targetNeighborhood,
-    resultsCount: record.resultsCount,
-    timestamp: now
-  });
 
   // Never truncate or delete historical logs - keep all sessions permanently
   saveAdminLogs(logs);
@@ -1583,9 +1702,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently)
+  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently, consolidated with archived history)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
+    const consolidated = consolidateVisitorsList(logs.visitors || []);
+    if (consolidated.length !== (logs.visitors || []).length) {
+      logs.visitors = consolidated;
+      saveAdminLogs(logs);
+    }
     const totalVisitors = logs.visitors.length;
     const totalSearches = logs.searches.length;
     
@@ -1736,6 +1860,7 @@ const server = http.createServer(async (req, res) => {
     const radiusMeters = Math.round(radiusKm * 1000);
     const apiKey = (parsedUrl.query.apiKey || '').trim();
     const visitorId = (parsedUrl.query.visitorId || '').trim();
+    const visitorName = (parsedUrl.query.visitorName || '').trim();
     const visitorLocation = (parsedUrl.query.visitorLocation || '').trim();
     const userLat = parsedUrl.query.userLat ? parseFloat(parsedUrl.query.userLat) : null;
     const userLng = parsedUrl.query.userLng ? parseFloat(parsedUrl.query.userLng) : null;
@@ -1777,17 +1902,20 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       sendEvent('error', { message: e.message || 'حدث خطأ غير متوقع' });
     } finally {
-      // Record search in Admin Logs
-      recordSearch({
-        visitorId,
-        ip: clientIp,
-        visitorLocation: visitorLocation || location || 'اليمن',
-        query,
-        location,
-        neighborhood: circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(4)}, ${circleFilter.lng.toFixed(4)})` : (neighborhood || 'كامل المدينة'),
-        radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
-        resultsCount: resultCount
-      });
+      // Only record search in Admin Logs if the visitor has logged in (has visitorId or visitorName)
+      if (visitorId || visitorName) {
+        recordSearch({
+          visitorId,
+          visitorName,
+          ip: clientIp,
+          visitorLocation: visitorLocation || location || 'اليمن',
+          query,
+          location,
+          neighborhood: circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(4)}, ${circleFilter.lng.toFixed(4)})` : (neighborhood || 'كامل المدينة'),
+          radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
+          resultsCount: resultCount
+        });
+      }
       res.end();
     }
     return;

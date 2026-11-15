@@ -802,8 +802,9 @@
       const drawer = document.getElementById('visitorInspectorDrawer');
       if (drawer) drawer.classList.remove('hidden');
 
+      const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
       document.getElementById('inspVisitorName').innerText = v.visitorName || 'Visitor';
-      document.getElementById('inspVisitorSub').innerText = v.device ? v.device.split('-')[0].trim() : 'Active Device';
+      document.getElementById('inspVisitorSub').innerText = `تحديث #${v.loginCount || 1} • أرشيف سابق: ${prevCount}`;
       document.getElementById('inspDevice').innerText = v.device || 'Smartphone / Desktop';
       document.getElementById('inspCoords').innerText = `${Number(v.lat || 15.3538).toFixed(4)}° N, ${Number(v.lng || 44.2058).toFixed(4)}° E`;
       document.getElementById('inspIp').innerText = v.ip || '0.0.0.0';
@@ -834,6 +835,58 @@
       } catch (e) {}
     }
 
+    function normVisitorKey(v) {
+      if (!v) return '';
+      const rawName = String(v.visitorName || '').trim().toLowerCase()
+        .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+      const isGeneric = !rawName || rawName === 'زائر غير مسمي' || rawName === 'زائر مباشر' || rawName === 'مستخدم التطبيق' || rawName === 'زائر';
+      return !isGeneric ? `name:${rawName}` : `id:${v.id}`;
+    }
+
+    function mergeAndArchiveVisitors(list = []) {
+      const map = new Map();
+      const sorted = [...list].sort(
+        (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
+      );
+      for (const item of sorted) {
+        if (!item || !item.id) continue;
+        const key = normVisitorKey(item);
+        if (!map.has(key)) {
+          map.set(key, {
+            ...item,
+            loginCount: item.loginCount || 1,
+            previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : [],
+            sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : []
+          });
+        } else {
+          const primary = map.get(key);
+          if (primary.id !== item.id) {
+            primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
+            primary.previousLogs.push({
+              archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
+              previousLastSeen: item.lastSeen || item.firstSeen,
+              visitorName: item.visitorName,
+              ip: item.ip,
+              city: item.city,
+              region: item.region,
+              locationName: item.locationName,
+              lat: item.lat,
+              lng: item.lng,
+              locationSource: item.locationSource || 'GPS',
+              device: item.device
+            });
+          }
+          if (Array.isArray(item.previousLogs)) {
+            for (const snap of item.previousLogs) {
+              const dup = primary.previousLogs.some(p => p.previousLastSeen === snap.previousLastSeen && p.lat === snap.lat);
+              if (!dup) primary.previousLogs.push(snap);
+            }
+          }
+        }
+      }
+      return Array.from(map.values());
+    }
+
     async function fetchAdminData() {
       const refreshIcon = document.getElementById('refreshIcon');
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
@@ -844,16 +897,9 @@
           const data = await res.json();
           const localArch = loadLocalArchive();
 
-          const visitorMap = new Map();
-          for (const v of (localArch.visitors || [])) {
-            if (v && v.id) visitorMap.set(v.id, v);
-          }
-          for (const v of (data.visitors || [])) {
-            if (v && v.id) visitorMap.set(v.id, v);
-          }
-          const mergedVisitors = Array.from(visitorMap.values()).sort(
-            (a, b) => new Date(b.firstSeen || 0) - new Date(a.firstSeen || 0)
-          );
+          // Prioritize server's consolidated visitors list and merge any local archive entries into the same user profile with archiving
+          const combinedRawVisitors = [...(data.visitors || []), ...(localArch.visitors || [])];
+          const mergedVisitors = mergeAndArchiveVisitors(combinedRawVisitors);
 
           const searchMap = new Map();
           for (const s of (localArch.searches || [])) {
@@ -1105,27 +1151,63 @@
       }
 
       tbody.innerHTML = visitors.map((v, idx) => {
-        const firstSeen = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+        const lastSeenStr = new Date(v.lastSeen || v.firstSeen).toLocaleString('ar-SA', { hour12: true });
+        const firstSeenStr = new Date(v.firstSeen).toLocaleString('ar-SA', { hour12: true });
         const gmapsLink = `https://www.google.com/maps?q=${v.lat},${v.lng}`;
         const sessionSearches = Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0
           ? v.sessionSearches
-          : allSearches.filter(s => s.visitorId === v.id);
+          : allSearches.filter(s => s.visitorId === v.id || s.visitorName === v.visitorName);
+        const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
+
+        const archiveHtml = prevLogs.length > 0 ? `
+          <details class="mt-1.5 bg-slate-900/90 border border-amber-500/30 rounded-xl p-2 text-[10px] text-right">
+            <summary class="cursor-pointer font-bold text-amber-300 flex items-center justify-between gap-2">
+              <span>📦 أرشيف البيانات والمواقع السابقة (${prevLogs.length})</span>
+              <span class="text-[9px] text-slate-400">اضغط للعرض</span>
+            </summary>
+            <div class="mt-2 space-y-1.5 max-h-36 overflow-y-auto border-t border-slate-800 pt-1.5">
+              ${prevLogs.map((snap, sIdx) => {
+                const snapTime = snap.previousLastSeen ? new Date(snap.previousLastSeen).toLocaleString('ar-SA', { hour12: true }) : '';
+                const snapLat = Number(snap.lat || 15.3538).toFixed(5);
+                const snapLng = Number(snap.lng || 44.2058).toFixed(5);
+                return `
+                  <div class="p-1.5 rounded-lg bg-slate-950/90 border border-slate-800 flex items-center justify-between gap-2">
+                    <div>
+                      <div class="text-slate-200 font-bold">#${sIdx + 1} • 📍 ${snap.city || 'صنعاء'} <span class="font-num text-emerald-400">(${snapLat}, ${snapLng})</span></div>
+                      <div class="text-slate-400 font-num">${snap.ip || ''} • ${snapTime}</div>
+                    </div>
+                    <a href="https://www.google.com/maps?q=${snapLat},${snapLng}" target="_blank" class="px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold shrink-0">خريطة ↗</a>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </details>
+        ` : `<span class="inline-block mt-1 text-[10px] text-slate-500">أول جلسة مسجلة</span>`;
 
         return `
-          <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60">
+          <tr class="hover:bg-cyan-500/5 transition border-b border-slate-800/60 align-top">
             <td class="p-3 text-center">
               <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400 cursor-pointer" />
             </td>
             <td class="p-3 text-slate-400 font-num font-bold">${idx + 1}</td>
-            <td class="p-3 font-bold text-white">${v.visitorName || 'زائر'}</td>
+            <td class="p-3">
+              <div class="font-bold text-white flex items-center gap-1.5">
+                <span>${v.visitorName || 'زائر'}</span>
+                <span class="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 text-[10px] font-num">تحديث #${v.loginCount || 1}</span>
+              </div>
+              ${archiveHtml}
+            </td>
             <td class="p-3 font-num text-cyan-300">${v.ip}</td>
             <td class="p-3 text-emerald-400 font-bold">
-              📍 ${v.city || 'صنعاء'}
+              📍 ${v.city || 'صنعاء'} (الحالي)
               <span class="block text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</span>
             </td>
             <td class="p-3 text-slate-200">${sessionSearches.length} عملية بحث</td>
             <td class="p-3 text-slate-300 text-[11px]">${v.isp || ''} • ${v.device || ''}</td>
-            <td class="p-3 text-slate-400 font-num text-[11px]">${firstSeen}</td>
+            <td class="p-3 text-slate-400 font-num text-[11px]">
+              <div class="text-emerald-300 font-bold">آخر تحديث: ${lastSeenStr}</div>
+              <div class="text-[10px] text-slate-500">أول دخول: ${firstSeenStr}</div>
+            </td>
             <td class="p-3 text-center">
               <div class="flex items-center justify-center gap-1.5">
                 <button onclick="inspectVisitor(${idx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold cursor-pointer">
@@ -1146,22 +1228,27 @@
       }).join('');
 
       if (mobileCards) {
-        mobileCards.innerHTML = visitors.map((v, idx) => `
-          <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="flex items-center gap-2">
-                <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400" />
-                <strong class="text-white text-sm">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
-              </label>
-              <div class="flex items-center gap-2">
-                <span class="text-cyan-400 font-num text-xs">${v.ip}</span>
-                <button onclick="deleteSingleVisitor('${v.id}')" class="px-2 py-0.5 rounded bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
+        mobileCards.innerHTML = visitors.map((v, idx) => {
+          const prevLogs = Array.isArray(v.previousLogs) ? v.previousLogs : [];
+          return `
+            <div class="p-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2">
+                  <input type="checkbox" value="${v.id}" class="visitor-row-checkbox accent-cyan-400" />
+                  <strong class="text-white text-sm">#${idx + 1} • ${v.visitorName || 'زائر'}</strong>
+                  <span class="px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 text-[10px] font-num">تحديث #${v.loginCount || 1}</span>
+                </label>
+                <div class="flex items-center gap-2">
+                  <span class="text-cyan-400 font-num text-xs">${v.ip}</span>
+                  <button onclick="deleteSingleVisitor('${v.id}')" class="px-2 py-0.5 rounded bg-red-500/20 text-red-300 text-xs font-bold">حذف</button>
+                </div>
               </div>
+              <div class="text-xs text-emerald-400">📍 الموقع الحالي: ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
+              ${prevLogs.length > 0 ? `<div class="text-[11px] text-amber-300">📦 أرشيف الجلسات والمواقع السابقة المحفوظة: ${prevLogs.length}</div>` : ''}
+              <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
             </div>
-            <div class="text-xs text-emerald-400">📍 ${v.city || 'صنعاء'} (${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</div>
-            <button onclick="inspectVisitor(${idx})" class="w-full py-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold">🎯 فحص بالرادار</button>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       }
       lucide.createIcons();
     }

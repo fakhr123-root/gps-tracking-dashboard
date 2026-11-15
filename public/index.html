@@ -458,35 +458,39 @@
             </button>
           </div>
 
-          <!-- Row B: Clean Action & Filter Bar (Organized for Phone & PC without crowding) -->
+          <!-- Row B: Clean Action & Filter Bar (Select what you want first, then click Start Search!) -->
           <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
             <div class="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-1.5">
-              <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن التي يتوفر لها رقم هاتف فقط">
+              <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: التي لها رقم هاتف فقط">
                 <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>لها هاتف</span>
               </button>
-              <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن المفتوحة حالياً فقط">
+              <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: المفتوحة الآن فقط">
                 <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>مفتوح الآن</span>
               </button>
-              <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
-                <i data-lucide="globe-2" class="w-3.5 h-3.5"></i>
+              <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: المدينة كاملة">
+                <i data-lucide="globe-2" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>المدينة كاملة</span>
               </button>
-              <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/60 text-cyan-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
-                <i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>
+              <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: رسم دائرة على الخريطة">
+                <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-cyan-400"></i>
                 <span>رسم دائرة بالخريطة</span>
+              </button>
+              <button type="button" id="btnNeighborhoodToggle" onclick="toggleAdvancedDrawer()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد حي أو شارع معين">
+                <span>تحديد حي</span>
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
               </button>
             </div>
 
             <div class="col-span-2 sm:col-span-1 flex items-center justify-end gap-1.5">
-              <button type="button" onclick="exportToExcel()" class="flex-1 sm:flex-initial justify-center px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
+              <button type="button" onclick="handleSearch(new Event('submit'))" class="flex-1 sm:flex-initial justify-center px-4 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                <i data-lucide="search" class="w-3.5 h-3.5"></i>
+                <span>ابدأ البحث الآن</span>
+              </button>
+              <button type="button" onclick="exportToExcel()" class="flex-1 sm:flex-initial justify-center px-3.5 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>Excel + الإحداثيات</span>
-              </button>
-              <button type="button" onclick="toggleAdvancedDrawer()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>تحديد حي</span>
-                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
               </button>
             </div>
           </div>
@@ -804,7 +808,16 @@
 
     function toggleAdvancedDrawer() {
       const dr = document.getElementById('advancedSearchDrawer');
-      if (dr) dr.classList.toggle('hidden');
+      const btn = document.getElementById('btnNeighborhoodToggle');
+      if (dr) {
+        dr.classList.toggle('hidden');
+        const isOpen = !dr.classList.contains('hidden');
+        btn?.classList.toggle('active', isOpen);
+        if (isOpen) {
+          document.getElementById('btnFullCityMode')?.classList.remove('active');
+          document.getElementById('neighborhoodInput')?.focus();
+        }
+      }
     }
 
     function triggerCategorySearch(category, btnEl) {
@@ -818,9 +831,9 @@
         return;
       }
 
+      // Only select the category without starting the search automatically! User starts search when ready.
       if (btnEl) btnEl.classList.add('active');
       if (q) q.value = category;
-      handleSearch(new Event('submit'));
     }
 
     function clearCategoryAndFilters() {
@@ -829,8 +842,14 @@
       filterOnlyOpen = false;
       document.getElementById('pill_phone')?.classList.remove('active');
       document.getElementById('pill_open')?.classList.remove('active');
+      document.getElementById('btnFullCityMode')?.classList.remove('active');
+      document.getElementById('btnDrawCircleMode')?.classList.remove('active');
+      document.getElementById('btnNeighborhoodToggle')?.classList.remove('active');
       const q = document.getElementById('queryInput');
       if (q) q.value = '';
+      const h = document.getElementById('neighborhoodInput');
+      if (h) h.value = '';
+      clearDrawnCircle(false);
       applyResultsFilter();
     }
 
@@ -1017,9 +1036,6 @@
             leafletMap.getContainer().style.cursor = '';
           }
           document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
-          if (drawnCircleState) {
-            handleSearch(new Event('submit'));
-          }
         }
       });
 
@@ -1049,9 +1065,6 @@
           isDrawingCircleMode = false;
           if (leafletMap) leafletMap.dragging.enable();
           document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
-          if (drawnCircleState) {
-            handleSearch(new Event('submit'));
-          }
         }
       });
     }
@@ -1125,6 +1138,8 @@
     }
 
     function startDrawCircleOnMap() {
+      document.getElementById('btnFullCityMode')?.classList.remove('active');
+      document.getElementById('btnDrawCircleMode')?.classList.add('active');
       showMobileMapPanel();
       setViewMode('map', 'streets');
       isDrawingCircleMode = true;
@@ -1153,10 +1168,11 @@
       }
     }
 
-    function clearDrawnCircle(runFullCitySearch = false) {
+    function clearDrawnCircle(resetToFullCity = false) {
       isDrawingCircleMode = false;
       isDraggingCircle = false;
       drawnCircleState = null;
+      document.getElementById('btnDrawCircleMode')?.classList.remove('active');
       if (leafletMap) {
         leafletMap.dragging.enable();
         leafletMap.getContainer().style.cursor = '';
@@ -1174,17 +1190,26 @@
       if (window.innerWidth < 1024) {
         hideMobileMapPanel();
       }
-      if (runFullCitySearch) {
-        activateFullCitySearch();
+      if (resetToFullCity) {
+        setRadius(50);
       }
     }
 
     function activateFullCitySearch() {
+      const btn = document.getElementById('btnFullCityMode');
+      const isAlreadyActive = btn && btn.classList.contains('active');
+      if (isAlreadyActive) {
+        btn.classList.remove('active');
+        return;
+      }
       clearDrawnCircle(false);
+      btn?.classList.add('active');
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
+      document.getElementById('advancedSearchDrawer')?.classList.add('hidden');
+      document.getElementById('btnNeighborhoodToggle')?.classList.remove('active');
       setRadius(50);
-      handleSearch(new Event('submit'));
+      // Do NOT auto-search! Wait for user to click "ابدأ البحث الآن" or "بحث"
     }
 
     function renderUserGpsPinOnMap() {

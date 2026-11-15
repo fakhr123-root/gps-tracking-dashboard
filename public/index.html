@@ -382,19 +382,10 @@
         </div>
 
         <!-- Default Preferences -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
             <label class="block text-slate-300 font-bold mb-1">المدينة الافتراضية عند الفتح:</label>
             <input type="text" id="prefDefaultCity" value="صنعاء" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400" />
-          </div>
-          <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
-            <label class="block text-slate-300 font-bold mb-1">عدد النتائج الافتراضي:</label>
-            <select id="prefDefaultLimit" class="w-full bg-slate-950 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400">
-              <option value="10">10 نتائج</option>
-              <option value="20" selected>20 نتيجة</option>
-              <option value="50">50 نتيجة</option>
-              <option value="100">100 نتيجة</option>
-            </select>
           </div>
           <div class="bg-slate-900/80 p-3 rounded-2xl border border-slate-800">
             <label class="block text-slate-300 font-bold mb-1">وضع الخريطة الافتراضي:</label>
@@ -474,33 +465,24 @@
 
           <!-- Collapsible Options & Export Drawer (Opened via ☰ or Filter button) -->
           <div id="advancedSearchDrawer" class="hidden p-4 rounded-2xl studio-card space-y-3 text-xs">
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label class="block text-[11px] font-bold text-slate-300 mb-1">الحي (اتركه فارغاً لتغطية المدينة كاملة):</label>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">الحي أو المنطقة (اتركه فارغاً لتغطية المدينة كاملة):</label>
                 <input
                   type="text"
                   id="neighborhoodInput"
-                  placeholder="اتركه فارغاً للعاصمة/المدينة كاملة..."
+                  placeholder="اتركه فارغاً للعاصمة/المدينة كاملة أو اكتب اسم الحي..."
                   class="w-full bg-slate-950/90 rounded-xl px-3 py-2 border border-slate-700 text-white focus:outline-none focus:border-emerald-400"
                 />
               </div>
               <div>
-                <label class="block text-[11px] font-bold text-slate-300 mb-1">النطاق الجغرافي: <span id="radiusLabel" class="text-emerald-400 font-num">35 كم (المدينة كاملة)</span></label>
+                <label class="block text-[11px] font-bold text-slate-300 mb-1">النطاق الجغرافي: <span id="radiusLabel" class="text-emerald-400 font-num">35 كم (المنطقة كاملة بدون تحديد رقمي)</span></label>
                 <div class="flex gap-1 mb-1.5">
                   <button type="button" onclick="setRadius(10)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold cursor-pointer">10 كم</button>
                   <button type="button" onclick="setRadius(25)" class="flex-1 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] font-bold cursor-pointer">25 كم</button>
-                  <button type="button" onclick="setRadius(50)" class="flex-1 py-1 rounded bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer">المدينة كاملة</button>
+                  <button type="button" onclick="setRadius(50)" class="flex-1 py-1 rounded bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer">المدينة كاملة (كل النتائج)</button>
                 </div>
                 <input type="range" id="radiusSlider" min="1" max="60" value="35" oninput="onRadiusSliderChange(this.value)" class="w-full h-1.5 bg-slate-800 rounded-lg accent-emerald-400 cursor-pointer" />
-              </div>
-              <div>
-                <label class="block text-[11px] font-bold text-slate-300 mb-1">العدد: <span id="limitLabel" class="text-emerald-400 font-num">50 شركة</span></label>
-                <div class="flex items-center gap-1">
-                  <button type="button" onclick="setLimit(20)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num cursor-pointer">20</button>
-                  <button type="button" onclick="setLimit(50)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num cursor-pointer">50</button>
-                  <button type="button" onclick="setLimit(150)" class="flex-1 py-1.5 rounded bg-slate-800 hover:bg-slate-700 font-num cursor-pointer">150</button>
-                  <input type="number" id="limitInput" value="50" min="1" max="300" class="w-14 bg-slate-950 text-center py-1.5 rounded border border-slate-700 font-num text-white" />
-                </div>
               </div>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
@@ -1142,11 +1124,7 @@
       clearDrawnCircle(false);
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
-      setRadius(35);
-      const limInput = document.getElementById('limitInput');
-      if (limInput && parseInt(limInput.value, 10) < 50) {
-        setLimit(60);
-      }
+      setRadius(50);
       handleSearch(new Event('submit'));
     }
 
@@ -1307,18 +1285,12 @@
     function setRadius(km) {
       selectedRadius = km;
       document.getElementById('radiusSlider').value = km;
-      document.getElementById('radiusLabel').innerText = `${km} كم`;
+      document.getElementById('radiusLabel').innerText = `${km} كم (المنطقة كاملة)`;
     }
 
     function onRadiusSliderChange(val) {
       selectedRadius = parseInt(val, 10);
-      document.getElementById('radiusLabel').innerText = `${selectedRadius} كم`;
-    }
-
-    function setLimit(n) {
-      document.getElementById('limitInput').value = n;
-      const limLbl = document.getElementById('limitLabel');
-      if (limLbl) limLbl.innerText = `${n} شركة`;
+      document.getElementById('radiusLabel').innerText = `${selectedRadius} كم (المنطقة كاملة)`;
     }
 
     function handleSearch(e) {
@@ -1331,7 +1303,6 @@
       const query = document.getElementById('queryInput').value.trim() || 'شركات';
       const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
       const neighborhood = document.getElementById('neighborhoodInput')?.value.trim() || '';
-      const limit = parseInt(document.getElementById('limitInput')?.value, 10) || 20;
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
 
       const progressContainer = document.getElementById('progressContainer');
@@ -1340,8 +1311,8 @@
       const progressRatio = document.getElementById('progressRatio');
 
       progressContainer.classList.remove('hidden');
-      progressBar.style.width = '0%';
-      progressRatio.innerText = `0 / ${limit}`;
+      progressBar.style.width = '15%';
+      progressRatio.innerText = `جارٍ استخراج المنطقة كاملة...`;
 
       if (pinGroup) {
         while (pinGroup.children.length > 0) {
@@ -1364,7 +1335,6 @@
         query: query,
         location: location,
         neighborhood: neighborhood,
-        limit: limit,
         radius: selectedRadius,
         apiKey: apiKey,
         visitorId: visitorId,
@@ -1391,9 +1361,9 @@
 
       currentEventSource.addEventListener('progress', (event) => {
         const data = JSON.parse(event.data);
-        const percent = Math.min(Math.round((data.current / data.total) * 100), 100);
+        const percent = data.total > 0 ? Math.min(Math.round((data.current / data.total) * 100), 98) : 85;
         progressBar.style.width = `${percent}%`;
-        progressRatio.innerText = `${data.current} / ${data.total}`;
+        progressRatio.innerText = `تم استخراج ${data.current} نتيجة`;
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -1888,14 +1858,12 @@
 
     function saveExtractorUserPreferences() {
       const city = document.getElementById('prefDefaultCity')?.value.trim() || 'صنعاء';
-      const limit = document.getElementById('prefDefaultLimit')?.value || '20';
       const view = document.getElementById('prefDefaultView')?.value || '3d';
       const display = document.getElementById('prefDefaultDisplay')?.value || 'cards';
 
-      localStorage.setItem('georadar_user_prefs', JSON.stringify({ city, limit, view, display }));
+      localStorage.setItem('georadar_user_prefs', JSON.stringify({ city, view, display }));
 
       document.getElementById('locationInput').value = city;
-      setLimit(parseInt(limit, 10));
 
       if (view === '3d') setViewMode('3d');
       else if (view === 'hybrid') setViewMode('map', 'hybrid');
@@ -1918,11 +1886,6 @@
           document.getElementById('locationInput').value = prefs.city;
           const pc = document.getElementById('prefDefaultCity');
           if (pc) pc.value = prefs.city;
-        }
-        if (prefs.limit) {
-          setLimit(parseInt(prefs.limit, 10));
-          const pl = document.getElementById('prefDefaultLimit');
-          if (pl) pl.value = String(prefs.limit);
         }
         if (prefs.view) {
           const pv = document.getElementById('prefDefaultView');

@@ -458,32 +458,38 @@
           <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3.5 space-y-3">
             <div class="flex flex-wrap items-center gap-2">
               <span class="text-xs text-slate-300 font-bold ml-1">اختيار سريع للنشاط (اختياري):</span>
-              <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>شركات</span>
+              <button type="button" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏬 مراكز ومولات</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span>صيدليات</span>
+              <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏨 فنادق</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>صرافة</span>
+              <button type="button" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>📱 محلات تلفونات</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>بنوك</span>
+              <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏢 شركات</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>مطاعم</span>
+              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>💊 صيدليات</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-                <span>فنادق</span>
+              <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏥 مستشفيات</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>مستشفيات</span>
+              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🍽️ مطاعم</span>
               </button>
-              <button type="button" onclick="triggerCategorySearch('محلات تجارية', this)" class="cat-pill px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-                <span>محلات وأسواق</span>
+              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏦 بنوك</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>💱 صرافة</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🏊 مسابح ونوادي</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('محلات تجارية', this)" class="cat-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>🛍️ محلات وأسواق</span>
               </button>
             </div>
 
@@ -491,13 +497,13 @@
             <div class="pt-3 border-t border-slate-800/80 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-2">
                 <span class="text-xs text-slate-300 font-bold ml-1">نطاق المسح والفلترة:</span>
+                <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill active px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: المدينة كاملة بدون دائرة">
+                  <i data-lucide="globe-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>🌐 المدينة كاملة</span>
+                </button>
                 <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer transition border-cyan-400/50 text-cyan-200" title="افتح الخريطة وارسم دائرة لمسح واستخراج جميع المواقع بداخلها">
                   <i data-lucide="circle-dot" class="w-4 h-4 text-cyan-400"></i>
                   <span>🗺️ رسم دائرة بالخريطة ومسح ما بداخلها</span>
-                </button>
-                <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition" title="تحديد نطاق البحث: المدينة كاملة">
-                  <i data-lucide="globe-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-                  <span>المدينة كاملة</span>
                 </button>
                 <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="تحديد خيار: التي لها رقم هاتف فقط">
                   <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
@@ -511,6 +517,14 @@
 
               <!-- Primary Execute Search / Scan Buttons -->
               <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onclick="scanEntireCityAllActivities()"
+                  class="flex-1 sm:flex-initial justify-center px-4 py-2.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/60 text-cyan-200 font-black text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  title="مسح واستخراج جميع المراكز والفنادق ومحلات التلفونات والشركات والأنشطة في المدينة كاملة"
+                >
+                  <span>📡 مسح شامل للمدينة كاملة (كل شيء)</span>
+                </button>
                 <button
                   type="submit"
                   id="searchBtn"
@@ -1380,8 +1394,27 @@
       if (coordsEl) coordsEl.innerText = 'انقر على "تفعيل الرسم" أو انقر في أي مكان على الخريطة لوضع دائرة التحديد';
       document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
       if (resetToFullCity) {
+        document.getElementById('btnFullCityMode')?.classList.add('active');
         setRadius(50);
       }
+    }
+
+    function scanEntireCityAllActivities() {
+      clearDrawnCircle(true);
+      const qInput = document.getElementById('queryInput');
+      if (qInput) qInput.value = '';
+      const hoodInput = document.getElementById('neighborhoodInput');
+      if (hoodInput) hoodInput.value = '';
+      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      document.getElementById('btnFullCityMode')?.classList.add('active');
+      document.getElementById('btnDrawCircleMode')?.classList.remove('active');
+      setRadius(50);
+      lastActiveQuery = '__FULL_CITY_SCAN__';
+
+      handleSearch(new Event('submit'));
+      setTimeout(() => {
+        document.getElementById('resultsSectionAnchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 250);
     }
 
     function scanAllActivitiesInDrawnCircle() {
@@ -1410,20 +1443,13 @@
     }
 
     function activateFullCitySearch() {
-      const btn = document.getElementById('btnFullCityMode');
-      const isAlreadyActive = btn && btn.classList.contains('active');
-      if (isAlreadyActive) {
-        btn.classList.remove('active');
-        return;
-      }
-      clearDrawnCircle(false);
-      btn?.classList.add('active');
+      clearDrawnCircle(true);
+      document.getElementById('btnFullCityMode')?.classList.add('active');
+      document.getElementById('btnDrawCircleMode')?.classList.remove('active');
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
-      document.getElementById('advancedSearchDrawer')?.classList.add('hidden');
-      document.getElementById('btnNeighborhoodToggle')?.classList.remove('active');
       setRadius(50);
-      // Do NOT auto-search! Wait for user to click "ابدأ البحث الآن" or "بحث"
+      // Do NOT auto-search! Wait for user to click "ابدأ المسح واستخراج البيانات الآن"
     }
 
     function renderUserGpsPinOnMap() {

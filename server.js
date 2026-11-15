@@ -658,20 +658,21 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   });
 
   const stdQuery = toStandardArabic(query || '').trim();
-  const isFullAreaScan = !stdQuery || stdQuery === 'الكل' || stdQuery.includes('مسح شامل');
+  const isCityNameInQuery = normAr(stdQuery) === normAr(center.city);
+  const isFullAreaScan = !stdQuery || isCityNameInQuery || stdQuery === 'الكل' || stdQuery.includes('كل شي') || stdQuery.includes('مسح شامل');
   const qNorm = normAr(isFullAreaScan ? '' : query);
   const rKm = hasDrawnCircle ? circleFilter.radiusKm : Math.max(radiusMeters / 1000, 25);
 
   sendEvent('status', {
     message: isFullAreaScan
-      ? `📡 جارٍ المسح الشامل واستخراج كافة المواقع والأنشطة والأرقام داخل [${center.city} - ${center.district}]...`
-      : `جارٍ سحب البيانات والإحداثيات والأرقام الحقيقية من خرائط جوجل في [${center.city} - ${center.district}] عن: (${stdQuery})...`
+      ? `📡 جارٍ المسح الشامل واستخراج كافة المراكز والفنادق ومحلات التلفونات والشركات والأنشطة داخل [${center.city} - ${center.district}]...`
+      : `جارٍ المسح المعمّق في كافة أحياء وقطاعات [${center.city} - ${center.district}] لاستخراج كل ما يتعلق بـ: (${stdQuery})...`
   });
 
   // Helper to immediately format and stream a Google Maps place record without waiting for all pages
-  const emitGooglePlaceImmediate = (p, cleanName, pLat, pLng) => {
+  const emitGooglePlaceImmediate = (p, cleanName, pLat, pLng, categoryHint = '') => {
     const phoneData = extractGoogleMapsPlacePhones(p);
-    const hoursInfo = extractGoogleMapsHours(p, cleanName, stdQuery || 'نشاط تجاري', fetchedCount);
+    const hoursInfo = extractGoogleMapsHours(p, cleanName, categoryHint || stdQuery || 'نشاط تجاري', fetchedCount);
     const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
     const addrParts = Array.isArray(p[2]) ? p[2].map(s => String(s || '').trim()).filter(Boolean) : [];
     const gDistrict = String(p[82]?.[0] || p[82]?.[1] || '').trim();
@@ -706,7 +707,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`;
 
     const item = {
-      id: p[78] || p[0] || `gmap_${Date.now()}_${fetchedCount}`,
+      id: p[78] || p[0] || `gmap_${Date.now()}_${fetchedCount}_${Math.floor(Math.random() * 1000)}`,
       name: cleanName,
       city: center.city,
       district: actualDistrict,
@@ -727,94 +728,312 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     fetchedCount++;
     sendEvent('place', item);
-    if (fetchedCount % 5 === 0 || fetchedCount <= 5) {
-      sendEvent('progress', { current: fetchedCount, total: fetchedCount + 10 });
+    if (fetchedCount % 10 === 0 || fetchedCount <= 5) {
+      sendEvent('progress', { current: fetchedCount, total: fetchedCount + 25 });
     }
   };
 
-  // 1. PRIMARY ENGINE: Direct Google Maps Live Search (`tbm=map`) with instant streaming
-  try {
-    const searchTerms = [];
-    const nearHood = resolveLocalNeighborhood(center.lat, center.lng);
-    const areaSuffix = (hasDrawnCircle && nearHood && nearHood.distanceKm <= 8 && nearHood.shortHood)
-      ? `${nearHood.shortHood} ${center.city}`
-      : (neighborhood ? `${neighborhood} ${center.city}` : center.city);
-
-    if (isFullAreaScan) {
-      // Comprehensive Multi-Category Radar Scan for the drawn area or city without requiring user to type an activity!
-      const comprehensiveCategories = [
-        'شركات ومؤسسات ومكاتب',
-        'محلات تجارية ومراكز تسوق',
-        'صيدليات ومستشفيات وعيادات',
-        'مطاعم وكافيهات',
-        'بنوك وشركات صرافة',
-        'فنادق ومدارس وخدمات'
-      ];
-      for (const cat of comprehensiveCategories) {
-        searchTerms.push(`${cat} في ${areaSuffix}`);
-      }
-    } else {
-      const baseTerm = stdQuery;
-      if (hasDrawnCircle) {
-        if (nearHood && nearHood.distanceKm <= 8 && nearHood.shortHood) {
-          searchTerms.push(`${baseTerm} في ${nearHood.shortHood} ${center.city}`);
+  // Build geographic sectors covering every neighborhood of the city or drawn circle
+  const buildCitySectors = () => {
+    const sectors = [];
+    if (hasDrawnCircle) {
+      const rDegLat = (circleFilter.radiusKm / 111) * 0.6;
+      const rDegLng = (circleFilter.radiusKm / 105) * 0.6;
+      sectors.push({ name: center.district, lat: center.lat, lng: center.lng, span: Math.min(Math.max(radiusMeters * 1.8, 1200), 25000) });
+      if (circleFilter.radiusKm >= 0.8) {
+        const offsets = [
+          [rDegLat, 0], [-rDegLat, 0], [0, rDegLng], [0, -rDegLng],
+          [rDegLat * 0.7, rDegLng * 0.7], [-rDegLat * 0.7, rDegLng * 0.7],
+          [rDegLat * 0.7, -rDegLng * 0.7], [-rDegLat * 0.7, -rDegLng * 0.7]
+        ];
+        for (const [dLat, dLng] of offsets) {
+          sectors.push({
+            name: center.district,
+            lat: center.lat + dLat,
+            lng: center.lng + dLng,
+            span: Math.min(Math.max(radiusMeters * 1.2, 1000), 15000)
+          });
         }
-        searchTerms.push(`${baseTerm} في ${center.city}`);
-      } else if (neighborhood) {
-        searchTerms.push(`${baseTerm} في ${neighborhood} ${center.city}`);
-        searchTerms.push(`${baseTerm} في ${center.city}`);
-      } else {
-        searchTerms.push(`${baseTerm} في ${center.city}`);
-        if (center.city.includes('صنعاء')) {
-          searchTerms.push(
-            `${baseTerm} في حدة والزبيري والتحرير صنعاء`,
-            `${baseTerm} في الستين والحصبة وشميلة صنعاء`,
-            `${baseTerm} في الصافية وشارع تعز والجراف صنعاء`,
-            `${baseTerm} في الأصبحي وبيت بوس والمطار صنعاء`
-          );
-        } else {
-          searchTerms.push(`أفضل ${baseTerm} في ${center.city}`);
+      }
+      return sectors;
+    }
+
+    if (neighborhood) {
+      sectors.push({ name: neighborhood, lat: center.lat, lng: center.lng, span: 6500 });
+      const d = 0.014;
+      sectors.push(
+        { name: neighborhood, lat: center.lat + d, lng: center.lng, span: 5500 },
+        { name: neighborhood, lat: center.lat - d, lng: center.lng, span: 5500 },
+        { name: neighborhood, lat: center.lat, lng: center.lng + d, span: 5500 },
+        { name: neighborhood, lat: center.lat, lng: center.lng - d, span: 5500 }
+      );
+      return sectors;
+    }
+
+    // Full City Mode: Load all neighborhoods for this city from GEO_DATABASE + extra districts
+    for (const cKey of Object.keys(GEO_DATABASE)) {
+      const citiesObj = GEO_DATABASE[cKey]?.cities || {};
+      for (const [cName, cData] of Object.entries(citiesObj)) {
+        if (normAr(cName) === normAr(center.city) || normAr(center.city).includes(normAr(cName))) {
+          const hoods = cData.neighborhoods || {};
+          const seenCoords = new Set();
+          for (const [hName, hData] of Object.entries(hoods)) {
+            const coordKey = `${hData.lat.toFixed(3)}_${hData.lng.toFixed(3)}`;
+            if (!seenCoords.has(coordKey)) {
+              seenCoords.add(coordKey);
+              sectors.push({ name: hName, lat: hData.lat, lng: hData.lng, span: 6500 });
+            }
+          }
         }
       }
     }
 
-    const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const distSpan = hasDrawnCircle
-      ? Math.min(Math.max(radiusMeters * 2.1, 1000), 35000)
-      : Math.min(Math.max(radiusMeters * 3.2, 30000), 70000);
-    const maxPagesPerTerm = isFullAreaScan ? 4 : (hasDrawnCircle ? 6 : 8);
+    // Extra districts for Sana'a to ensure 100% coverage of every corner of the capital
+    if (normAr(center.city).includes('صنعاء')) {
+      const extraSanaaHoods = [
+        { name: 'شارع تعز', lat: 15.3112, lng: 44.2195, span: 6000 },
+        { name: 'الجراف', lat: 15.4015, lng: 44.2095, span: 6000 },
+        { name: 'الروضة', lat: 15.4265, lng: 44.2185, span: 6500 },
+        { name: 'سعوان', lat: 15.3825, lng: 44.2545, span: 6500 },
+        { name: 'بير عبيد', lat: 15.3025, lng: 44.2055, span: 6000 },
+        { name: 'عصر', lat: 15.3485, lng: 44.1612, span: 6000 },
+        { name: 'حي الجامعة', lat: 15.3625, lng: 44.1845, span: 5500 },
+        { name: 'شارع خولان', lat: 15.3315, lng: 44.2312, span: 6000 },
+        { name: 'فج عطان', lat: 15.3185, lng: 44.1745, span: 6000 },
+        { name: 'السنينة', lat: 15.3645, lng: 44.1685, span: 6000 },
+        { name: 'حزيز', lat: 15.2385, lng: 44.2295, span: 6500 },
+        { name: 'دارس', lat: 15.4112, lng: 44.2125, span: 6000 }
+      ];
+      for (const eh of extraSanaaHoods) {
+        sectors.push(eh);
+      }
+    }
 
-    for (const sTerm of searchTerms) {
-      for (let page = 0; page < maxPagesPerTerm; page++) {
-        const offset = page * 20;
-        const pb = `!4m12!1m3!1d${distSpan}!2d${center.lng}!3d${center.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i20!8i${offset}!10b1`;
-        const gUrl = `https://www.google.com/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(sTerm)}`;
+    if (sectors.length === 0) {
+      // Fallback 13-point grid for any other city
+      sectors.push({ name: center.city, lat: center.lat, lng: center.lng, span: 15000 });
+      const steps = [-0.04, 0, 0.04];
+      for (const dLat of steps) {
+        for (const dLng of steps) {
+          if (dLat === 0 && dLng === 0) continue;
+          sectors.push({ name: center.city, lat: center.lat + dLat, lng: center.lng + dLng, span: 8000 });
+        }
+      }
+    }
+    return sectors;
+  };
+
+  // Expand any user activity query into comprehensive synonyms so no matching place is missed
+  const expandSpecificActivitySynonyms = (rawQ) => {
+    const q = normAr(rawQ);
+    const terms = new Set([rawQ]);
+
+    if (q.includes('مسبح') || q.includes('مسابح') || q.includes('سباح')) {
+      [
+        'مسبح', 'مسابح', 'نادي سباحة', 'المسبح', 'مسبح ترفيهي',
+        'مسبح ونادي رياضي', 'مسبح وحمام بخار', 'حمامات سباحة ومياه ساخنة',
+        'نادي صحي ومسبح', 'منتجع ومسبح', 'مسابح ونوادي صنعاء', 'حمام بخار وساونا ومسبح'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('تلفون') || q.includes('جوال') || q.includes('هاتف') || q.includes('هواتف') || q.includes('موبايل')) {
+      [
+        'محل تلفونات', 'محلات تلفونات', 'محلات جوالات', 'مركز هواتف وموبايل',
+        'اتصالات وموبايل', 'بيع وصيانة تلفونات', 'برمجة تلفونات وجوالات',
+        'وكالة هواتف ذكية', 'إكسسوارات تلفونات وجوالات'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('فندق') || q.includes('فنادق') || q.includes('لوكاند') || q.includes('اجنح')) {
+      [
+        'فندق', 'فنادق', 'شقق فندقية', 'أجنحة فندقية',
+        'منتجع وفندق', 'لوكاندة وفندق', 'استراحة وفندق'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('مركز') || q.includes('مراكز') || q.includes('مول') || q.includes('تسوق')) {
+      [
+        'مركز تجاري', 'مراكز تسوق', 'مول تجاري', 'هايبر ماركت',
+        'سوبر ماركت ومركز تسوق', 'سيتي مارت ومول', 'مجمع تجاري'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('صيدلي') || q.includes('دواء') || q.includes('فارما')) {
+      [
+        'صيدلية', 'صيدليات', 'صيدلية مركزية', 'شركة أدوية وفارما', 'مستلزمات طبية وصيدلية'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('مستشف') || q.includes('عياد') || q.includes('طبي')) {
+      [
+        'مستشفى', 'مستشفيات', 'مركز طبي', 'عيادة طبية', 'مختبر طبي', 'مركز أسنان'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('شرك') || q.includes('مؤسس') || q.includes('مكتب')) {
+      [
+        'شركة', 'شركات', 'مؤسسة تجارية', 'مجموعة تجارية', 'شركة استيراد وتصدير', 'شركة مقاولات وخدمات'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست')) {
+      [
+        'مطعم', 'مطاعم', 'مطابخ ومندي', 'بروست وشواية', 'وجبات سريعة', 'كافتيريا ومطعم'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('بنك') || q.includes('بنوك') || q.includes('صراف')) {
+      [
+        'بنك', 'بنوك', 'شركة صرافة', 'محل صرافة وتحويلات', 'مصرف'
+      ].forEach(t => terms.add(t));
+    } else {
+      terms.add(`${rawQ}`);
+      terms.add(`محلات ${rawQ}`);
+      terms.add(`مركز ${rawQ}`);
+      terms.add(`شركة ${rawQ}`);
+      terms.add(`أفضل ${rawQ}`);
+    }
+    return Array.from(terms);
+  };
+
+  // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Sector Google Maps Live Search (`tbm=map`)
+  try {
+    const countryGl = (center.countryCode || 'YE').toLowerCase();
+    const sectors = buildCitySectors();
+    const queryTasks = [];
+
+    if (isFullAreaScan) {
+      // 35 distinct business categories covering everything in the city (malls, hotels, phone shops, companies, pharmacies, hospitals, restaurants, banks, etc.)
+      const allCityCategories = [
+        'مراكز تجارية ومولات',
+        'فنادق',
+        'شقق وأجنحة فندقية',
+        'محل تلفونات وجوالات',
+        'مراكز اتصالات وموبايل',
+        'شركات تجارية',
+        'مؤسسات ومكاتب تجارية',
+        'صيدليات',
+        'مستشفيات',
+        'مراكز طبية وعيادات',
+        'مختبرات طبية وعيادات أسنان',
+        'مطاعم ومطابخ',
+        'بروست ووجبات سريعة',
+        'كافيهات ومقاهي وعصائر',
+        'بنوك ومصارف',
+        'شركات ومحلات صرافة',
+        'سوبر ماركت وهايبر وتموينات',
+        'محلات ملابس وأزياء',
+        'محلات أحذية وحقائب',
+        'محلات كمبيوتر وإلكترونيات',
+        'معارض ووكالات سيارات',
+        'قطع غيار وورش سيارات',
+        'مدارس أهلية وحكومية',
+        'جامعات ومعاهد تدريبية',
+        'مخابز وأفران',
+        'محلات حلويات وكيك',
+        'مسابح ونوادي رياضية',
+        'مكاتب عقارات ومقاولات',
+        'وكالات سفر وسياحة',
+        'محلات ذهب ومجوهرات',
+        'محلات أثاث ومفروشات',
+        'مواد بناء وطاقة شمسية',
+        'صالات أفراح ومناسبات',
+        'محلات عطور وتجميل',
+        'محطات وقود'
+      ];
+
+      const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
+      const mainSpan = hasDrawnCircle
+        ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
+        : 35000;
+
+      // Wave 1: Query all 35 categories across the main area (Pages 0 & 1 = 40 results per category)
+      for (const cat of allCityCategories) {
+        queryTasks.push({ q: `${cat} في ${areaName}`, lat: center.lat, lng: center.lng, span: mainSpan, offset: 0, cat });
+        queryTasks.push({ q: `${cat} في ${areaName}`, lat: center.lat, lng: center.lng, span: mainSpan, offset: 20, cat });
+      }
+
+      // Wave 2: Deep neighborhood sweep across all sectors of the city for the most popular categories
+      const coreSweepCategories = [
+        'مراكز تجارية ومولات',
+        'فنادق وشقق فندقية',
+        'محلات تلفونات وجوالات',
+        'شركات ومؤسسات',
+        'صيدليات ومراكز طبية',
+        'مطاعم وكافيهات',
+        'بنوك وصرافة',
+        'سوبر ماركت ومحلات تجارية',
+        'مدارس ومعاهد',
+        'مسابح ونوادي رياضية'
+      ];
+      for (const sec of sectors) {
+        for (const cat of coreSweepCategories) {
+          const locLabel = sec.name && sec.name !== center.city ? `${sec.name} ${center.city}` : center.city;
+          queryTasks.push({
+            q: `${cat} في ${locLabel}`,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 6500,
+            offset: 0,
+            cat
+          });
+        }
+      }
+    } else {
+      // Specific Activity Deep Scan (e.g., "مسبح", "فنادق", "محل تلفونات", etc.)
+      const synonyms = expandSpecificActivitySynonyms(stdQuery);
+      const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
+      const mainSpan = hasDrawnCircle
+        ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
+        : 35000;
+
+      // Wave 1: Query all synonyms across the city/area with deep pagination (Pages 0, 1, 2, 3 = up to 80 results per synonym)
+      for (const syn of synonyms) {
+        for (let page = 0; page < 4; page++) {
+          queryTasks.push({
+            q: `${syn} في ${areaName}`,
+            lat: center.lat,
+            lng: center.lng,
+            span: mainSpan,
+            offset: page * 20,
+            cat: stdQuery
+          });
+        }
+      }
+
+      // Wave 2: Sweep every single neighborhood sector of the city using the neighborhood's exact coordinates!
+      const sectorSynonyms = synonyms.slice(0, 5);
+      for (const sec of sectors) {
+        for (const syn of sectorSynonyms) {
+          const locLabel = sec.name && sec.name !== center.city ? `${sec.name} ${center.city}` : center.city;
+          queryTasks.push({
+            q: `${syn} في ${locLabel}`,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 6500,
+            offset: 0,
+            cat: stdQuery
+          });
+          queryTasks.push({
+            q: `${syn} في ${locLabel}`,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 6500,
+            offset: 20,
+            cat: stdQuery
+          });
+        }
+      }
+    }
+
+    // Execute Google Maps sector tasks in fast parallel batches (CONCURRENCY = 10) and stream immediately!
+    const executeSingleMapTask = async (task) => {
+      try {
+        const pb = `!4m12!1m3!1d${task.span}!2d${task.lng}!3d${task.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i20!8i${task.offset}!10b1`;
+        const gUrl = `https://www.google.com/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(task.q)}`;
 
         const gRes = await fetchWithTimeout(gUrl, {
-          timeout: 6500,
+          timeout: 6000,
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
             'Accept-Language': 'ar,en;q=0.9'
           }
         });
 
-        if (!gRes.ok) break;
+        if (!gRes.ok) return;
         let gText = await gRes.text();
         if (gText.startsWith(")]}'")) {
           gText = gText.slice(4).trim();
         }
 
-        let gData = null;
-        try {
-          gData = JSON.parse(gText);
-        } catch (parseErr) {
-          break;
-        }
-
+        const gData = JSON.parse(gText);
         const entries = gData?.[0]?.[1] || [];
-        if (!Array.isArray(entries) || entries.length === 0) break;
+        if (!Array.isArray(entries) || entries.length === 0) return;
 
-        let addedInPage = 0;
         const pagePlaces = [];
         for (const entry of entries) {
           const p = entry?.[14];
@@ -827,24 +1046,31 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
           const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
           if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
+          // Ensure results belong to the searched city/region (within 45km of city center)
+          if (!hasDrawnCircle && distFromOrigin > Math.max(rKm * 1.4, 42)) continue;
 
-          const dedupeKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
-          if (seenNames.has(dedupeKey) || seenNames.has(normAr(cleanName))) continue;
-          seenNames.add(dedupeKey);
-          seenNames.add(normAr(cleanName));
+          const placeIdKey = p[78] || p[0] || '';
+          const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(4)}_${pLng.toFixed(4)}`;
+          if ((placeIdKey && seenNames.has(placeIdKey)) || seenNames.has(coordNameKey)) continue;
+          if (placeIdKey) seenNames.add(placeIdKey);
+          seenNames.add(coordNameKey);
 
-          pagePlaces.push({ p, cleanName, pLat, pLng, distFromOrigin });
-          addedInPage++;
+          pagePlaces.push({ p, cleanName, pLat, pLng, distFromOrigin, cat: task.cat });
         }
 
-        // Sort current page places by proximity and emit immediately so the user sees results right away!
         pagePlaces.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
         for (const item of pagePlaces) {
-          emitGooglePlaceImmediate(item.p, item.cleanName, item.pLat, item.pLng);
+          emitGooglePlaceImmediate(item.p, item.cleanName, item.pLat, item.pLng, item.cat);
         }
-
-        if (addedInPage === 0) break;
+      } catch (e) {
+        // Ignore single task timeout/parse error
       }
+    };
+
+    const BATCH_CONCURRENCY = 10;
+    for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
+      const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
+      await Promise.all(batch.map(executeSingleMapTask));
     }
   } catch (gErr) {
     console.log('Google Maps direct search notice:', gErr.message);
@@ -860,10 +1086,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (dKm > circleFilter.radiusKm * 1.05) return false;
     }
 
-    const dedupeKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
-    if (seenNames.has(dedupeKey) || seenNames.has(normAr(cleanName))) return false;
-    seenNames.add(dedupeKey);
-    seenNames.add(normAr(cleanName));
+    const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(4)}_${pLng.toFixed(4)}`;
+    if (seenNames.has(coordNameKey)) return false;
+    seenNames.add(coordNameKey);
 
     const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
     const rawSuburb = tags['addr:suburb:ar'] || tags['addr:suburb'] || tags['addr:district'] || tags['addr:neighbourhood'] || '';
@@ -880,7 +1105,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       (isArabicStreet ? rawStreet : null) ||
       (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.neighborhood : (rawStreet || actualDistrict));
 
-    const realPhoneData = await extractRealPhones(tags, fetchedCount < 25 ? cleanName : '', center.city, pLat, pLng);
+    const realPhoneData = await extractRealPhones(tags, '', center.city, pLat, pLng);
 
     const website =
       tags['website'] ||
@@ -893,7 +1118,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const hoursInfo = resolveWorkingHoursAndStatus(tags, cleanName, stdQuery, fetchedCount);
 
     const item = {
-      id: `map_${Date.now()}_${fetchedCount}`,
+      id: `map_${Date.now()}_${fetchedCount}_${Math.floor(Math.random() * 1000)}`,
       name: cleanName,
       city: center.city,
       district: actualDistrict,
@@ -914,114 +1139,118 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     fetchedCount++;
     sendEvent('place', item);
-    if (fetchedCount % 5 === 0) {
+    if (fetchedCount % 10 === 0) {
       sendEvent('progress', { current: fetchedCount, total: fetchedCount });
     }
     return true;
   };
 
-  // 2. Query Overpass API only when needed (e.g., drawn circle scan or fewer than 40 results) to keep searches blazingly fast
-  if (hasDrawnCircle || fetchedCount < 40) {
-    try {
-      const lat = center.lat;
-      const lng = center.lng;
-      const r = hasDrawnCircle
-        ? Math.min(Math.max(radiusMeters, 200), 15000)
-        : Math.min(Math.max(radiusMeters, 12000), 20000);
+  // 2. Always supplement with Overpass OSM Live Map nodes (pools, hotels, phone shops, malls, pharmacies, offices, etc.)
+  try {
+    const lat = center.lat;
+    const lng = center.lng;
+    const r = hasDrawnCircle
+      ? Math.min(Math.max(radiusMeters, 200), 15000)
+      : Math.min(Math.max(radiusMeters, 15000), 25000);
 
-      let tagFilters = [];
-      if (!isFullAreaScan) {
-        if (qNorm.includes('صيدلي') || qNorm.includes('دواء') || qNorm.includes('فارما') || qNorm.includes('pharmacy')) {
-          tagFilters.push('["amenity"="pharmacy"]', '["healthcare"="pharmacy"]');
-        } else if (qNorm.includes('مستشف') || qNorm.includes('عياد') || qNorm.includes('طبي') || qNorm.includes('اسنان') || qNorm.includes('مختبر')) {
-          tagFilters.push('["amenity"~"hospital|clinic|doctors|dentist"]', '["healthcare"~"hospital|clinic|doctor|dentist|laboratory"]');
-        } else if (qNorm.includes('مخبز') || qNorm.includes('مخابز') || qNorm.includes('فرن') || qNorm.includes('افران') || qNorm.includes('روتي') || qNorm.includes('تميس')) {
-          tagFilters.push('["shop"~"bakery|pastry"]');
-        } else if (qNorm.includes('حلو') || qNorm.includes('بقلاو') || qNorm.includes('كناف') || qNorm.includes('شوكولا') || qNorm.includes('كيك')) {
-          tagFilters.push('["shop"~"confectionery|pastry|chocolate|bakery"]');
-        } else if (qNorm.includes('تلفون') || qNorm.includes('جوال') || qNorm.includes('هاتف') || qNorm.includes('هواتف') || qNorm.includes('موبايل') || qNorm.includes('اتصالات') || qNorm.includes('فون')) {
-          tagFilters.push('["shop"~"mobile_phone|electronics|telecommunication|computer"]');
-        } else if (qNorm.includes('مطعم') || qNorm.includes('مطاعم') || qNorm.includes('وجبات') || qNorm.includes('شواي') || qNorm.includes('بروست')) {
-          tagFilters.push('["amenity"~"restaurant|fast_food"]');
-        } else if (qNorm.includes('مقهي') || qNorm.includes('كافيه') || qNorm.includes('قهوه')) {
-          tagFilters.push('["amenity"~"cafe"]');
-        } else if (qNorm.includes('فندق') || qNorm.includes('فنادق') || qNorm.includes('شقق') || qNorm.includes('منتجع')) {
-          tagFilters.push('["tourism"~"hotel|motel|guest_house|apartment"]');
-        } else if (qNorm.includes('تجار') || qNorm.includes('سوبر') || qNorm.includes('بقال') || qNorm.includes('تموين') || qNorm.includes('مول') || qNorm.includes('تسوق')) {
-          tagFilters.push('["shop"~"supermarket|convenience|mall|department_store|wholesale|general"]');
-        } else if (qNorm.includes('ملابس') || qNorm.includes('ازياء') || qNorm.includes('عباي') || qNorm.includes('احذي')) {
-          tagFilters.push('["shop"~"clothes|shoes|boutique|fashion"]');
-        } else if (qNorm.includes('سيار') || qNorm.includes('قطع غيار') || qNorm.includes('ورشه') || qNorm.includes('بنشر')) {
-          tagFilters.push('["shop"~"car|car_repair|car_parts|tyres"]');
-        } else if (qNorm.includes('بنك') || qNorm.includes('صراف') || qNorm.includes('مصرف')) {
-          tagFilters.push('["amenity"~"bank|bureau_de_change"]');
-        } else if (qNorm.includes('مدرس') || qNorm.includes('جامع') || qNorm.includes('معهد')) {
-          tagFilters.push('["amenity"~"school|university|college"]');
-        } else if (qNorm.includes('شرك') || qNorm.includes('مؤسس') || qNorm.includes('مكتب')) {
-          tagFilters.push('["office"]', '["company"]');
-        }
+    let tagFilters = [];
+    if (!isFullAreaScan) {
+      if (qNorm.includes('مسبح') || qNorm.includes('مسابح') || qNorm.includes('سباح')) {
+        tagFilters.push(
+          '["leisure"~"swimming_pool|water_park|sports_centre|fitness_centre"]',
+          '["sport"~"swimming"]',
+          '["amenity"~"public_bath|swimming_pool"]'
+        );
+      } else if (qNorm.includes('صيدلي') || qNorm.includes('دواء') || qNorm.includes('فارما') || qNorm.includes('pharmacy')) {
+        tagFilters.push('["amenity"="pharmacy"]', '["healthcare"="pharmacy"]');
+      } else if (qNorm.includes('مستشف') || qNorm.includes('عياد') || qNorm.includes('طبي') || qNorm.includes('اسنان') || qNorm.includes('مختبر')) {
+        tagFilters.push('["amenity"~"hospital|clinic|doctors|dentist"]', '["healthcare"~"hospital|clinic|doctor|dentist|laboratory"]');
+      } else if (qNorm.includes('مخبز') || qNorm.includes('مخابز') || qNorm.includes('فرن') || qNorm.includes('افران') || qNorm.includes('روتي') || qNorm.includes('تميس')) {
+        tagFilters.push('["shop"~"bakery|pastry"]');
+      } else if (qNorm.includes('حلو') || qNorm.includes('بقلاو') || qNorm.includes('كناف') || qNorm.includes('شوكولا') || qNorm.includes('كيك')) {
+        tagFilters.push('["shop"~"confectionery|pastry|chocolate|bakery"]');
+      } else if (qNorm.includes('تلفون') || qNorm.includes('جوال') || qNorm.includes('هاتف') || qNorm.includes('هواتف') || qNorm.includes('موبايل') || qNorm.includes('اتصالات') || qNorm.includes('فون')) {
+        tagFilters.push('["shop"~"mobile_phone|electronics|telecommunication|computer"]');
+      } else if (qNorm.includes('مطعم') || qNorm.includes('مطاعم') || qNorm.includes('وجبات') || qNorm.includes('شواي') || qNorm.includes('بروست')) {
+        tagFilters.push('["amenity"~"restaurant|fast_food"]');
+      } else if (qNorm.includes('مقهي') || qNorm.includes('كافيه') || qNorm.includes('قهوه')) {
+        tagFilters.push('["amenity"~"cafe"]');
+      } else if (qNorm.includes('فندق') || qNorm.includes('فنادق') || qNorm.includes('شقق') || qNorm.includes('منتجع')) {
+        tagFilters.push('["tourism"~"hotel|motel|guest_house|apartment|chalet"]');
+      } else if (qNorm.includes('مركز') || qNorm.includes('مراكز') || qNorm.includes('تجار') || qNorm.includes('سوبر') || qNorm.includes('بقال') || qNorm.includes('تموين') || qNorm.includes('مول') || qNorm.includes('تسوق')) {
+        tagFilters.push('["shop"~"supermarket|convenience|mall|department_store|wholesale|general"]');
+      } else if (qNorm.includes('ملابس') || qNorm.includes('ازياء') || qNorm.includes('عباي') || qNorm.includes('احذي')) {
+        tagFilters.push('["shop"~"clothes|shoes|boutique|fashion"]');
+      } else if (qNorm.includes('سيار') || qNorm.includes('قطع غيار') || qNorm.includes('ورشه') || qNorm.includes('بنشر')) {
+        tagFilters.push('["shop"~"car|car_repair|car_parts|tyres"]');
+      } else if (qNorm.includes('بنك') || qNorm.includes('صراف') || qNorm.includes('مصرف')) {
+        tagFilters.push('["amenity"~"bank|bureau_de_change"]');
+      } else if (qNorm.includes('مدرس') || qNorm.includes('جامع') || qNorm.includes('معهد')) {
+        tagFilters.push('["amenity"~"school|university|college"]');
+      } else if (qNorm.includes('شرك') || qNorm.includes('مؤسس') || qNorm.includes('مكتب')) {
+        tagFilters.push('["office"]', '["company"]');
       }
-
-      const flexRegex = !isFullAreaScan ? buildArabicFlexRegex(stdQuery) : '';
-      let queryBlocks = '';
-      for (const tf of tagFilters) {
-        queryBlocks += `node${tf}(around:${r},${lat},${lng});way${tf}(around:${r},${lat},${lng});`;
-      }
-      if (flexRegex && flexRegex.length >= 2) {
-        queryBlocks += `node["name"~"${flexRegex}",i](around:${r},${lat},${lng});way["name"~"${flexRegex}",i](around:${r},${lat},${lng});`;
-      }
-      if (!queryBlocks) {
-        queryBlocks = `node["shop"](around:${r},${lat},${lng});node["amenity"](around:${r},${lat},${lng});node["office"](around:${r},${lat},${lng});node["tourism"](around:${r},${lat},${lng});`;
-      }
-
-      const overpassQuery = `[out:json][timeout:8];(${queryBlocks});out center 120;`;
-      const mirrors = [
-        'https://overpass.kumi.systems/api/interpreter',
-        'https://lz4.overpass-api.de/api/interpreter'
-      ];
-
-      for (const mirror of mirrors) {
-        try {
-          const opRes = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(overpassQuery)}`, { timeout: 6500 });
-          if (opRes.ok) {
-            const opData = await opRes.json();
-            if (opData.elements && opData.elements.length > 0) {
-              const elementsWithDist = opData.elements
-                .map(el => {
-                  const pLat = el.lat || el.center?.lat;
-                  const pLng = el.lon || el.center?.lon;
-                  const tags = el.tags || {};
-                  const name = tags['name:ar'] || tags['name'] || tags['name:en'] || tags['brand'];
-                  const dist = pLat && pLng ? calcDistanceKm(lat, lng, pLat, pLng) : 999;
-                  const hasRealPhone = Boolean(
-                    tags['phone'] || tags['contact:phone'] || tags['mobile'] || tags['contact:mobile'] ||
-                    tags['phone:1'] || tags['whatsapp'] || tags['contact:whatsapp']
-                  );
-                  return { el, pLat, pLng, tags, name, dist, hasRealPhone };
-                })
-                .filter(x => x.name && x.pLat && x.pLng)
-                .sort((a, b) => {
-                  if (a.hasRealPhone !== b.hasRealPhone) return a.hasRealPhone ? -1 : 1;
-                  return a.dist - b.dist;
-                });
-
-              for (const item of elementsWithDist) {
-                await emitPlace(item.name, item.pLat, item.pLng, item.tags, 'خرائط جوجل / OSM الحية');
-              }
-              break;
-            }
-          }
-        } catch (mErr) {
-          // Try next mirror
-        }
-      }
-    } catch (err) {
-      console.log('Overpass live query notice:', err.message);
     }
+
+    const flexRegex = !isFullAreaScan ? buildArabicFlexRegex(stdQuery) : '';
+    let queryBlocks = '';
+    for (const tf of tagFilters) {
+      queryBlocks += `node${tf}(around:${r},${lat},${lng});way${tf}(around:${r},${lat},${lng});`;
+    }
+    if (flexRegex && flexRegex.length >= 2) {
+      queryBlocks += `node["name"~"${flexRegex}",i](around:${r},${lat},${lng});way["name"~"${flexRegex}",i](around:${r},${lat},${lng});`;
+    }
+    if (!queryBlocks) {
+      queryBlocks = `node["shop"](around:${r},${lat},${lng});way["shop"](around:${r},${lat},${lng});node["amenity"](around:${r},${lat},${lng});way["amenity"](around:${r},${lat},${lng});node["office"](around:${r},${lat},${lng});way["office"](around:${r},${lat},${lng});node["tourism"](around:${r},${lat},${lng});way["tourism"](around:${r},${lat},${lng});node["healthcare"](around:${r},${lat},${lng});node["leisure"](around:${r},${lat},${lng});`;
+    }
+
+    const overpassQuery = `[out:json][timeout:12];(${queryBlocks});out center 1800;`;
+    const mirrors = [
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter'
+    ];
+
+    for (const mirror of mirrors) {
+      try {
+        const opRes = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(overpassQuery)}`, { timeout: 9000 });
+        if (opRes.ok) {
+          const opData = await opRes.json();
+          if (opData.elements && opData.elements.length > 0) {
+            const elementsWithDist = opData.elements
+              .map(el => {
+                const pLat = el.lat || el.center?.lat;
+                const pLng = el.lon || el.center?.lon;
+                const tags = el.tags || {};
+                const name = tags['name:ar'] || tags['name'] || tags['name:en'] || tags['brand'];
+                const dist = pLat && pLng ? calcDistanceKm(lat, lng, pLat, pLng) : 999;
+                const hasRealPhone = Boolean(
+                  tags['phone'] || tags['contact:phone'] || tags['mobile'] || tags['contact:mobile'] ||
+                  tags['phone:1'] || tags['whatsapp'] || tags['contact:whatsapp']
+                );
+                return { el, pLat, pLng, tags, name, dist, hasRealPhone };
+              })
+              .filter(x => x.name && x.pLat && x.pLng)
+              .sort((a, b) => {
+                if (a.hasRealPhone !== b.hasRealPhone) return a.hasRealPhone ? -1 : 1;
+                return a.dist - b.dist;
+              });
+
+            for (const item of elementsWithDist) {
+              await emitPlace(item.name, item.pLat, item.pLng, item.tags, 'خرائط جوجل / OSM الحية');
+            }
+            break;
+          }
+        }
+      } catch (mErr) {
+        // Try next mirror
+      }
+    }
+  } catch (err) {
+    console.log('Overpass live query notice:', err.message);
   }
 
   sendEvent('progress', { current: fetchedCount, total: fetchedCount });
-  sendEvent('status', { message: `اكتمل المسح واستخراج جميع البيانات (${fetchedCount} موقع حقيقي) في [${center.city} - ${center.district}] بنجاح!` });
+  sendEvent('status', { message: `اكتمل المسح الشامل واستخراج (${fetchedCount} موقع حقيقي) في [${center.city} - ${center.district}] بنجاح!` });
 }
 
 // Generate authentic, strictly country-specific telephone numbers

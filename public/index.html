@@ -33,11 +33,7 @@
       -webkit-touch-callout: none;
     }
     html, body {
-      overscroll-behavior: none !important;
-      overscroll-behavior-y: none !important;
       -webkit-overflow-scrolling: touch;
-      user-select: none;
-      -webkit-user-select: none;
     }
     input, textarea, select, .font-num {
       user-select: text;
@@ -355,13 +351,17 @@
         </div>
       </div>
 
-      <!-- Left: Device Auto-Detection Badge + Circular Icon Buttons -->
+      <!-- Left: Device Auto-Detection Badge + Optional Refresh Button + Circular Icon Buttons -->
       <div class="flex items-center gap-2">
         <div id="deviceModeBadge" class="px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 shadow-sm">
           <i id="deviceModeIcon" data-lucide="laptop" class="w-3.5 h-3.5 text-emerald-400"></i>
           <span id="deviceModeText">واجهة اللابتوب</span>
         </div>
-        <button type="button" onclick="centerMapOnUserGps()" title="تحديد موقعي على الرادار" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition cursor-pointer">
+        <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة (اختياري)" class="px-3 py-2 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-400"></i>
+          <span>تحديث</span>
+        </button>
+        <button type="button" onclick="centerMapOnUserGps()" title="تحديد موقعي على الخريطة" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-emerald-400 hover:text-emerald-300 flex items-center justify-center transition cursor-pointer">
           <i data-lucide="locate-fixed" class="w-4 h-4"></i>
         </button>
         <button type="button" onclick="openAppSettingsModal()" title="إعدادات التطبيق والتصدير" class="w-10 h-10 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700/80 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer">
@@ -643,13 +643,13 @@
 
       </div>
 
-      <!-- LEFT SIDE (5 Cols on Desktop): Circular 3D Radar Globe with Concentric Distance Rings (0.8 km, 1.2 km, 1.2 km) + Bottom-Left Pill Toggle Switches -->
-      <div id="visualizerPanel" class="lg:col-span-5 flex flex-col items-center justify-center relative order-2 py-2">
+      <!-- LEFT SIDE (5 Cols on Desktop): Hidden on Mobile by default; appears on Mobile ONLY when user asks to Draw Circle or View on Map! -->
+      <div id="visualizerPanel" class="hidden lg:flex lg:col-span-5 flex-col items-center justify-center relative order-2 py-2">
         
         <div class="relative w-[330px] h-[330px] sm:w-[430px] sm:h-[430px] xl:w-[465px] xl:h-[465px] flex items-center justify-center">
           
-          <!-- VIEW 1: 3D Earth Globe with Radar Rings & Sweep Overlay (Matching Screenshot 1!) -->
-          <div id="globeContainer" class="globe-radar-shell w-full h-full relative overflow-hidden flex items-center justify-center">
+          <!-- VIEW 1: 3D Earth Globe with Radar Rings & Sweep Overlay (Desktop Only) -->
+          <div id="globeContainer" class="globe-radar-shell w-full h-full relative overflow-hidden hidden lg:flex items-center justify-center">
             <canvas id="globeCanvas" class="w-full h-full cursor-grab active:cursor-grabbing z-10"></canvas>
 
             <!-- Concentric Radar Distance Rings & Rotating Sweep Overlay -->
@@ -677,7 +677,7 @@
                 </span>
               </div>
 
-              <!-- Glowing Cyan & Emerald Map Pins exactly like Screenshot 1 -->
+              <!-- Glowing Cyan & Emerald Map Pins -->
               <div class="glowing-radar-pin absolute top-[26%] left-[44%] text-emerald-400" style="filter: drop-shadow(0 0 12px #10b981);">
                 <i data-lucide="map-pin" class="w-7 h-7 fill-emerald-400/35"></i>
               </div>
@@ -709,13 +709,14 @@
           <div id="mapContainer" class="hidden w-full h-full rounded-3xl overflow-hidden border-2 border-emerald-500/45 shadow-[0_0_50px_rgba(16,185,129,0.25)] relative z-10">
             <div id="leafletMap" class="w-full h-full"></div>
             <div class="absolute top-3 right-3 z-[1000] flex flex-wrap gap-1.5">
-              <button type="button" onclick="setViewMode('3d')" class="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black shadow-lg cursor-pointer flex items-center gap-1">
+              <button type="button" onclick="setViewMode('3d')" class="hidden lg:flex px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black shadow-lg cursor-pointer items-center gap-1">
                 <span>🌍 الكرة 3D</span>
               </button>
               <button type="button" id="mapDrawCircleBtn" onclick="startDrawCircleOnMap()" class="px-2.5 py-1.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[11px] font-black shadow-lg cursor-pointer">⭕ رسم دائرة</button>
               <button type="button" onclick="setViewMode('map', 'streets')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[11px] font-bold shadow-lg cursor-pointer">شوارع</button>
               <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[11px] font-bold shadow-lg cursor-pointer">قمر صناعي</button>
               <button type="button" onclick="centerMapOnUserGps()" class="px-2.5 py-1.5 rounded-xl bg-slate-950/90 hover:bg-slate-900 border border-amber-500/40 text-amber-300 text-[11px] font-bold shadow-lg cursor-pointer">📍 موقعي</button>
+              <button type="button" onclick="hideMobileMapPanel()" class="lg:hidden px-2.5 py-1.5 rounded-xl bg-red-500/90 hover:bg-red-500 text-white text-[11px] font-black shadow-lg cursor-pointer">✕ إخفاء الخريطة</button>
             </div>
             <!-- Floating Draw Hint Overlay inside Map -->
             <div id="mapDrawHintOverlay" class="hidden absolute bottom-3 inset-x-3 z-[1000] px-3 py-2 rounded-xl bg-slate-950/95 border border-cyan-400/60 text-center text-[11px] font-bold text-cyan-300 shadow-xl pointer-events-none">
@@ -725,8 +726,8 @@
 
         </div>
 
-        <!-- Bottom-Left Pill Toggle Switches (Placed cleanly below the Globe/Map with z-[1000] so they NEVER get hidden under the Map!) -->
-        <div class="w-full max-w-[465px] mt-4 z-[1000] relative flex flex-col sm:flex-row lg:flex-col items-stretch sm:items-center lg:items-end gap-2.5">
+        <!-- Bottom-Left Pill Toggle Switches (Desktop Only - Completely removed on Mobile as requested!) -->
+        <div id="visualizerToggleSwitches" class="hidden lg:flex w-full max-w-[465px] mt-4 z-[1000] relative flex-col items-end gap-2.5">
           <!-- Toggle 1: 3D Earth Globe -->
           <button
             type="button"
@@ -770,17 +771,17 @@
       <i data-lucide="layout-grid" class="w-4 h-4"></i>
       <span>البطاقات</span>
     </button>
-    <button type="button" onclick="setViewMode('map', 'streets'); document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth', block:'center'})" class="flex flex-col items-center gap-0.5 text-emerald-300 text-[11px] font-bold">
-      <i data-lucide="map-pin" class="w-4 h-4"></i>
-      <span>الخريطة والموقع</span>
-    </button>
-    <button type="button" onclick="setViewMode('3d'); document.getElementById('visualizerPanel').scrollIntoView({behavior:'smooth', block:'center'})" class="flex flex-col items-center gap-0.5 text-teal-400 text-[11px] font-bold">
-      <i data-lucide="globe" class="w-4 h-4"></i>
-      <span>الرادار 3D</span>
+    <button type="button" onclick="startDrawCircleOnMap()" class="flex flex-col items-center gap-0.5 text-emerald-300 text-[11px] font-bold">
+      <i data-lucide="circle-dot" class="w-4 h-4"></i>
+      <span>رسم دائرة</span>
     </button>
     <button type="button" onclick="exportToExcel()" class="flex flex-col items-center gap-0.5 text-amber-400 text-[11px] font-bold">
       <i data-lucide="download" class="w-4 h-4"></i>
       <span>Excel</span>
+    </button>
+    <button type="button" onclick="optionalRefreshPage()" class="flex flex-col items-center gap-0.5 text-teal-300 text-[11px] font-bold">
+      <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+      <span>تحديث</span>
     </button>
   </nav>
 
@@ -1264,10 +1265,34 @@
       if (valLbl) valLbl.innerText = `${radiusKm.toFixed(1)} كم`;
     }
 
-    function startDrawCircleOnMap() {
-      if (viewMode === '3d') {
-        setViewMode('map', 'streets');
+    function showMobileMapPanel() {
+      const panel = document.getElementById('visualizerPanel');
+      if (panel) {
+        panel.classList.remove('hidden');
+        panel.classList.add('flex');
       }
+    }
+
+    function hideMobileMapPanel() {
+      const panel = document.getElementById('visualizerPanel');
+      if (panel) {
+        panel.classList.remove('flex');
+        panel.classList.add('hidden');
+      }
+      document.getElementById('searchForm')?.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function optionalRefreshPage() {
+      if ('caches' in window) {
+        caches.keys().then(keys => Promise.all(keys.map(k => caches.delete(k)))).finally(() => window.location.reload());
+      } else {
+        window.location.reload();
+      }
+    }
+
+    function startDrawCircleOnMap() {
+      showMobileMapPanel();
+      setViewMode('map', 'streets');
       isDrawingCircleMode = true;
       const banner = document.getElementById('drawnCircleBanner');
       if (banner) banner.classList.remove('hidden');
@@ -1275,8 +1300,11 @@
       if (hint) hint.classList.remove('hidden');
       if (leafletMap) {
         leafletMap.getContainer().style.cursor = 'crosshair';
+        setTimeout(() => leafletMap.invalidateSize(), 200);
       }
-      document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
     }
 
     function onDrawnCircleSliderChange(val) {
@@ -1309,6 +1337,9 @@
       }
       document.getElementById('drawnCircleBanner')?.classList.add('hidden');
       document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
+      if (window.innerWidth < 1024) {
+        hideMobileMapPanel();
+      }
       if (runFullCitySearch) {
         activateFullCitySearch();
       }
@@ -1340,9 +1371,16 @@
 
     function centerMapOnUserGps() {
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
+        showMobileMapPanel();
         setViewMode('map', 'streets');
         renderUserGpsPinOnMap();
-        leafletMap.flyTo([cachedOptionalGps.lat, cachedOptionalGps.lng], 16, { duration: 1 });
+        setTimeout(() => {
+          if (leafletMap) {
+            leafletMap.invalidateSize();
+            leafletMap.flyTo([cachedOptionalGps.lat, cachedOptionalGps.lng], 16, { duration: 1 });
+          }
+          document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
       } else {
         requestOptionalGeolocationPrompt();
       }
@@ -1384,8 +1422,11 @@
       const entry = mapMarkers.find(m => m.id === placeId);
       if (!entry) return;
 
-      if (switchToMap && viewMode === '3d') {
-        setViewMode('map', 'streets');
+      if (switchToMap) {
+        showMobileMapPanel();
+        if (viewMode === '3d') {
+          setViewMode('map', 'streets');
+        }
       }
 
       if (viewMode === '3d') {
@@ -1396,12 +1437,17 @@
           camera.lookAt(0, 0, 0);
         }
       } else if (leafletMap) {
-        leafletMap.flyTo([entry.place.lat, entry.place.lng], 16, { duration: 0.75 });
-        entry.marker.openPopup();
+        setTimeout(() => {
+          leafletMap.invalidateSize();
+          leafletMap.flyTo([entry.place.lat, entry.place.lng], 16, { duration: 0.75 });
+          entry.marker.openPopup();
+        }, 120);
       }
 
       if (switchToMap) {
-        document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => {
+          document.getElementById('visualizerPanel')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
       }
     }
 
@@ -2156,26 +2202,6 @@
     window.addEventListener('online', () => {
       updateOfflineOverlayState(false);
     });
-
-    // Block Pull-to-Refresh when dragging down from the top of the screen
-    let touchStartY = 0;
-    document.addEventListener('touchstart', (e) => {
-      if (e.touches.length === 1) {
-        touchStartY = e.touches[0].clientY;
-      }
-    }, { passive: true });
-
-    document.addEventListener('touchmove', (e) => {
-      if (e.touches.length !== 1) return;
-      const touchY = e.touches[0].clientY;
-      const pullDelta = touchY - touchStartY;
-      if (pullDelta > 0 && window.scrollY <= 0) {
-        const scrollableParent = e.target.closest('.overflow-y-auto, .overflow-auto');
-        if (!scrollableParent || scrollableParent.scrollTop <= 0) {
-          e.preventDefault();
-        }
-      }
-    }, { passive: false });
 
     function openAppSettingsModal() {
       document.getElementById('appSettingsModal')?.classList.remove('hidden');

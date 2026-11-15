@@ -775,18 +775,30 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       // Extract real working hours and Open/Closed state from Google Maps `p[203]`
       const hoursInfo = extractGoogleMapsHours(p, cleanName, stdQuery, fetchedCount);
 
-      // Extract real neighborhood/district & address from Google Maps `p[2]`, `p[82]`, `p[39]`
+      // Extract real neighborhood/district & full street address from Google Maps `p[2]`, `p[82]`, `p[39]`, `p[18]`
       const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
-      const addrParts = Array.isArray(p[2]) ? p[2] : [];
-      const gDistrict = p[82]?.[0] || addrParts[1] || addrParts[0] || '';
-      const actualDistrict =
-        (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.shortHood : null) ||
-        gDistrict ||
-        (neighborhood ? neighborhood : center.district);
+      const addrParts = Array.isArray(p[2]) ? p[2].map(s => String(s || '').trim()).filter(Boolean) : [];
+      const gDistrict = String(p[82]?.[0] || p[82]?.[1] || '').trim();
+      const rawFormattedAddr = String(p[39] || p[18] || '').trim();
+
+      // Prioritize Google Maps' own specific neighborhood/street if present, then local neighborhood match within 3.5 km
+      let actualDistrict = '';
+      if (gDistrict && gDistrict !== center.city) {
+        actualDistrict = gDistrict;
+      } else if (addrParts.length >= 2) {
+        actualDistrict = addrParts.filter(part => part !== center.city).slice(0, 2).join(' - ');
+      } else if (hoodMatch && hoodMatch.distanceKm <= 3.5) {
+        actualDistrict = hoodMatch.neighborhood || hoodMatch.shortHood;
+      } else if (addrParts.length === 1 && addrParts[0] !== center.city) {
+        actualDistrict = addrParts[0];
+      } else if (hoodMatch && hoodMatch.distanceKm <= 8) {
+        actualDistrict = hoodMatch.shortHood;
+      } else {
+        actualDistrict = neighborhood || center.district;
+      }
 
       const fullAddress =
-        p[39] ||
-        p[18] ||
+        rawFormattedAddr ||
         (addrParts.length > 0 ? addrParts.join('، ') : `${center.city} - ${actualDistrict}`);
 
       // Extract real rating & reviews count from Google Maps `p[4]`

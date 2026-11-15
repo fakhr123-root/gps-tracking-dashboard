@@ -152,6 +152,9 @@
     ::-webkit-scrollbar-thumb { background: #13323b; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #10b981; }
 
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
     @media (max-width: 767px) {
       body.device-mobile input, body.device-mobile select { font-size: 16px !important; }
       main { padding-bottom: 5rem !important; }
@@ -503,71 +506,71 @@
           </div>
         </form>
 
-        <!-- 2. Optional Category Pills Row (Unselected by default - User clicks optionally to select or unselect) -->
-        <div class="bg-slate-900/55 border border-slate-800/80 rounded-2xl p-3 space-y-2">
-          <div class="flex items-center justify-between text-[11px] text-slate-300">
-            <span class="font-bold flex items-center gap-1.5">
-              <i data-lucide="layers" class="w-3.5 h-3.5 text-emerald-400"></i>
-              <span>اختيار سريع للنشاط (اختياري — اضغط للاختيار أو الإلغاء):</span>
-            </span>
-            <button type="button" onclick="clearCategoryAndFilters()" class="text-[11px] text-slate-400 hover:text-emerald-300 font-bold cursor-pointer">إعادة ضبط الفلاتر ↺</button>
-          </div>
-          <div class="flex flex-wrap items-center gap-2">
-            <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
-              <span>شركات</span>
-            </button>
-            <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
-              <span>صيدليات</span>
-            </button>
-            <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <span>صرافة</span>
-            </button>
-            <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <span>بنوك</span>
-            </button>
-            <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <span>مطاعم</span>
-            </button>
-            <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
-              <span>فنادق</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- 3. Clear & Optional Area / Filter Controls + Excel Export -->
-        <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/40 border border-slate-800/70 rounded-2xl p-2.5">
-          <div class="flex flex-wrap items-center gap-1.5">
-            <span class="text-[11px] text-slate-400 font-bold ml-1">تصفية اختيارية:</span>
-            <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن التي يتوفر لها رقم هاتف فقط (اضغط للتفعيل أو الإلغاء)">
-              <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
-              <span>فقط التي لها رقم هاتف</span>
-            </button>
-            <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن المفتوحة حالياً فقط (اضغط للتفعيل أو الإلغاء)">
-              <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
-              <span>المفتوحة الآن</span>
-            </button>
-            <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="px-3.5 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
-              <i data-lucide="globe-2" class="w-3.5 h-3.5"></i>
-              <span>بحث في المدينة كاملة</span>
-            </button>
-            <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="px-3.5 py-1.5 rounded-full bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/60 text-cyan-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
-              <i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>
-              <span>رسم دائرة لتحديد منطقة</span>
+        <!-- 2. Clean, Uncluttered Unified Toolbar for Mobile & Desktop (Categories + Optional Filters + Area & Excel Actions) -->
+        <div class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-3 space-y-2.5 shadow-sm">
+          
+          <!-- Row A: Optional Quick Categories (Horizontal scroll on mobile, clean row on desktop) -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar flex-1">
+              <span class="text-[11px] text-slate-400 font-bold shrink-0 ml-1">النشاط (اختياري):</span>
+              <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="building-2" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>شركات</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="award" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>صيدليات</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>صرافة</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>بنوك</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>مطاعم</span>
+              </button>
+              <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i>
+                <span>فنادق</span>
+              </button>
+            </div>
+            <button type="button" onclick="clearCategoryAndFilters()" title="إلغاء جميع الاختيارات والفلاتر" class="shrink-0 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-[11px] text-slate-300 hover:text-emerald-300 font-bold cursor-pointer transition">
+              إعادة ضبط ↺
             </button>
           </div>
 
-          <div class="flex items-center gap-1.5">
-            <button type="button" onclick="exportToExcel()" class="px-3.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
-              <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
-              <span>تنزيل Excel + الإحداثيات</span>
-            </button>
-            <button type="button" onclick="toggleAdvancedDrawer()" class="smart-pill px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 cursor-pointer">
-              <span>تحديد حي / خيارات</span>
-              <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
-            </button>
+          <!-- Row B: Clean Action & Filter Bar (Organized for Phone & PC without crowding) -->
+          <div class="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
+            <div class="col-span-2 sm:col-span-1 flex flex-wrap items-center gap-1.5">
+              <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن التي يتوفر لها رقم هاتف فقط">
+                <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>لها هاتف</span>
+              </button>
+              <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer" title="إظهار الأماكن المفتوحة حالياً فقط">
+                <i data-lucide="clock" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>مفتوح الآن</span>
+              </button>
+              <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
+                <i data-lucide="globe-2" class="w-3.5 h-3.5"></i>
+                <span>المدينة كاملة</span>
+              </button>
+              <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="px-3 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/60 text-cyan-300 text-xs font-extrabold flex items-center gap-1.5 cursor-pointer transition">
+                <i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>
+                <span>رسم دائرة بالخريطة</span>
+              </button>
+            </div>
+
+            <div class="col-span-2 sm:col-span-1 flex items-center justify-end gap-1.5">
+              <button type="button" onclick="exportToExcel()" class="flex-1 sm:flex-initial justify-center px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black flex items-center gap-1.5 cursor-pointer transition shadow">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
+                <span>Excel + الإحداثيات</span>
+              </button>
+              <button type="button" onclick="toggleAdvancedDrawer()" class="smart-pill px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer">
+                <span>تحديد حي</span>
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1601,7 +1604,7 @@
       lucide.createIcons();
     }
 
-    // Build Vertical Bento Card 100% Matching Screenshot 1
+    // Build Clean, Organized Bento Card for Mobile & Desktop with Full Location / Address & Direct Map Button
     function appendPlaceRow(place, index) {
       const tbody = document.getElementById('resultsTableBody');
       const bentoContainer = document.getElementById('bentoCardsWrapper');
@@ -1618,10 +1621,16 @@
       const isOpen = place.isOpenNow !== false;
       const openStatusLabel = place.openStatus || (isOpen ? 'مفتوح الآن' : 'مغلق الآن');
 
+      const cityDistrictLabel = `${place.city || 'صنعاء'} - ${place.district || openStatusLabel}`;
+      const detailedLocation = (place.address && place.address.trim() && place.address !== 'غير متوفر')
+        ? place.address.trim()
+        : cityDistrictLabel;
+      const googleMapsDirectUrl = place.locationUrl || `https://www.google.com/maps/search/?api=1&query=${Number(place.lat || 0)},${Number(place.lng || 0)}`;
+
       if (bentoContainer) {
         const card = document.createElement('div');
         card.id = `bento_${place.id}`;
-        card.className = "studio-card p-4 rounded-2xl flex flex-col justify-between gap-3 cursor-pointer";
+        card.className = "studio-card p-3.5 sm:p-4 rounded-2xl flex flex-col justify-between gap-2.5 cursor-pointer";
         card.onmouseenter = () => focusPlaceOnRadar(place.id, false);
         card.onclick = (ev) => {
           if (ev.target.closest('a, button')) return;
@@ -1629,42 +1638,67 @@
         };
 
         card.innerHTML = `
-          <!-- Top Bar: 4.8 ★ on Right | ••• on Left -->
-          <div class="flex items-center justify-between">
-            <span class="px-2 py-0.5 rounded-md bg-slate-950/75 text-amber-400 font-num font-bold text-xs flex items-center gap-1">
+          <!-- Top Bar: Rating ★ on Right | Radar Focus & Copy on Left -->
+          <div class="flex items-center justify-between gap-1.5">
+            <span class="px-2 py-0.5 rounded-md bg-slate-950/80 text-amber-400 font-num font-bold text-xs flex items-center gap-1 border border-amber-500/20">
               <span>★</span>
               <span>${ratingClean}</span>
             </span>
-            <button type="button" onclick="copySingleDetails('${place.id}')" title="نسخ بيانات المنشأة" class="text-teal-300/70 hover:text-white transition cursor-pointer">
-              <i data-lucide="more-horizontal" class="w-4 h-4"></i>
-            </button>
+            <div class="flex items-center gap-1">
+              <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" title="عرض موقع المحل على خريطة الرادار" class="px-2 py-0.5 rounded-md bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/35 text-cyan-300 text-[10px] font-bold flex items-center gap-1 transition cursor-pointer">
+                <i data-lucide="crosshair" class="w-3 h-3"></i>
+                <span>بالرادار</span>
+              </button>
+              <button type="button" onclick="copySingleDetails('${place.id}')" title="نسخ كافة بيانات وموقع المنشأة" class="p-1 rounded-md bg-slate-900/80 text-teal-300/80 hover:text-white transition cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
           </div>
 
-          <!-- Center Title & Subtitle -->
-          <div class="text-right space-y-0.5 my-0.5">
-            <h4 class="text-base font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
-            <p class="text-xs text-slate-400 truncate">${place.city || 'صنعاء'} - ${place.district || openStatusLabel}</p>
+          <!-- Center Title & Specific Location / Address Box -->
+          <div class="text-right space-y-1.5">
+            <h4 class="text-sm sm:text-base font-black text-white leading-snug truncate" title="${place.name}">${place.name}</h4>
+            
+            <!-- Dedicated Specific Place Location Box -->
+            <a href="${googleMapsDirectUrl}" target="_blank" title="اضغط لفتح موقع (${place.name}) في خرائط جوجل: ${detailedLocation}" class="w-full px-2.5 py-1.5 rounded-xl bg-slate-950/85 hover:bg-emerald-950/50 border border-emerald-500/35 text-right flex items-start gap-1.5 transition group">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5 group-hover:scale-110 transition"></i>
+              <div class="min-w-0 flex-1">
+                <div class="text-[11px] font-bold text-emerald-300 truncate">${cityDistrictLabel}</div>
+                <div class="text-[10px] text-slate-300 truncate">${detailedLocation}</div>
+              </div>
+              <i data-lucide="external-link" class="w-3 h-3 text-slate-400 group-hover:text-emerald-300 shrink-0 mt-0.5"></i>
+            </a>
           </div>
 
           <!-- Verified Phone Badge + Coordinates (Latitude & Longitude) -->
-          <div class="flex flex-col items-start gap-1.5">
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20"></i>
-              <span class="font-num" dir="ltr">${primaryPhone ? primaryPhone : 'Verified Place'}</span>
+          <div class="flex flex-col items-stretch gap-1.5">
+            <div class="flex items-center justify-between gap-1.5">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-bold">
+                <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400 fill-emerald-400/20 shrink-0"></i>
+                <span class="font-num truncate" dir="ltr">${primaryPhone ? primaryPhone : 'موقع موثق بالخريطة'}</span>
+              </div>
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}">${openStatusLabel}</span>
             </div>
+
             <button type="button" onclick="copySingleCoords(${Number(place.lat || 0)}, ${Number(place.lng || 0)}, '${(place.name || '').replace(/'/g, '')}')" title="انقر لنسخ خطوط الطول والعرض" class="w-full px-2.5 py-1 rounded-lg bg-slate-950/75 hover:bg-slate-900 border border-cyan-500/30 text-cyan-300 text-[10px] font-num flex items-center justify-between gap-1 cursor-pointer transition">
-              <span>📍 خط العرض والطول:</span>
+              <span>🧭 الإحداثيات:</span>
               <span dir="ltr" class="font-bold text-emerald-300">${Number(place.lat || 0).toFixed(5)}, ${Number(place.lng || 0).toFixed(5)}</span>
             </button>
           </div>
 
-          <!-- Bottom 2 Equal Action Buttons: Call & WhatsApp (100% Matching Screenshot 1!) -->
-          <div class="grid grid-cols-2 gap-2.5 pt-1">
-            <a href="${primaryPhone ? 'tel:' + primaryPhone.replace(/\s+/g, '') : place.locationUrl}" ${primaryPhone ? '' : 'target="_blank"'} class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center transition" title="${primaryPhone ? 'اتصال: ' + primaryPhone : 'فتح الموقع'}">
-              <i data-lucide="phone" class="w-4 h-4"></i>
+          <!-- Bottom 3 Clear Action Buttons: Location on Map + Call + WhatsApp -->
+          <div class="grid grid-cols-3 gap-1.5 pt-1">
+            <a href="${googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-200 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="فتح موقع المحل على الخريطة">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-300 shrink-0"></i>
+              <span>الموقع</span>
             </a>
-            <a href="${primaryPhone ? 'https://wa.me/' + whatsappNumber : place.locationUrl}" target="_blank" class="py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 flex items-center justify-center transition" title="واتساب">
-              <i data-lucide="message-circle" class="w-4 h-4"></i>
+            <a href="${primaryPhone ? 'tel:' + primaryPhone.replace(/\s+/g, '') : googleMapsDirectUrl}" ${primaryPhone ? '' : 'target="_blank"'} class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="${primaryPhone ? 'اتصال: ' + primaryPhone : 'فتح الموقع'}">
+              <i data-lucide="phone" class="w-3.5 h-3.5 shrink-0"></i>
+              <span>اتصال</span>
+            </a>
+            <a href="${primaryPhone ? 'https://wa.me/' + whatsappNumber : googleMapsDirectUrl}" target="_blank" class="py-2 px-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold flex items-center justify-center gap-1 transition" title="مراسلة واتساب">
+              <i data-lucide="message-circle" class="w-3.5 h-3.5 shrink-0"></i>
+              <span>واتساب</span>
             </a>
           </div>
         `;
@@ -1678,12 +1712,15 @@
         tr.innerHTML = `
           <td class="p-3 text-emerald-400 font-num font-bold">${index}</td>
           <td class="p-3 font-bold text-white">${place.name}</td>
-          <td class="p-3 text-slate-300">${place.city || ''} - ${place.district || ''}</td>
+          <td class="p-3 text-slate-300">
+            <div class="font-bold text-emerald-300">${cityDistrictLabel}</div>
+            <div class="text-[11px] text-slate-400">${detailedLocation}</div>
+          </td>
           <td class="p-3 font-num text-cyan-300 font-bold" dir="ltr">${Number(place.lat || 0).toFixed(6)}, ${Number(place.lng || 0).toFixed(6)}</td>
           <td class="p-3 text-slate-300">${openStatusLabel} (${place.workingHours || ''})</td>
           <td class="p-3 font-num text-emerald-400 font-bold" dir="ltr">${phonesArr.join(' | ')}</td>
           <td class="p-3 text-amber-400 font-num font-bold">${place.rating}</td>
-          <td class="p-3"><a href="${place.locationUrl}" target="_blank" class="text-cyan-400 underline">خرائط جوجل ↗</a></td>
+          <td class="p-3"><a href="${googleMapsDirectUrl}" target="_blank" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 font-bold inline-flex items-center gap-1">📍 الموقع بالخريطة ↗</a></td>
         `;
         tbody.appendChild(tr);
       }
@@ -1707,9 +1744,9 @@
 
     function copyAllCoordinates() {
       if (extractedPlaces.length === 0) return alert('لا توجد نتائج لنسخ إحداثياتها!');
-      const lines = extractedPlaces.map((p, i) => `${i + 1}. ${p.name} | خط العرض (Lat): ${Number(p.lat || 0).toFixed(6)} | خط الطول (Lng): ${Number(p.lng || 0).toFixed(6)}`);
+      const lines = extractedPlaces.map((p, i) => `${i + 1}. ${p.name} | الموقع: ${p.address || (p.city + ' - ' + p.district)} | خط العرض (Lat): ${Number(p.lat || 0).toFixed(6)} | خط الطول (Lng): ${Number(p.lng || 0).toFixed(6)}`);
       navigator.clipboard.writeText(lines.join('\n'));
-      alert(`تم نسخ إحداثيات ${extractedPlaces.length} منشأة بنجاح!`);
+      alert(`تم نسخ مواقع وإحداثيات ${extractedPlaces.length} منشأة بنجاح!`);
     }
 
     function copyAllPhones() {
@@ -1726,9 +1763,9 @@
     function copySingleDetails(id) {
       const place = extractedPlaces.find(p => p.id === id);
       if (!place) return;
-      const text = `الاسم: ${place.name}\nالمدينة: ${place.city} - ${place.district}\nخط العرض (Latitude): ${Number(place.lat || 0).toFixed(6)}\nخط الطول (Longitude): ${Number(place.lng || 0).toFixed(6)}\nالهاتف: ${place.phone || ''}\nالتقييم: ${place.rating}\nالرابط: ${place.locationUrl}`;
+      const text = `الاسم: ${place.name}\nالموقع والعنوان: ${place.address || (place.city + ' - ' + place.district)}\nالمدينة والحي: ${place.city} - ${place.district}\nخط العرض (Latitude): ${Number(place.lat || 0).toFixed(6)}\nخط الطول (Longitude): ${Number(place.lng || 0).toFixed(6)}\nالهاتف: ${place.phone || ''}\nالتقييم: ${place.rating}\nرابط الموقع على الخريطة: ${place.locationUrl}`;
       navigator.clipboard.writeText(text);
-      alert(`تم نسخ بيانات وإحداثيات (${place.name})!`);
+      alert(`تم نسخ بيانات وموقع (${place.name})!`);
     }
 
     function exportToExcel() {
@@ -1738,6 +1775,7 @@
         'الاسم': p.name,
         'المدينة': p.city,
         'الحي / المنطقة': p.district,
+        'العنوان والموقع التفصيلي': p.address || `${p.city || ''} - ${p.district || ''}`,
         'خط العرض (Latitude)': Number(p.lat || 0).toFixed(6),
         'خط الطول (Longitude)': Number(p.lng || 0).toFixed(6),
         'الإحداثيات الكاملة (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
@@ -1746,22 +1784,23 @@
         'أوقات الدوام': p.workingHours || '',
         'التقييم': p.rating,
         'الموقع الإلكتروني': p.website,
-        'رابط خرائط جوجل': p.locationUrl
+        'رابط الموقع على خرائط جوجل': p.locationUrl
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "نتائج وإحداثيات خرائط جوجل");
-      XLSX.writeFile(wb, `GeoRadar_Coordinates_${Date.now()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "نتائج ومواقع خرائط جوجل");
+      XLSX.writeFile(wb, `GeoRadar_Locations_${Date.now()}.xlsx`);
     }
 
     function exportToCSV() {
       if (extractedPlaces.length === 0) return alert('لا توجد بيانات لتصديرها!');
-      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'خط العرض (Latitude)', 'خط الطول (Longitude)', 'الإحداثيات الكاملة', 'حالة الدوام', 'رقم التلفون', 'التقييم', 'رابط اللوكيشن'];
+      const headers = ['#', 'الاسم', 'المدينة', 'الحي', 'العنوان والموقع التفصيلي', 'خط العرض (Latitude)', 'خط الطول (Longitude)', 'الإحداثيات الكاملة', 'حالة الدوام', 'رقم التلفون', 'التقييم', 'رابط الموقع'];
       const rows = extractedPlaces.map((p, idx) => [
         idx + 1,
         `"${(p.name || '').replace(/"/g, '""')}"`,
         `"${p.city || ''}"`,
         `"${p.district || ''}"`,
+        `"${(p.address || `${p.city || ''} - ${p.district || ''}`).replace(/"/g, '""')}"`,
         `"${Number(p.lat || 0).toFixed(6)}"`,
         `"${Number(p.lng || 0).toFixed(6)}"`,
         `"${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}"`,

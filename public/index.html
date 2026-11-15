@@ -336,16 +336,20 @@
         </h1>
       </div>
 
-      <!-- Center: Glowing Emerald KPI Stats Capsule -->
-      <div class="flex items-center gap-4 sm:gap-5 px-5 py-2 rounded-full bg-gradient-to-r from-emerald-950/90 via-teal-900/70 to-emerald-950/90 border border-emerald-400/45 shadow-[0_0_30px_rgba(16,185,129,0.22)]">
-        <div class="flex items-center gap-1.5">
-          <strong id="statTotal" class="text-emerald-400 font-num font-black text-base sm:text-lg">0</strong>
-          <span class="text-sm font-black text-white">نتيجة</span>
+      <!-- Center: Clear Live Search Extraction Stats (Locations Extracted & Contact Phone Numbers Extracted) -->
+      <div class="flex flex-wrap items-center gap-2 sm:gap-3 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-emerald-950/90 via-slate-900/95 to-emerald-950/90 border border-emerald-400/45 shadow-[0_0_30px_rgba(16,185,129,0.2)]">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-400/35" title="عدد المواقع والمنشآت التي تم استخراجها في عملية البحث الحالية">
+          <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+          <span class="text-xs font-bold text-slate-200">المواقع المستخرجة:</span>
+          <strong id="statTotal" class="text-emerald-400 font-num font-black text-sm sm:text-base">0</strong>
+          <span class="text-[11px] font-bold text-emerald-300">موقع</span>
         </div>
-        <span class="h-4 w-px bg-emerald-400/30"></span>
-        <div class="flex items-center gap-1.5 text-xs text-slate-300">
-          <span>الهواتف:</span>
-          <strong id="statPhones" class="text-emerald-300 font-num font-bold">0</strong>
+
+        <div onclick="copyAllPhones()" class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/35 cursor-pointer transition" title="عدد أرقام الهواتف المستخرجة للمواقع في هذا البحث (اضغط لنسخ جميع الأرقام)">
+          <i data-lucide="phone-call" class="w-4 h-4 text-cyan-400 shrink-0"></i>
+          <span class="text-xs font-bold text-slate-200">أرقام هواتف المواقع بالبحث:</span>
+          <strong id="statPhones" class="text-cyan-300 font-num font-black text-sm sm:text-base">0</strong>
+          <span class="text-[11px] font-bold text-cyan-300">رقم</span>
         </div>
       </div>
 
@@ -1447,7 +1451,7 @@
       mapMarkers.forEach(m => leafletMap && leafletMap.removeLayer(m.marker));
       mapMarkers = [];
 
-      clearAllResults(false);
+      clearAllResults(true);
       renderUserGpsPinOnMap();
 
       let visitorId = localStorage.getItem('gmaps_visitor_id') || '';
@@ -1656,10 +1660,15 @@
 
     function updateStats() {
       const total = extractedPlaces.length;
-      document.getElementById('statTotal').innerText = total.toLocaleString();
+      const totalEl = document.getElementById('statTotal');
+      if (totalEl) totalEl.innerText = total.toLocaleString();
 
-      const phones = extractedPlaces.filter(p => p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '').length;
-      document.getElementById('statPhones').innerText = phones.toLocaleString();
+      const phonesCount = extractedPlaces.filter(p =>
+        (Array.isArray(p.phones) && p.phones.length > 0) ||
+        (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')
+      ).length;
+      const phonesEl = document.getElementById('statPhones');
+      if (phonesEl) phonesEl.innerText = phonesCount.toLocaleString();
     }
 
     function copySingleCoords(lat, lng, name) {

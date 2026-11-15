@@ -2383,6 +2383,88 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // User Account Management Endpoint (Change Password / Delete Account)
+  if (pathname === '/api/user/account' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
+      logs.savedAccounts = {};
+    }
+    const rawUser = String(data.username || '').trim().replace(/^@+/, '').toLowerCase();
+    const visitorId = String(data.visitorId || '').trim();
+
+    if (!rawUser) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: 'اسم المستخدم غير موجود!' }));
+      return;
+    }
+
+    if (data.action === 'change_password') {
+      const newPassword = String(data.newPassword || '').trim();
+      if (!newPassword || newPassword.length < 1) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, message: 'يرجى إدخال كلمة المرور الجديدة!' }));
+        return;
+      }
+
+      const now = new Date().toISOString();
+      if (logs.savedAccounts[rawUser]) {
+        logs.savedAccounts[rawUser].password = newPassword;
+        logs.savedAccounts[rawUser].updatedAt = now;
+      } else {
+        logs.savedAccounts[rawUser] = {
+          username: rawUser,
+          password: newPassword,
+          createdAt: now,
+          updatedAt: now
+        };
+      }
+
+      if (Array.isArray(logs.visitors)) {
+        logs.visitors.forEach(v => {
+          const vUser = String(v.username || v.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
+          if (vUser === rawUser || (visitorId && v.id === visitorId)) {
+            v.accountPassword = newPassword;
+            v.username = rawUser;
+          }
+        });
+      }
+
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        username: rawUser,
+        newPassword,
+        message: 'تم تغيير كلمة السر وحفظها بنجاح!'
+      }));
+      return;
+    }
+
+    if (data.action === 'delete_account') {
+      delete logs.savedAccounts[rawUser];
+      if (Array.isArray(logs.visitors)) {
+        logs.visitors = logs.visitors.filter(v => {
+          const vUser = String(v.username || v.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
+          if (vUser === rawUser) return false;
+          if (visitorId && v.id === visitorId) return false;
+          return true;
+        });
+      }
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        message: 'تم حذف الحساب نهائياً بنجاح!'
+      }));
+      return;
+    }
+
+    res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: false, message: 'إجراء غير معروف' }));
+    return;
+  }
+
   // Admin Login Endpoint
   if (pathname === '/api/admin/login' && req.method === 'POST') {
     const data = await readRequestBody(req);

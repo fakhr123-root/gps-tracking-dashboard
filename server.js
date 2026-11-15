@@ -15,9 +15,7 @@ const MIME_TYPES = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.apk': 'application/vnd.android.package-archive',
-  '.exe': 'application/vnd.microsoft.portable-executable'
+  '.ico': 'image/x-icon'
 };
 
 // Safe fetch with timeout
@@ -1880,10 +1878,6 @@ const server = http.createServer(async (req, res) => {
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
     const headers = { 'Content-Type': contentType };
-    if (reqPath === '/sw.js' || reqPath === '/manifest.json') {
-      headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-      headers['Service-Worker-Allowed'] = '/';
-    }
 
     res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);

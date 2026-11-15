@@ -257,6 +257,17 @@
           <span id="step1NextBtnText">التالي (يرجى فتح الموقع أولاً)</span>
           <i data-lucide="arrow-left" class="w-4 h-4"></i>
         </button>
+
+        <!-- Switch to Another Account Button in Entry Screen -->
+        <button
+          type="button"
+          id="switchAccountGateBtn"
+          onclick="switchToAnotherAccount()"
+          class="w-full py-2.5 rounded-2xl font-bold text-xs text-cyan-300 hover:text-white bg-slate-900/90 hover:bg-cyan-500/20 border border-cyan-500/40 transition flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <i data-lucide="user-plus" class="w-4 h-4 text-cyan-400"></i>
+          <span id="switchAccountGateBtnText">تسجيل الدخول بحساب آخر (تغيير الحساب)</span>
+        </button>
       </div>
 
       <!-- ==================== STEP 2: LOGIN SCREEN (NAME OR PHONE) ==================== -->
@@ -353,12 +364,16 @@
         </div>
       </div>
 
-      <!-- Left: Device Auto-Detection Badge + Optional Refresh Button + Locate Me Button -->
-      <div class="flex items-center gap-2">
+      <!-- Left: Device Auto-Detection Badge + Switch Account + Optional Refresh Button + Locate Me Button -->
+      <div class="flex flex-wrap items-center gap-2">
         <div id="deviceModeBadge" class="px-3 py-1.5 rounded-full bg-slate-900/90 border border-emerald-500/40 text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 shadow-sm">
           <i id="deviceModeIcon" data-lucide="laptop" class="w-3.5 h-3.5 text-emerald-400"></i>
           <span id="deviceModeText">واجهة اللابتوب</span>
         </div>
+        <button type="button" onclick="switchToAnotherAccount()" title="تغيير الحساب أو تسجيل الدخول باسم آخر" class="px-3 py-2 rounded-full bg-slate-900/90 hover:bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm">
+          <i data-lucide="user-plus" class="w-3.5 h-3.5 text-cyan-400"></i>
+          <span id="topBarAccountLabel">تغيير الحساب</span>
+        </button>
         <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة (اختياري)" class="px-3 py-2 rounded-full bg-slate-900/90 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-sm">
           <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-emerald-400"></i>
           <span>تحديث</span>
@@ -383,6 +398,7 @@
               <input
                 type="text"
                 id="queryInput"
+                oninput="onQueryInputChange(this.value)"
                 placeholder="اكتب ما تريد البحث عنه (مثال: صيدليات، مطاعم، شركات...) أو اختر من الأسفل"
                 class="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
               />
@@ -894,20 +910,55 @@
       }
     }
 
+    let lastActiveQuery = '';
+
+    function resetPreviousSearchHighlights() {
+      filterOnlyPhone = false;
+      filterOnlyOpen = false;
+      document.getElementById('pill_phone')?.classList.remove('active');
+      document.getElementById('pill_open')?.classList.remove('active');
+      document.getElementById('btnFullCityMode')?.classList.remove('active');
+      document.getElementById('btnDrawCircleMode')?.classList.remove('active');
+      document.getElementById('btnNeighborhoodToggle')?.classList.remove('active');
+    }
+
+    function onQueryInputChange(rawVal) {
+      const val = String(rawVal || '').trim();
+      // Immediately unhighlight any category pill that doesn't match the current text
+      document.querySelectorAll('.cat-pill').forEach(b => {
+        const txt = b.innerText.trim();
+        const isMatch = val && (txt === val || (txt === 'صرافة' && val === 'شركات الصرافة'));
+        b.classList.toggle('active', Boolean(isMatch));
+      });
+
+      // If the user changed the search text from the previous search/selection, clear previous option highlights
+      if (lastActiveQuery && val !== lastActiveQuery) {
+        resetPreviousSearchHighlights();
+        lastActiveQuery = '';
+      }
+    }
+
     function triggerCategorySearch(category, btnEl) {
       const isAlreadyActive = btnEl && btnEl.classList.contains('active');
       document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
       const q = document.getElementById('queryInput');
 
+      // If switching to a different category than the previous one, clear old option highlights
+      if (lastActiveQuery && lastActiveQuery !== category) {
+        resetPreviousSearchHighlights();
+      }
+
       if (isAlreadyActive) {
         // Optional toggle-off: clicking an already active category unselects it!
         if (q) q.value = '';
+        lastActiveQuery = '';
         return;
       }
 
       // Only select the category without starting the search automatically! User starts search when ready.
       if (btnEl) btnEl.classList.add('active');
       if (q) q.value = category;
+      lastActiveQuery = category;
     }
 
     function clearCategoryAndFilters() {
@@ -1478,6 +1529,7 @@
       const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
       const neighborhood = document.getElementById('neighborhoodInput')?.value.trim() || '';
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
+      lastActiveQuery = query || '__EMPTY__';
 
       // Sync category pills highlight with what is typed in queryInput (or unselect all if custom)
       document.querySelectorAll('.cat-pill').forEach(b => {
@@ -1838,18 +1890,75 @@
       };
     }
 
+    function updateAccountButtonsUI() {
+      const session = getSavedVisitorSession();
+      const topLbl = document.getElementById('topBarAccountLabel');
+      const gateSwitchBtn = document.getElementById('switchAccountGateBtn');
+      const gateSwitchTxt = document.getElementById('switchAccountGateBtnText');
+      if (topLbl) {
+        topLbl.innerText = session.hasSession ? `تغيير الحساب (${session.visitorName})` : 'تغيير الحساب';
+      }
+      if (gateSwitchBtn) {
+        if (session.hasSession) {
+          gateSwitchBtn.classList.remove('hidden');
+          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب آخر (الحالي: ${session.visitorName})`;
+        } else {
+          gateSwitchBtn.classList.remove('hidden');
+          if (gateSwitchTxt) gateSwitchTxt.innerText = `👤 تسجيل الدخول بحساب آخر / مستخدم جديد`;
+        }
+      }
+    }
+
+    // Switch to another account: clears saved session and opens Step 2 Login Screen directly
+    function switchToAnotherAccount() {
+      localStorage.removeItem('gmaps_visitor_id');
+      localStorage.removeItem('gmaps_visitor_name');
+
+      const nameInput = document.getElementById('visitorNameInput');
+      if (nameInput) nameInput.value = '';
+      const submitBtn = document.getElementById('gateSubmitBtn');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<span>التالي والدخول إلى المستكشف</span><i data-lucide="arrow-left" class="w-5 h-5"></i>`;
+      }
+
+      const b2 = document.getElementById('stepBadge2');
+      if (b2) {
+        b2.innerHTML = `<span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span><span>تسجيل الدخول</span>`;
+        b2.className = "px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5";
+      }
+
+      const modal = document.getElementById('visitorGateModal');
+      if (modal) {
+        modal.classList.remove('hidden', 'opacity-0');
+      }
+
+      updateAccountButtonsUI();
+      setStep1NextEnabled(Boolean(cachedOptionalGps));
+
+      if (cachedOptionalGps) {
+        goToLoginStep2();
+      } else {
+        document.getElementById('gateStep1Location')?.classList.remove('hidden');
+        document.getElementById('gateStep2Login')?.classList.add('hidden');
+        requestOptionalGeolocationPrompt(false);
+      }
+      lucide.createIcons();
+    }
+
     // Step 1 -> "Next" button: faded & untouchable until location is allowed
     function setStep1NextEnabled(enabled) {
       const nextBtn = document.getElementById('step1NextBtn');
       const nextTxt = document.getElementById('step1NextBtnText');
       const session = getSavedVisitorSession();
+      updateAccountButtonsUI();
       if (!nextBtn) return;
       nextBtn.disabled = !enabled;
       if (enabled) {
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
         if (nextTxt) {
           nextTxt.innerText = session.hasSession
-            ? `الدخول مباشرة للمستكشف (${session.visitorName})`
+            ? `الدخول بالحساب المسجل (${session.visitorName})`
             : 'التالي (تسجيل الدخول)';
         }
       } else {
@@ -1872,7 +1981,7 @@
       if (titleEl) titleEl.innerText = 'تم فتح الموقع الجغرافي بنجاح ✓';
       if (descEl) {
         descEl.innerText = session.hasSession
-          ? `مرحباً بعودتك (${session.visitorName}) — جاري تحديث موقعك والدخول للمستكشف...`
+          ? `مرحباً بعودتك (${session.visitorName}) — اضغط للدخول أو اختر "تسجيل الدخول بحساب آخر"`
           : 'اضغط الآن على زر "التالي" للانتقال لتسجيل الدخول';
       }
       if (btnTxt) btnTxt.innerText = '✓ الموقع مفتوح';
@@ -1933,7 +2042,7 @@
       setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
     }
 
-    function requestOptionalGeolocationPrompt(autoEnterIfSaved = true) {
+    function requestOptionalGeolocationPrompt(autoEnterIfSaved = false) {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const btnTxt = document.getElementById('enableGeoBtnText');
@@ -1963,7 +2072,7 @@
           if (titleEl) titleEl.innerText = 'الموقع مغلق أو لم يتم السماح به ✗';
           if (descEl) {
             descEl.innerText = session.hasSession
-              ? `لديك جلسة مسجلة باسم (${session.visitorName})، يرجى السماح بالموقع أولاً للدخول الفوري`
+              ? `لديك جلسة مسجلة باسم (${session.visitorName})، يرجى السماح بالموقع أولاً للمتابعة`
               : 'فعّل الموقع (GPS) من إعدادات المتصفح ثم اضغط إعادة المحاولة';
           }
           setStep1NextEnabled(false);
@@ -1980,7 +2089,6 @@
       }
 
       if (session.hasSession) {
-        // Hide Step 2 badge if user already has a saved login session
         const b2 = document.getElementById('stepBadge2');
         const line = document.getElementById('stepConnectorLine');
         if (b2) {
@@ -1990,14 +2098,14 @@
         if (line) line.className = "w-6 h-0.5 bg-emerald-500/50 rounded-full";
       }
 
+      updateAccountButtonsUI();
       setStep1NextEnabled(false);
       if (!navigator.geolocation) return;
       try {
         if (navigator.permissions && navigator.permissions.query) {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
           if (perm.state === 'granted') {
-            // Location is already open: fetch GPS coordinates and if user has a saved session, enter directly without showing login!
-            requestOptionalGeolocationPrompt(true);
+            requestOptionalGeolocationPrompt(false);
             return;
           }
         }
@@ -2028,6 +2136,7 @@
         localStorage.setItem('gmaps_visitor_id', vId);
       }
       localStorage.setItem('gmaps_visitor_name', visitorName);
+      updateAccountButtonsUI();
 
       const [devProfile, netInfo] = await Promise.all([
         detectUserDeviceProfile(),
@@ -2107,6 +2216,7 @@
     }
 
     function finishGateEntry() {
+      updateAccountButtonsUI();
       const modal = document.getElementById('visitorGateModal');
       modal.classList.add('transition-opacity', 'duration-400', 'opacity-0');
       setTimeout(() => modal.classList.add('hidden'), 400);

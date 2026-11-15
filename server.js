@@ -1338,6 +1338,130 @@ async function reverseGeocodeCoords(lat, lng) {
   return null;
 }
 
+// Format ISP / Telecom Network Name into clean, authentic Arabic + English name (never show cloud host "Amazon.com, Inc." as visitor ISP!)
+function normalizeRealIspName(rawIsp = '', country = 'اليمن', ip = '') {
+  const s = String(rawIsp || '').trim();
+  const c = String(country || '');
+
+  // If empty, generic, or mistakenly set to the cloud server's datacenter (Amazon/AWS/Cloudflare/Render)
+  if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation|DigitalOcean|Hetzn/i.test(s) || s === 'مزود الإنترنت' || s === 'يمن نت / مزود الخدمة') {
+    if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
+      return 'يمن نت / اليمن للاتصالات (YemenNet ISP)';
+    }
+    return 'شبكة اتصالات محلية (Telecom ISP)';
+  }
+
+  if (/Public Telecommunication|YemenNet|PTC|TeleYemen/i.test(s)) {
+    return `يمن نت للاتصالات (${s})`;
+  }
+  if (/Yemen Mobile/i.test(s)) {
+    return `يمن موبايل 4G (${s})`;
+  }
+  if (/Sabafon/i.test(s)) {
+    return `سبأفون للاتصالات (${s})`;
+  }
+  if (/YOU|MTN/i.test(s)) {
+    return `شركة YOU للاتصالات (${s})`;
+  }
+  if (/AdenNet/i.test(s)) {
+    return `عدن نت (${s})`;
+  }
+  if (/STC|Saudi Telecom/i.test(s)) {
+    return `الاتصالات السعودية STC (${s})`;
+  }
+  if (/Mobily|Etihad Etisalat/i.test(s)) {
+    return `موبايلي السعودية (${s})`;
+  }
+  if (/Zain/i.test(s)) {
+    return `زين للاتصالات (${s})`;
+  }
+
+  return s;
+}
+
+// Parse HTTP User-Agent header or raw legacy device string into accurate Phone Brand/Model or Laptop OS
+function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
+  const d = String(rawDevice || '').trim();
+  const ua = String(userAgent || '').trim();
+
+  // If already formatted with our new rich detector (contains هاتف or لابتوب or آيباد)
+  if (d && (d.includes('هاتف') || d.includes('لابتوب') || d.includes('آيباد') || d.includes('كمبيوتر')) && !d.includes('Win32') && !d.includes('Linux arm')) {
+    return d;
+  }
+
+  // Extract resolution if present in legacy string like "Linux armv81 - (393x873)" or "Win32 - (1536x864)"
+  const resMatch = d.match(/\((\d+x\d+)\)/);
+  const resSuffix = resMatch ? ` (${resMatch[1]})` : '';
+
+  // Check User-Agent if available
+  if (ua) {
+    let browser = '';
+    if (/Edg\//i.test(ua)) browser = ' • Edge';
+    else if (/SamsungBrowser/i.test(ua)) browser = ' • Samsung Browser';
+    else if (/Chrome\//i.test(ua)) browser = ' • Chrome';
+    else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = ' • Safari';
+    else if (/Firefox\//i.test(ua)) browser = ' • Firefox';
+
+    if (/iPhone/i.test(ua)) {
+      const m = ua.match(/OS (\d+[_\d]*)/i);
+      return `هاتف آيفون (Apple iPhone${m ? ' iOS ' + m[1].replace(/_/g, '.') : ''})${browser}${resSuffix}`;
+    }
+    if (/iPad/i.test(ua)) {
+      return `جهاز آيباد (Apple iPad)${browser}${resSuffix}`;
+    }
+    if (/Android/i.test(ua)) {
+      const verMatch = ua.match(/Android\s+([\d.]+)/i);
+      const androidVer = verMatch ? `Android ${verMatch[1]}` : 'Android';
+      const buildMatch = ua.match(/Android[^;]+;\s*([^;)]+?)(?:\s+Build\/|\))/i);
+      const model = buildMatch && buildMatch[1] && buildMatch[1].trim() !== 'K' ? buildMatch[1].trim() : '';
+
+      let brand = 'هاتف أندرويد';
+      if (/SM-|Samsung/i.test(model) || /Samsung/i.test(ua)) brand = 'هاتف سامسونج جالكسي';
+      else if (/Redmi|Xiaomi|POCO|M20|M21|220|230/i.test(model) || /Xiaomi|Redmi/i.test(ua)) brand = 'هاتف شاومي / ريدمي';
+      else if (/HUAWEI|Honor/i.test(model)) brand = 'هاتف هواوي';
+      else if (/Infinix/i.test(model)) brand = 'هاتف إنفينيكس';
+      else if (/TECNO/i.test(model)) brand = 'هاتف تكنو';
+      else if (/OPPO|CPH/i.test(model)) brand = 'هاتف أوبو';
+      else if (/vivo/i.test(model)) brand = 'هاتف فيفو';
+      else if (/Realme|RMX/i.test(model)) brand = 'هاتف ريلمي';
+
+      return model
+        ? `${brand} (${model} - ${androidVer})${browser}${resSuffix}`
+        : `${brand} (${androidVer})${browser}${resSuffix}`;
+    }
+    if (/Windows NT 10\.0/i.test(ua)) {
+      return `لابتوب / كمبيوتر (Windows 10/11)${browser}${resSuffix}`;
+    }
+    if (/Windows NT/i.test(ua)) {
+      return `لابتوب / كمبيوتر (Windows)${browser}${resSuffix}`;
+    }
+    if (/Macintosh|Mac OS X/i.test(ua)) {
+      return `لابتوب أبل (MacBook / macOS)${browser}${resSuffix}`;
+    }
+  }
+
+  // Clean up legacy stored strings ("Linux armv81 - (393x873)", "Win32 - (1536x864)", "متصفح ويب")
+  if (/Linux armv|aarch64|Android/i.test(d)) {
+    return `هاتف أندرويد ذكي (Android Mobile)${resSuffix}`;
+  }
+  if (/iPhone|iOS/i.test(d)) {
+    return `هاتف آيفون (Apple iPhone)${resSuffix}`;
+  }
+  if (/iPad/i.test(d)) {
+    return `جهاز آيباد (Apple iPad)${resSuffix}`;
+  }
+  if (/Win32|Win64|Windows/i.test(d)) {
+    return `لابتوب / كمبيوتر (Windows 10/11)${resSuffix}`;
+  }
+  if (/MacIntel|Macintosh/i.test(d)) {
+    return `لابتوب أبل (MacBook)${resSuffix}`;
+  }
+  if (!d || d === 'متصفح ويب') {
+    return 'هاتف ذكي / متصفح ويب مباشر';
+  }
+  return d;
+}
+
 // Consolidate duplicate visitor entries (by same normalized Name/Phone or ID) and archive older snapshots inside `previousLogs`
 function consolidateVisitorsList(visitors = []) {
   const mapByKey = new Map();
@@ -1356,6 +1480,8 @@ function consolidateVisitorsList(visitors = []) {
     if (!mapByKey.has(key)) {
       mapByKey.set(key, {
         ...item,
+        isp: normalizeRealIspName(item.isp, item.country, item.ip),
+        device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
         sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
         previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : []
@@ -1420,6 +1546,8 @@ async function recordVisitor(info) {
 
   const cleanInputName = String(info.visitorName || '').trim();
   const normInputName = normAr(cleanInputName);
+  const cleanIsp = normalizeRealIspName(info.isp, finalCountry, info.publicIp || info.ip);
+  const cleanDevice = normalizeRealDeviceName(info.device, info.userAgent);
 
   // Match existing visitor by visitorId OR by same normalized Name/Phone so we UPDATE the record instead of creating duplicates!
   let vIndex = logs.visitors.findIndex(x =>
@@ -1445,7 +1573,8 @@ async function recordVisitor(info) {
       lat: v.lat,
       lng: v.lng,
       locationSource: v.locationSource || 'GPS',
-      device: v.device
+      isp: normalizeRealIspName(v.isp, v.country, v.ip),
+      device: normalizeRealDeviceName(v.device, v.userAgent)
     });
     // Keep up to 50 historical snapshots per user
     if (v.previousLogs.length > 50) {
@@ -1481,8 +1610,8 @@ async function recordVisitor(info) {
       v.region = finalRegion;
       v.locationName = finalLocationName;
     }
-    if (info.isp) v.isp = info.isp;
-    if (info.device) v.device = info.device;
+    v.isp = cleanIsp;
+    v.device = cleanDevice;
 
     // Move updated visitor to the top of the list
     logs.visitors.splice(vIndex, 1);
@@ -1496,12 +1625,12 @@ async function recordVisitor(info) {
       city: finalCity,
       region: finalRegion,
       locationName: finalLocationName,
-      isp: info.isp || 'يمن نت / مزود الخدمة',
+      isp: cleanIsp,
       lat: Number(info.lat) || 15.340137,
       lng: Number(info.lng) || 44.191831,
       locationSource: info.locationSource || 'GPS',
       accuracy: info.accuracy || null,
-      device: info.device || 'متصفح ويب',
+      device: cleanDevice,
       firstSeen: now,
       lastSeen: now,
       pageViews: 1,
@@ -1608,18 +1737,26 @@ const server = http.createServer(async (req, res) => {
   // Log visitor entry endpoint
   if (pathname === '/api/log-visit' && req.method === 'POST') {
     const data = await readRequestBody(req);
-    data.ip = data.publicIp || clientIp;
+    data.userAgent = req.headers['user-agent'] || '';
+    const realClientIp = (data.publicIp && data.publicIp !== '::1' && data.publicIp !== '127.0.0.1')
+      ? data.publicIp
+      : (clientIp && clientIp !== '::1' && clientIp !== '127.0.0.1' ? clientIp : '');
+    data.ip = realClientIp || clientIp;
 
-    // If IP is local (::1 / 127.0.0.1) or ISP is missing, query ip-api from server (no CORS issues)
-    if (!data.publicIp || data.ip === '::1' || data.ip === '127.0.0.1') {
+    // Query ip-api specifically for the VISITOR'S IP (`/${realClientIp}`) so we NEVER get the Render/Amazon server's own ISP!
+    if (!data.isp || /Amazon|AWS|Cloudflare|Render|مزود الإنترنت/i.test(data.isp)) {
       try {
-        const ipRes = await fetchWithTimeout('http://ip-api.com/json/?fields=status,country,regionName,city,district,lat,lon,isp,org,query&lang=ar', { timeout: 3000 });
+        const targetIpSegment = realClientIp ? `/${encodeURIComponent(realClientIp)}` : '';
+        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${targetIpSegment}?fields=status,country,regionName,city,district,lat,lon,isp,org,query&lang=ar`, { timeout: 3500 });
         if (ipRes.ok) {
           const ipJson = await ipRes.json();
           if (ipJson && ipJson.status === 'success') {
             data.publicIp = ipJson.query || data.ip;
             data.ip = data.publicIp;
-            data.isp = data.isp && data.isp !== 'مزود الإنترنت' ? data.isp : (ipJson.isp || ipJson.org);
+            const fetchedIsp = ipJson.isp || ipJson.org || '';
+            if (fetchedIsp && !/Amazon|AWS|Cloudflare|Render/i.test(fetchedIsp)) {
+              data.isp = fetchedIsp;
+            }
             data.country = data.country || ipJson.country;
             data.city = data.city || ipJson.city;
             // ONLY use IP lat/lon if browser GPS did NOT provide coordinates
@@ -1702,14 +1839,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently, consolidated with archived history)
+  // Admin Data Dashboard Endpoint (returns ALL sessions and searches permanently, consolidated with archived history & normalized ISP/Device)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
     const consolidated = consolidateVisitorsList(logs.visitors || []);
-    if (consolidated.length !== (logs.visitors || []).length) {
-      logs.visitors = consolidated;
-      saveAdminLogs(logs);
-    }
+    logs.visitors = consolidated;
+    saveAdminLogs(logs);
     const totalVisitors = logs.visitors.length;
     const totalSearches = logs.searches.length;
     

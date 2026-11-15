@@ -843,6 +843,39 @@
       return !isGeneric ? `name:${rawName}` : `id:${v.id}`;
     }
 
+    function cleanAdminIsp(rawIsp = '', country = 'اليمن', ip = '') {
+      const s = String(rawIsp || '').trim();
+      const c = String(country || '');
+      if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation/i.test(s) || s === 'مزود الإنترنت' || s === 'يمن نت / مزود الخدمة') {
+        if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
+          return 'يمن نت / اليمن للاتصالات (YemenNet ISP)';
+        }
+        return 'شبكة اتصالات محلية (Telecom ISP)';
+      }
+      if (/Public Telecommunication|YemenNet|PTC|TeleYemen/i.test(s)) return `يمن نت للاتصالات (${s})`;
+      if (/Yemen Mobile/i.test(s)) return `يمن موبايل 4G (${s})`;
+      if (/Sabafon/i.test(s)) return `سبأفون للاتصالات (${s})`;
+      if (/YOU|MTN/i.test(s)) return `شركة YOU للاتصالات (${s})`;
+      if (/AdenNet/i.test(s)) return `عدن نت (${s})`;
+      return s;
+    }
+
+    function cleanAdminDevice(rawDevice = '') {
+      const d = String(rawDevice || '').trim();
+      if (d && (d.includes('هاتف') || d.includes('لابتوب') || d.includes('آيباد') || d.includes('كمبيوتر')) && !d.includes('Win32') && !d.includes('Linux arm')) {
+        return d;
+      }
+      const resMatch = d.match(/\((\d+x\d+)\)/);
+      const resSuffix = resMatch ? ` (${resMatch[1]})` : '';
+      if (/Linux armv|aarch64|Android/i.test(d)) return `📱 هاتف أندرويد ذكي (Android Mobile)${resSuffix}`;
+      if (/iPhone|iOS/i.test(d)) return `📱 هاتف آيفون (Apple iPhone)${resSuffix}`;
+      if (/iPad/i.test(d)) return `📱 جهاز آيباد (Apple iPad)${resSuffix}`;
+      if (/Win32|Win64|Windows/i.test(d)) return `💻 لابتوب / كمبيوتر (Windows 10/11)${resSuffix}`;
+      if (/MacIntel|Macintosh/i.test(d)) return `💻 لابتوب أبل (MacBook)${resSuffix}`;
+      if (!d || d === 'متصفح ويب') return '📱 هاتف ذكي / متصفح مباشر';
+      return d;
+    }
+
     function mergeAndArchiveVisitors(list = []) {
       const map = new Map();
       const sorted = [...list].sort(
@@ -850,34 +883,40 @@
       );
       for (const item of sorted) {
         if (!item || !item.id) continue;
-        const key = normVisitorKey(item);
+        const cleanedItem = {
+          ...item,
+          isp: cleanAdminIsp(item.isp, item.country, item.ip),
+          device: cleanAdminDevice(item.device)
+        };
+        const key = normVisitorKey(cleanedItem);
         if (!map.has(key)) {
           map.set(key, {
-            ...item,
-            loginCount: item.loginCount || 1,
-            previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : [],
-            sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : []
+            ...cleanedItem,
+            loginCount: cleanedItem.loginCount || 1,
+            previousLogs: Array.isArray(cleanedItem.previousLogs) ? [...cleanedItem.previousLogs] : [],
+            sessionSearches: Array.isArray(cleanedItem.sessionSearches) ? [...cleanedItem.sessionSearches] : []
           });
         } else {
           const primary = map.get(key);
-          if (primary.id !== item.id) {
-            primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
+          if (primary.id !== cleanedItem.id) {
+            primary.loginCount = (primary.loginCount || 1) + (cleanedItem.loginCount || 1);
             primary.previousLogs.push({
-              archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
-              previousLastSeen: item.lastSeen || item.firstSeen,
-              visitorName: item.visitorName,
-              ip: item.ip,
-              city: item.city,
-              region: item.region,
-              locationName: item.locationName,
-              lat: item.lat,
-              lng: item.lng,
-              locationSource: item.locationSource || 'GPS',
-              device: item.device
+              archivedAt: cleanedItem.lastSeen || cleanedItem.firstSeen || new Date().toISOString(),
+              previousLastSeen: cleanedItem.lastSeen || cleanedItem.firstSeen,
+              visitorName: cleanedItem.visitorName,
+              ip: cleanedItem.ip,
+              city: cleanedItem.city,
+              region: cleanedItem.region,
+              locationName: cleanedItem.locationName,
+              lat: cleanedItem.lat,
+              lng: cleanedItem.lng,
+              locationSource: cleanedItem.locationSource || 'GPS',
+              isp: cleanedItem.isp,
+              device: cleanedItem.device
             });
           }
-          if (Array.isArray(item.previousLogs)) {
-            for (const snap of item.previousLogs) {
+          if (Array.isArray(cleanedItem.previousLogs)) {
+            for (const snap of cleanedItem.previousLogs) {
               const dup = primary.previousLogs.some(p => p.previousLastSeen === snap.previousLastSeen && p.lat === snap.lat);
               if (!dup) primary.previousLogs.push(snap);
             }
@@ -1203,7 +1242,10 @@
               <span class="block text-[11px] text-slate-400 font-num">(${Number(v.lat).toFixed(5)}, ${Number(v.lng).toFixed(5)})</span>
             </td>
             <td class="p-3 text-slate-200">${sessionSearches.length} عملية بحث</td>
-            <td class="p-3 text-slate-300 text-[11px]">${v.isp || ''} • ${v.device || ''}</td>
+            <td class="p-3 text-[11px] space-y-1">
+              <div class="text-cyan-300 font-bold">🌐 ${v.isp || 'يمن نت / اليمن للاتصالات'}</div>
+              <div class="text-slate-200 font-semibold">${v.device || 'هاتف ذكي'}</div>
+            </td>
             <td class="p-3 text-slate-400 font-num text-[11px]">
               <div class="text-emerald-300 font-bold">آخر تحديث: ${lastSeenStr}</div>
               <div class="text-[10px] text-slate-500">أول دخول: ${firstSeenStr}</div>

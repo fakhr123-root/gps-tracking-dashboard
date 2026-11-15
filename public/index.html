@@ -788,19 +788,80 @@
     let filterOnlyOpen = false;
     let isTableView = false;
 
-    // Auto-detect Mobile Phone vs Laptop/Desktop & adapt UI + telemetry
-    function detectUserDeviceProfile() {
+    // Auto-detect exact Mobile Phone brand/model vs Laptop/Desktop & Browser + Real Network ISP
+    async function detectUserDeviceProfile() {
       const ua = navigator.userAgent || '';
       const isMobileUa = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
       const isSmallScreen = window.innerWidth <= 768;
       const isMobile = isMobileUa || isSmallScreen;
 
-      let osName = 'كمبيوتر / لابتوب';
-      if (/Android/i.test(ua)) osName = 'هاتف أندرويد (Android)';
-      else if (/iPhone|iPad|iPod/i.test(ua)) osName = 'هاتف آيفون (iPhone/iOS)';
-      else if (/Win/i.test(ua)) osName = 'لابتوب / كمبيوتر (Windows)';
-      else if (/Mac/i.test(ua)) osName = 'لابتوب (MacBook)';
-      else if (/Linux/i.test(ua)) osName = 'لابتوب (Linux)';
+      // 1. Detect Browser Name
+      let browserName = 'متصفح ويب';
+      if (/Edg\//i.test(ua)) browserName = 'Edge';
+      else if (/OPR\/|Opera/i.test(ua)) browserName = 'Opera';
+      else if (/SamsungBrowser/i.test(ua)) browserName = 'Samsung Internet';
+      else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) browserName = 'Chrome';
+      else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browserName = 'Safari';
+      else if (/Firefox\//i.test(ua)) browserName = 'Firefox';
+
+      // 2. Detect Exact Phone Brand / Model or Laptop OS
+      let deviceModel = '';
+      if (/iPhone/i.test(ua)) {
+        const iosMatch = ua.match(/OS (\d+[_\d]*)/i);
+        const iosVer = iosMatch ? ` iOS ${iosMatch[1].replace(/_/g, '.')}` : '';
+        deviceModel = `هاتف آيفون (Apple iPhone${iosVer})`;
+      } else if (/iPad/i.test(ua)) {
+        deviceModel = 'جهاز آيباد (Apple iPad)';
+      } else if (/Android/i.test(ua)) {
+        const verMatch = ua.match(/Android\s+([\d.]+)/i);
+        const androidVer = verMatch ? `Android ${verMatch[1]}` : 'Android';
+        let rawModel = '';
+
+        // Try Client Hints first for modern Chrome on Android
+        try {
+          if (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues) {
+            const hints = await navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion']);
+            if (hints && hints.model) rawModel = hints.model.trim();
+          }
+        } catch (e) {}
+
+        if (!rawModel) {
+          const buildMatch = ua.match(/Android[^;]+;\s*([^;)]+?)(?:\s+Build\/|\))/i);
+          if (buildMatch && buildMatch[1]) {
+            rawModel = buildMatch[1].trim();
+          }
+        }
+
+        let brandAr = 'هاتف أندرويد';
+        if (/SM-|Samsung|GT-/i.test(rawModel) || /Samsung/i.test(ua)) brandAr = 'هاتف سامسونج جالكسي (Samsung';
+        else if (/Redmi|Xiaomi|POCO|M20|M21|220|230/i.test(rawModel) || /Xiaomi|Redmi|Mi /i.test(ua)) brandAr = 'هاتف شاومي / ريدمي (Xiaomi';
+        else if (/HUAWEI|Honor|MAR-|VOG-|STK-/i.test(rawModel)) brandAr = 'هاتف هواوي (Huawei';
+        else if (/Infinix/i.test(rawModel)) brandAr = 'هاتف إنفينيكس (Infinix';
+        else if (/TECNO/i.test(rawModel)) brandAr = 'هاتف تكنو (Tecno';
+        else if (/OPPO|CPH/i.test(rawModel)) brandAr = 'هاتف أوبو (Oppo';
+        else if (/vivo|V2/i.test(rawModel)) brandAr = 'هاتف فيفو (Vivo';
+        else if (/Realme|RMX/i.test(rawModel)) brandAr = 'هاتف ريلمي (Realme';
+
+        if (rawModel && rawModel !== 'K' && rawModel.length > 1) {
+          deviceModel = brandAr.includes('(')
+            ? `${brandAr} ${rawModel} - ${androidVer})`
+            : `${brandAr} (${rawModel} - ${androidVer})`;
+        } else {
+          deviceModel = brandAr.includes('(')
+            ? `${brandAr} - ${androidVer})`
+            : `هاتف أندرويد (${androidVer})`;
+        }
+      } else if (/Windows NT 10\.0/i.test(ua)) {
+        deviceModel = 'لابتوب / كمبيوتر (Windows 10/11)';
+      } else if (/Windows NT/i.test(ua)) {
+        deviceModel = 'لابتوب / كمبيوتر (Windows)';
+      } else if (/Macintosh|Mac OS X/i.test(ua)) {
+        deviceModel = 'لابتوب أبل (MacBook / macOS)';
+      } else if (/Linux/i.test(ua)) {
+        deviceModel = isMobile ? 'هاتف أندرويد محمول' : 'لابتوب / كمبيوتر (Linux)';
+      } else {
+        deviceModel = isMobile ? 'هاتف ذكي محمول' : 'لابتوب / كمبيوتر مكتبي';
+      }
 
       document.body.classList.toggle('device-mobile', isMobile);
       document.body.classList.toggle('device-desktop', !isMobile);
@@ -808,7 +869,7 @@
       const badgeTxt = document.getElementById('deviceModeText');
       const badgeIcon = document.getElementById('deviceModeIcon');
       if (badgeTxt) {
-        badgeTxt.innerText = isMobile ? `📱 ${osName}` : `💻 ${osName}`;
+        badgeTxt.innerText = isMobile ? `📱 ${deviceModel}` : `💻 ${deviceModel}`;
       }
       if (badgeIcon) {
         badgeIcon.setAttribute('data-lucide', isMobile ? 'smartphone' : 'laptop');
@@ -817,9 +878,55 @@
       const screenRes = `${window.screen.width}x${window.screen.height}`;
       return {
         isMobile,
-        osName,
-        deviceLabel: `${isMobile ? 'هاتف محمول' : 'لابتوب / كمبيوتر'} (${osName} - ${screenRes})`
+        osName: deviceModel,
+        deviceLabel: `${deviceModel} • ${browserName} (${screenRes})`
       };
+    }
+
+    // Fetch Visitor's REAL Public IP & Telecom ISP directly from the visitor's browser (so it never reports Render's Amazon server ISP!)
+    async function fetchRealClientNetworkInfo() {
+      const net = {
+        publicIp: '',
+        isp: '',
+        country: '',
+        city: '',
+        region: ''
+      };
+
+      // Try ipwho.is first (HTTPS, fast, returns real visitor ISP)
+      try {
+        const res1 = await fetch('https://ipwho.is/', { cache: 'no-store' });
+        if (res1.ok) {
+          const d1 = await res1.json();
+          if (d1 && d1.success !== false && d1.ip) {
+            net.publicIp = d1.ip;
+            net.isp = (d1.connection && (d1.connection.isp || d1.connection.org)) || '';
+            net.country = d1.country || '';
+            net.city = d1.city || '';
+            net.region = d1.region || '';
+            if (net.isp && !/Amazon|AWS|Cloudflare|Render|Google Cloud/i.test(net.isp)) {
+              return net;
+            }
+          }
+        }
+      } catch (e) {}
+
+      // Fallback 2: ipapi.co/json/
+      try {
+        const res2 = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
+        if (res2.ok) {
+          const d2 = await res2.json();
+          if (d2 && d2.ip) {
+            net.publicIp = net.publicIp || d2.ip;
+            net.isp = net.isp || d2.org || d2.asn || '';
+            net.country = net.country || d2.country_name || '';
+            net.city = net.city || d2.city || '';
+            net.region = net.region || d2.region || '';
+          }
+        }
+      } catch (e) {}
+
+      return net;
     }
 
     window.addEventListener('resize', () => {
@@ -1747,15 +1854,18 @@
       const session = getSavedVisitorSession();
       if (!session.hasSession || !cachedOptionalGps) return;
 
-      const devProfile = detectUserDeviceProfile();
+      const [devProfile, netInfo] = await Promise.all([
+        detectUserDeviceProfile(),
+        fetchRealClientNetworkInfo()
+      ]);
       const deviceStr = devProfile.deviceLabel;
 
       const geoInfo = {
-        publicIp: '',
-        country: 'اليمن',
-        city: 'صنعاء',
-        region: 'أمانة العاصمة',
-        isp: 'مزود الإنترنت',
+        publicIp: netInfo.publicIp || '',
+        country: netInfo.country || 'اليمن',
+        city: netInfo.city || 'صنعاء',
+        region: netInfo.region || 'أمانة العاصمة',
+        isp: netInfo.isp || '',
         lat: cachedOptionalGps.lat,
         lng: cachedOptionalGps.lng,
         accuracy: cachedOptionalGps.accuracy,
@@ -1888,15 +1998,18 @@
       }
       localStorage.setItem('gmaps_visitor_name', visitorName);
 
-      const devProfile = detectUserDeviceProfile();
+      const [devProfile, netInfo] = await Promise.all([
+        detectUserDeviceProfile(),
+        fetchRealClientNetworkInfo()
+      ]);
       const deviceStr = devProfile.deviceLabel;
 
       let geoInfo = {
-        publicIp: '',
-        country: 'اليمن',
-        city: 'صنعاء',
-        region: 'أمانة العاصمة',
-        isp: 'مزود الإنترنت',
+        publicIp: netInfo.publicIp || '',
+        country: netInfo.country || 'اليمن',
+        city: netInfo.city || 'صنعاء',
+        region: netInfo.region || 'أمانة العاصمة',
+        isp: netInfo.isp || '',
         lat: cachedOptionalGps ? cachedOptionalGps.lat : null,
         lng: cachedOptionalGps ? cachedOptionalGps.lng : null,
         accuracy: cachedOptionalGps ? cachedOptionalGps.accuracy : null,

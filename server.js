@@ -1984,8 +1984,17 @@ async function recordVisitor(info) {
     logs.visitors.splice(vIndex, 1);
     logs.visitors.unshift(v);
   } else {
+    const tempKey = cleanInputName ? `name:${normInputName}` : `id:${info.visitorId || ''}`;
+    const prevDelTs = Math.max(
+      Number(logs.clearedAllVisitorsAt) || 0,
+      Number(logs.deletedVisitorKeys?.[tempKey]) || 0,
+      Number(logs.deletedVisitorKeys?.[`id:${info.visitorId}`]) || 0
+    );
+    const freshLoginMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
+    const freshIso = new Date(freshLoginMs).toISOString();
+
     v = {
-      id: info.visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      id: `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       visitorName: cleanInputName || 'زائر غير مسمى',
       ip: incomingRealIp || info.ip || '127.0.0.1',
       localIp: info.localIp || '',
@@ -2001,8 +2010,8 @@ async function recordVisitor(info) {
       locationSource: info.locationSource || 'GPS',
       accuracy: info.accuracy || null,
       device: cleanDevice,
-      firstSeen: now,
-      lastSeen: now,
+      firstSeen: freshIso,
+      lastSeen: freshIso,
       pageViews: 1,
       loginCount: 1,
       searchesCount: 0,
@@ -2014,6 +2023,9 @@ async function recordVisitor(info) {
   if (logs.deletedVisitorKeys && v) {
     delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
     delete logs.deletedVisitorKeys[`id:${v.id}`];
+    if (info.visitorId) {
+      delete logs.deletedVisitorKeys[`id:${info.visitorId}`];
+    }
   }
   saveAdminLogs(logs);
   return v;
@@ -2021,7 +2033,6 @@ async function recordVisitor(info) {
 
 function recordSearch(searchInfo) {
   const logs = loadAdminLogs();
-  const now = new Date().toISOString();
   const cleanSearchName = String(searchInfo.visitorName || '').trim();
   const normSearchName = normAr(cleanSearchName);
 
@@ -2030,16 +2041,19 @@ function recordSearch(searchInfo) {
     (normSearchName && normAr(x.visitorName || '') === normSearchName)
   );
 
-  const delMap = logs.deletedVisitorKeys || {};
-  const wasExplicitlyDeleted = Boolean(
-    (searchInfo.visitorId && delMap[`id:${searchInfo.visitorId}`]) ||
-    (normSearchName && delMap[`name:${normSearchName}`])
+  const tempKey = normSearchName ? `name:${normSearchName}` : `id:${searchInfo.visitorId || ''}`;
+  const prevDelTs = Math.max(
+    Number(logs.clearedAllVisitorsAt) || 0,
+    Number(logs.deletedVisitorKeys?.[tempKey]) || 0,
+    Number(logs.deletedVisitorKeys?.[`id:${searchInfo.visitorId}`]) || 0
   );
+  const freshMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
+  const now = new Date(freshMs).toISOString();
 
-  // Only create a visitor session if there is an explicit visitorId/visitorName, none exists yet, and they were NOT deleted by the admin
-  if (!v && !wasExplicitlyDeleted && (searchInfo.visitorId || cleanSearchName)) {
+  // If the visitor was previously deleted and now actively performs a new search, register a fresh new session for them
+  if (!v && (searchInfo.visitorId || cleanSearchName)) {
     v = {
-      id: searchInfo.visitorId || `login_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      id: `login_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       visitorName: cleanSearchName || 'مستخدم التطبيق',
       ip: searchInfo.ip || '127.0.0.1',
       country: 'اليمن',
@@ -2061,6 +2075,11 @@ function recordSearch(searchInfo) {
       previousLogs: []
     };
     logs.visitors.unshift(v);
+    if (logs.deletedVisitorKeys) {
+      delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
+      delete logs.deletedVisitorKeys[`id:${v.id}`];
+      if (searchInfo.visitorId) delete logs.deletedVisitorKeys[`id:${searchInfo.visitorId}`];
+    }
   }
 
   const record = {
@@ -2333,7 +2352,15 @@ const server = http.createServer(async (req, res) => {
 
     if (data.deletedVisitorKeys && typeof data.deletedVisitorKeys === 'object') {
       if (!logs.deletedVisitorKeys) logs.deletedVisitorKeys = {};
+      const activeKeys = new Set();
+      for (const av of (logs.visitors || [])) {
+        if (!av) continue;
+        activeKeys.add(getVisitorCanonicalKey(av));
+        activeKeys.add(`id:${av.id}`);
+      }
       for (const [k, ts] of Object.entries(data.deletedVisitorKeys)) {
+        // Never allow client sync to re-delete a visitor who has an active new session on the server!
+        if (activeKeys.has(k)) continue;
         const numTs = Number(ts) || 0;
         if (numTs > (Number(logs.deletedVisitorKeys[k]) || 0)) {
           logs.deletedVisitorKeys[k] = numTs;

@@ -1039,20 +1039,31 @@
           const data = await res.json();
           const localArch = loadLocalArchive();
 
-          // Merge tombstones from both browser and server so deleted records NEVER reappear even after a cloud server restart
+          // Merge tombstones from both browser and server, but if a visitor is actively present in `data.visitors` (and not in server's `deletedVisitorKeys`), they have logged in anew — so clear their old local tombstone!
+          const serverDelKeys = data.deletedVisitorKeys || {};
           const mergedDeletedVisitorKeys = {
-            ...(data.deletedVisitorKeys || {}),
-            ...(localArch.deletedVisitorKeys || {})
+            ...(localArch.deletedVisitorKeys || {}),
+            ...serverDelKeys
           };
-          for (const [k, vTs] of Object.entries(data.deletedVisitorKeys || {})) {
-            const localTs = Number(localArch.deletedVisitorKeys?.[k]) || 0;
-            mergedDeletedVisitorKeys[k] = Math.max(Number(vTs) || 0, localTs);
+          for (const sv of (data.visitors || [])) {
+            if (!sv) continue;
+            const cKey = normVisitorKey(sv);
+            const idKey = `id:${sv.id}`;
+            if (!serverDelKeys[cKey]) delete mergedDeletedVisitorKeys[cKey];
+            if (!serverDelKeys[idKey]) delete mergedDeletedVisitorKeys[idKey];
           }
 
-          const mergedClearedVisitorsAt = Math.max(
+          let mergedClearedVisitorsAt = Math.max(
             Number(data.clearedAllVisitorsAt) || 0,
             Number(localArch.clearedAllVisitorsAt) || 0
           );
+          // If a new visitor logged in after clearedAllVisitorsAt on the server, ensure their timestamp isn't blocked by local clock skew
+          for (const sv of (data.visitors || [])) {
+            const svTime = new Date(sv?.lastSeen || sv?.firstSeen || 0).getTime() || 0;
+            if (svTime > 0 && mergedClearedVisitorsAt >= svTime && Number(data.clearedAllVisitorsAt || 0) < svTime) {
+              mergedClearedVisitorsAt = svTime - 1000;
+            }
+          }
 
           const mergedDeletedSearchSet = new Set([
             ...(data.deletedSearchIds || []),

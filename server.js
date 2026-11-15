@@ -622,7 +622,7 @@ async function extractRealPhones(tags = {}, placeName = '', city = '', lat = 15.
 }
 
 // Built-in Real-time Extractor (Fetches REAL places directly from Google Maps Live Engine + Overpass OSM)
-async function searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat = null, userLng = null) {
+async function searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat = null, userLng = null, circleFilter = null) {
   let fetchedCount = 0;
   const seenNames = new Set();
 
@@ -631,15 +631,26 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
   const locCombined = [neighborhood, location].filter(Boolean).join(' ') || 'صنعاء';
   const center = await geocodeLocation(locCombined);
 
-  // If user allowed GPS and did NOT type a specific neighborhood, prioritize their exact GPS coordinates!
-  const hasUserGps = !neighborhood && typeof userLat === 'number' && !isNaN(userLat) && typeof userLng === 'number' && !isNaN(userLng);
-  if (hasUserGps) {
-    center.lat = userLat;
-    center.lng = userLng;
-    const nearHood = resolveLocalNeighborhood(userLat, userLng);
+  const hasDrawnCircle = Boolean(
+    circleFilter &&
+    typeof circleFilter.lat === 'number' && !isNaN(circleFilter.lat) &&
+    typeof circleFilter.lng === 'number' && !isNaN(circleFilter.lng) &&
+    typeof circleFilter.radiusKm === 'number' && circleFilter.radiusKm > 0
+  );
+
+  if (hasDrawnCircle) {
+    center.lat = circleFilter.lat;
+    center.lng = circleFilter.lng;
+    radiusMeters = Math.round(circleFilter.radiusKm * 1000);
+    const nearHood = resolveLocalNeighborhood(center.lat, center.lng);
     if (nearHood && nearHood.distanceKm <= 12) {
       center.district = nearHood.shortHood || center.district;
+    } else {
+      center.district = `الدائرة المرسومة (${circleFilter.radiusKm.toFixed(1)} كم)`;
     }
+  } else if (!neighborhood) {
+    // Full City / Capital Coverage Mode (تغطية العاصمة أو المدينة بالكامل)
+    center.district = `كامل مدينة ${center.city}`;
   }
 
   sendEvent('center', {
@@ -652,27 +663,47 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
 
   const stdQuery = toStandardArabic(query || '');
   const qNorm = normAr(query || '');
-  const rKm = Math.max(radiusMeters / 1000, 5);
+  const rKm = hasDrawnCircle ? circleFilter.radiusKm : Math.max(radiusMeters / 1000, 25);
 
-  sendEvent('status', { message: `جارٍ سحب البيانات والأرقام الحقيقية مباشرة من خرائط جوجل في [${center.city} - ${center.district}] عن: (${stdQuery || 'الأنشطة التجارية'})...` });
+  sendEvent('status', { message: `جارٍ سحب البيانات والإحداثيات والأرقام الحقيقية من خرائط جوجل في [${center.city} - ${center.district}] عن: (${stdQuery || 'الأنشطة التجارية'})...` });
 
   // 1. PRIMARY ENGINE: Direct Google Maps Live Search (`tbm=map`) for authentic Google Maps names, phones, hours, ratings, and coordinates
   try {
     const searchTerms = [];
     const baseTerm = stdQuery || query || 'شركات';
-    if (neighborhood) {
+    if (hasDrawnCircle) {
+      const nearHood = resolveLocalNeighborhood(center.lat, center.lng);
+      if (nearHood && nearHood.distanceKm <= 8 && nearHood.shortHood) {
+        searchTerms.push(`${baseTerm} في ${nearHood.shortHood} ${center.city}`);
+      }
+      searchTerms.push(`${baseTerm} في ${center.city}`);
+    } else if (neighborhood) {
       searchTerms.push(`${baseTerm} في ${neighborhood} ${center.city}`);
-    } else if (hasUserGps && center.district) {
-      // Search closest to user's permitted GPS district first, then wider city
-      searchTerms.push(`${baseTerm} في ${center.district} ${center.city}`);
+      searchTerms.push(`${baseTerm} في ${center.city}`);
+    } else {
+      // Full City / Capital coverage across all sectors of the city!
+      searchTerms.push(`${baseTerm} في ${center.city}`);
+      if (center.city.includes('صنعاء')) {
+        searchTerms.push(
+          `${baseTerm} في حدة والزبيري والتحرير صنعاء`,
+          `${baseTerm} في الستين والحصبة وشميلة صنعاء`,
+          `${baseTerm} في الصافية وشارع تعز والجراف صنعاء`
+        );
+      } else {
+        searchTerms.push(
+          `أفضل ${baseTerm} في ${center.city}`,
+          `جميع ${baseTerm} في ${center.city}`
+        );
+      }
     }
-    searchTerms.push(`${baseTerm} في ${center.city}`);
     if (query && query.trim() !== baseTerm) {
       searchTerms.push(`${query.trim()} ${center.city}`);
     }
 
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const distSpan = hasUserGps ? Math.min(Math.max(radiusMeters * 1.5, 6000), 35000) : Math.min(Math.max(radiusMeters * 3, 15000), 65000);
+    const distSpan = hasDrawnCircle
+      ? Math.min(Math.max(radiusMeters * 2.2, 1200), 40000)
+      : Math.min(Math.max(radiusMeters * 3.5, 35000), 75000);
     const collectedGooglePlaces = [];
 
     for (const sTerm of searchTerms) {
@@ -719,12 +750,15 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
           const pLng = parseFloat(p[9]?.[3]);
           if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
 
+          const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
+          // If user drew a custom circle on the map, strictly keep places inside that circle!
+          if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.08) continue;
+
           const dedupeKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
           if (seenNames.has(dedupeKey) || seenNames.has(normAr(cleanName))) continue;
           seenNames.add(dedupeKey);
           seenNames.add(normAr(cleanName));
 
-          const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
           collectedGooglePlaces.push({ p, cleanName, pLat, pLng, distFromOrigin });
           addedInPage++;
         }
@@ -806,6 +840,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
     const cleanName = String(name || '').trim();
     if (!cleanName) return false;
 
+    if (hasDrawnCircle) {
+      const dKm = calcDistanceKm(center.lat, center.lng, pLat, pLng);
+      if (dKm > circleFilter.radiusKm * 1.08) return false;
+    }
+
     const dedupeKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
     if (seenNames.has(dedupeKey) || seenNames.has(normAr(cleanName))) return false;
     seenNames.add(dedupeKey);
@@ -871,7 +910,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, lim
     try {
       const lat = center.lat;
       const lng = center.lng;
-      const r = Math.min(Math.max(radiusMeters, 5000), 25000);
+      const r = hasDrawnCircle
+        ? Math.min(Math.max(radiusMeters, 250), 25000)
+        : Math.min(Math.max(radiusMeters, 18000), 25000);
 
       let tagFilters = [];
       if (qNorm.includes('صيدلي') || qNorm.includes('دواء') || qNorm.includes('فارما') || qNorm.includes('pharmacy')) {
@@ -1747,14 +1788,21 @@ const server = http.createServer(async (req, res) => {
     const query = parsedUrl.query.query || '';
     const location = parsedUrl.query.location || '';
     const neighborhood = parsedUrl.query.neighborhood || '';
-    const limit = Math.min(Math.max(parseInt(parsedUrl.query.limit, 10) || 20, 1), 200);
-    const radiusKm = parseFloat(parsedUrl.query.radius) || 10;
+    const limit = Math.min(Math.max(parseInt(parsedUrl.query.limit, 10) || 50, 1), 300);
+    const radiusKm = parseFloat(parsedUrl.query.radius) || 25;
     const radiusMeters = Math.round(radiusKm * 1000);
     const apiKey = (parsedUrl.query.apiKey || '').trim();
     const visitorId = (parsedUrl.query.visitorId || '').trim();
     const visitorLocation = (parsedUrl.query.visitorLocation || '').trim();
     const userLat = parsedUrl.query.userLat ? parseFloat(parsedUrl.query.userLat) : null;
     const userLng = parsedUrl.query.userLng ? parseFloat(parsedUrl.query.userLng) : null;
+
+    const circleLat = parsedUrl.query.circleLat ? parseFloat(parsedUrl.query.circleLat) : null;
+    const circleLng = parsedUrl.query.circleLng ? parseFloat(parsedUrl.query.circleLng) : null;
+    const circleRadiusKm = parsedUrl.query.circleRadiusKm ? parseFloat(parsedUrl.query.circleRadiusKm) : null;
+    const circleFilter = (circleLat !== null && !isNaN(circleLat) && circleLng !== null && !isNaN(circleLng) && circleRadiusKm > 0)
+      ? { lat: circleLat, lng: circleLng, radiusKm: circleRadiusKm }
+      : null;
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
@@ -1773,7 +1821,7 @@ const server = http.createServer(async (req, res) => {
       location,
       neighborhood,
       limit,
-      radiusKm,
+      radiusKm: circleFilter ? circleFilter.radiusKm : radiusKm,
       useOfficialApi: Boolean(apiKey)
     });
 
@@ -1781,7 +1829,7 @@ const server = http.createServer(async (req, res) => {
       if (apiKey) {
         await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, limit, sendEvent);
       } else {
-        await searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat, userLng);
+        await searchFreeEngine(query, location, neighborhood, radiusMeters, limit, sendEvent, userLat, userLng, circleFilter);
       }
       sendEvent('complete', { message: 'تم إنجاز البحث بنجاح 100%!' });
     } catch (e) {
@@ -1794,8 +1842,8 @@ const server = http.createServer(async (req, res) => {
         visitorLocation: visitorLocation || location || 'اليمن',
         query,
         location,
-        neighborhood,
-        radiusKm,
+        neighborhood: circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(4)}, ${circleFilter.lng.toFixed(4)})` : (neighborhood || 'كامل المدينة'),
+        radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
         resultsCount: resultCount
       });
       res.end();

@@ -1350,45 +1350,50 @@ async function reverseGeocodeCoords(lat, lng) {
   return null;
 }
 
-// Format ISP / Telecom Network Name into clean, authentic Arabic + English name (never show cloud host "Amazon.com, Inc." as visitor ISP!)
+// Format ISP / Telecom Network Name into a clean, single, non-repeating Arabic + English name
 function normalizeRealIspName(rawIsp = '', country = 'اليمن', ip = '') {
   const s = String(rawIsp || '').trim();
   const c = String(country || '');
 
+  // Check known telecom networks first and return a clean, fixed string (idempotent - never nests or repeats!)
+  if (/Public Telecommunication|YemenNet|PTC|TeleYemen|يمن نت/i.test(s)) {
+    return 'يمن نت للاتصالات (YemenNet)';
+  }
+  if (/Yemen Mobile|يمن موبايل/i.test(s)) {
+    return 'يمن موبايل 4G (Yemen Mobile)';
+  }
+  if (/Sabafon|سبأفون|سبافون/i.test(s)) {
+    return 'سبأفون للاتصالات (Sabafon)';
+  }
+  if (/\bYOU\b|MTN|شركة YOU/i.test(s)) {
+    return 'شركة YOU للاتصالات (YOU Telecom)';
+  }
+  if (/AdenNet|عدن نت/i.test(s)) {
+    return 'عدن نت للاتصالات (AdenNet)';
+  }
+  if (/Starlink|SpaceX/i.test(s)) {
+    return 'ستارلينك الفضائي (Starlink)';
+  }
+  if (/STC|Saudi Telecom|الاتصالات السعودية/i.test(s)) {
+    return 'الاتصالات السعودية (STC)';
+  }
+  if (/Mobily|Etihad Etisalat|موبايلي/i.test(s)) {
+    return 'موبايلي السعودية (Mobily)';
+  }
+  if (/Zain|زين/i.test(s)) {
+    return 'زين للاتصالات (Zain)';
+  }
+
   // If empty, generic, or mistakenly set to the cloud server's datacenter (Amazon/AWS/Cloudflare/Render)
-  if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation|DigitalOcean|Hetzn/i.test(s) || s === 'مزود الإنترنت' || s === 'يمن نت / مزود الخدمة') {
-    if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
-      return 'يمن نت / اليمن للاتصالات (YemenNet ISP)';
+  if (!s || /Amazon|AWS|Cloudflare|Render|Google Cloud|Microsoft Corporation|DigitalOcean|Hetzn/i.test(s) || s === 'مزود الإنترنت') {
+    if (c.includes('اليمن') || c.toLowerCase().includes('yemen') || ip.startsWith('82.114.') || ip.startsWith('134.35.') || ip.startsWith('109.200.') || ip.startsWith('185.80.')) {
+      return 'يمن نت للاتصالات (YemenNet)';
     }
     return 'شبكة اتصالات محلية (Telecom ISP)';
   }
 
-  if (/Public Telecommunication|YemenNet|PTC|TeleYemen/i.test(s)) {
-    return `يمن نت للاتصالات (${s})`;
-  }
-  if (/Yemen Mobile/i.test(s)) {
-    return `يمن موبايل 4G (${s})`;
-  }
-  if (/Sabafon/i.test(s)) {
-    return `سبأفون للاتصالات (${s})`;
-  }
-  if (/YOU|MTN/i.test(s)) {
-    return `شركة YOU للاتصالات (${s})`;
-  }
-  if (/AdenNet/i.test(s)) {
-    return `عدن نت (${s})`;
-  }
-  if (/STC|Saudi Telecom/i.test(s)) {
-    return `الاتصالات السعودية STC (${s})`;
-  }
-  if (/Mobily|Etihad Etisalat/i.test(s)) {
-    return `موبايلي السعودية (${s})`;
-  }
-  if (/Zain/i.test(s)) {
-    return `زين للاتصالات (${s})`;
-  }
-
-  return s;
+  // Strip any accidental nested parentheses if present in custom ISP strings
+  return s.replace(/(\([^\)]+\))\s*\)+/g, '$1').trim();
 }
 
 // Parse HTTP User-Agent header or raw legacy device string into accurate Phone Brand/Model or Laptop OS
@@ -1398,6 +1403,9 @@ function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
 
   // If already formatted with our new rich detector (contains هاتف or لابتوب or آيباد)
   if (d && (d.includes('هاتف') || d.includes('لابتوب') || d.includes('آيباد') || d.includes('كمبيوتر')) && !d.includes('Win32') && !d.includes('Linux arm')) {
+    if (d.includes('هاتف أندرويد (2312') || d.includes('هاتف أندرويد (230') || d.includes('هاتف أندرويد (220')) {
+      return d.replace('هاتف أندرويد (', 'هاتف شاومي / ريدمي (Xiaomi ');
+    }
     return d;
   }
 
@@ -1429,7 +1437,7 @@ function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
 
       let brand = 'هاتف أندرويد';
       if (/SM-|Samsung/i.test(model) || /Samsung/i.test(ua)) brand = 'هاتف سامسونج جالكسي';
-      else if (/Redmi|Xiaomi|POCO|M20|M21|220|230/i.test(model) || /Xiaomi|Redmi/i.test(ua)) brand = 'هاتف شاومي / ريدمي';
+      else if (/Redmi|Xiaomi|POCO|M20|M21|210|220|230|231|240/i.test(model) || /Xiaomi|Redmi/i.test(ua)) brand = 'هاتف شاومي / ريدمي';
       else if (/HUAWEI|Honor/i.test(model)) brand = 'هاتف هواوي';
       else if (/Infinix/i.test(model)) brand = 'هاتف إنفينيكس';
       else if (/TECNO/i.test(model)) brand = 'هاتف تكنو';
@@ -1496,7 +1504,13 @@ function consolidateVisitorsList(visitors = []) {
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
         sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
-        previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : []
+        previousLogs: Array.isArray(item.previousLogs)
+          ? item.previousLogs.map(snap => ({
+              ...snap,
+              isp: normalizeRealIspName(snap.isp, snap.country || item.country, snap.ip || item.ip),
+              device: normalizeRealDeviceName(snap.device, item.userAgent)
+            }))
+          : []
       });
     } else {
       const primary = mapByKey.get(key);

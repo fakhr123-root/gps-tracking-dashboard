@@ -842,7 +842,7 @@
 
         let brandAr = 'هاتف أندرويد';
         if (/SM-|Samsung|GT-/i.test(rawModel) || /Samsung/i.test(ua)) brandAr = 'هاتف سامسونج جالكسي (Samsung';
-        else if (/Redmi|Xiaomi|POCO|M20|M21|220|230/i.test(rawModel) || /Xiaomi|Redmi|Mi /i.test(ua)) brandAr = 'هاتف شاومي / ريدمي (Xiaomi';
+        else if (/Redmi|Xiaomi|POCO|M20|M21|210|220|230|231|240/i.test(rawModel) || /Xiaomi|Redmi|Mi /i.test(ua)) brandAr = 'هاتف شاومي / ريدمي (Xiaomi';
         else if (/HUAWEI|Honor|MAR-|VOG-|STK-/i.test(rawModel)) brandAr = 'هاتف هواوي (Huawei';
         else if (/Infinix/i.test(rawModel)) brandAr = 'هاتف إنفينيكس (Infinix';
         else if (/TECNO/i.test(rawModel)) brandAr = 'هاتف تكنو (Tecno';

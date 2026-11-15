@@ -259,13 +259,13 @@
         </button>
       </div>
 
-      <!-- ==================== STEP 2: CLEAN INSTAGRAM-STYLE LOGIN / CREATE ACCOUNT ==================== -->
+      <!-- ==================== STEP 2: CLEAN INSTAGRAM-STYLE LOGIN / CREATE ACCOUNT (MATCHING WEBSITE EMERALD/CYAN THEME) ==================== -->
       <div id="gateStep2Login" class="hidden space-y-5 pt-2 text-right">
-        <h2 id="gateAuthHeaderTitle" class="text-lg sm:text-xl font-bold text-white text-right px-1">
+        <h2 id="gateAuthHeaderTitle" class="text-lg sm:text-xl font-black text-white text-right px-1">
           تسجيل الدخول
         </h2>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5">
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5" autocomplete="off">
           <!-- Username Input Box ("اسم المستخدم") -->
           <div class="relative">
             <input 
@@ -274,10 +274,10 @@
               required
               minlength="1"
               maxlength="30"
-              autocomplete="username"
+              autocomplete="off"
               oninput="sanitizeInstagramUsernameInput(this)"
               placeholder="اسم المستخدم"
-              class="w-full bg-[#151c24] text-sm rounded-2xl px-4 py-4 border border-slate-600/80 focus:border-sky-500 text-white placeholder-slate-400 focus:outline-none transition font-medium text-right"
+              class="w-full bg-slate-900/90 text-sm rounded-2xl px-4 py-4 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
           </div>
 
@@ -288,14 +288,14 @@
               id="visitorPasswordInput" 
               required
               minlength="1"
-              autocomplete="current-password"
+              autocomplete="new-password"
               placeholder="كلمة المرور"
-              class="w-full bg-[#151c24] text-sm rounded-2xl pr-4 pl-11 py-4 border border-slate-600/80 focus:border-sky-500 text-white placeholder-slate-400 focus:outline-none transition font-medium text-right"
+              class="w-full bg-slate-900/90 text-sm rounded-2xl pr-4 pl-11 py-4 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
             <button
               type="button"
               onclick="toggleVisitorPasswordVisibility()"
-              class="absolute left-3.5 top-4 text-slate-400 hover:text-white transition cursor-pointer"
+              class="absolute left-3.5 top-4 text-emerald-400/80 hover:text-emerald-300 transition cursor-pointer"
               title="إظهار / إخفاء كلمة المرور"
             >
               <i id="visitorPassEyeIcon" data-lucide="eye" class="w-4 h-4"></i>
@@ -314,19 +314,19 @@
             <button 
               type="submit" 
               id="gateSubmitBtn"
-              class="w-full py-3.5 rounded-full font-bold text-sm text-white bg-[#0064e0] hover:bg-[#1877f2] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+              class="w-full py-3.5 rounded-full font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span id="gateSubmitBtnText">تسجيل الدخول</span>
             </button>
           </div>
 
           <!-- Secondary Bottom Outlined Pill Button ("إنشاء حساب جديد" / "تسجيل الدخول") -->
-          <div class="pt-6 border-t border-slate-800/80">
+          <div class="pt-6 border-t border-emerald-500/20">
             <button
               type="button"
               id="gateToggleAuthModeBtn"
               onclick="toggleGateAuthMode()"
-              class="w-full py-3 rounded-full font-bold text-sm text-[#4ea8ff] hover:bg-[#0064e0]/15 border border-[#3b82f6]/70 transition flex items-center justify-center cursor-pointer"
+              class="w-full py-3 rounded-full font-bold text-sm text-emerald-300 hover:text-white bg-emerald-950/35 hover:bg-emerald-500/20 border border-emerald-400/50 transition flex items-center justify-center cursor-pointer"
             >
               <span id="gateToggleAuthModeBtnText">إنشاء حساب جديد</span>
             </button>
@@ -2284,9 +2284,9 @@
       const line = document.getElementById('stepConnectorLine');
       if (b1) b1.className = "px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold flex items-center gap-1.5";
       if (b2) {
-        b2.className = "px-3 py-1 rounded-full bg-fuchsia-500/20 border border-fuchsia-400/60 text-fuchsia-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(217,70,239,0.3)]";
+        b2.className = "px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]";
         const num = b2.querySelector('span');
-        if (num) num.className = "w-4 h-4 rounded-full bg-fuchsia-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
+        if (num) num.className = "w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
       }
       if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
       lucide.createIcons();

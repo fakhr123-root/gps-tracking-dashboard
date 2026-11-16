@@ -1427,14 +1427,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, hotelKeywords);
     }
 
-    // Domain 10: Mobile Phone & Electronics Shops (تلفونات، جوالات، موبايل، اتصالات)
+    // Domain 10: Mobile Phone & Telecom Shops (تلفونات، جوالات، موبايل، اتصالات)
     if (q.includes('تلفون') || q.includes('جوال') || q.includes('هاتف') || q.includes('هواتف') || q.includes('موبايل') || q.includes('فون')) {
-      const unrelatedPhoneNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'بوفيه', 'عبايات', 'صيدليه', 'مستشفي', 'مخبز'];
-      if (hasAny(nName, unrelatedPhoneNoise)) return false;
+      const unrelatedPhoneNoise = [
+        'قات', 'بقاله', 'سوبرماركت', 'مطعم', 'بوفيه', 'عبايات', 'صيدليه', 'مستشفي', 'مخبز',
+        'للطاقه الشمسيه', 'طاقه شمسيه', 'للكمبيوتر', 'كاميرات مراقبه', 'للانظمه الامنيه'
+      ];
+      if (hasAny(nName, unrelatedPhoneNoise) && !hasAny(nName, ['تلفون', 'جوال', 'هاتف', 'هواتف', 'موبايل', 'فون', 'اتصالات', 'تيليكوم', 'تليكوم'])) {
+        return false;
+      }
       const phoneKeywords = [
-        'تلفون', 'جوال', 'هاتف', 'هواتف', 'موبايل', 'فون', 'اتصالات', 'سمارت', 'ايفون',
-        'اندرويد', 'سامسونج', 'شاومي', 'برمجه', 'صيانه', 'شرائح', 'يمن موبايل', 'سبأفون',
-        'الكترونيات', 'phone', 'mobile', 'telecom', 'cell', 'electronics'
+        'تلفون', 'جوال', 'هاتف', 'هواتف', 'موبايل', 'فون', 'اتصالات', 'تيليكوم', 'تليكوم',
+        'سمارت', 'ايفون', 'اندرويد', 'سامسونج', 'شاومي', 'هواوي', 'ريدمي', 'انفينكس',
+        'برمجه', 'شرائح', 'يمن موبايل', 'سبافون', 'سبأفون', 'واي للاتصالات', 'يو للاتصالات',
+        'phone', 'mobile', 'telecom', 'cell', 'cellular', 'smartphone'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), phoneKeywords);
       return hasAny(combinedText, phoneKeywords);

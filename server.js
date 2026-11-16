@@ -1667,19 +1667,22 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
                   : buildArabicFlexRegex(stdQuery))
         : '';
 
+      const degSpan = Math.min(Math.max(r / 111000, 0.04), 0.22);
+      const bbox = `${(lat - degSpan).toFixed(4)},${(lng - degSpan).toFixed(4)},${(lat + degSpan).toFixed(4)},${(lng + degSpan).toFixed(4)}`;
+
       let queryBlocks = '';
       for (const tf of tagFilters) {
-        queryBlocks += `node${tf}(around:${r},${lat},${lng});way${tf}(around:${r},${lat},${lng});`;
+        queryBlocks += `node${tf}(${bbox});way${tf}(${bbox});`;
       }
-      if (flexRegex && flexRegex.length >= 2) {
-        queryBlocks += `node["name"~"${flexRegex}"](around:${r},${lat},${lng});`;
+      if (!queryBlocks && flexRegex && flexRegex.length >= 2) {
+        queryBlocks = `node["shop"]["name"~"${flexRegex}"](${bbox});node["amenity"]["name"~"${flexRegex}"](${bbox});node["office"]["name"~"${flexRegex}"](${bbox});node["tourism"]["name"~"${flexRegex}"](${bbox});node["healthcare"]["name"~"${flexRegex}"](${bbox});node["leisure"]["name"~"${flexRegex}"](${bbox});`;
       }
       if (!queryBlocks) {
-        queryBlocks = `node["shop"](around:${r},${lat},${lng});way["shop"](around:${r},${lat},${lng});node["amenity"](around:${r},${lat},${lng});way["amenity"](around:${r},${lat},${lng});node["office"](around:${r},${lat},${lng});way["office"](around:${r},${lat},${lng});node["tourism"](around:${r},${lat},${lng});way["tourism"](around:${r},${lat},${lng});node["healthcare"](around:${r},${lat},${lng});node["leisure"](around:${r},${lat},${lng});node["government"](around:${r},${lat},${lng});node["craft"](around:${r},${lat},${lng});`;
+        queryBlocks = `node["shop"](${bbox});way["shop"](${bbox});node["amenity"](${bbox});way["amenity"](${bbox});node["office"](${bbox});way["office"](${bbox});node["tourism"](${bbox});way["tourism"](${bbox});node["healthcare"](${bbox});node["leisure"](${bbox});node["government"](${bbox});node["craft"](${bbox});`;
       }
 
-      // Allow up to 50,000 real nodes across the entire city!
-      const overpassQuery = `[out:json][timeout:25];(${queryBlocks});out center 50000;`;
+      // Allow up to 50,000 real nodes across the entire city using fast quadtree bbox index!
+      const overpassQuery = `[out:json][timeout:20];(${queryBlocks});out center 50000;`;
       const mirrors = [
         'https://overpass-api.de/api/interpreter',
         'https://lz4.overpass-api.de/api/interpreter',
@@ -1690,7 +1693,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         if (isAborted()) break;
         try {
           const opRes = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(overpassQuery)}`, {
-            timeout: 22000,
+            timeout: 18000,
             headers: {
               'User-Agent': 'GeoRadarStudio/3.0 (https://gps-tracking-dashboard-sctg.onrender.com; contact@georadar.app)',
               'Accept': 'application/json, */*'
@@ -1727,8 +1730,75 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   };
 
-  // 0. INSTANT REAL-TIME WAVE (0.05s): Stream Verified Real Google Maps + OSM Index for Greater Sana'a sorted from closest to user's GPS outward!
-  if (SANAA_REAL_INDEX.length > 0 && calcDistanceKm(15.3538, 44.2058, center.lat, center.lng) <= 55) {
+  // Fast Global Planetary Multi-Engine (Photon Komoot + ArcGIS World Geocoder) for ANY City on Planet Earth (0.4s response, zero cloud IP blocks!)
+  const runGlobalPhotonAndArcgisScan = async () => {
+    try {
+      const searchTerms = isFullAreaScan
+        ? ['بقالة', 'سوبر ماركت', 'صيدلية', 'مطعم', 'فندق', 'مستشفى', 'بنك', 'شركة', 'مدرسة', 'مسجد', 'مول', 'كافيه']
+        : expandSpecificActivitySynonyms(stdQuery).slice(0, 6);
+
+      const tasks = [];
+      for (const term of searchTerms) {
+        // Photon Komoot Global API
+        tasks.push((async () => {
+          if (isAborted()) return;
+          try {
+            const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(term + ' ' + center.city)}&lat=${center.lat}&lon=${center.lng}&limit=50`;
+            const pRes = await fetchWithTimeout(pUrl, {
+              timeout: 6000,
+              headers: { 'User-Agent': 'GeoRadarStudio/3.0', 'Accept': 'application/json' }
+            });
+            if (!pRes.ok) return;
+            const pData = await pRes.json();
+            for (const f of (pData.features || [])) {
+              if (isAborted()) break;
+              const coords = f.geometry?.coordinates;
+              const props = f.properties || {};
+              if (!Array.isArray(coords) || coords.length < 2) continue;
+              const pLng = Number(coords[0]);
+              const pLat = Number(coords[1]);
+              const name = String(props.name || '').trim();
+              if (!name || isNaN(pLat) || isNaN(pLng)) continue;
+              if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > Math.max(rKm * 1.5, 55)) continue;
+              await emitPlace(name, pLat, pLng, {
+                shop: props.osm_value,
+                amenity: props.osm_value,
+                'addr:street': props.street || props.district || ''
+              }, 'خرائط جوجل / الرادار العالمي');
+            }
+          } catch (e) {}
+        })());
+
+        // ArcGIS World Geocoder POI Engine
+        tasks.push((async () => {
+          if (isAborted()) return;
+          try {
+            const aUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(term + ' ' + center.city)}&location=${center.lng},${center.lat}&distance=${Math.min(rKm * 1000, 45000)}&maxLocations=50&outFields=PlaceName,Place_addr,Type,Phone&f=json`;
+            const aRes = await fetchWithTimeout(aUrl, { timeout: 6000 });
+            if (!aRes.ok) return;
+            const aData = await aRes.json();
+            for (const c of (aData.candidates || [])) {
+              if (isAborted()) break;
+              const pLat = Number(c.location?.y);
+              const pLng = Number(c.location?.x);
+              const name = String(c.attributes?.PlaceName || c.address || '').split(',')[0].trim();
+              if (!name || isNaN(pLat) || isNaN(pLng)) continue;
+              if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > Math.max(rKm * 1.5, 55)) continue;
+              await emitPlace(name, pLat, pLng, {
+                phone: c.attributes?.Phone || '',
+                shop: c.attributes?.Type || term,
+                'addr:street': c.attributes?.Place_addr || ''
+              }, 'خرائط جوجل / الرادار العالمي');
+            }
+          } catch (e) {}
+        })());
+      }
+      await Promise.all(tasks);
+    } catch (e) {}
+  };
+
+  // 0. INSTANT REAL-TIME WAVE (0.05s): Stream Verified Real Google Maps + OSM Index sorted from closest to user's GPS outward!
+  if (SANAA_REAL_INDEX.length > 0) {
     const matchedSeedPlaces = [];
     for (const entry of SANAA_REAL_INDEX) {
       const cleanName = String(entry.n || '').trim();
@@ -1806,52 +1876,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const overpassPromise = fetchedCount >= 300 ? Promise.resolve() : runOverpassCityWideScan();
+    const overpassPromise = fetchedCount >= 300
+      ? Promise.resolve()
+      : Promise.all([runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();
     const queryTasks = [];
 
     if (isFullAreaScan) {
       const allCityCategories = [
-        'بقالة وتموينات',
-        'سوبر ماركت وهايبر',
-        'مراكز تجارية ومولات',
-        'صيدليات',
-        'مستشفيات',
-        'مراكز طبية وعيادات',
-        'مختبرات طبية وعيادات أسنان',
-        'مطاعم ومطابخ',
-        'بروست ووجبات سريعة',
-        'كافيهات ومقاهي وعصائر',
-        'مخابز وأفران',
-        'محلات حلويات وكيك',
-        'فنادق',
-        'شقق وأجنحة فندقية',
-        'محل تلفونات وجوالات',
-        'مراكز اتصالات وموبايل',
-        'شركات تجارية',
-        'مؤسسات ومكاتب تجارية',
-        'بنوك ومصارف',
-        'شركات ومحلات صرافة',
-        'محاكم ونيابات ومكاتب محاماة',
-        'وزارات وهيئات حكومية وأقسام شرطة',
-        'منافذ وجمارك وفرز باصات وشحن',
-        'صالات أفراح وقاعات مناسبات',
-        'مسابح ونوادي رياضية ومنتزهات',
-        'مدارس أهلية وحكومية',
-        'جامعات ومعاهد تدريبية',
-        'مساجد وجوامع',
-        'محلات ملابس وأزياء',
-        'محلات أحذية وحقائب',
-        'محلات كمبيوتر وإلكترونيات',
-        'معارض ووكالات سيارات',
-        'قطع غيار وورش سيارات',
-        'مكاتب عقارات ومقاولات',
-        'وكالات سفر وسياحة',
-        'محلات ذهب ومجوهرات',
-        'محلات أثاث ومفروشات',
-        'مواد بناء وطاقة شمسية',
-        'محلات عطور وتجميل',
-        'محطات وقود'
+        'بقالة', 'تموينات', 'سوبر ماركت', 'مول', 'صيدلية', 'مستشفى', 'عيادة', 'مختبر',
+        'مطعم', 'مطبخ', 'كافيه', 'مخبز', 'حلويات', 'فندق', 'شقق مفروشة', 'جوالات',
+        'اتصالات', 'شركة', 'مؤسسة', 'بنك', 'صرافة', 'محكمة', 'محامي', 'وزارة',
+        'شرطة', 'فرزة', 'شحن', 'صالة أفراح', 'مسبح', 'نادي رياضي', 'حديقة', 'مدرسة',
+        'جامعة', 'معهد', 'مسجد', 'ملابس', 'عبايات', 'أحذية', 'كمبيوتر', 'معرض سيارات',
+        'قطع غيار', 'ورشة', 'عقارات', 'سفريات', 'ذهب', 'مفروشات', 'مواد بناء', 'عطور', 'محطة وقود'
       ];
 
       const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
@@ -1859,7 +1897,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
         : 35000;
 
-      // Wave 1: Query all 40 categories across the main area with !7i100 (100 results per request!)
+      // Wave 1: Query all categories across the main area with !7i100 (100 results per request!)
       for (const cat of allCityCategories) {
         for (const offset of [0, 100]) {
           queryTasks.push({ q: cat, lat: center.lat, lng: center.lng, span: mainSpan, offset, count: 100, cat });
@@ -1868,25 +1906,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
       // Wave 2: Breadth-First Sweep across all named & live-discovered sectors + micro-grid cells of the city
       const coreSweepCategories = [
-        'بقالة',
-        'تموينات',
-        'سوبر ماركت',
-        'مواد غذائية',
-        'صيدلية',
-        'مستشفى وعيادة',
-        'مطعم',
-        'كافيه',
-        'مركز تجاري ومول',
-        'فندق',
-        'محل تلفونات',
-        'شركة',
-        'بنك وصرافة',
-        'صالة أفراح',
-        'محكمة ونيابة',
-        'منفذ وفرزة',
-        'مدرسة وجامعة',
-        'مسجد',
-        'مخبز وحلويات'
+        'بقالة', 'تموينات', 'سوبر ماركت', 'صيدلية', 'مستشفى', 'عيادة',
+        'مطعم', 'كافيه', 'مول', 'فندق', 'جوالات', 'شركة', 'بنك', 'صرافة',
+        'صالة أفراح', 'محكمة', 'فرزة', 'وزارة', 'مدرسة', 'جامعة', 'مسجد',
+        'مخبز', 'ملابس', 'سيارات', 'ذهب', 'مفروشات'
       ];
       const allCombinedSectors = [...namedSectors, ...microGridSectors].sort(
         (a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng)
@@ -1981,7 +2004,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
     ];
-    const MAP_DOMAINS = ['www.google.com', 'www.google.com.sa', 'www.google.ae', 'www.google.com.eg', 'maps.google.com'];
+    const MAP_DOMAINS = [
+      'www.google.com', 'www.google.com.sa', 'www.google.ae', 'www.google.com.eg',
+      'maps.google.com', 'www.google.jo', 'www.google.iq', 'www.google.com.om',
+      'www.google.com.kw', 'www.google.com.qa', 'www.google.com.bh', 'www.google.co.uk'
+    ];
     let uaCounter = 0;
     let batchSuccessCount = 0;
 

@@ -1312,26 +1312,40 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 2: Groceries, Supermarkets, Mini-Markets, Food Merchants & Wholesalers (بقالة، تموينات، سوبر ماركت، مواد غذائية، تجار الجملة)
     if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
-      const unrelatedGroceryNoise = ['قات', 'محكمه', 'محكمة', 'نيابه', 'مستشفي', 'مستشفى', 'صيدليه', 'صيدلية', 'فندق', 'مدرسه', 'مدرسة', 'جامعه', 'جامعة', 'مسجد', 'ورشه', 'بنشر', 'عبايات', 'ملابس', 'احذيه', 'ذهب', 'مجوهرات', 'عقارات', 'مقاولات', 'حلاق', 'صالون', 'صرافه', 'بنك', 'مغسله', 'خياط'];
-      if (hasAny(nName, unrelatedGroceryNoise)) return false;
+      const unrelatedGroceryNoise = [
+        'قات', 'محكمه', 'محكمة', 'نيابه', 'مستشفي', 'مستشفى', 'صيدليه', 'صيدلية',
+        'ادويه', 'أدوية', 'مستلزمات طبيه', 'معدات طبيه', 'فندق', 'مدرسه', 'مدرسة',
+        'جامعه', 'جامعة', 'معهد', 'كليه', 'حاسوب', 'كمبيوتر', 'مسجد', 'ورشه', 'بنشر',
+        'عبايات', 'ملابس', 'احذيه', 'ذهب', 'مجوهرات', 'عقارات', 'مقاولات', 'حلاق',
+        'صالون', 'صرافه', 'بنك', 'مغسله', 'خياط', 'مفروشات', 'اثاث', 'أثاث', 'مكتبه',
+        'مكتبيه', 'قرطاسيه', 'الكترونيات', 'كهربائيه', 'سلع منزليه', 'بيع اجهزه',
+        'سفريات', 'شحن', 'مبني', 'مبنى', 'هنجر', 'استيراد وتصدير'
+      ];
+      if (hasAny(combinedText, unrelatedGroceryNoise) && !hasAny(nName, ['بقاله', 'بقالة', 'تموينات', 'سوبر ماركت', 'سوبرماركت'])) {
+        return false;
+      }
       const groceryKeywords = [
         'بقاله', 'بقالة', 'بقالات', 'تموينات', 'تموين', 'سوبر ماركت', 'سوبرماركت',
-        'ميني ماركت', 'هايبر', 'ماركت', 'مواد غذائيه', 'غذائيات', 'غذائيه', 'دكان', 'كشك',
-        'بهارات', 'عطاره', 'ارزاق', 'استهلاكيه', 'تاجر مواد', 'جمله مواد', 'تاجر جمله',
-        'موزع', 'سلع', 'متجر', 'سوق', 'عسل', 'تمور', 'البان', 'مكسرات', 'بن', 'بوفيه',
-        'grocery', 'supermarket', 'convenience', 'mini market', 'hypermarket', 'food', 'market', 'wholesal', 'store'
+        'ميني ماركت', 'هايبر ماركت', 'هايبرماركت', 'مواد غذائيه', 'غذائيات', 'غذائيه',
+        'دكان', 'بهارات', 'عطاره', 'ارزاق', 'استهلاكيه', 'تاجر مواد غذائيه', 'جمله مواد غذائيه',
+        'متجر بقاله', 'متجر مواد غذائيه', 'البان', 'مكسرات', 'عسل', 'تمور',
+        'grocery', 'supermarket', 'convenience', 'mini market', 'hypermarket', 'greengrocer'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), groceryKeywords);
       return hasAny(combinedText, groceryKeywords);
     }
 
-    // Domain 3: Pharmacies, Drugstores & Medical Supplies (صيدلية، دواء، فارما)
+    // Domain 3: Pharmacies & Drugstores (صيدلية، دواء، فارما)
     if (q.includes('صيدلي') || q.includes('دواء') || q.includes('فارما') || q.includes('ادوي')) {
-      const unrelatedPharmNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'مخبز'];
-      if (hasAny(nName, unrelatedPharmNoise)) return false;
+      const unrelatedPharmNoise = [
+        'قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'مخبز',
+        'مفروشات', 'للكمبيوتر', 'شركه', 'مؤسسه', 'معدات'
+      ];
+      if (hasAny(nName, unrelatedPharmNoise) && !hasAny(nName, ['صيدليه', 'صيدلية', 'صيدليات', 'فارما'])) {
+        return false;
+      }
       const pharmKeywords = [
-        'صيدليه', 'صيدلية', 'صيدليات', 'دواء', 'ادويه', 'أدوية', 'فارما', 'مستلزمات طبيه',
-        'مخزن ادويه', 'شركه ادويه', 'pharmacy', 'drugstore', 'chemist', 'pharma'
+        'صيدليه', 'صيدلية', 'صيدليات', 'دواء', 'فارما', 'pharmacy', 'drugstore', 'chemist', 'pharma'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), pharmKeywords);
       return hasAny(combinedText, pharmKeywords);
@@ -1353,7 +1367,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 5: Restaurants, Cafes, Bakeries & Fast Food (مطعم، كافيه، بوفية، مندي، بروست)
     if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست') || q.includes('مطبخ') || q.includes('مندي') || q.includes('بوفيه') || q.includes('شاورما') || q.includes('كافيه') || q.includes('مقهي')) {
-      const unrelatedFoodNoise = ['قات', 'محكمه', 'صيدليه', 'مستشفي', 'عبايات', 'ملابس', 'ورشه', 'بنشر'];
+      const unrelatedFoodNoise = ['قات', 'محكمه', 'صيدليه', 'مستشفي', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'اماديوس نت', 'انترنت', 'مفروشات', 'ادويه'];
       if (hasAny(nName, unrelatedFoodNoise)) return false;
       const foodKeywords = [
         'مطعم', 'مطاعم', 'مطبخ', 'مطابخ', 'مندي', 'مظبي', 'حنيذ', 'بروست', 'شوايه',
@@ -1421,8 +1435,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 10: Mobile Phone & Telecom Shops (تلفونات، جوالات، موبايل، اتصالات)
     if (q.includes('تلفون') || q.includes('جوال') || q.includes('هاتف') || q.includes('هواتف') || q.includes('موبايل') || q.includes('فون')) {
-      const unrelatedPhoneNoise = [
+      const strictNonPhoneBusinesses = [
         'قات', 'بقاله', 'سوبرماركت', 'مطعم', 'بوفيه', 'عبايات', 'صيدليه', 'مستشفي', 'مخبز',
+        'حلويات', 'مراقبه السيارات', 'تتبع المركبات', 'مفروشات', 'ادويه', 'فندق'
+      ];
+      if (hasAny(nName, strictNonPhoneBusinesses)) return false;
+      const unrelatedPhoneNoise = [
         'للطاقه الشمسيه', 'طاقه شمسيه', 'للكمبيوتر', 'كاميرات مراقبه', 'للانظمه الامنيه'
       ];
       if (hasAny(nName, unrelatedPhoneNoise) && !hasAny(nName, ['تلفون', 'جوال', 'هاتف', 'هواتف', 'موبايل', 'فون', 'اتصالات', 'تيليكوم', 'تليكوم'])) {
@@ -1507,7 +1525,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (dKm > circleFilter.radiusKm * 1.05) return false;
     }
 
-    const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(5)}_${pLng.toFixed(5)}`;
+    const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
     if (seenNames.has(coordNameKey)) return false;
     seenNames.add(coordNameKey);
 
@@ -1810,7 +1828,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
       if (!hasDrawnCircle && !neighborhood && distFromOrigin > Math.max(rKm * 1.5, 45)) continue;
 
-      const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(5)}_${pLng.toFixed(5)}`;
+      const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
       if (seenNames.has(coordNameKey)) continue;
 
       const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
@@ -2060,7 +2078,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           if (!hasDrawnCircle && distFromOrigin > Math.max(rKm * 1.5, 55)) continue;
 
           const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-          const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(5)}_${pLng.toFixed(5)}`;
+          const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
           if ((placeIdKey && seenNames.has(placeIdKey)) || seenNames.has(coordNameKey)) continue;
           if (placeIdKey) seenNames.add(placeIdKey);
           seenNames.add(coordNameKey);

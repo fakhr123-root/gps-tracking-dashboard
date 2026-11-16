@@ -1033,10 +1033,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     }
 
-    // 4. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (9x9 = 81 micro-cells)
-    // Ensures every single block and residential alley in the city is scanned at high zoom (span: 1900m)
-    const latSteps = [-0.11, -0.082, -0.055, -0.027, 0, 0.027, 0.055, 0.082, 0.11];
-    const lngSteps = [-0.08, -0.06, -0.04, -0.02, 0, 0.02, 0.04, 0.06, 0.08];
+    // 4. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (11x11 = 121 micro-cells)
+    // Ensures every single block and residential alley in the city is scanned at high zoom (span: 1300m)
+    const latSteps = [-0.125, -0.10, -0.075, -0.05, -0.025, 0, 0.025, 0.05, 0.075, 0.10, 0.125];
+    const lngSteps = [-0.085, -0.068, -0.051, -0.034, -0.017, 0, 0.017, 0.034, 0.051, 0.068, 0.085];
     for (const dLat of latSteps) {
       for (const dLng of lngSteps) {
         const gLat = center.lat + dLat;
@@ -1047,7 +1047,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           name: cellLabel,
           lat: gLat,
           lng: gLng,
-          span: 1900
+          span: 1300
         });
       }
     }
@@ -1056,16 +1056,18 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   };
 
   // Universal Planetary Activity Ontology: Expands ANY human activity, court, hall, port/outlet, shop, ministry, or service on Earth
+  // Ordered with the most distinct high-yield categories first for Breadth-First City-Wide Scanning!
   const expandSpecificActivitySynonyms = (rawQ) => {
     const q = normAr(rawQ);
     const terms = new Set([rawQ]);
 
     if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
       [
-        'بقالة', 'بقاله', 'بقالات', 'تموينات', 'سوبر ماركت', 'سوبرماركت',
-        'ميني ماركت', 'هايبر ماركت', 'مواد غذائية', 'محل مواد غذائية',
-        'مركز تموينات', 'بقالة وتموينات', 'سوق وتموينات', 'متجر مواد غذائية',
-        'تاجر مواد غذائية', 'بهارات وتموينات', 'كشك وبقالة', 'ماركت',
+        'بقالة', 'تموينات', 'سوبر ماركت', 'مواد غذائية',
+        'تاجر مواد غذائية', 'جملة مواد غذائية', 'ميني ماركت', 'هايبر ماركت',
+        'مؤسسة مواد غذائية', 'شركة مواد غذائية', 'مركز تموينات', 'محل مواد غذائية',
+        'بهارات وعطارة', 'بوفية وبقالة', 'سوق وتموينات', 'ارزاق ومواد غذائية',
+        'بقاله', 'سوبرماركت', 'بقالات', 'ماركت', 'دكان', 'كشك وبقالة',
         'بقالة الخير', 'بقالة البركة', 'بقالة السعيد', 'بقالة التوفيق',
         'بقالة النور', 'بقالة الأمل', 'بقالة الصفا', 'بقالة المدينة',
         'بقالة السلام', 'بقالة التعاون', 'بقالة الحمد', 'بقالة الرضا',
@@ -1266,15 +1268,16 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, courtKeywords);
     }
 
-    // Domain 2: Groceries, Supermarkets, Mini-Markets & Food Stores (بقالة، تموينات، سوبر ماركت، مواد غذائية)
+    // Domain 2: Groceries, Supermarkets, Mini-Markets, Food Merchants & Wholesalers (بقالة، تموينات، سوبر ماركت، مواد غذائية، تجار الجملة)
     if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
       const unrelatedGroceryNoise = ['قات', 'محكمه', 'محكمة', 'نيابه', 'مستشفي', 'مستشفى', 'صيدليه', 'صيدلية', 'فندق', 'مدرسه', 'مدرسة', 'جامعه', 'جامعة', 'مسجد', 'ورشه', 'بنشر', 'عبايات', 'ملابس', 'احذيه', 'ذهب', 'مجوهرات', 'عقارات', 'مقاولات', 'حلاق', 'صالون', 'صرافه', 'بنك', 'مغسله', 'خياط'];
       if (hasAny(nName, unrelatedGroceryNoise)) return false;
       const groceryKeywords = [
         'بقاله', 'بقالة', 'بقالات', 'تموينات', 'تموين', 'سوبر ماركت', 'سوبرماركت',
-        'ميني ماركت', 'هايبر', 'ماركت', 'مواد غذائيه', 'غذائيات', 'دكان', 'كشك',
-        'بهارات', 'عطاره', 'ارزاق', 'استهلاكيه', 'تاجر مواد', 'جمله مواد',
-        'grocery', 'supermarket', 'convenience', 'mini market', 'hypermarket', 'food store', 'market'
+        'ميني ماركت', 'هايبر', 'ماركت', 'مواد غذائيه', 'غذائيات', 'غذائيه', 'دكان', 'كشك',
+        'بهارات', 'عطاره', 'ارزاق', 'استهلاكيه', 'تاجر مواد', 'جمله مواد', 'تاجر جمله',
+        'موزع', 'سلع', 'متجر', 'سوق', 'عسل', 'تمور', 'البان', 'مكسرات', 'بن', 'بوفيه',
+        'grocery', 'supermarket', 'convenience', 'mini market', 'hypermarket', 'food', 'market', 'wholesal', 'store'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), groceryKeywords);
       return hasAny(combinedText, groceryKeywords);
@@ -1723,121 +1726,128 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
         : 35000;
 
-      // Wave 1: Query all 40 categories across the main area (Pages 0, 20, 40 = 60 results per category)
+      // Wave 1: Query all 40 categories across the main area with !7i100 (100 results per request!)
       for (const cat of allCityCategories) {
-        for (const offset of [0, 20, 40]) {
-          queryTasks.push({ q: `${cat} في ${areaName}`, lat: center.lat, lng: center.lng, span: mainSpan, offset, cat });
+        for (const offset of [0, 100]) {
+          queryTasks.push({ q: cat, lat: center.lat, lng: center.lng, span: mainSpan, offset, count: 100, cat });
         }
       }
 
-      // Wave 2: Deep neighborhood & alley (حارة) sweep across all named & live-discovered sectors of the city
+      // Wave 2: Breadth-First Sweep across all named & live-discovered sectors + micro-grid cells of the city
       const coreSweepCategories = [
-        'بقالة وتموينات',
-        'سوبر ماركت ومواد غذائية',
-        'صيدليات ومراكز طبية',
-        'مطاعم وكافيهات',
-        'مراكز تجارية ومولات',
-        'فنادق وشقق فندقية',
-        'محلات تلفونات وجوالات',
-        'شركات ومؤسسات',
-        'بنوك وصرافة',
-        'صالات أفراح وقاعات',
-        'محاكم ونيابات وجهات حكومية',
-        'منافذ وفرز ومحطات',
-        'مدارس ومعاهد ومساجد',
-        'مخابز وحلويات'
+        'بقالة',
+        'تموينات',
+        'سوبر ماركت',
+        'مواد غذائية',
+        'صيدلية',
+        'مستشفى وعيادة',
+        'مطعم',
+        'كافيه',
+        'مركز تجاري ومول',
+        'فندق',
+        'محل تلفونات',
+        'شركة',
+        'بنك وصرافة',
+        'صالة أفراح',
+        'محكمة ونيابة',
+        'منفذ وفرزة',
+        'مدرسة وجامعة',
+        'مسجد',
+        'مخبز وحلويات'
       ];
-      for (const sec of namedSectors) {
-        for (const cat of coreSweepCategories) {
-          const locLabel = sec.name && sec.name !== center.city ? `${sec.name} ${center.city}` : center.city;
+      const allCombinedSectors = [...namedSectors, ...microGridSectors];
+      for (const cat of coreSweepCategories) {
+        for (const sec of allCombinedSectors) {
           queryTasks.push({
-            q: `${cat} في ${locLabel}`,
+            q: cat,
             lat: sec.lat,
             lng: sec.lng,
-            span: sec.span || 3500,
+            span: sec.span || 1500,
             offset: 0,
-            cat
-          });
-          queryTasks.push({
-            q: `${cat} في ${locLabel}`,
-            lat: sec.lat,
-            lng: sec.lng,
-            span: sec.span || 3500,
-            offset: 20,
+            count: 100,
             cat
           });
         }
       }
     } else {
       // Specific Activity Comprehensive Planetary & Alley-by-Alley Deep Scan (e.g., "بقالة", "محكمة", "صالة", "منفذ", "صيدليات", "مطاعم", etc.)
+      // IMPORTANT: Passing pure `q: syn` (without "في صنعاء") + `!7i100` makes Google Maps strictly obey the `pb` coordinate viewport (lat, lng)
+      // and return up to 100 local places per single request inside that exact neighborhood, street, or grid cell!
       const synonyms = expandSpecificActivitySynonyms(stdQuery);
-      const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
-      const mainSpan = hasDrawnCircle
-        ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
-        : 35000;
+      const allCitySectors = [...namedSectors, ...microGridSectors];
+      const coreSynonyms = synonyms.slice(0, 8);
+      const extendedSynonyms = synonyms.slice(8);
 
-      // Wave 1: Query all synonyms across the city/area with deep pagination (Pages 0..5 = up to 120 results per synonym)
-      for (const syn of synonyms) {
-        for (let page = 0; page < 6; page++) {
+      // Pass 1 (Breadth-First City-Wide Sweep - Page 1: 0..100):
+      // Sweeps EVERY SINGLE neighborhood, alley (حارة), street & micro-grid cell across the entire city for each core synonym first!
+      for (const syn of coreSynonyms) {
+        for (const sec of allCitySectors) {
           queryTasks.push({
-            q: `${syn} في ${areaName}`,
-            lat: center.lat,
-            lng: center.lng,
-            span: mainSpan,
-            offset: page * 20,
+            q: syn,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 1400,
+            offset: 0,
+            count: 100,
             cat: stdQuery
           });
         }
       }
 
-      // Wave 2: Sweep EVERY SINGLE named & live-discovered Alley (حارة), Neighborhood, Village & Street sector using exact viewport coordinates!
-      // Keep `q` strictly focused on the activity + city so Google Maps never falls back to unrelated shops that just share the neighborhood's name!
-      const sectorSynonyms = synonyms.slice(0, 8);
-      for (const sec of namedSectors) {
-        for (const syn of sectorSynonyms) {
-          for (const offset of [0, 20, 40]) {
-            queryTasks.push({
-              q: `${syn} في ${areaName}`,
-              lat: sec.lat,
-              lng: sec.lng,
-              span: sec.span || 2800,
-              offset,
-              cat: stdQuery
-            });
-          }
+      // Pass 2 (Breadth-First City-Wide Deep Pagination - Page 2: 100..200):
+      // Sweeps all neighborhoods, streets & micro-grid cells for Page 2 (offset: 100) of the top 6 synonyms!
+      for (const syn of coreSynonyms.slice(0, 6)) {
+        for (const sec of allCitySectors) {
+          queryTasks.push({
+            q: syn,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 1400,
+            offset: 100,
+            count: 100,
+            cat: stdQuery
+          });
         }
       }
 
-      // Wave 3: High-Zoom Street-Level Micro-Grid Sweep (81 micro-cells across the city at 1800m zoom)
-      // Discovers small residential neighborhood places that only appear when zoomed into the block!
-      const gridSynonyms = synonyms.slice(0, 5);
-      for (const cell of microGridSectors) {
-        for (const syn of gridSynonyms) {
-          for (const offset of [0, 20, 40]) {
-            queryTasks.push({
-              q: `${syn} في ${areaName}`,
-              lat: cell.lat,
-              lng: cell.lng,
-              span: cell.span || 1800,
-              offset,
-              cat: stdQuery
-            });
-          }
+      // Pass 3 (Extended Synonyms & Sub-Categories Sweep across all named neighborhoods & streets):
+      for (const syn of extendedSynonyms) {
+        for (const sec of namedSectors) {
+          queryTasks.push({
+            q: syn,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: sec.span || 1600,
+            offset: 0,
+            count: 100,
+            cat: stdQuery
+          });
         }
       }
     }
 
-    // Execute Google Maps sector tasks in fast parallel batches (CONCURRENCY = 28) while Overpass OSM runs simultaneously!
+    // Rotate User-Agents to prevent rate-limiting during high-volume city-wide extraction
+    const MAP_USER_AGENTS = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:125.0) Gecko/20100101 Firefox/125.0'
+    ];
+    let uaCounter = 0;
+
+    // Execute Google Maps sector tasks in fast parallel batches while Overpass OSM runs simultaneously!
     const executeSingleMapTask = async (task) => {
       if (isAborted()) return;
       try {
-        const pb = `!4m12!1m3!1d${task.span}!2d${task.lng}!3d${task.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i20!8i${task.offset}!10b1`;
+        const pageCount = task.count || 100;
+        const pb = `!4m12!1m3!1d${task.span}!2d${task.lng}!3d${task.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i${pageCount}!8i${task.offset}!10b1`;
         const gUrl = `https://www.google.com/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(task.q)}`;
+        const ua = MAP_USER_AGENTS[(uaCounter++) % MAP_USER_AGENTS.length];
 
         const gRes = await fetchWithTimeout(gUrl, {
-          timeout: 5500,
+          timeout: 6500,
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'User-Agent': ua,
             'Accept-Language': 'ar,en;q=0.9'
           }
         });
@@ -1892,7 +1902,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 28;
+    const BATCH_CONCURRENCY = 22;
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
@@ -3546,8 +3556,16 @@ const server = http.createServer(async (req, res) => {
 
     let resultCount = 0;
     let isClientAborted = false;
+    const keepAliveTimer = setInterval(() => {
+      if (!isClientAborted) {
+        try {
+          res.write(': keepalive\n\n');
+        } catch (e) {}
+      }
+    }, 5000);
     req.on('close', () => {
       isClientAborted = true;
+      clearInterval(keepAliveTimer);
     });
     const sendEvent = (event, data) => {
       if (isClientAborted) return;
@@ -3575,6 +3593,7 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       sendEvent('error', { message: e.message || 'حدث خطأ غير متوقع' });
     } finally {
+      clearInterval(keepAliveTimer);
       // Only record search in Admin Logs if the visitor has logged in (has visitorId or visitorName)
       if (visitorId || visitorName) {
         recordSearch({

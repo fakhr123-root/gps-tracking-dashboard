@@ -1848,7 +1848,8 @@
       streamRenderRafId = null;
       if (pendingStreamedPlaces.length === 0) return;
 
-      const batch = pendingStreamedPlaces.splice(0, pendingStreamedPlaces.length);
+      // Render in smooth 65-item chunks per frame so 10,000+ places never freeze the browser
+      const batch = pendingStreamedPlaces.splice(0, 65);
       const bentoContainer = document.getElementById('bentoCardsWrapper');
       const tbody = document.getElementById('resultsTableBody');
       const cardFrag = document.createDocumentFragment();
@@ -1866,6 +1867,9 @@
       if (tbody) tbody.appendChild(rowFrag);
 
       updateStats();
+      if (pendingStreamedPlaces.length > 0) {
+        streamRenderRafId = requestAnimationFrame(flushPendingStreamedPlaces);
+      }
     }
 
     function handleSearch(e) {

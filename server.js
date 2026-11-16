@@ -1888,7 +1888,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const ua = MAP_USER_AGENTS[(uaCounter++) % MAP_USER_AGENTS.length];
 
         const gRes = await fetchWithTimeout(gUrl, {
-          timeout: 6500,
+          timeout: 5000,
           headers: {
             'User-Agent': ua,
             'Accept-Language': 'ar,en;q=0.9'
@@ -1946,11 +1946,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 22;
+    const BATCH_CONCURRENCY = 12;
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
       await Promise.all(batch.map(executeSingleMapTask));
+      if (i + BATCH_CONCURRENCY < queryTasks.length) {
+        await new Promise(r => setTimeout(r, 40));
+      }
     }
 
     await overpassPromise;

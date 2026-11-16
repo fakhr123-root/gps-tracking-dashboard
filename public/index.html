@@ -52,14 +52,19 @@
       min-height: 100vh;
     }
 
-    /* Exact Mockup Card Styling */
+    /* Exact Mockup Card Styling - Optimized for Ultra-Smooth 60FPS Scrolling */
     .studio-card {
       background: linear-gradient(155deg, rgba(22, 48, 54, 0.72) 0%, rgba(16, 26, 38, 0.92) 55%, rgba(13, 20, 31, 0.96) 100%);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border: 1px solid rgba(52, 211, 153, 0.22);
-      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: border-color 0.2s ease, transform 0.2s ease;
+      content-visibility: auto;
+      contain-intrinsic-size: 0 170px;
+      contain: layout style paint;
+      touch-action: pan-y;
+      -webkit-touch-callout: none;
     }
     .studio-card:hover {
       border-color: rgba(16, 185, 129, 0.65);
@@ -907,6 +912,17 @@
             </thead>
             <tbody id="resultsTableBody" class="divide-y divide-slate-800/60"></tbody>
           </table>
+        </div>
+
+        <!-- High-Performance Infinite Scroll Sentinel & Batch Loader (0 Lag / 60 FPS) -->
+        <div id="resultsInfiniteSentinel" class="hidden mt-3 mb-6 text-center">
+          <div id="sentinelLoader" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 text-emerald-300 text-xs font-bold shadow-lg">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span id="sentinelProgressText">جارٍ تحميل المزيد من المواقع تلقائياً...</span>
+          </div>
+          <button id="btnLoadMoreCards" type="button" onclick="renderNextBatchCards(true)" class="hidden mt-2 px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-2 mx-auto">
+            <span>عرض دفعة إضافية (+35 موقع)</span>
+          </button>
         </div>
 
       </section>
@@ -1809,39 +1825,12 @@
       applyResultsFilter();
     }
 
-    function applyResultsFilter() {
-      extractedPlaces.forEach((p) => {
-        const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
-        const isOpen = p.isOpenNow !== false;
-
-        let matchesSmart = true;
-        if (filterOnlyPhone && !hasPhone) matchesSmart = false;
-        if (filterOnlyOpen && !isOpen) matchesSmart = false;
-
-        const rowEl = document.getElementById(`row_${p.id}`);
-        if (rowEl) rowEl.style.display = matchesSmart ? '' : 'none';
-
-        const cardEl = document.getElementById(`bento_${p.id}`);
-        if (cardEl) cardEl.style.display = matchesSmart ? '' : 'none';
-      });
-    }
-
-    function setRadius(km) {
-      selectedRadius = km;
-      const s = document.getElementById('radiusSlider');
-      if (s) s.value = km;
-      const l = document.getElementById('radiusLabel');
-      if (l) l.innerText = `${km} كم (المنطقة كاملة)`;
-    }
-
-    function onRadiusSliderChange(val) {
-      selectedRadius = parseInt(val, 10);
-      const l = document.getElementById('radiusLabel');
-      if (l) l.innerText = `${selectedRadius} كم (المنطقة كاملة)`;
-    }
-
-    let pendingStreamedPlaces = [];
-    let streamRenderRafId = null;
+    const INITIAL_PAGE_SIZE = 40;
+    const BATCH_LOAD_SIZE = 35;
+    let visibleRenderCount = 0;
+    let sentinelObserver = null;
+    let streamThrottleTimeout = null;
+    let pendingPlacesBatch = [];
     let liveExtractedPhonesTotal = 0;
 
     function resolvePlaceDistanceFromUser(place) {
@@ -1858,64 +1847,148 @@
       return 9999;
     }
 
-    function insertElementSortedByDistance(container, newEl, distKm) {
-      if (!container) return;
-      const children = container.children;
-      const len = children.length;
-      if (len === 0) {
-        container.appendChild(newEl);
-        return;
-      }
-      const lastDist = parseFloat(children[len - 1].dataset.distKm || '9999');
-      if (distKm >= lastDist) {
-        container.appendChild(newEl);
-        return;
-      }
-      // Binary search for exact insertion index so closest items always sit at the top in O(log N)
-      let low = 0;
-      let high = len - 1;
-      let insertIdx = len;
-      while (low <= high) {
-        const mid = (low + high) >> 1;
-        const midDist = parseFloat(children[mid].dataset.distKm || '9999');
-        if (distKm < midDist) {
-          insertIdx = mid;
-          high = mid - 1;
-        } else {
-          low = mid + 1;
+    function getActiveFilteredPlaces() {
+      return extractedPlaces.filter(p => {
+        if (filterOnlyPhone) {
+          const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
+          if (!hasPhone) return false;
         }
-      }
-      container.insertBefore(newEl, children[insertIdx]);
+        if (filterOnlyOpen) {
+          const isOpen = p.isOpenNow !== false;
+          if (!isOpen) return false;
+        }
+        return true;
+      });
     }
 
-    function flushPendingStreamedPlaces() {
-      streamRenderRafId = null;
-      if (pendingStreamedPlaces.length === 0) return;
-
-      // Sort pending batch by distance from user first
-      pendingStreamedPlaces.sort((a, b) => resolvePlaceDistanceFromUser(a.place) - resolvePlaceDistanceFromUser(b.place));
-
-      // Render in smooth 65-item chunks per frame so 10,000+ places never freeze the browser
-      const batch = pendingStreamedPlaces.splice(0, 65);
+    function renderBatchToDom(placesBatch, startIndex, append = true) {
       const bentoContainer = document.getElementById('bentoCardsWrapper');
       const tbody = document.getElementById('resultsTableBody');
+      if (!bentoContainer) return;
 
-      for (let i = 0; i < batch.length; i++) {
-        const { place, idx } = batch[i];
+      if (!append) {
+        bentoContainer.innerHTML = '';
+        if (tbody) tbody.innerHTML = '';
+      }
+
+      const cardFragment = document.createDocumentFragment();
+      const trFragment = document.createDocumentFragment();
+
+      for (let i = 0; i < placesBatch.length; i++) {
+        const place = placesBatch[i];
+        const displayIndex = startIndex + i + 1;
         const distKm = resolvePlaceDistanceFromUser(place);
-        const built = buildPlaceDomElements(place, idx, distKm);
-        if (built.card && bentoContainer) insertElementSortedByDistance(bentoContainer, built.card, distKm);
-        if (built.tr && tbody) insertElementSortedByDistance(tbody, built.tr, distKm);
-        addMapMarker(place, idx, false);
+        const built = buildPlaceDomElements(place, displayIndex, distKm);
+        if (built.card) cardFragment.appendChild(built.card);
+        if (built.tr) trFragment.appendChild(built.tr);
+        if (displayIndex <= 80) {
+          addMapMarker(place, displayIndex, false);
+        }
       }
 
-      // Keep extractedPlaces array sorted by proximity to user for Excel/Copy exports
-      extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+      bentoContainer.appendChild(cardFragment);
+      if (tbody) tbody.appendChild(trFragment);
+    }
 
-      updateStats();
-      if (pendingStreamedPlaces.length > 0) {
-        streamRenderRafId = requestAnimationFrame(flushPendingStreamedPlaces);
+    function renderNextBatchCards(userInitiated = false) {
+      const filtered = getActiveFilteredPlaces();
+      if (visibleRenderCount >= filtered.length) {
+        updateSentinelVisibility(false);
+        return;
       }
+      const nextBatch = filtered.slice(visibleRenderCount, visibleRenderCount + BATCH_LOAD_SIZE);
+      if (nextBatch.length === 0) {
+        updateSentinelVisibility(false);
+        return;
+      }
+      renderBatchToDom(nextBatch, visibleRenderCount, true);
+      visibleRenderCount += nextBatch.length;
+      updateSentinelVisibility(visibleRenderCount < filtered.length);
+    }
+
+    function updateSentinelVisibility(hasMore) {
+      const sentinel = document.getElementById('resultsInfiniteSentinel');
+      const sentinelText = document.getElementById('sentinelProgressText');
+      const btnLoad = document.getElementById('btnLoadMoreCards');
+      if (!sentinel) return;
+
+      if (hasMore) {
+        sentinel.classList.remove('hidden');
+        if (btnLoad) btnLoad.classList.remove('hidden');
+        const filtered = getActiveFilteredPlaces();
+        if (sentinelText) {
+          sentinelText.innerText = `تم عرض ${visibleRenderCount} من أصل ${filtered.length} موقع مستخرج (اسحب للأسفل لعرض المزيد)`;
+        }
+      } else {
+        sentinel.classList.add('hidden');
+      }
+    }
+
+    function initInfiniteScrollObserver() {
+      if (sentinelObserver) {
+        sentinelObserver.disconnect();
+        sentinelObserver = null;
+      }
+      const sentinel = document.getElementById('resultsInfiniteSentinel');
+      if (!sentinel || !window.IntersectionObserver) return;
+
+      sentinelObserver = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            renderNextBatchCards();
+          }
+        }
+      }, {
+        root: null,
+        rootMargin: '400px 0px',
+        threshold: 0.01
+      });
+      sentinelObserver.observe(sentinel);
+    }
+
+    function refreshVisibleResultsView(resetToPageOne = true) {
+      const filtered = getActiveFilteredPlaces();
+      if (filtered.length === 0) {
+        const bento = document.getElementById('bentoCardsWrapper');
+        const tbody = document.getElementById('resultsTableBody');
+        if (bento) {
+          bento.innerHTML = `
+            <div class="col-span-full studio-card p-4 rounded-xl text-center space-y-1 border border-emerald-500/25">
+              <div class="text-xs font-black text-amber-300">لا توجد نتائج تطابق الفلتر المحدد</div>
+              <p class="text-[11px] text-slate-400">يرجى إلغاء تفعيل الفلاتر لعرض كافة المواقع المستخرجة.</p>
+            </div>`;
+        }
+        if (tbody) tbody.innerHTML = '';
+        updateSentinelVisibility(false);
+        return;
+      }
+
+      if (resetToPageOne) {
+        visibleRenderCount = 0;
+        const initialBatch = filtered.slice(0, INITIAL_PAGE_SIZE);
+        renderBatchToDom(initialBatch, 0, false);
+        visibleRenderCount = initialBatch.length;
+      }
+      updateSentinelVisibility(visibleRenderCount < filtered.length);
+      initInfiniteScrollObserver();
+    }
+
+    function applyResultsFilter() {
+      refreshVisibleResultsView(true);
+    }
+
+    function setRadius(km) {
+      selectedRadius = km;
+      const s = document.getElementById('radiusSlider');
+      if (s) s.value = km;
+      const l = document.getElementById('radiusLabel');
+      if (l) l.innerText = `${km} كم (المنطقة كاملة)`;
+    }
+
+    function onRadiusSliderChange(val) {
+      selectedRadius = parseInt(val, 10);
+      const l = document.getElementById('radiusLabel');
+      if (l) l.innerText = `${selectedRadius} كم (المنطقة كاملة)`;
     }
 
     function handleSearch(e) {
@@ -1923,12 +1996,13 @@
 
       if (currentEventSource) {
         currentEventSource.close();
+        currentEventSource = null;
       }
-      if (streamRenderRafId) {
-        cancelAnimationFrame(streamRenderRafId);
-        streamRenderRafId = null;
+      if (streamThrottleTimeout) {
+        clearTimeout(streamThrottleTimeout);
+        streamThrottleTimeout = null;
       }
-      pendingStreamedPlaces = [];
+      pendingPlacesBatch = [];
       liveExtractedPhonesTotal = 0;
 
       const query = document.getElementById('queryInput').value.trim();
@@ -2010,6 +2084,7 @@
 
       currentEventSource.addEventListener('place', (event) => {
         const place = JSON.parse(event.data);
+        resolvePlaceDistanceFromUser(place);
         extractedPlaces.push(place);
         const idx = extractedPlaces.length;
 
@@ -2021,21 +2096,43 @@
           leafletMap.setView([place.lat, place.lng], 12);
         }
 
-        pendingStreamedPlaces.push({ place, idx });
-        if (!streamRenderRafId) {
-          streamRenderRafId = requestAnimationFrame(flushPendingStreamedPlaces);
+        // Live stream rendering pacing: keep browser at 60fps with zero layout thrashing
+        if (!streamThrottleTimeout) {
+          streamThrottleTimeout = setTimeout(() => {
+            streamThrottleTimeout = null;
+            updateStats();
+            if (visibleRenderCount < INITIAL_PAGE_SIZE) {
+              const remainingNeeded = INITIAL_PAGE_SIZE - visibleRenderCount;
+              const newBatch = extractedPlaces.slice(visibleRenderCount, visibleRenderCount + remainingNeeded);
+              if (newBatch.length > 0) {
+                renderBatchToDom(newBatch, visibleRenderCount, true);
+                visibleRenderCount += newBatch.length;
+              }
+            }
+          }, 180);
         }
       });
 
       currentEventSource.addEventListener('complete', () => {
-        flushPendingStreamedPlaces();
+        if (streamThrottleTimeout) {
+          clearTimeout(streamThrottleTimeout);
+          streamThrottleTimeout = null;
+        }
+        extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        refreshVisibleResultsView(true);
+        updateStats();
         progressBar.style.width = '100%';
         setTimeout(() => progressContainer.classList.add('hidden'), 1500);
         finishSearch();
       });
 
       currentEventSource.addEventListener('error', () => {
-        flushPendingStreamedPlaces();
+        if (streamThrottleTimeout) {
+          clearTimeout(streamThrottleTimeout);
+          streamThrottleTimeout = null;
+        }
+        extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
+        refreshVisibleResultsView(true);
         finishSearch();
       });
     }
@@ -2274,12 +2371,14 @@
       if (resetArray) {
         extractedPlaces = [];
         liveExtractedPhonesTotal = 0;
-        pendingStreamedPlaces = [];
+        pendingPlacesBatch = [];
       }
+      visibleRenderCount = 0;
       const tbody = document.getElementById('resultsTableBody');
       if (tbody) tbody.innerHTML = '';
       const bento = document.getElementById('bentoCardsWrapper');
       if (bento) bento.innerHTML = '';
+      updateSentinelVisibility(false);
       updateStats();
     }
 

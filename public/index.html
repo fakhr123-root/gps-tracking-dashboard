@@ -2092,24 +2092,17 @@
           (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
         if (hasPhone) liveExtractedPhonesTotal++;
 
+        updateStats();
+
         if (idx === 1 && leafletMap && !drawnCircleState) {
           leafletMap.setView([place.lat, place.lng], 12);
         }
 
-        // Live stream rendering pacing: keep browser at 60fps with zero layout thrashing
-        if (!streamThrottleTimeout) {
-          streamThrottleTimeout = setTimeout(() => {
-            streamThrottleTimeout = null;
-            updateStats();
-            if (visibleRenderCount < INITIAL_PAGE_SIZE) {
-              const remainingNeeded = INITIAL_PAGE_SIZE - visibleRenderCount;
-              const newBatch = extractedPlaces.slice(visibleRenderCount, visibleRenderCount + remainingNeeded);
-              if (newBatch.length > 0) {
-                renderBatchToDom(newBatch, visibleRenderCount, true);
-                visibleRenderCount += newBatch.length;
-              }
-            }
-          }, 180);
+        // Render immediately for the first INITIAL_PAGE_SIZE (40) cards so user sees results appear instantly!
+        if (visibleRenderCount < INITIAL_PAGE_SIZE) {
+          renderBatchToDom([place], visibleRenderCount, true);
+          visibleRenderCount++;
+          updateSentinelVisibility(visibleRenderCount < extractedPlaces.length);
         }
       });
 

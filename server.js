@@ -1035,14 +1035,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     }
 
-    // 3. Dynamically discover ALL mapped Alleys (حارات), Quarters, Suburbs, Villages & Main Streets in ANY city on Earth via Overpass!
-    const liveQuarters = await discoverLiveCityQuartersAndStreets();
+    // 3. Dynamically discover ALL mapped Alleys (حارات), Quarters, Suburbs, Villages & Main Streets in ANY city on Earth (Fast Non-blocking)
+    const qCacheKey = `${center.lat.toFixed(2)}_${center.lng.toFixed(2)}`;
+    const liveQuarters = global.liveCityQuartersCache?.get(qCacheKey) || [];
     for (const lq of liveQuarters) {
       const cKey = `${lq.lat.toFixed(3)}_${lq.lng.toFixed(3)}`;
       if (!seenCoords.has(cKey)) {
         seenCoords.add(cKey);
         namedSectors.push(lq);
       }
+    }
+    // Refresh quarters cache in background without stalling Google Maps search start
+    if (!global.liveCityQuartersCache?.has(qCacheKey)) {
+      discoverLiveCityQuartersAndStreets().catch(() => {});
     }
 
     // 4. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (11x11 = 121 micro-cells)
@@ -1888,7 +1893,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const ua = MAP_USER_AGENTS[(uaCounter++) % MAP_USER_AGENTS.length];
 
         const gRes = await fetchWithTimeout(gUrl, {
-          timeout: 5000,
+          timeout: 7000,
           headers: {
             'User-Agent': ua,
             'Accept-Language': 'ar,en;q=0.9'
@@ -1946,13 +1951,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 12;
+    const BATCH_CONCURRENCY = 16;
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
       await Promise.all(batch.map(executeSingleMapTask));
       if (i + BATCH_CONCURRENCY < queryTasks.length) {
-        await new Promise(r => setTimeout(r, 40));
+        await new Promise(r => setTimeout(r, 25));
       }
     }
 

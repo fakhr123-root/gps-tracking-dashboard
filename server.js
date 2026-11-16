@@ -1206,11 +1206,250 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     return Array.from(terms);
   };
 
+  // Strict Semantic Relevance Verifier: Ensures ONLY genuine places matching the user's search term (or its true synonyms/categories) are emitted!
+  // Blocks unrelated fallback results (like qat markets, abaya shops, or bare neighborhood names when searching for courts, pharmacies, groceries, etc.)
+  const isPlaceStrictlyRelevantToQuery = (placeName = '', placeCategories = [], rawUserQuery = '') => {
+    const cleanTitle = String(placeName || '').trim();
+    if (!cleanTitle || cleanTitle.length < 2) return false;
+
+    const nName = normAr(cleanTitle);
+    const catsNorm = Array.isArray(placeCategories)
+      ? placeCategories.map(c => normAr(String(c || ''))).filter(Boolean)
+      : [];
+    const combinedText = `${nName} ${catsNorm.join(' ')}`;
+
+    // 1. Reject bare geographic polygon names (e.g., "صنعاء الجديدة", "مديرية السبعين", "أمانة العاصمة") when searching for businesses/institutions
+    const bareGeoNames = new Set([
+      normAr(center.city),
+      'صنعاء الجديده',
+      'صنعاء القديمه',
+      'امانه العاصمه',
+      'مديريه السبعين',
+      'مديريه الوحده',
+      'مديريه معين',
+      'مديريه الثوره',
+      'مديريه الصافيه',
+      'مديريه شعوب',
+      'مديريه ازال',
+      'مديريه التحرير',
+      'مديريه بني الحارث',
+      'سوق المقالح'
+    ]);
+    if (bareGeoNames.has(nName)) return false;
+
+    // If full city scan ("مسح شامل"), allow any real business/institution except bare city names
+    if (isFullAreaScan || !rawUserQuery) return true;
+
+    const q = normAr(rawUserQuery);
+
+    // Reject places whose name is only a directional landmark reference ("جوار محكمة...", "أمام مستشفى...") unless their official category matches
+    const startsWithDirectionalLandmark = /^(جوار|بجوار|امام|خلف|تحت|فوق|قرب|بالقرب من)\s+/.test(nName);
+
+    // Helper: check if any keyword in list appears in text
+    const hasAny = (text, keywords) => keywords.some(k => text.includes(normAr(k)));
+
+    // Domain 1: Courts, Prosecutions, Judges, Lawyers & Legal/Arbitration (محكمة، نيابة، قاضي، محامي، تحكيم، عدل)
+    if (q.includes('محكم') || q.includes('محاكم') || q.includes('نياب') || q.includes('قضا') || q.includes('قاضي') || q.includes('محام') || q.includes('تحكيم') || q.includes('عدل')) {
+      const unrelatedCourtNoise = ['قات', 'سوبرماركت', 'سوبر ماركت', 'بقاله', 'بقالة', 'تموينات', 'عبايات', 'ملابس', 'مطعم', 'بوفيه', 'كافتيريا', 'صيدليه', 'صيدلية', 'فندق', 'ورشه', 'بنشر', 'مخبز', 'فرن', 'حلاق', 'صالون', 'مجمع حكومي'];
+      if (hasAny(combinedText, unrelatedCourtNoise) && !hasAny(catsNorm.join(' '), ['محكم', 'محام', 'قضا', 'نياب', 'قانون', 'court', 'lawyer', 'legal', 'justice'])) {
+        return false;
+      }
+      const courtKeywords = [
+        'محكمه', 'محكمة', 'محاكم', 'نيابه', 'نيابة', 'قضاء', 'قاضي', 'قضاه', 'قضاة',
+        'محامي', 'محاميه', 'محاماه', 'محاماة', 'مستشار قانوني', 'قانون', 'تحكيم',
+        'عدل', 'كاتب عدل', 'استئناف', 'ابتدائيه', 'جزائيه', 'تجاريه', 'احوال شخصيه',
+        'court', 'courthouse', 'lawyer', 'attorney', 'law firm', 'legal', 'justice', 'prosecut', 'judic', 'notary', 'arbitration'
+      ];
+      if (startsWithDirectionalLandmark) {
+        return hasAny(catsNorm.join(' '), courtKeywords) || hasAny(nName, ['مكتب المحامي', 'المحامي', 'محكمه', 'نيابه']);
+      }
+      return hasAny(combinedText, courtKeywords);
+    }
+
+    // Domain 2: Groceries, Supermarkets, Mini-Markets & Food Stores (بقالة، تموينات، سوبر ماركت، مواد غذائية)
+    if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
+      const unrelatedGroceryNoise = ['قات', 'محكمه', 'محكمة', 'نيابه', 'مستشفي', 'مستشفى', 'صيدليه', 'صيدلية', 'فندق', 'مدرسه', 'مدرسة', 'جامعه', 'جامعة', 'مسجد', 'ورشه', 'بنشر', 'عبايات', 'ملابس', 'احذيه', 'ذهب', 'مجوهرات', 'عقارات', 'مقاولات', 'حلاق', 'صالون', 'صرافه', 'بنك', 'مغسله', 'خياط'];
+      if (hasAny(nName, unrelatedGroceryNoise)) return false;
+      const groceryKeywords = [
+        'بقاله', 'بقالة', 'بقالات', 'تموينات', 'تموين', 'سوبر ماركت', 'سوبرماركت',
+        'ميني ماركت', 'هايبر', 'ماركت', 'مواد غذائيه', 'غذائيات', 'دكان', 'كشك',
+        'بهارات', 'عطاره', 'ارزاق', 'استهلاكيه', 'تاجر مواد', 'جمله مواد',
+        'grocery', 'supermarket', 'convenience', 'mini market', 'hypermarket', 'food store', 'market'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), groceryKeywords);
+      return hasAny(combinedText, groceryKeywords);
+    }
+
+    // Domain 3: Pharmacies, Drugstores & Medical Supplies (صيدلية، دواء، فارما)
+    if (q.includes('صيدلي') || q.includes('دواء') || q.includes('فارما') || q.includes('ادوي')) {
+      const unrelatedPharmNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'مخبز'];
+      if (hasAny(nName, unrelatedPharmNoise)) return false;
+      const pharmKeywords = [
+        'صيدليه', 'صيدلية', 'صيدليات', 'دواء', 'ادويه', 'أدوية', 'فارما', 'مستلزمات طبيه',
+        'مخزن ادويه', 'شركه ادويه', 'pharmacy', 'drugstore', 'chemist', 'pharma'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), pharmKeywords);
+      return hasAny(combinedText, pharmKeywords);
+    }
+
+    // Domain 4: Hospitals, Clinics, Doctors & Medical Labs (مستشفى، عيادة، طبي، مختبر، أسنان)
+    if (q.includes('مستشف') || q.includes('عياد') || q.includes('طبي') || q.includes('اسنان') || q.includes('مختبر') || q.includes('دكتور')) {
+      const unrelatedMedNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'مخبز'];
+      if (hasAny(nName, unrelatedMedNoise)) return false;
+      const medKeywords = [
+        'مستشفي', 'مستشفى', 'مستشفيات', 'عياده', 'عيادة', 'عيادات', 'طبي', 'طبيه',
+        'مختبر', 'مختبرات', 'تحاليل', 'اشعه', 'أشعة', 'اسنان', 'أسنان', 'مستوصف',
+        'مركز صحي', 'وحده صحيه', 'دكتور', 'اطباء', 'جراحه', 'عيون', 'قلب', 'طوارئ',
+        'hospital', 'clinic', 'medical', 'doctor', 'dentist', 'dental', 'laboratory', 'health'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), medKeywords);
+      return hasAny(combinedText, medKeywords);
+    }
+
+    // Domain 5: Restaurants, Cafes, Bakeries & Fast Food (مطعم، كافيه، بوفية، مندي، بروست)
+    if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست') || q.includes('مطبخ') || q.includes('مندي') || q.includes('بوفيه') || q.includes('شاورما') || q.includes('كافيه') || q.includes('مقهي')) {
+      const unrelatedFoodNoise = ['قات', 'محكمه', 'صيدليه', 'مستشفي', 'عبايات', 'ملابس', 'ورشه', 'بنشر'];
+      if (hasAny(nName, unrelatedFoodNoise)) return false;
+      const foodKeywords = [
+        'مطعم', 'مطاعم', 'مطبخ', 'مطابخ', 'مندي', 'مظبي', 'حنيذ', 'بروست', 'شوايه',
+        'شاورما', 'فطائر', 'بيتزا', 'برجر', 'وجبات', 'ماكولات', 'مأكولات', 'كافتيريا',
+        'كافيه', 'مقهي', 'مقهى', 'قهوه', 'فوال', 'بوفيه', 'مشويات', 'اسماك', 'بحري', 'عصائر',
+        'restaurant', 'cafe', 'coffee', 'fast food', 'grill', 'pizza', 'burger', 'kitchen', 'diner', 'bistro'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), foodKeywords);
+      return hasAny(combinedText, foodKeywords);
+    }
+
+    // Domain 6: Halls, Event Venues, Sports Clubs & Parks (صالة، قاعة، أفراح، مناسبات، نادي، منتزه)
+    if (q.includes('صال') || q.includes('قاع') || q.includes('افراح') || q.includes('مناسبات') || q.includes('نادي') || q.includes('جيم') || q.includes('منتزه') || q.includes('حديق') || q.includes('ملعب')) {
+      const unrelatedHallNoise = ['قات', 'بقاله', 'سوبرماركت', 'صيدليه', 'ورشه', 'بنشر'];
+      if (hasAny(nName, unrelatedHallNoise)) return false;
+      const hallKeywords = [
+        'صاله', 'صالة', 'صالات', 'قاعه', 'قاعة', 'قاعات', 'افراح', 'أفراح', 'مناسبات',
+        'مؤتمرات', 'احتفالات', 'نادي', 'جيم', 'رياضي', 'بلياردو', 'بولينج', 'العاب',
+        'ترفيه', 'منتزه', 'حديقه', 'حديقة', 'ملعب', 'استراحه', 'شاليه',
+        'hall', 'venue', 'banquet', 'wedding', 'event', 'gym', 'fitness', 'club', 'park', 'stadium', 'arena'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), hallKeywords);
+      return hasAny(combinedText, hallKeywords);
+    }
+
+    // Domain 7: Outlets, Border Crossings, Customs, Ports, Airports & Bus Stations (منفذ، جمرك، ميناء، مطار، فرزة)
+    if (q.includes('منفذ') || q.includes('منافذ') || q.includes('جمرك') || q.includes('جمارك') || q.includes('ميناء') || q.includes('مطار') || q.includes('فرز') || q.includes('معبر')) {
+      const unrelatedPortNoise = ['قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ملابس', 'حلاق', 'صالون'];
+      if (hasAny(nName, unrelatedPortNoise)) return false;
+      const portKeywords = [
+        'منفذ', 'منافذ', 'معبر', 'جمرك', 'جمارك', 'ميناء', 'مرفأ', 'مطار', 'فرزه', 'فرزة',
+        'محطه نقل', 'محطة نقل', 'مسافرين', 'باصات', 'شحن', 'تخليص جمركي', 'حدود',
+        'port', 'airport', 'customs', 'border', 'terminal', 'bus station', 'cargo', 'freight', 'crossing'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), portKeywords);
+      return hasAny(combinedText, portKeywords);
+    }
+
+    // Domain 8: Ministries, Police, Embassies & Government Bodies (وزارة، حكومة، شرطة، أمن، مرور، جوازات، سفارة)
+    if (q.includes('وزار') || q.includes('حكوم') || q.includes('شرط') || q.includes('امن') || q.includes('مرور') || q.includes('جوازات') || q.includes('سفار') || q.includes('قنصلي') || q.includes('بلدي') || q.includes('مصلح') || q.includes('هيئ')) {
+      const unrelatedGovNoise = ['قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ملابس', 'مطعم', 'بوفيه', 'حلاق'];
+      if (hasAny(nName, unrelatedGovNoise)) return false;
+      const govKeywords = [
+        'وزار', 'حكوم', 'هيئ', 'مصلح', 'مؤسسه عامه', 'شرطه', 'شرطة', 'امن', 'أمن',
+        'مرور', 'جوازات', 'احوال مدنيه', 'سجل مدني', 'ضرائب', 'واجبات', 'اوقاف',
+        'تربيه', 'بلدي', 'اشغال', 'مجلس محلي', 'امانه العاصمه', 'محافظه', 'مديريه',
+        'سفار', 'قنصلي', 'دفاع مدني', 'بحث جنائي', 'رئاسه', 'برلمان', 'مجلس النواب',
+        'ministry', 'government', 'police', 'embassy', 'consulate', 'authority', 'department', 'municipality', 'passport'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), govKeywords);
+      return hasAny(combinedText, govKeywords);
+    }
+
+    // Domain 9: Hotels, Furnished Apartments & Resorts (فندق، شقق فندقية، لوكاندة، منتجع)
+    if (q.includes('فندق') || q.includes('فنادق') || q.includes('لوكاند') || q.includes('اجنح') || q.includes('شقق مفروش')) {
+      const unrelatedHotelNoise = ['قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه'];
+      if (hasAny(nName, unrelatedHotelNoise)) return false;
+      const hotelKeywords = [
+        'فندق', 'فنادق', 'اجنحه', 'أجنحة', 'شقق فندقي', 'شقق مفروش', 'لوكاند',
+        'منتجع', 'نزل', 'ضيافه', 'بلازا', 'رويال', 'جراند', 'hotel', 'motel', 'resort', 'suites', 'inn', 'hostel', 'lodge'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), hotelKeywords);
+      return hasAny(combinedText, hotelKeywords);
+    }
+
+    // Domain 10: Mobile Phone & Electronics Shops (تلفونات، جوالات، موبايل، اتصالات)
+    if (q.includes('تلفون') || q.includes('جوال') || q.includes('هاتف') || q.includes('هواتف') || q.includes('موبايل') || q.includes('فون')) {
+      const unrelatedPhoneNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'بوفيه', 'عبايات', 'صيدليه', 'مستشفي', 'مخبز'];
+      if (hasAny(nName, unrelatedPhoneNoise)) return false;
+      const phoneKeywords = [
+        'تلفون', 'جوال', 'هاتف', 'هواتف', 'موبايل', 'فون', 'اتصالات', 'سمارت', 'ايفون',
+        'اندرويد', 'سامسونج', 'شاومي', 'برمجه', 'صيانه', 'شرائح', 'يمن موبايل', 'سبأفون',
+        'الكترونيات', 'phone', 'mobile', 'telecom', 'cell', 'electronics'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), phoneKeywords);
+      return hasAny(combinedText, phoneKeywords);
+    }
+
+    // Domain 11: Banks, Exchange & Money Transfer (بنك، صرافة، مصرف، تحويلات)
+    if (q.includes('بنك') || q.includes('بنوك') || q.includes('صراف') || q.includes('تحويل') || q.includes('مصرف')) {
+      const unrelatedBankNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ورشه', 'بنشر', 'صيدليه'];
+      if (hasAny(nName, unrelatedBankNoise)) return false;
+      const bankKeywords = [
+        'بنك', 'بنوك', 'مصرف', 'صرافه', 'صرافة', 'صراف', 'تحويلات', 'مالي', 'كريمي',
+        'نجم', 'امتياز', 'سويد', 'اكوع', 'جزيره', 'تضامن', 'كاك', 'atm', 'bank', 'exchange', 'money', 'finance'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), bankKeywords);
+      return hasAny(combinedText, bankKeywords);
+    }
+
+    // Domain 12: Swimming Pools & Spas (مسبح، مسابح، حمام بخار)
+    if (q.includes('مسبح') || q.includes('مسابح') || q.includes('سباح')) {
+      const unrelatedPoolNoise = ['قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه'];
+      if (hasAny(nName, unrelatedPoolNoise)) return false;
+      const poolKeywords = [
+        'مسبح', 'مسابح', 'سباحه', 'سباحة', 'بخار', 'ساونا', 'جاكوزي', 'منتجع', 'نادي صحي', 'استراحه',
+        'pool', 'swimming', 'spa', 'sauna', 'resort', 'aqua', 'water park'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), poolKeywords);
+      return hasAny(combinedText, poolKeywords);
+    }
+
+    // Domain 13: Any Other Custom User Search Term -> Extract core root stems and verify match in Name or Category!
+    const stopWords = new Set(['في', 'من', 'الي', 'عن', 'مع', 'كل', 'جميع', 'افضل', 'محل', 'محلات', 'مركز', 'مراكز', 'شركه', 'شركات']);
+    const rawTokens = q.split(/[\s,،\-/]+/).filter(t => t.length >= 2 && !stopWords.has(t));
+    if (rawTokens.length === 0) return true;
+
+    const stems = [];
+    for (const tk of rawTokens) {
+      stems.push(tk);
+      const noAl = tk.replace(/^ال/, '');
+      if (noAl.length >= 2) stems.push(noAl);
+      const singular = noAl.replace(/(ات|ين|ون|ان|ه|ة)$/, '');
+      if (singular.length >= 2) stems.push(singular);
+    }
+
+    // Reject qat markets unless the user explicitly searched for qat ("قات")
+    if (!q.includes('قات') && nName.includes('قات')) {
+      return false;
+    }
+
+    if (startsWithDirectionalLandmark) {
+      return hasAny(catsNorm.join(' '), stems);
+    }
+    return hasAny(combinedText, stems);
+  };
+
   // Helper to emit any additional discovered places in the area from secondary OSM Live Map
   const emitPlace = async (name, pLat, pLng, tags = {}, sourceLabel = 'خرائط حية (Live Map)') => {
     if (isAborted()) return false;
     const cleanName = String(name || '').trim();
     if (!cleanName) return false;
+
+    const osmCatHints = [
+      tags.amenity, tags.shop, tags.office, tags.government,
+      tags.healthcare, tags.tourism, tags.leisure, tags.craft, tags.industrial
+    ].filter(Boolean);
+
+    if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, osmCatHints, stdQuery)) {
+      return false;
+    }
 
     if (hasDrawnCircle) {
       const dKm = calcDistanceKm(center.lat, center.lng, pLat, pLng);
@@ -1293,9 +1532,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           );
         } else if (qNorm.includes('محكم') || qNorm.includes('محاكم') || qNorm.includes('نياب') || qNorm.includes('قضا') || qNorm.includes('عدل') || qNorm.includes('محامي')) {
           tagFilters.push(
-            '["amenity"~"courthouse|townhall|public_building|police"]',
-            '["office"~"government|lawyer|notary|judicial"]',
-            '["government"~"justice|court|prosecutor|ministry"]'
+            '["amenity"="courthouse"]',
+            '["office"~"lawyer|notary|judicial"]',
+            '["government"~"justice|court|prosecutor"]'
           );
         } else if (qNorm.includes('صال') || qNorm.includes('قاع') || qNorm.includes('افراح') || qNorm.includes('مناسبات') || qNorm.includes('نادي') || qNorm.includes('جيم') || qNorm.includes('منتزه') || qNorm.includes('حديق') || qNorm.includes('ملعب')) {
           tagFilters.push(
@@ -1393,19 +1632,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           if (opRes.ok) {
             const opData = await opRes.json();
             if (opData.elements && opData.elements.length > 0) {
-              let unnamedCounter = 1;
               const elementsWithDist = opData.elements
                 .map(el => {
                   const pLat = el.lat || el.center?.lat;
                   const pLng = el.lon || el.center?.lon;
                   const tags = el.tags || {};
-                  let name = tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['operator'] || tags['name:en'] || '';
-                  if (!name && pLat && pLng && !isFullAreaScan) {
-                    const nearH = resolveLocalNeighborhood(pLat, pLng);
-                    const hLabel = (nearH && nearH.distanceKm <= 6) ? nearH.shortHood : center.city;
-                    const stLabel = tags['addr:street:ar'] || tags['addr:street'] || hLabel;
-                    name = `${stdQuery} (${stLabel} #${unnamedCounter++})`;
-                  }
+                  const name = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['operator'] || tags['name:en'] || '').trim();
                   const dist = pLat && pLng ? calcDistanceKm(lat, lng, pLat, pLng) : 999;
                   const hasRealPhone = Boolean(
                     tags['phone'] || tags['contact:phone'] || tags['mobile'] || tags['contact:mobile'] ||
@@ -1558,17 +1790,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       }
 
-      // Wave 2: Sweep EVERY SINGLE named & live-discovered Alley (حارة), Neighborhood, Village & Street sector across the city!
-      const sectorSynonyms = synonyms.slice(0, 10);
+      // Wave 2: Sweep EVERY SINGLE named & live-discovered Alley (حارة), Neighborhood, Village & Street sector using exact viewport coordinates!
+      // Keep `q` strictly focused on the activity + city so Google Maps never falls back to unrelated shops that just share the neighborhood's name!
+      const sectorSynonyms = synonyms.slice(0, 8);
       for (const sec of namedSectors) {
         for (const syn of sectorSynonyms) {
-          const locLabel = sec.name && sec.name !== center.city ? `${sec.name} ${center.city}` : center.city;
           for (const offset of [0, 20, 40]) {
             queryTasks.push({
-              q: `${syn} في ${locLabel}`,
+              q: `${syn} في ${areaName}`,
               lat: sec.lat,
               lng: sec.lng,
-              span: sec.span || 3200,
+              span: sec.span || 2800,
               offset,
               cat: stdQuery
             });
@@ -1576,17 +1808,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       }
 
-      // Wave 3: High-Zoom Street-Level Micro-Grid Sweep (81 micro-cells across the city at 1900m zoom)
+      // Wave 3: High-Zoom Street-Level Micro-Grid Sweep (81 micro-cells across the city at 1800m zoom)
       // Discovers small residential neighborhood places that only appear when zoomed into the block!
-      const gridSynonyms = synonyms.slice(0, 6);
+      const gridSynonyms = synonyms.slice(0, 5);
       for (const cell of microGridSectors) {
         for (const syn of gridSynonyms) {
           for (const offset of [0, 20, 40]) {
             queryTasks.push({
-              q: `${syn} ${cell.name} ${center.city}`,
+              q: `${syn} في ${areaName}`,
               lat: cell.lat,
               lng: cell.lng,
-              span: cell.span || 1900,
+              span: cell.span || 1800,
               offset,
               cat: stdQuery
             });
@@ -1629,6 +1861,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           const pLat = parseFloat(p[9]?.[2]);
           const pLng = parseFloat(p[9]?.[3]);
           if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
+
+          // Strictly verify that this place genuinely matches the searched activity (by its real name `p[11]` or official Google Maps categories `p[13]`)
+          const placeCategories = Array.isArray(p[13]) ? p[13] : [];
+          if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
+            continue;
+          }
 
           const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
           if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;

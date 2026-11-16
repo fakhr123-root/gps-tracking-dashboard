@@ -667,14 +667,6 @@ async function extractRealPhones(tags = {}, placeName = '', city = '', lat = 15.
     }
   }
 
-  // If OSM tags did not include a phone number, query Google Maps directly for this place
-  if (phonesList.length === 0 && placeName) {
-    const gPhoneData = await lookupPlacePhoneOnGoogleMaps(placeName, city, lat, lng);
-    for (const gp of gPhoneData.phones) {
-      addPhoneCandidate(gp);
-    }
-  }
-
   return {
     phone: phonesList.join(' ، '),
     phones: phonesList
@@ -1833,10 +1825,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const m = matchedSeedPlaces[sIdx];
       seenNames.add(m.coordNameKey);
 
-      const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
-      const actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 3.5)
-        ? (hoodMatch.neighborhood || hoodMatch.shortHood)
-        : (m.entry.d || center.district);
+      let actualDistrict = m.entry.d || '';
+      if (!actualDistrict || actualDistrict === 'صنعاء') {
+        const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
+        actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 3.5)
+          ? (hoodMatch.neighborhood || hoodMatch.shortHood)
+          : center.district;
+      }
       const hoursInfo = resolveWorkingHoursAndStatus({}, m.cleanName, m.entry.q || stdQuery || 'نشاط تجاري', fetchedCount);
       const phoneStr = m.entry.ph || '';
       const phonesArr = phoneStr ? [phoneStr] : [];
@@ -1866,9 +1861,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
       fetchedCount++;
       sendEvent('place', item);
-      if (fetchedCount % 30 === 0) {
+      if (fetchedCount % 120 === 0) {
         sendEvent('progress', { current: fetchedCount, total: Math.max(matchedSeedPlaces.length, fetchedCount + 50) });
-        await new Promise(r => setTimeout(r, 8));
+        await new Promise(r => setTimeout(r, 4));
       }
     }
   }

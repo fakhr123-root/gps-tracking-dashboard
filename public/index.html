@@ -38,6 +38,20 @@
     input, textarea, select, .font-num {
       user-select: text;
       -webkit-user-select: text;
+      color-scheme: dark;
+    }
+    input:-webkit-autofill,
+    input:-webkit-autofill:hover,
+    input:-webkit-autofill:focus,
+    input:-webkit-autofill:active,
+    textarea:-webkit-autofill,
+    select:-webkit-autofill {
+      -webkit-box-shadow: 0 0 0 1000px #060d17 inset !important;
+      box-shadow: 0 0 0 1000px #060d17 inset !important;
+      -webkit-text-fill-color: #f8fafc !important;
+      caret-color: #10b981 !important;
+      background-color: #060d17 !important;
+      transition: background-color 999999s ease-in-out 0s !important;
     }
     .font-num {
       font-family: 'Orbitron', 'Cairo', monospace;
@@ -680,6 +694,8 @@
               <input
                 type="text"
                 id="queryInput"
+                autocomplete="off"
+                spellcheck="false"
                 oninput="onQueryInputChange(this.value)"
                 placeholder="أي شيء (بقالة، صيدلية، مطعم، صالة، محكمة، منفذ...)"
                 class="w-full bg-transparent text-[11px] sm:text-xs text-white placeholder-slate-500 focus:outline-none font-bold"
@@ -692,6 +708,8 @@
               <input
                 type="text"
                 id="locationInput"
+                autocomplete="off"
+                spellcheck="false"
                 value="صنعاء"
                 placeholder="المدينة أو الدولة"
                 class="w-full bg-transparent text-[11px] sm:text-xs font-bold text-white placeholder-slate-500 focus:outline-none"
@@ -704,6 +722,8 @@
               <input
                 type="text"
                 id="neighborhoodInput"
+                autocomplete="off"
+                spellcheck="false"
                 placeholder="الحي / الحارة / الشارع"
                 class="w-full bg-transparent text-[11px] sm:text-xs text-white placeholder-slate-500 focus:outline-none"
               />

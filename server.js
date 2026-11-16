@@ -673,15 +673,169 @@ async function extractRealPhones(tags = {}, placeName = '', city = '', lat = 15.
   };
 }
 
+let pendingIndexSaveTimer = null;
+function scheduleSavePersistentIndex() {
+  if (pendingIndexSaveTimer) return;
+  pendingIndexSaveTimer = setTimeout(() => {
+    pendingIndexSaveTimer = null;
+    try {
+      const indexPath = path.join(__dirname, 'data', 'sanaa_real_index.json');
+      fs.writeFile(indexPath, JSON.stringify(SANAA_REAL_INDEX), () => {});
+    } catch (e) {}
+  }, 5000);
+}
+
+function getCoreBusinessName(str = '') {
+  return normAr(str)
+    .replace(/(^|\s)(بقاله|بقالات|تموينات|تموين|سوبر ماركت|سوبرماركت|ميني ماركت|هايبر|صيدليه|صيدليات|مطعم|مطاعم|مطبخ|مطابخ|بوفيه|كافيه|مقهي|مسبح|مسابح|حمام|حمامات|بخاري|بخاريه|البخاري|البخاريه|الحديث|الحديثه|شركه|مؤسسه|محل|محلات|مركز|مراكز|وكاله|معرض|صاله|صالات|قاعه|قاعات|فندق|اجنحه|بنك|صرافه|مدرسه|مدارس|جامعه|معهد|مسجد|جامع|فرع|صنعاء|اليمن)(?=\s|$)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 // Built-in Real-time Extractor (Fetches ALL REAL places in the selected area directly from Google Maps Live Engine + Overpass OSM without number limits)
 async function searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat = null, userLng = null, circleFilter = null, isAborted = () => false) {
   let fetchedCount = 0;
   const seenNames = new Set();
+  const seenSpatialBuckets = new Map();
 
-  sendEvent('status', { message: 'جارٍ تحديد الإحداثيات الجغرافية والاتصال بمحرك خرائط جوجل الحي لاستخراج المدينة بالكامل (شارعاً بشارع وحارة بحارة)...' });
+  const isDuplicatePlace = (cleanName, pLat, pLng, placeId = '') => {
+    if (placeId && seenNames.has(placeId)) return true;
+    const fullNorm = normAr(cleanName);
+    const coreNorm = getCoreBusinessName(cleanName);
+    const bLat = Math.round(pLat * 100);
+    const bLng = Math.round(pLng * 100);
 
-  const locCombined = [neighborhood, location].filter(Boolean).join(' ') || 'صنعاء';
-  const center = await geocodeLocation(locCombined);
+    for (let dLa = -1; dLa <= 1; dLa++) {
+      for (let dLn = -1; dLn <= 1; dLn++) {
+        const cell = seenSpatialBuckets.get(`${bLat + dLa}_${bLng + dLn}`);
+        if (!cell) continue;
+        for (const prev of cell) {
+          const dKm = calcDistanceKm(prev.lat, prev.lng, pLat, pLng);
+          if (prev.fullNorm === fullNorm && dKm <= 0.60) return true;
+          if (coreNorm.length >= 3 && prev.coreNorm === coreNorm && dKm <= 0.35) return true;
+          if (dKm <= 0.06 && coreNorm.length >= 3 && prev.coreNorm.length >= 3 && (prev.coreNorm.includes(coreNorm) || coreNorm.includes(prev.coreNorm))) {
+            return true;
+          }
+        }
+      }
+    }
+
+    if (placeId) seenNames.add(placeId);
+    const cellKey = `${bLat}_${bLng}`;
+    const bucket = seenSpatialBuckets.get(cellKey) || [];
+    bucket.push({ fullNorm, coreNorm, lat: pLat, lng: pLng });
+    seenSpatialBuckets.set(cellKey, bucket);
+    return false;
+  };
+
+  sendEvent('status', { message: 'جارٍ تحديد الإحداثيات الجغرافية والاتصال بمحرك خرائط جوجل الحي لاستخراج المنطقة المطلوبة...' });
+
+  const cleanNeighborhood = (neighborhood || '').trim();
+  const nHoodNorm = normAr(cleanNeighborhood);
+  const center = await geocodeLocation(location || 'صنعاء');
+  const hoodCorridorPoints = [];
+
+  if (cleanNeighborhood) {
+    // 1. Check built-in corridors & neighborhoods for Sana'a and GEO_DATABASE first
+    const knownStreetsAndHoods = [
+      { keys: ['الدائري', 'الخط الدائري'], pts: [{ lat: 15.3605, lng: 44.1905 }, { lat: 15.3545, lng: 44.1915 }, { lat: 15.3445, lng: 44.1905 }, { lat: 15.3405, lng: 44.1915 }, { lat: 15.3335, lng: 44.1965 }], rKm: 0.75 },
+      { keys: ['شارع بغداد', 'بغداد'], pts: [{ lat: 15.3392, lng: 44.1925 }, { lat: 15.3395, lng: 44.1865 }], rKm: 0.85 },
+      { keys: ['الحي السياسي'], pts: [{ lat: 15.3335, lng: 44.1955 }], rKm: 1.0 },
+      { keys: ['جولة الرويشان', 'الرويشان'], pts: [{ lat: 15.3315, lng: 44.1985 }], rKm: 0.9 },
+      { keys: ['حدة', 'شارع حدة'], pts: [{ lat: 15.3225, lng: 44.1925 }, { lat: 15.3125, lng: 44.1872 }, { lat: 15.3025, lng: 44.1815 }], rKm: 1.2 },
+      { keys: ['شارع الزبيري', 'الزبيري'], pts: [{ lat: 15.3415, lng: 44.2015 }, { lat: 15.3435, lng: 44.1925 }], rKm: 0.9 },
+      { keys: ['شارع هائل', 'هائل'], pts: [{ lat: 15.3525, lng: 44.1912 }], rKm: 0.9 },
+      { keys: ['شارع الرقاص', 'الرقاص'], pts: [{ lat: 15.3495, lng: 44.1865 }], rKm: 0.9 },
+      { keys: ['حي الجامعة', 'الجامعة'], pts: [{ lat: 15.3625, lng: 44.1845 }], rKm: 1.1 },
+      { keys: ['التحرير'], pts: [{ lat: 15.3535, lng: 44.2025 }], rKm: 0.95 },
+      { keys: ['شارع القصر', 'القصر'], pts: [{ lat: 15.3555, lng: 44.2115 }], rKm: 0.85 },
+      { keys: ['شارع القيادة', 'القيادة'], pts: [{ lat: 15.3615, lng: 44.2095 }], rKm: 0.85 },
+      { keys: ['باب اليمن', 'صنعاء القديمة'], pts: [{ lat: 15.3510, lng: 44.2150 }], rKm: 1.1 },
+      { keys: ['الصافية'], pts: [{ lat: 15.3325, lng: 44.2165 }], rKm: 1.1 },
+      { keys: ['شارع تعز'], pts: [{ lat: 15.3245, lng: 44.2155 }, { lat: 15.3112, lng: 44.2195 }, { lat: 15.2950, lng: 44.2235 }], rKm: 1.1 },
+      { keys: ['شميلة'], pts: [{ lat: 15.3056, lng: 44.2341 }], rKm: 1.25 },
+      { keys: ['الأصبحي', 'الاصبحي'], pts: [{ lat: 15.2912, lng: 44.2125 }], rKm: 1.3 },
+      { keys: ['بيت بوس'], pts: [{ lat: 15.2765, lng: 44.2085 }], rKm: 1.3 },
+      { keys: ['بير عبيد'], pts: [{ lat: 15.3025, lng: 44.2055 }], rKm: 1.1 },
+      { keys: ['السبعين'], pts: [{ lat: 15.3214, lng: 44.2155 }], rKm: 1.2 },
+      { keys: ['شارع خولان', 'خولان'], pts: [{ lat: 15.3315, lng: 44.2312 }], rKm: 1.2 },
+      { keys: ['حزيز'], pts: [{ lat: 15.2385, lng: 44.2295 }], rKm: 1.5 },
+      { keys: ['دار سلم'], pts: [{ lat: 15.2585, lng: 44.2345 }], rKm: 1.4 },
+      { keys: ['شارع الخمسين', 'الخمسين'], pts: [{ lat: 15.2725, lng: 44.1985 }], rKm: 1.3 },
+      { keys: ['شارع الستين', 'الستين'], pts: [{ lat: 15.3450, lng: 44.1780 }, { lat: 15.3250, lng: 44.1780 }, { lat: 15.3650, lng: 44.1780 }], rKm: 1.1 },
+      { keys: ['فج عطان', 'عطان'], pts: [{ lat: 15.3185, lng: 44.1745 }], rKm: 1.2 },
+      { keys: ['عصر'], pts: [{ lat: 15.3485, lng: 44.1612 }], rKm: 1.2 },
+      { keys: ['السنينة'], pts: [{ lat: 15.3645, lng: 44.1685 }], rKm: 1.25 },
+      { keys: ['مذبح'], pts: [{ lat: 15.3812, lng: 44.1725 }], rKm: 1.25 },
+      { keys: ['الحصبة'], pts: [{ lat: 15.3835, lng: 44.2145 }], rKm: 1.3 },
+      { keys: ['حي النهضة', 'النهضة'], pts: [{ lat: 15.3885, lng: 44.1945 }], rKm: 1.2 },
+      { keys: ['صوفان'], pts: [{ lat: 15.3945, lng: 44.2045 }], rKm: 1.2 },
+      { keys: ['الجراف'], pts: [{ lat: 15.4015, lng: 44.2095 }], rKm: 1.35 },
+      { keys: ['الروضة'], pts: [{ lat: 15.4265, lng: 44.2185 }], rKm: 1.4 },
+      { keys: ['دارس'], pts: [{ lat: 15.4112, lng: 44.2125 }], rKm: 1.25 },
+      { keys: ['سعوان'], pts: [{ lat: 15.3825, lng: 44.2545 }], rKm: 1.4 },
+      { keys: ['شارع النصر', 'النصر'], pts: [{ lat: 15.3675, lng: 44.2295 }], rKm: 1.2 },
+      { keys: ['شارع مأرب'], pts: [{ lat: 15.3765, lng: 44.2425 }], rKm: 1.3 },
+      { keys: ['شارع الأربعين', 'الاربعين'], pts: [{ lat: 15.3445, lng: 44.2425 }], rKm: 1.2 },
+      { keys: ['صرف'], pts: [{ lat: 15.4085, lng: 44.2585 }], rKm: 1.5 },
+      { keys: ['الأزرقين', 'الازرقين'], pts: [{ lat: 15.4515, lng: 44.1925 }], rKm: 1.5 }
+    ];
+
+    let matchedCorridor = knownStreetsAndHoods.find(item =>
+      item.keys.some(k => normAr(k) === nHoodNorm || nHoodNorm.includes(normAr(k)) || normAr(k).includes(nHoodNorm))
+    );
+
+    if (matchedCorridor) {
+      for (const pt of matchedCorridor.pts) {
+        hoodCorridorPoints.push({ lat: pt.lat, lng: pt.lng, rKm: matchedCorridor.rKm });
+      }
+    } else {
+      // Search GEO_DATABASE neighborhoods
+      for (const cKey of Object.keys(GEO_DATABASE)) {
+        const cities = GEO_DATABASE[cKey]?.cities || {};
+        for (const [, cData] of Object.entries(cities)) {
+          for (const [hName, hData] of Object.entries(cData.neighborhoods || {})) {
+            if (normAr(hName).includes(nHoodNorm) || nHoodNorm.includes(normAr(hName))) {
+              hoodCorridorPoints.push({ lat: hData.lat, lng: hData.lng, rKm: 1.3 });
+            }
+          }
+        }
+      }
+      // If still not found, geocode specifically via Nominatim/Photon
+      if (hoodCorridorPoints.length === 0) {
+        try {
+          const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ar,en&q=${encodeURIComponent(cleanNeighborhood + ' ' + center.city)}`;
+          const nRes = await fetchWithTimeout(nomUrl, { timeout: 4500 });
+          if (nRes.ok) {
+            const nData = await nRes.json();
+            if (Array.isArray(nData) && nData[0]?.lat && nData[0]?.lon) {
+              hoodCorridorPoints.push({ lat: parseFloat(nData[0].lat), lng: parseFloat(nData[0].lon), rKm: 1.4 });
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (hoodCorridorPoints.length > 0) {
+      center.lat = hoodCorridorPoints[0].lat;
+      center.lng = hoodCorridorPoints[0].lng;
+    }
+    center.district = cleanNeighborhood;
+  }
+
+  const isPlaceInsideRequestedNeighborhood = (cleanName, pLat, pLng, entryDistrict = '', entryAddr = '') => {
+    if (!cleanNeighborhood) return true;
+    const dNorm = normAr(entryDistrict || '');
+    const aNorm = normAr(entryAddr || '');
+    const nameNorm = normAr(cleanName || '');
+    if (dNorm.includes(nHoodNorm) || aNorm.includes(nHoodNorm) || nameNorm.includes(nHoodNorm)) {
+      return true;
+    }
+    if (hoodCorridorPoints.length > 0) {
+      return hoodCorridorPoints.some(pt => calcDistanceKm(pt.lat, pt.lng, pLat, pLng) <= (pt.rKm || 1.15));
+    }
+    return calcDistanceKm(center.lat, center.lng, pLat, pLng) <= 1.25;
+  };
 
   const hasDrawnCircle = Boolean(
     circleFilter &&
@@ -1470,8 +1624,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 12: Swimming Pools & Spas (مسبح، مسابح، حمام بخار)
     if (q.includes('مسبح') || q.includes('مسابح') || q.includes('سباح')) {
-      const unrelatedPoolNoise = ['قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه'];
-      if (hasAny(nName, unrelatedPoolNoise)) return false;
+      const unrelatedPoolNoise = [
+        'قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه',
+        'ادوات صحيه', 'أدوات صحية', 'سباكه', 'سيراميك', 'بلاط', 'مواد بناء',
+        'حمامات عامه', 'حمامات حديقه', 'دوره مياه'
+      ];
+      if (hasAny(combinedText, unrelatedPoolNoise)) return false;
       const poolKeywords = [
         'مسبح', 'مسابح', 'سباحه', 'سباحة', 'بخار', 'ساونا', 'جاكوزي', 'منتجع', 'نادي صحي', 'استراحه',
         'pool', 'swimming', 'spa', 'sauna', 'resort', 'aqua', 'water park'
@@ -1525,9 +1683,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (dKm > circleFilter.radiusKm * 1.05) return false;
     }
 
-    const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
-    if (seenNames.has(coordNameKey)) return false;
-    seenNames.add(coordNameKey);
+    if (isDuplicatePlace(cleanName, pLat, pLng)) return false;
 
     const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
     const rawSuburb = tags['addr:suburb:ar'] || tags['addr:suburb'] || tags['addr:district'] || tags['addr:neighbourhood'] || '';
@@ -1823,16 +1979,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
       const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
       if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
-      if (!hasDrawnCircle && neighborhood && distFromOrigin > 3.8 && !normAr(entry.d || '').includes(normAr(neighborhood)) && !normAr(entry.a || '').includes(normAr(neighborhood))) {
+      if (!hasDrawnCircle && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entry.d, entry.a)) {
         continue;
       }
-      if (!hasDrawnCircle && !neighborhood && distFromOrigin > Math.max(rKm * 1.5, 45)) continue;
-
-      const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
-      if (seenNames.has(coordNameKey)) continue;
+      if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > Math.max(rKm * 1.5, 45)) continue;
 
       const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
-      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser, coordNameKey });
+      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser });
     }
 
     // Sort strictly from closest to user's GPS location (refLat, refLng) outward!
@@ -1841,9 +1994,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     for (let sIdx = 0; sIdx < matchedSeedPlaces.length; sIdx++) {
       if (isAborted()) break;
       const m = matchedSeedPlaces[sIdx];
-      seenNames.add(m.coordNameKey);
+      if (isDuplicatePlace(m.cleanName, m.pLat, m.pLng)) continue;
 
-      let actualDistrict = m.entry.d || '';
+      let actualDistrict = cleanNeighborhood ? cleanNeighborhood : (m.entry.d || '');
       if (!actualDistrict || actualDistrict === 'صنعاء') {
         const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
         actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 3.5)
@@ -2074,23 +2227,40 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
           const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
           if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
+          if (!hasDrawnCircle && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, String(p[82]?.[0] || ''), String(p[39] || p[18] || ''))) {
+            continue;
+          }
           // Ensure results belong to the searched metropolitan city/region (within 55km of city center)
-          if (!hasDrawnCircle && distFromOrigin > Math.max(rKm * 1.5, 55)) continue;
+          if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > Math.max(rKm * 1.5, 55)) continue;
 
           const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-          const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(3)}_${pLng.toFixed(3)}`;
-          if ((placeIdKey && seenNames.has(placeIdKey)) || seenNames.has(coordNameKey)) continue;
-          if (placeIdKey) seenNames.add(placeIdKey);
-          seenNames.add(coordNameKey);
+          if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey)) continue;
 
           const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
-          pagePlaces.push({ p, cleanName, pLat, pLng, distFromUser, cat: task.cat });
+          pagePlaces.push({ p, cleanName, pLat, pLng, distFromUser, cat: task.cat, placeCategories });
         }
 
         pagePlaces.sort((a, b) => a.distFromUser - b.distFromUser);
         for (const item of pagePlaces) {
           if (isAborted()) break;
           emitGooglePlaceImmediate(item.p, item.cleanName, item.pLat, item.pLng, item.cat);
+          // Auto-Sync & Persist any newly discovered live Google Maps place into the verified index!
+          if (SANAA_REAL_INDEX.length < 100000) {
+            const phData = extractGoogleMapsPlacePhones(item.p);
+            const hMatch = resolveLocalNeighborhood(item.pLat, item.pLng);
+            SANAA_REAL_INDEX.push({
+              n: item.cleanName,
+              la: Number(item.pLat.toFixed(6)),
+              ln: Number(item.pLng.toFixed(6)),
+              d: cleanNeighborhood || hMatch?.shortHood || center.district,
+              a: String(item.p[39] || item.p[18] || `${center.city} - ${hMatch?.shortHood || center.district}`).trim(),
+              ph: phData.phones[0] || '',
+              c: item.placeCategories.length > 0 ? item.placeCategories : [item.cat || stdQuery],
+              q: item.cat || stdQuery || 'بقالة',
+              r: item.p[4]?.[7] ? String(Number(item.p[4][7]).toFixed(1)) : '4.5'
+            });
+            scheduleSavePersistentIndex();
+          }
         }
       } catch (e) {
         // Ignore single task timeout/parse error

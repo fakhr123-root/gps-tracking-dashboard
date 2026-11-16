@@ -199,7 +199,7 @@
   </div>
 
   <!-- Two-Step Holographic Onboarding Portal: Step 1 (Allow Location) -> Next -> Step 2 (Login Name/Phone) -> Next -> Explorer -->
-  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+  <div id="visitorGateModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none"></div>
@@ -2411,9 +2411,44 @@
       setStep1NextEnabled(true);
     }
 
+    function showGateModalOnStep1() {
+      const modal = document.getElementById('visitorGateModal');
+      if (modal) {
+        modal.classList.remove('hidden', 'opacity-0');
+      }
+      document.getElementById('gateStep1Location')?.classList.remove('hidden');
+      document.getElementById('gateStep2Login')?.classList.add('hidden');
+      lucide.createIcons();
+    }
+
+    function showGateModalOnStep2() {
+      const modal = document.getElementById('visitorGateModal');
+      if (modal) {
+        modal.classList.remove('hidden', 'opacity-0');
+      }
+      document.getElementById('gateStep1Location')?.classList.add('hidden');
+      document.getElementById('gateStep2Login')?.classList.remove('hidden');
+
+      const b1 = document.getElementById('stepBadge1');
+      const b2 = document.getElementById('stepBadge2');
+      const line = document.getElementById('stepConnectorLine');
+      if (b1) b1.className = "px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold flex items-center gap-1.5";
+      if (b2) {
+        b2.className = "px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]";
+        const num = b2.querySelector('span');
+        if (num) num.className = "w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
+      }
+      if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
+      lucide.createIcons();
+      setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
+    }
+
     async function resumeSavedSessionIntoExplorer() {
       const session = getSavedVisitorSession();
       if (!session.hasSession || !cachedOptionalGps) return;
+
+      // Immediately hide the gate modal so the user never sees the Location screen on refresh when Location is open!
+      finishGateEntry();
 
       const [devProfile, netInfo] = await Promise.all([
         detectUserDeviceProfile(),
@@ -2441,8 +2476,7 @@
         localStorage.removeItem('gmaps_visitor_name');
         localStorage.removeItem('gmaps_visitor_password');
         setGateAuthMode('login');
-        document.getElementById('gateStep1Location')?.classList.add('hidden');
-        document.getElementById('gateStep2Login')?.classList.remove('hidden');
+        showGateModalOnStep2();
         const errEl = document.getElementById('loginNameError');
         if (errEl) {
           errEl.innerText = resp.message || 'يرجى تسجيل الدخول مجدداً';
@@ -2450,36 +2484,23 @@
         }
         return;
       }
-      finishGateEntry();
     }
 
     function goToLoginStep2() {
-      if (!cachedOptionalGps) return; // Location must be allowed first
+      if (!cachedOptionalGps) {
+        showGateModalOnStep1();
+        return;
+      }
       const session = getSavedVisitorSession();
       if (session.hasSession) {
-        // Returning user with saved session: skip Step 2 and enter Explorer directly!
+        // Returning user with saved session & open location: enter Explorer directly without showing any modal!
         resumeSavedSessionIntoExplorer();
         return;
       }
-
-      document.getElementById('gateStep1Location')?.classList.add('hidden');
-      document.getElementById('gateStep2Login')?.classList.remove('hidden');
-
-      const b1 = document.getElementById('stepBadge1');
-      const b2 = document.getElementById('stepBadge2');
-      const line = document.getElementById('stepConnectorLine');
-      if (b1) b1.className = "px-3 py-1 rounded-full bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 text-[11px] font-bold flex items-center gap-1.5";
-      if (b2) {
-        b2.className = "px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]";
-        const num = b2.querySelector('span');
-        if (num) num.className = "w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
-      }
-      if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
-      lucide.createIcons();
-      setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
+      showGateModalOnStep2();
     }
 
-    function requestOptionalGeolocationPrompt(autoEnterIfSaved = false) {
+    function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false) {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const btnTxt = document.getElementById('enableGeoBtnText');
@@ -2487,6 +2508,7 @@
 
       if (!navigator.geolocation) {
         if (titleEl) titleEl.innerText = 'جهازك لا يدعم تحديد الموقع';
+        showGateModalOnStep1();
         return;
       }
       if (btnTxt) btnTxt.innerText = 'جاري فتح الموقع...';
@@ -2500,25 +2522,25 @@
           };
           markLocationGranted();
           renderUserGpsPinOnMap();
-          // Automatically record Device Name + Real IP + GPS even before Step 2 login
           autoRecordDeviceIpVisit();
-          if (autoEnterIfSaved && session.hasSession) {
-            resumeSavedSessionIntoExplorer();
+          if (autoAdvanceOnSuccess) {
+            goToLoginStep2();
           }
         },
         () => {
+          cachedOptionalGps = null;
           if (btnTxt) btnTxt.innerText = '📍 إعادة المحاولة والسماح بالموقع';
           if (titleEl) titleEl.innerText = 'الموقع مغلق أو لم يتم السماح به ✗';
           if (descEl) {
             descEl.innerText = session.hasSession
               ? `لديك حساب محفوظ باسم (@${session.visitorName})، يرجى السماح بالموقع أولاً للمتابعة`
-              : 'فعّل الموقع (GPS) من إعدادات المتصفح ثم اضغط إعادة المحاولة';
+              : 'فعّل الموقع (GPS) من إعدادات المتصفح أو الهاتف ثم اضغط إعادة المحاولة';
           }
           setStep1NextEnabled(false);
-          // Still record Device Name + Real IP even if GPS hasn't been granted yet
-          autoRecordDeviceIpVisit();
+          // Location is closed/disabled -> Show the Location Gate Modal immediately!
+          showGateModalOnStep1();
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       );
     }
 
@@ -2536,19 +2558,35 @@
       updateAccountButtonsUI();
       setStep1NextEnabled(false);
 
-      // Immediately recognize & log unregistered visitor by Phone/Device Name + IP on initial visit
-      autoRecordDeviceIpVisit();
+      if (!navigator.geolocation) {
+        showGateModalOnStep1();
+        return;
+      }
 
-      if (!navigator.geolocation) return;
       try {
         if (navigator.permissions && navigator.permissions.query) {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
+          perm.onchange = () => {
+            if (perm.state !== 'granted') {
+              cachedOptionalGps = null;
+              setStep1NextEnabled(false);
+              showGateModalOnStep1();
+            }
+          };
           if (perm.state === 'granted') {
-            requestOptionalGeolocationPrompt(false);
+            // Location permission is granted -> verify live GPS silently and skip Step 1 if Location is open!
+            requestOptionalGeolocationPrompt(true);
+            return;
+          } else {
+            // Location is closed or not yet allowed -> show Step 1 Location Gate!
+            showGateModalOnStep1();
             return;
           }
         }
       } catch (e) {}
+
+      // Fallback when Permissions API is unavailable: test live GPS and show Step 1 only if closed
+      requestOptionalGeolocationPrompt(true);
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)

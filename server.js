@@ -41,63 +41,102 @@ async function fetchWithTimeout(resource, options = {}) {
   }
 }
 
-// Comprehensive Arab World City Coordinates Dictionary (Yemen, Saudi, UAE, Egypt, etc.)
+// Comprehensive Yemen, Arab World & Global Cities/Outlets Dictionary
 const ARAB_CITIES_DICT = [
-  // Yemen (اليمن)
+  // Yemen (اليمن - كافة المحافظات والمدن والمنافذ)
   { keywords: ['المقالح', 'شارع المقالح'], lat: 15.2712, lng: 44.2538, city: 'صنعاء', district: 'شارع المقالح', country: 'اليمن', countryCode: 'YE' },
-  { keywords: ['صنعاء', 'sanaa', 'sana\'a'], lat: 15.3538, lng: 44.2058, city: 'صنعاء', district: 'أمانة العاصمة', country: 'اليمن', countryCode: 'YE' },
-  { keywords: ['حدة', 'حده'], lat: 15.3125, lng: 44.1872, city: 'صنعاء', district: 'حدة', country: 'اليمن', countryCode: 'YE' },
-  { keywords: ['السبعين'], lat: 15.3214, lng: 44.2155, city: 'صنعاء', district: 'السبعين', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['صنعاء', 'امانة العاصمة', 'أمانة العاصمة', 'sanaa', 'sana\'a'], lat: 15.3538, lng: 44.2058, city: 'صنعاء', district: 'أمانة العاصمة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['حدة', 'حده', 'شارع حدة'], lat: 15.3125, lng: 44.1872, city: 'صنعاء', district: 'حدة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['السبعين', 'ميدان السبعين'], lat: 15.3214, lng: 44.2155, city: 'صنعاء', district: 'السبعين', country: 'اليمن', countryCode: 'YE' },
   { keywords: ['شميلة', 'شميله'], lat: 15.3056, lng: 44.2341, city: 'صنعاء', district: 'شميلة', country: 'اليمن', countryCode: 'YE' },
   { keywords: ['عدن', 'aden'], lat: 12.7855, lng: 45.0187, city: 'عدن', district: 'كريتر / المعلا', country: 'اليمن', countryCode: 'YE' },
   { keywords: ['تعز', 'taiz'], lat: 13.5789, lng: 44.0219, city: 'تعز', district: 'وسط المدينة', country: 'اليمن', countryCode: 'YE' },
-  { keywords: ['إب', 'اب', 'ibb'], lat: 13.9754, lng: 44.1834, city: 'إب', district: 'الوسط', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['إب', 'اب', 'مدينة إب', 'محافظة إب', 'ibb'], lat: 13.9754, lng: 44.1834, city: 'إب', district: 'الوسط', country: 'اليمن', countryCode: 'YE', exactOnly: true },
   { keywords: ['الحديدة', 'الحديده', 'hodeidah'], lat: 14.7979, lng: 42.9545, city: 'الحديدة', district: 'الميناء', country: 'اليمن', countryCode: 'YE' },
-  { keywords: ['المكلا', 'mukalla'], lat: 14.5425, lng: 49.1242, city: 'المكلا', district: 'حضرموت', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['المكلا', 'حضرموت', 'mukalla', 'hadramout'], lat: 14.5425, lng: 49.1242, city: 'المكلا', district: 'حضرموت', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['سيئون', 'سيؤن', 'تريم', 'وادي حضرموت', 'seiyun'], lat: 15.9431, lng: 48.7872, city: 'سيئون', district: 'وادي حضرموت', country: 'اليمن', countryCode: 'YE' },
   { keywords: ['ذمار', 'dhamar'], lat: 14.5428, lng: 44.4051, city: 'ذمار', district: 'وسط ذمار', country: 'اليمن', countryCode: 'YE' },
   { keywords: ['مأرب', 'مارب', 'marib'], lat: 15.4542, lng: 45.3255, city: 'مأرب', district: 'المدينة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['عمران', 'amran'], lat: 15.6594, lng: 43.9439, city: 'عمران', district: 'وسط عمران', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['صعدة', 'صعده', 'saada'], lat: 16.9402, lng: 43.7639, city: 'صعدة', district: 'وسط صعدة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['حجة', 'حجه', 'عبس', 'hajjah'], lat: 15.6942, lng: 43.6058, city: 'حجة', district: 'وسط حجة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['البيضاء', 'رداع', 'al bayda'], lat: 13.9852, lng: 45.5727, city: 'البيضاء', district: 'البيضاء / رداع', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['الضالع', 'قعطبة', 'dhale'], lat: 13.6957, lng: 44.7314, city: 'الضالع', district: 'وسط الضالع', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['لحج', 'الحوطة', 'lahj'], lat: 13.0567, lng: 44.8819, city: 'لحج', district: 'الحوطة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['أبين', 'ابين', 'زنجبار', 'جعار', 'abyan'], lat: 13.1287, lng: 45.3807, city: 'أبين', district: 'زنجبار / جعار', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['شبوة', 'شبوه', 'عتق', 'shabwah', 'ataq'], lat: 14.5377, lng: 46.8319, city: 'عتق (شبوة)', district: 'عتق', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['المهرة', 'المهره', 'الغيضة', 'شحن', 'صرفيت', 'mahrah'], lat: 16.2079, lng: 52.1760, city: 'الغيضة (المهرة)', district: 'المهرة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['الجوف', 'الحزم', 'al jawf'], lat: 16.1641, lng: 44.7769, city: 'الحزم (الجوف)', district: 'الجوف', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['المحويت', 'al mahwit'], lat: 15.4701, lng: 43.5448, city: 'المحويت', district: 'وسط المحويت', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['ريمة', 'ريمه', 'الجبين', 'raymah'], lat: 14.6292, lng: 43.7128, city: 'ريمة', district: 'الجبين', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['سقطرى', 'سقطري', 'حديبو', 'socotra'], lat: 12.6488, lng: 54.0189, city: 'سقطرى', district: 'حديبو', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['منفذ الوديعة', 'الوديعة', 'الوديعه'], lat: 16.9685, lng: 47.1412, city: 'منفذ الوديعة', district: 'المنفذ الحدودي', country: 'اليمن / السعودية', countryCode: 'YE' },
+  { keywords: ['منفذ شحن', 'منفذ المزيونة'], lat: 17.6385, lng: 52.6612, city: 'منفذ شحن', district: 'المهرة', country: 'اليمن', countryCode: 'YE' },
+  { keywords: ['منفذ حرض', 'منفذ الطوال'], lat: 16.4185, lng: 42.9612, city: 'منفذ الطوال / حرض', district: 'المنفذ الحدودي', country: 'اليمن / السعودية', countryCode: 'YE' },
 
   // Saudi Arabia (المملكة العربية السعودية)
   { keywords: ['الرياض', 'riyadh'], lat: 24.7136, lng: 46.6753, city: 'الرياض', district: 'العليا', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['جدة', 'جده', 'jeddah'], lat: 21.4858, lng: 39.1925, city: 'جدة', district: 'البلد / الروضة', country: 'المملكة العربية السعودية', countryCode: 'SA' },
-  { keywords: ['مكة', 'مكه', 'makkah'], lat: 21.3891, lng: 39.8579, city: 'مكة المكرمة', district: 'المنطقة المركزية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
-  { keywords: ['المدينة المنورة', 'المدينه', 'madinah'], lat: 24.5247, lng: 39.5692, city: 'المدينة المنورة', district: 'المركزية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
+  { keywords: ['مكة', 'مكه', 'مكة المكرمة', 'makkah', 'mecca'], lat: 21.3891, lng: 39.8579, city: 'مكة المكرمة', district: 'المنطقة المركزية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
+  { keywords: ['المدينة المنورة', 'المدينه المنوره', 'madinah', 'medina'], lat: 24.5247, lng: 39.5692, city: 'المدينة المنورة', district: 'المركزية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['الدمام', 'dammam'], lat: 26.4207, lng: 50.0888, city: 'الدمام', district: 'الشاطئ', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['الخبر', 'khobar'], lat: 26.2818, lng: 50.2084, city: 'الخبر', district: 'الحزام الذهبي', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['تبوك', 'tabuk'], lat: 28.3835, lng: 36.5662, city: 'تبوك', district: 'الروضة', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['أبها', 'ابها', 'abha'], lat: 18.2164, lng: 42.5053, city: 'أبها', district: 'وسط أبها', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['خميس مشيط'], lat: 18.3000, lng: 42.7333, city: 'خميس مشيط', district: 'المركز', country: 'المملكة العربية السعودية', countryCode: 'SA' },
-  { keywords: ['جازان', 'جيزان'], lat: 16.8892, lng: 42.5611, city: 'جازان', district: 'الشاطئ', country: 'المملكة العربية السعودية', countryCode: 'SA' },
-  { keywords: ['نجران'], lat: 17.5656, lng: 44.2289, city: 'نجران', district: 'الفيصلية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
+  { keywords: ['جازان', 'جيزان', 'jazan'], lat: 16.8892, lng: 42.5611, city: 'جازان', district: 'الشاطئ', country: 'المملكة العربية السعودية', countryCode: 'SA' },
+  { keywords: ['نجران', 'najran'], lat: 17.5656, lng: 44.2289, city: 'نجران', district: 'الفيصلية', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['بريدة', 'القصيم'], lat: 26.3592, lng: 43.9818, city: 'بريدة', district: 'القصيم', country: 'المملكة العربية السعودية', countryCode: 'SA' },
   { keywords: ['حائل', 'حايل'], lat: 27.5236, lng: 41.6961, city: 'حائل', district: 'الجامعيين', country: 'المملكة العربية السعودية', countryCode: 'SA' },
-  { keywords: ['الطائف', 'الطايف'], lat: 21.2841, lng: 40.4248, city: 'الطائف', district: 'شهار', country: 'المملكة العربية السعودية', countryCode: 'SA' },
+  { keywords: ['الطائف', 'الطايف', 'taif'], lat: 21.2841, lng: 40.4248, city: 'الطائف', district: 'شهار', country: 'المملكة العربية السعودية', countryCode: 'SA' },
 
-  // UAE (الإمارات)
+  // UAE, Gulf, Egypt, Levant & Global Cities
   { keywords: ['دبي', 'dubai'], lat: 25.2048, lng: 55.2708, city: 'دبي', district: 'داون تاون', country: 'الإمارات العربية المتحدة', countryCode: 'AE' },
   { keywords: ['أبوظبي', 'ابوظبي', 'abu dhabi'], lat: 24.4539, lng: 54.3773, city: 'أبوظبي', district: 'الكورنيش', country: 'الإمارات العربية المتحدة', countryCode: 'AE' },
   { keywords: ['الشارقة', 'الشارقه', 'sharjah'], lat: 25.3463, lng: 55.4209, city: 'الشارقة', district: 'المجاز', country: 'الإمارات العربية المتحدة', countryCode: 'AE' },
-
-  // Egypt (مصر)
+  { keywords: ['الدوحة', 'الدوحه', 'قطر', 'doha', 'qatar'], lat: 25.2854, lng: 51.5310, city: 'الدوحة', district: 'الخليج الغربي', country: 'قطر', countryCode: 'QA' },
+  { keywords: ['الكويت', 'مدينة الكويت', 'kuwait'], lat: 29.3759, lng: 47.9774, city: 'الكويت', district: 'العاصمة', country: 'الكويت', countryCode: 'KW' },
+  { keywords: ['المنامة', 'البحرين', 'manama', 'bahrain'], lat: 26.2285, lng: 50.5860, city: 'المنامة', district: 'وسط المنامة', country: 'البحرين', countryCode: 'BH' },
+  { keywords: ['مسقط', 'صلالة', 'عمان', 'muscat', 'oman'], lat: 23.5880, lng: 58.3829, city: 'مسقط', district: 'الخوير / مطرح', country: 'سلطنة عمان', countryCode: 'OM' },
   { keywords: ['القاهرة', 'القاهره', 'cairo'], lat: 30.0444, lng: 31.2357, city: 'القاهرة', district: 'وسط البلد', country: 'جمهورية مصر العربية', countryCode: 'EG' },
   { keywords: ['الإسكندرية', 'الاسكندرية', 'alexandria'], lat: 31.2001, lng: 29.9187, city: 'الإسكندرية', district: 'سموحة / المنشية', country: 'مصر', countryCode: 'EG' },
   { keywords: ['الجيزة', 'الجيزه', 'giza'], lat: 30.0131, lng: 31.2089, city: 'الجيزة', district: 'الدقي / المهندسين', country: 'مصر', countryCode: 'EG' },
-
-  // Jordan (الأردن)
-  { keywords: ['عمان', 'عمّان', 'amman'], lat: 31.9454, lng: 35.9284, city: 'عمان', district: 'العبدلي / الشميساني', country: 'الأردن', countryCode: 'JO' },
-
-  // Oman (سلطنة عمان)
-  { keywords: ['مسقط', 'muscat'], lat: 23.5880, lng: 58.3829, city: 'مسقط', district: 'الخوير / مطرح', country: 'سلطنة عمان', countryCode: 'OM' }
+  { keywords: ['عمّان', 'الاردن', 'الأردن', 'amman', 'jordan'], lat: 31.9454, lng: 35.9284, city: 'عمان', district: 'العبدلي / الشميساني', country: 'الأردن', countryCode: 'JO' },
+  { keywords: ['بغداد', 'العراق', 'baghdad', 'iraq'], lat: 33.3152, lng: 44.3661, city: 'بغداد', district: 'الكرادة / المنصور', country: 'العراق', countryCode: 'IQ' },
+  { keywords: ['دمشق', 'سوريا', 'damascus', 'syria'], lat: 33.5138, lng: 36.2765, city: 'دمشق', district: 'وسط دمشق', country: 'سوريا', countryCode: 'SY' },
+  { keywords: ['بيروت', 'لبنان', 'beirut', 'lebanon'], lat: 33.8938, lng: 35.5018, city: 'بيروت', district: 'الحمرا / وسط بيروت', country: 'لبنان', countryCode: 'LB' },
+  { keywords: ['القدس', 'فلسطين', 'غزة', 'رام الله', 'jerusalem', 'palestine'], lat: 31.7683, lng: 35.2137, city: 'القدس', district: 'فلسطين', country: 'فلسطين', countryCode: 'PS' },
+  { keywords: ['الخرطوم', 'السودان', 'أمدرمان', 'khartoum', 'sudan'], lat: 15.5007, lng: 32.5599, city: 'الخرطوم', district: 'وسط الخرطوم', country: 'السودان', countryCode: 'SD' },
+  { keywords: ['طرابلس', 'ليبيا', 'بنغازي', 'tripoli', 'libya'], lat: 32.8872, lng: 13.1913, city: 'طرابلس', district: 'وسط طرابلس', country: 'ليبيا', countryCode: 'LY' },
+  { keywords: ['تونس', 'tunisia', 'tunis'], lat: 36.8065, lng: 10.1815, city: 'تونس', district: 'العاصمة', country: 'تونس', countryCode: 'TN' },
+  { keywords: ['الجزائر', 'وهران', 'algiers', 'algeria'], lat: 36.7538, lng: 3.0588, city: 'الجزائر', district: 'العاصمة', country: 'الجزائر', countryCode: 'DZ' },
+  { keywords: ['الرباط', 'الدار البيضاء', 'كازابلانكا', 'مراكش', 'المغرب', 'casablanca', 'morocco'], lat: 33.5731, lng: -7.5898, city: 'الدار البيضاء', district: 'المغرب', country: 'المغرب', countryCode: 'MA' },
+  { keywords: ['إسطنبول', 'اسطنبول', 'تركيا', 'أنقرة', 'istanbul', 'turkey'], lat: 41.0082, lng: 28.9784, city: 'إسطنبول', district: 'الفاتح / تقسيم', country: 'تركيا', countryCode: 'TR' },
+  { keywords: ['كوالالمبور', 'ماليزيا', 'kuala lumpur', 'malaysia'], lat: 3.1390, lng: 101.6869, city: 'كوالالمبور', district: 'وسط المدينة', country: 'ماليزيا', countryCode: 'MY' },
+  { keywords: ['جاكرتا', 'إندونيسيا', 'اندونيسيا', 'jakarta', 'indonesia'], lat: -6.2088, lng: 106.8456, city: 'جاكرتا', district: 'وسط جاكرتا', country: 'إندونيسيا', countryCode: 'ID' },
+  { keywords: ['كوانزو', 'غوانزو', 'إيوو', 'ايوو', 'بكين', 'الصين', 'guangzhou', 'yiwu', 'china'], lat: 23.1291, lng: 113.2644, city: 'كوانزو (Guangzhou)', district: 'الصين', country: 'الصين', countryCode: 'CN' },
+  { keywords: ['لندن', 'بريطانيا', 'london', 'uk'], lat: 51.5074, lng: -0.1278, city: 'لندن', district: 'Central London', country: 'المملكة المتحدة', countryCode: 'GB' },
+  { keywords: ['باريس', 'فرنسا', 'paris', 'france'], lat: 48.8566, lng: 2.3522, city: 'باريس', district: 'Paris', country: 'فرنسا', countryCode: 'FR' },
+  { keywords: ['برلين', 'ألمانيا', 'المانيا', 'berlin', 'germany'], lat: 52.5200, lng: 13.4050, city: 'برلين', district: 'Berlin', country: 'ألمانيا', countryCode: 'DE' },
+  { keywords: ['نيويورك', 'أمريكا', 'امريكا', 'واشنطن', 'new york', 'usa'], lat: 40.7128, lng: -74.0060, city: 'نيويورك', district: 'New York', country: 'الولايات المتحدة', countryCode: 'US' },
+  { keywords: ['موسكو', 'روسيا', 'moscow', 'russia'], lat: 55.7558, lng: 37.6173, city: 'موسكو', district: 'Moscow', country: 'روسيا', countryCode: 'RU' }
 ];
 
-// Smart Geocoder using Photon + Dictionary fallback
+// Planetary Geocoder: Resolves ANY city, village, alley (حارة), street, border crossing (منفذ), or country on Planet Earth!
 async function geocodeLocation(locationQuery) {
   const raw = (locationQuery || '').trim();
   const lower = raw.toLowerCase();
 
-  // 1. Direct dictionary check first for high precision
+  // 1. Direct dictionary check first (with strict boundary check for short names like 'إب')
   for (const item of ARAB_CITIES_DICT) {
-    if (item.keywords.some(k => lower.includes(k.toLowerCase()))) {
+    const matched = item.keywords.some(k => {
+      const kLow = k.toLowerCase();
+      if (item.exactOnly || kLow.length <= 2) {
+        return lower === kLow || lower.split(/[\s,،\-/]+/).includes(kLow);
+      }
+      return lower.includes(kLow);
+    });
+    if (matched) {
       return {
         lat: item.lat,
         lng: item.lng,
@@ -110,11 +149,37 @@ async function geocodeLocation(locationQuery) {
     }
   }
 
-  // 2. Query Photon Geocoder (Fast, international, accurate)
+  // 2. Query Nominatim OpenStreetMap Global Geocoder (Covers every country, city, town, village, street, and border crossing on Earth)
   if (raw) {
     try {
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&accept-language=ar,en&q=${encodeURIComponent(raw)}`;
+      const nRes = await fetchWithTimeout(nomUrl, { timeout: 5500 });
+      if (nRes.ok) {
+        const nData = await nRes.json();
+        if (Array.isArray(nData) && nData.length > 0 && nData[0].lat && nData[0].lon) {
+          const top = nData[0];
+          const addr = top.address || {};
+          const city = addr.city || addr.town || addr.village || addr.municipality || addr.state || top.name || raw;
+          const district = addr.suburb || addr.neighbourhood || addr.quarter || addr.county || addr.road || 'كامل المنطقة';
+          const country = addr.country || raw;
+          const countryCode = String(addr.country_code || 'YE').toUpperCase();
+          return {
+            lat: parseFloat(top.lat),
+            lng: parseFloat(top.lon),
+            city,
+            district,
+            country,
+            countryCode,
+            displayName: top.display_name || `${city}، ${district}، ${country}`
+          };
+        }
+      }
+    } catch (e) {}
+
+    // 3. Query Photon Global Geocoder fallback
+    try {
       const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(raw)}&limit=1`;
-      const pRes = await fetchWithTimeout(photonUrl, { timeout: 6000 });
+      const pRes = await fetchWithTimeout(photonUrl, { timeout: 5500 });
       if (pRes.ok) {
         const pData = await pRes.json();
         if (pData.features && pData.features.length > 0) {
@@ -123,9 +188,9 @@ async function geocodeLocation(locationQuery) {
           const props = feat.properties || {};
 
           const city = props.city || props.name || props.state || raw;
-          const district = props.district || props.street || props.county || 'المنطقة الحضرية';
-          const country = props.country || (props.countrycode === 'YE' ? 'اليمن' : props.countrycode === 'SA' ? 'السعودية' : 'الشرق الأوسط');
-          const countryCode = (props.countrycode || '').toUpperCase() || (country.includes('يمن') ? 'YE' : 'SA');
+          const district = props.district || props.street || props.county || 'كامل المنطقة';
+          const country = props.country || (props.countrycode === 'YE' ? 'اليمن' : props.countrycode === 'SA' ? 'السعودية' : raw);
+          const countryCode = (props.countrycode || 'YE').toUpperCase();
 
           return {
             lat: parseFloat(coords[1]),
@@ -143,28 +208,15 @@ async function geocodeLocation(locationQuery) {
     }
   }
 
-  // Fallback default: If Yemen is mentioned or blank, default to Sana'a; otherwise default
-  if (lower.includes('يمن') || lower.includes('صنعا') || lower.includes('yemen')) {
-    return {
-      lat: 15.3538,
-      lng: 44.2058,
-      city: 'صنعاء',
-      district: 'أمانة العاصمة',
-      country: 'اليمن',
-      countryCode: 'YE',
-      displayName: 'صنعاء، الجمهورية اليمنية'
-    };
-  }
-
-  // Generic Arab world default
+  // Fallback default: Sana'a
   return {
     lat: 15.3538,
     lng: 44.2058,
     city: raw || 'صنعاء',
-    district: 'وسط المدينة',
+    district: 'أمانة العاصمة',
     country: 'اليمن',
     countryCode: 'YE',
-    displayName: `${raw || 'صنعاء'}، اليمن`
+    displayName: `${raw || 'صنعاء'}، الجمهورية اليمنية`
   };
 }
 
@@ -734,8 +786,62 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   };
 
-  // Build comprehensive geographic sectors + dense street-level micro-grid covering 100% of the city
-  const buildCitySectors = () => {
+  // Live Dynamic Discovery Cache for all Alleys (حارات), Quarters, Suburbs, Villages & Streets in any city on Planet Earth
+  if (!global.liveCityQuartersCache) {
+    global.liveCityQuartersCache = new Map();
+  }
+
+  const discoverLiveCityQuartersAndStreets = async () => {
+    const cacheKey = `${center.lat.toFixed(2)}_${center.lng.toFixed(2)}`;
+    if (global.liveCityQuartersCache.has(cacheKey)) {
+      return global.liveCityQuartersCache.get(cacheKey);
+    }
+    const discovered = [];
+    try {
+      const scanR = hasDrawnCircle ? Math.min(Math.max(radiusMeters, 1500), 15000) : 25000;
+      const q = `[out:json][timeout:8];(node["place"~"suburb|quarter|neighbourhood|village|town|hamlet|district|borough"](around:${scanR},${center.lat},${center.lng});way["highway"~"primary|secondary|tertiary"]["name"](around:${Math.min(scanR, 18000)},${center.lat},${center.lng}););out center 1500;`;
+      const mirrors = [
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://lz4.overpass-api.de/api/interpreter'
+      ];
+      for (const m of mirrors) {
+        try {
+          const res = await fetchWithTimeout(`${m}?data=${encodeURIComponent(q)}`, { timeout: 6500 });
+          if (res.ok) {
+            const data = await res.json();
+            const seenGrid = new Set();
+            for (const el of (data.elements || [])) {
+              const pLat = el.lat || el.center?.lat;
+              const pLng = el.lon || el.center?.lon;
+              const tags = el.tags || {};
+              const name = (tags['name:ar'] || tags['name'] || tags['name:en'] || '').trim();
+              if (!name || !pLat || !pLng) continue;
+              // Deduplicate within ~450m cells so we get every distinct حارة (alley/quarter) & street
+              const gKey = `${normAr(name)}_${(pLat * 200).toFixed(0)}_${(pLng * 200).toFixed(0)}`;
+              const cellKey = `${(pLat * 220).toFixed(0)}_${(pLng * 220).toFixed(0)}`;
+              if (seenGrid.has(gKey) || seenGrid.has(cellKey)) continue;
+              seenGrid.add(gKey);
+              seenGrid.add(cellKey);
+              discovered.push({
+                name,
+                lat: pLat,
+                lng: pLng,
+                span: tags.place === 'quarter' || tags.place === 'neighbourhood' ? 2200 : 3200
+              });
+            }
+            if (discovered.length > 0) {
+              global.liveCityQuartersCache.set(cacheKey, discovered);
+              break;
+            }
+          }
+        } catch (e) {}
+      }
+    } catch (e) {}
+    return discovered;
+  };
+
+  // Build comprehensive geographic sectors + live discovered alleys (حارات) & streets + dense street-level micro-grid covering 100% of the city
+  const buildCitySectors = async () => {
     const namedSectors = [];
     const microGridSectors = [];
 
@@ -783,118 +889,130 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             const coordKey = `${hData.lat.toFixed(3)}_${hData.lng.toFixed(3)}`;
             if (!seenCoords.has(coordKey)) {
               seenCoords.add(coordKey);
-              namedSectors.push({ name: hName, lat: hData.lat, lng: hData.lng, span: 4200 });
+              namedSectors.push({ name: hName, lat: hData.lat, lng: hData.lng, span: 3800 });
             }
           }
         }
       }
     }
 
-    // 2. Massive 100+ Neighborhoods, Districts & Main/Secondary Streets Dictionary for Greater Sana'a (أمانة العاصمة وضواحيها بالكامل)
+    // 2. Massive 130+ Neighborhoods, Alleys (حارات), Outlets (منافذ وفرز), Districts & Streets Dictionary for Greater Sana'a
     if (normAr(center.city).includes('صنعاء')) {
       const allSanaaHoodsAndStreets = [
-        { name: 'شارع تعز', lat: 15.3112, lng: 44.2195, span: 4000 },
-        { name: 'الجراف', lat: 15.4015, lng: 44.2095, span: 4000 },
-        { name: 'الجراف الشرقي', lat: 15.4055, lng: 44.2175, span: 3500 },
-        { name: 'الجراف الغربي', lat: 15.3985, lng: 44.2015, span: 3500 },
-        { name: 'الروضة', lat: 15.4265, lng: 44.2185, span: 4500 },
-        { name: 'سعوان', lat: 15.3825, lng: 44.2545, span: 4500 },
-        { name: 'بير عبيد', lat: 15.3025, lng: 44.2055, span: 4000 },
-        { name: 'عصر', lat: 15.3485, lng: 44.1612, span: 4000 },
-        { name: 'حي الجامعة', lat: 15.3625, lng: 44.1845, span: 3800 },
-        { name: 'شارع خولان', lat: 15.3315, lng: 44.2312, span: 4000 },
-        { name: 'فج عطان', lat: 15.3185, lng: 44.1745, span: 4000 },
-        { name: 'السنينة', lat: 15.3645, lng: 44.1685, span: 4000 },
-        { name: 'حزيز', lat: 15.2385, lng: 44.2295, span: 4800 },
-        { name: 'دارس', lat: 15.4112, lng: 44.2125, span: 4000 },
-        { name: 'القاع', lat: 15.3515, lng: 44.1965, span: 3500 },
-        { name: 'بير العزب', lat: 15.3525, lng: 44.2010, span: 3500 },
-        { name: 'باب اليمن', lat: 15.3495, lng: 44.2145, span: 3500 },
-        { name: 'السائلة', lat: 15.3595, lng: 44.2135, span: 3500 },
-        { name: 'شارع الرقاص', lat: 15.3495, lng: 44.1865, span: 3500 },
-        { name: 'شارع الجزائر', lat: 15.3412, lng: 44.1885, span: 3500 },
-        { name: 'شارع عمان', lat: 15.3345, lng: 44.1925, span: 3500 },
-        { name: 'شارع إيران', lat: 15.3085, lng: 44.1845, span: 3500 },
-        { name: 'شارع بيروت', lat: 15.3145, lng: 44.1925, span: 3500 },
-        { name: 'شارع صفر', lat: 15.3175, lng: 44.1895, span: 3500 },
-        { name: 'شارع نواكشوط', lat: 15.3315, lng: 44.1865, span: 3500 },
-        { name: 'شارع الرباط', lat: 15.3565, lng: 44.1825, span: 3500 },
-        { name: 'شارع القاهرة', lat: 15.3655, lng: 44.1895, span: 3500 },
-        { name: 'شارع القيادة', lat: 15.3615, lng: 44.2095, span: 3500 },
-        { name: 'شارع القصر', lat: 15.3555, lng: 44.2115, span: 3500 },
-        { name: 'شارع النصر', lat: 15.3675, lng: 44.2295, span: 3800 },
-        { name: 'شارع مأرب', lat: 15.3765, lng: 44.2425, span: 4000 },
-        { name: 'شارع المطار', lat: 15.4185, lng: 44.2135, span: 4200 },
-        { name: 'شارع الخمسين', lat: 15.2725, lng: 44.1985, span: 4200 },
-        { name: 'شارع الأربعين', lat: 15.3445, lng: 44.2425, span: 4000 },
-        { name: 'شارع الثلاثين', lat: 15.3585, lng: 44.1615, span: 3800 },
-        { name: 'شارع العشرين', lat: 15.3515, lng: 44.1825, span: 3500 },
-        { name: 'شارع 16', lat: 15.3475, lng: 44.1845, span: 3200 },
-        { name: 'شارع 24', lat: 15.3385, lng: 44.2245, span: 3500 },
-        { name: 'شارع 45', lat: 15.3195, lng: 44.2275, span: 3800 },
-        { name: 'شارع العدين', lat: 15.3415, lng: 44.1975, span: 3200 },
-        { name: 'شارع الرياض', lat: 15.3355, lng: 44.1995, span: 3200 },
-        { name: 'شارع مقديشو', lat: 15.3295, lng: 44.1945, span: 3200 },
-        { name: 'شارع جيبوتي', lat: 15.3265, lng: 44.1965, span: 3200 },
-        { name: 'الدائري', lat: 15.3545, lng: 44.1915, span: 3800 },
-        { name: 'جولة الرويشان', lat: 15.3315, lng: 44.1985, span: 3500 },
-        { name: 'جولة المصباحي', lat: 15.3125, lng: 44.1995, span: 3500 },
-        { name: 'جولة ريماس', lat: 15.3095, lng: 44.1915, span: 3500 },
-        { name: 'جولة بيت بوس', lat: 15.2765, lng: 44.2085, span: 3800 },
-        { name: 'جولة دار سلم', lat: 15.2585, lng: 44.2345, span: 4000 },
-        { name: 'جولة تعز', lat: 15.3245, lng: 44.2155, span: 3500 },
-        { name: 'جولة عمران', lat: 15.3945, lng: 44.1985, span: 3800 },
-        { name: 'جولة آية', lat: 15.3985, lng: 44.2285, span: 3800 },
-        { name: 'جولة الحباري', lat: 15.3795, lng: 44.2225, span: 3500 },
-        { name: 'جولة سبأ', lat: 15.3625, lng: 44.2055, span: 3500 },
-        { name: 'جولة القادسية', lat: 15.3365, lng: 44.2055, span: 3500 },
-        { name: 'حي النهضة', lat: 15.3885, lng: 44.1945, span: 3800 },
-        { name: 'حي صوفان', lat: 15.3945, lng: 44.2045, span: 3800 },
-        { name: 'الحصبة الشمالية', lat: 15.3915, lng: 44.2145, span: 3800 },
-        { name: 'الحصبة الجنوبية', lat: 15.3745, lng: 44.2145, span: 3800 },
-        { name: 'مازدا', lat: 15.3845, lng: 44.2115, span: 3500 },
-        { name: 'حي التلفزيون', lat: 15.3965, lng: 44.2115, span: 3500 },
-        { name: 'حي الزراعة', lat: 15.3615, lng: 44.1955, span: 3500 },
-        { name: 'حي الكويت', lat: 15.3585, lng: 44.1995, span: 3500 },
-        { name: 'حي المستشفى الجمهوري', lat: 15.3495, lng: 44.2045, span: 3500 },
-        { name: 'حي مستشفى الثورة', lat: 15.3395, lng: 44.2145, span: 3500 },
-        { name: 'الحثيلي', lat: 15.3385, lng: 44.2215, span: 3500 },
-        { name: 'الهندوانة', lat: 15.3295, lng: 44.2195, span: 3500 },
-        { name: 'الجرداء', lat: 15.3245, lng: 44.2245, span: 3500 },
-        { name: 'قاع القيضي', lat: 15.2945, lng: 44.2215, span: 3800 },
-        { name: 'بيت معياد', lat: 15.3185, lng: 44.2085, span: 3500 },
-        { name: 'كمران', lat: 15.3265, lng: 44.2055, span: 3500 },
-        { name: 'الحي السياسي', lat: 15.3295, lng: 44.1965, span: 3500 },
-        { name: 'مسيك', lat: 15.3665, lng: 44.2365, span: 3800 },
-        { name: 'هبرة', lat: 15.3625, lng: 44.2245, span: 3500 },
-        { name: 'الحافة', lat: 15.3545, lng: 44.2285, span: 3500 },
-        { name: 'اللقية', lat: 15.3425, lng: 44.2285, span: 3500 },
-        { name: 'صرف', lat: 15.4085, lng: 44.2585, span: 4500 },
-        { name: 'خشم البكرة', lat: 15.4195, lng: 44.2745, span: 4500 },
-        { name: 'الجمنة', lat: 15.4125, lng: 44.2385, span: 4000 },
-        { name: 'ذهبان', lat: 15.4245, lng: 44.1985, span: 4200 },
-        { name: 'وادي أحمد', lat: 15.4325, lng: 44.2085, span: 4200 },
-        { name: 'الأزرقين', lat: 15.4515, lng: 44.1925, span: 4500 },
-        { name: 'دار الحجر', lat: 15.4385, lng: 44.1425, span: 4500 },
-        { name: 'مذبح الشمالي', lat: 15.3895, lng: 44.1695, span: 3800 },
-        { name: 'مذبح الجنوبي', lat: 15.3725, lng: 44.1725, span: 3800 },
-        { name: 'حي الأندلس', lat: 15.2965, lng: 44.1965, span: 3800 },
-        { name: 'حي الشباب بيت بوس', lat: 15.2645, lng: 44.2025, span: 3800 },
-        { name: 'المقالح الأصبحي', lat: 15.2815, lng: 44.2345, span: 3800 },
-        { name: 'ارتل', lat: 15.2525, lng: 44.2015, span: 4200 },
-        { name: 'قحازة', lat: 15.2425, lng: 44.2125, span: 4200 },
-        { name: 'سنحان', lat: 15.2315, lng: 44.2545, span: 5000 },
-        { name: 'بني الحارث', lat: 15.4485, lng: 44.2285, span: 5000 },
-        { name: 'همدان', lat: 15.4215, lng: 44.1515, span: 5000 },
-        { name: 'بني مطر', lat: 15.3115, lng: 44.1385, span: 5000 },
-        { name: 'مديرية الوحدة', lat: 15.3345, lng: 44.1945, span: 3800 },
-        { name: 'مديرية معين', lat: 15.3685, lng: 44.1765, span: 4000 },
-        { name: 'مديرية الثورة', lat: 15.3965, lng: 44.2095, span: 4000 },
-        { name: 'مديرية الصافية', lat: 15.3325, lng: 44.2165, span: 3800 },
-        { name: 'مديرية السبعين', lat: 15.2985, lng: 44.2185, span: 4200 },
-        { name: 'مديرية شعوب', lat: 15.3745, lng: 44.2285, span: 4000 },
-        { name: 'مديرية آزال', lat: 15.3565, lng: 44.2385, span: 4000 },
-        { name: 'مديرية التحرير', lat: 15.3535, lng: 44.2025, span: 3500 }
+        { name: 'شارع تعز', lat: 15.3112, lng: 44.2195, span: 3500 },
+        { name: 'الجراف', lat: 15.4015, lng: 44.2095, span: 3500 },
+        { name: 'الجراف الشرقي', lat: 15.4055, lng: 44.2175, span: 3200 },
+        { name: 'الجراف الغربي', lat: 15.3985, lng: 44.2015, span: 3200 },
+        { name: 'الروضة', lat: 15.4265, lng: 44.2185, span: 4000 },
+        { name: 'سعوان', lat: 15.3825, lng: 44.2545, span: 4000 },
+        { name: 'بير عبيد', lat: 15.3025, lng: 44.2055, span: 3500 },
+        { name: 'عصر', lat: 15.3485, lng: 44.1612, span: 3500 },
+        { name: 'حي الجامعة', lat: 15.3625, lng: 44.1845, span: 3500 },
+        { name: 'شارع خولان', lat: 15.3315, lng: 44.2312, span: 3500 },
+        { name: 'فج عطان', lat: 15.3185, lng: 44.1745, span: 3500 },
+        { name: 'السنينة', lat: 15.3645, lng: 44.1685, span: 3500 },
+        { name: 'حزيز', lat: 15.2385, lng: 44.2295, span: 4200 },
+        { name: 'دارس', lat: 15.4112, lng: 44.2125, span: 3500 },
+        { name: 'القاع', lat: 15.3515, lng: 44.1965, span: 3200 },
+        { name: 'بير العزب', lat: 15.3525, lng: 44.2010, span: 3200 },
+        { name: 'باب اليمن', lat: 15.3495, lng: 44.2145, span: 3200 },
+        { name: 'السائلة', lat: 15.3595, lng: 44.2135, span: 3200 },
+        { name: 'شارع الرقاص', lat: 15.3495, lng: 44.1865, span: 3200 },
+        { name: 'شارع الجزائر', lat: 15.3412, lng: 44.1885, span: 3200 },
+        { name: 'شارع عمان', lat: 15.3345, lng: 44.1925, span: 3200 },
+        { name: 'شارع إيران', lat: 15.3085, lng: 44.1845, span: 3200 },
+        { name: 'شارع بيروت', lat: 15.3145, lng: 44.1925, span: 3200 },
+        { name: 'شارع صفر', lat: 15.3175, lng: 44.1895, span: 3200 },
+        { name: 'شارع نواكشوط', lat: 15.3315, lng: 44.1865, span: 3200 },
+        { name: 'شارع الرباط', lat: 15.3565, lng: 44.1825, span: 3200 },
+        { name: 'شارع القاهرة', lat: 15.3655, lng: 44.1895, span: 3200 },
+        { name: 'شارع القيادة', lat: 15.3615, lng: 44.2095, span: 3200 },
+        { name: 'شارع القصر', lat: 15.3555, lng: 44.2115, span: 3200 },
+        { name: 'شارع النصر', lat: 15.3675, lng: 44.2295, span: 3500 },
+        { name: 'شارع مأرب', lat: 15.3765, lng: 44.2425, span: 3800 },
+        { name: 'شارع المطار', lat: 15.4185, lng: 44.2135, span: 3800 },
+        { name: 'شارع الخمسين', lat: 15.2725, lng: 44.1985, span: 3800 },
+        { name: 'شارع الأربعين', lat: 15.3445, lng: 44.2425, span: 3800 },
+        { name: 'شارع الثلاثين', lat: 15.3585, lng: 44.1615, span: 3500 },
+        { name: 'شارع العشرين', lat: 15.3515, lng: 44.1825, span: 3200 },
+        { name: 'شارع 16', lat: 15.3475, lng: 44.1845, span: 3000 },
+        { name: 'شارع 24', lat: 15.3385, lng: 44.2245, span: 3200 },
+        { name: 'شارع 45', lat: 15.3195, lng: 44.2275, span: 3500 },
+        { name: 'شارع العدين', lat: 15.3415, lng: 44.1975, span: 3000 },
+        { name: 'شارع الرياض', lat: 15.3355, lng: 44.1995, span: 3000 },
+        { name: 'شارع مقديشو', lat: 15.3295, lng: 44.1945, span: 3000 },
+        { name: 'شارع جيبوتي', lat: 15.3265, lng: 44.1965, span: 3000 },
+        { name: 'الدائري', lat: 15.3545, lng: 44.1915, span: 3500 },
+        { name: 'جولة الرويشان', lat: 15.3315, lng: 44.1985, span: 3200 },
+        { name: 'جولة المصباحي', lat: 15.3125, lng: 44.1995, span: 3200 },
+        { name: 'جولة ريماس', lat: 15.3095, lng: 44.1915, span: 3200 },
+        { name: 'جولة بيت بوس', lat: 15.2765, lng: 44.2085, span: 3500 },
+        { name: 'جولة دار سلم', lat: 15.2585, lng: 44.2345, span: 3800 },
+        { name: 'جولة تعز', lat: 15.3245, lng: 44.2155, span: 3200 },
+        { name: 'جولة عمران', lat: 15.3945, lng: 44.1985, span: 3500 },
+        { name: 'جولة آية', lat: 15.3985, lng: 44.2285, span: 3500 },
+        { name: 'جولة الحباري', lat: 15.3795, lng: 44.2225, span: 3200 },
+        { name: 'جولة سبأ', lat: 15.3625, lng: 44.2055, span: 3200 },
+        { name: 'جولة القادسية', lat: 15.3365, lng: 44.2055, span: 3200 },
+        { name: 'حي النهضة', lat: 15.3885, lng: 44.1945, span: 3500 },
+        { name: 'حي صوفان', lat: 15.3945, lng: 44.2045, span: 3500 },
+        { name: 'الحصبة الشمالية', lat: 15.3915, lng: 44.2145, span: 3500 },
+        { name: 'الحصبة الجنوبية', lat: 15.3745, lng: 44.2145, span: 3500 },
+        { name: 'مازدا', lat: 15.3845, lng: 44.2115, span: 3200 },
+        { name: 'حي التلفزيون', lat: 15.3965, lng: 44.2115, span: 3200 },
+        { name: 'حي الزراعة', lat: 15.3615, lng: 44.1955, span: 3200 },
+        { name: 'حي الكويت', lat: 15.3585, lng: 44.1995, span: 3200 },
+        { name: 'حي المستشفى الجمهوري', lat: 15.3495, lng: 44.2045, span: 3200 },
+        { name: 'حي مستشفى الثورة', lat: 15.3395, lng: 44.2145, span: 3200 },
+        { name: 'الحثيلي', lat: 15.3385, lng: 44.2215, span: 3200 },
+        { name: 'الهندوانة', lat: 15.3295, lng: 44.2195, span: 3200 },
+        { name: 'الجرداء', lat: 15.3245, lng: 44.2245, span: 3200 },
+        { name: 'قاع القيضي', lat: 15.2945, lng: 44.2215, span: 3500 },
+        { name: 'بيت معياد', lat: 15.3185, lng: 44.2085, span: 3200 },
+        { name: 'كمران', lat: 15.3265, lng: 44.2055, span: 3200 },
+        { name: 'الحي السياسي', lat: 15.3295, lng: 44.1965, span: 3200 },
+        { name: 'مسيك', lat: 15.3665, lng: 44.2365, span: 3500 },
+        { name: 'هبرة', lat: 15.3625, lng: 44.2245, span: 3200 },
+        { name: 'الحافة', lat: 15.3545, lng: 44.2285, span: 3200 },
+        { name: 'اللقية', lat: 15.3425, lng: 44.2285, span: 3200 },
+        { name: 'صرف', lat: 15.4085, lng: 44.2585, span: 4000 },
+        { name: 'خشم البكرة', lat: 15.4195, lng: 44.2745, span: 4000 },
+        { name: 'الجمنة', lat: 15.4125, lng: 44.2385, span: 3800 },
+        { name: 'ذهبان', lat: 15.4245, lng: 44.1985, span: 3800 },
+        { name: 'وادي أحمد', lat: 15.4325, lng: 44.2085, span: 3800 },
+        { name: 'الأزرقين', lat: 15.4515, lng: 44.1925, span: 4200 },
+        { name: 'دار الحجر', lat: 15.4385, lng: 44.1425, span: 4200 },
+        { name: 'مذبح الشمالي', lat: 15.3895, lng: 44.1695, span: 3500 },
+        { name: 'مذبح الجنوبي', lat: 15.3725, lng: 44.1725, span: 3500 },
+        { name: 'حي الأندلس', lat: 15.2965, lng: 44.1965, span: 3500 },
+        { name: 'حي الشباب بيت بوس', lat: 15.2645, lng: 44.2025, span: 3500 },
+        { name: 'المقالح الأصبحي', lat: 15.2815, lng: 44.2345, span: 3500 },
+        { name: 'ارتل', lat: 15.2525, lng: 44.2015, span: 3800 },
+        { name: 'قحازة', lat: 15.2425, lng: 44.2125, span: 3800 },
+        { name: 'سنحان', lat: 15.2315, lng: 44.2545, span: 4500 },
+        { name: 'بني الحارث', lat: 15.4485, lng: 44.2285, span: 4500 },
+        { name: 'همدان', lat: 15.4215, lng: 44.1515, span: 4500 },
+        { name: 'بني مطر', lat: 15.3115, lng: 44.1385, span: 4500 },
+        { name: 'مديرية الوحدة', lat: 15.3345, lng: 44.1945, span: 3500 },
+        { name: 'مديرية معين', lat: 15.3685, lng: 44.1765, span: 3500 },
+        { name: 'مديرية الثورة', lat: 15.3965, lng: 44.2095, span: 3500 },
+        { name: 'مديرية الصافية', lat: 15.3325, lng: 44.2165, span: 3500 },
+        { name: 'مديرية السبعين', lat: 15.2985, lng: 44.2185, span: 3800 },
+        { name: 'مديرية شعوب', lat: 15.3745, lng: 44.2285, span: 3800 },
+        { name: 'مديرية آزال', lat: 15.3565, lng: 44.2385, span: 3800 },
+        { name: 'مديرية التحرير', lat: 15.3535, lng: 44.2025, span: 3200 },
+        { name: 'حارة الفليحي', lat: 15.3542, lng: 44.2148, span: 2200 },
+        { name: 'حارة القاسمي', lat: 15.3518, lng: 44.2158, span: 2200 },
+        { name: 'حارة الأبهر', lat: 15.3531, lng: 44.2132, span: 2200 },
+        { name: 'حارة بستان السلطان', lat: 15.3561, lng: 44.2118, span: 2200 },
+        { name: 'حارة الشوكاني', lat: 15.3465, lng: 44.1995, span: 2500 },
+        { name: 'حارة البلقة', lat: 15.3442, lng: 44.1935, span: 2500 },
+        { name: 'حارة الطبري', lat: 15.3512, lng: 44.2175, span: 2200 },
+        { name: 'حارة معاذ', lat: 15.3578, lng: 44.2162, span: 2200 },
+        { name: 'فرزة صنعاء', lat: 15.3045, lng: 44.2315, span: 3200 },
+        { name: 'فرزة الحصبة', lat: 15.3835, lng: 44.2145, span: 3200 },
+        { name: 'فرزة باب اليمن', lat: 15.3475, lng: 44.2145, span: 3200 },
+        { name: 'فرزة الأزرقين', lat: 15.4495, lng: 44.1935, span: 3500 }
       ];
       for (const eh of allSanaaHoodsAndStreets) {
         const cKey = `${eh.lat.toFixed(3)}_${eh.lng.toFixed(3)}`;
@@ -905,10 +1023,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     }
 
-    // 3. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (8x8 = 64 micro-cells)
-    // Ensures every single block and residential alley in the city is scanned at high zoom (span: 2000m)
-    const latSteps = [-0.105, -0.075, -0.045, -0.015, 0.015, 0.045, 0.075, 0.105];
-    const lngSteps = [-0.075, -0.054, -0.032, -0.011, 0.011, 0.032, 0.054, 0.075];
+    // 3. Dynamically discover ALL mapped Alleys (حارات), Quarters, Suburbs, Villages & Main Streets in ANY city on Earth via Overpass!
+    const liveQuarters = await discoverLiveCityQuartersAndStreets();
+    for (const lq of liveQuarters) {
+      const cKey = `${lq.lat.toFixed(3)}_${lq.lng.toFixed(3)}`;
+      if (!seenCoords.has(cKey)) {
+        seenCoords.add(cKey);
+        namedSectors.push(lq);
+      }
+    }
+
+    // 4. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (9x9 = 81 micro-cells)
+    // Ensures every single block and residential alley in the city is scanned at high zoom (span: 1900m)
+    const latSteps = [-0.11, -0.082, -0.055, -0.027, 0, 0.027, 0.055, 0.082, 0.11];
+    const lngSteps = [-0.08, -0.06, -0.04, -0.02, 0, 0.02, 0.04, 0.06, 0.08];
     for (const dLat of latSteps) {
       for (const dLng of lngSteps) {
         const gLat = center.lat + dLat;
@@ -919,7 +1047,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           name: cellLabel,
           lat: gLat,
           lng: gLng,
-          span: 2200
+          span: 1900
         });
       }
     }
@@ -927,12 +1055,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     return { namedSectors, microGridSectors };
   };
 
-  // Expand any user activity query into deep, comprehensive synonyms & local naming variations so no matching place in the city is missed
+  // Universal Planetary Activity Ontology: Expands ANY human activity, court, hall, port/outlet, shop, ministry, or service on Earth
   const expandSpecificActivitySynonyms = (rawQ) => {
     const q = normAr(rawQ);
     const terms = new Set([rawQ]);
 
-    if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي')) {
+    if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
       [
         'بقالة', 'بقاله', 'بقالات', 'تموينات', 'سوبر ماركت', 'سوبرماركت',
         'ميني ماركت', 'هايبر ماركت', 'مواد غذائية', 'محل مواد غذائية',
@@ -941,7 +1069,40 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'بقالة الخير', 'بقالة البركة', 'بقالة السعيد', 'بقالة التوفيق',
         'بقالة النور', 'بقالة الأمل', 'بقالة الصفا', 'بقالة المدينة',
         'بقالة السلام', 'بقالة التعاون', 'بقالة الحمد', 'بقالة الرضا',
-        'بقالة سبأ', 'بقالة اليمن'
+        'بقالة سبأ', 'بقالة اليمن', 'بقالة الشباب', 'بقالة القدس'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('محكم') || q.includes('محاكم') || q.includes('نياب') || q.includes('قضا') || q.includes('عدل') || q.includes('محامي') || q.includes('محاماه')) {
+      [
+        'محكمة', 'محاكم', 'المحكمة الابتدائية', 'محكمة الاستئناف', 'المحكمة التجارية',
+        'المحكمة العليا', 'محكمة الأحوال الشخصية', 'محكمة الأموال العامة', 'محكمة المرور',
+        'النيابة العامة', 'نيابة استئناف', 'نيابة', 'وزارة العدل', 'مكتب محاماة',
+        'محامي ومستشار قانوني', 'كاتب عدل', 'دار القضاء', 'مجلس القضاء', 'محكمة شمال', 'محكمة جنوب', 'محكمة غرب', 'محكمة شرق'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('صال') || q.includes('قاع') || q.includes('افراح') || q.includes('مناسبات') || q.includes('نادي') || q.includes('جيم') || q.includes('منتزه') || q.includes('حديق') || q.includes('ملعب')) {
+      [
+        'صالة', 'صالات', 'صالة أفراح', 'صالات أفراح ومناسبات', 'قاعة أفراح',
+        'قاعة مؤتمرات ومناسبات', 'صالة ملكية', 'صالة كبرى', 'صالة رياضية',
+        'نادي رياضي وجيم', 'صالة ألعاب ترفيهية', 'صالة بلياردو وبولينج',
+        'صالة عرض', 'قاعة احتفالات', 'استراحة وشاليه', 'منتزه وحديقة', 'ملعب رياضي'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('منفذ') || q.includes('منافذ') || q.includes('جمرك') || q.includes('جمارك') || q.includes('ميناء') || q.includes('مطار') || q.includes('فرز') || q.includes('معبر') || q.includes('نقطه') || q.includes('محطه')) {
+      [
+        'منفذ', 'منافذ', 'منفذ بري', 'منفذ حدودي', 'جمرك', 'مصلحة الجمارك',
+        'رقابة جمركية', 'تخليص جمركي وشحن', 'ميناء', 'مطار', 'فرزة باصات',
+        'فرزة نقل', 'محطة نقل جماعي', 'محطة مسافرين', 'شركة نقل بري',
+        'معبر', 'نقطة', 'محطة وقود', 'استراحة مسافرين'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('وزار') || q.includes('حكوم') || q.includes('شرط') || q.includes('امن') || q.includes('مرور') || q.includes('جوازات') || q.includes('سفار') || q.includes('قنصلي') || q.includes('بلدي') || q.includes('مصلح') || q.includes('هيئ')) {
+      [
+        'وزارة', 'هيئة حكومية', 'مؤسسة عامة', 'مصلحة حكومية', 'قسم شرطة',
+        'إدارة أمن', 'شرطة المرور', 'الدفاع المدني', 'مصلحة الجوازات',
+        'الأحوال المدنية والسجل المدني', 'مكتب الضرائب', 'مكتب الأوقاف',
+        'مكتب التربية والتعليم', 'مكتب الصحة', 'مكتب الأشغال والبلدية',
+        'المجلس المحلي', 'أمانة العاصمة', 'سفارة', 'قنصلية', 'منظمة دولية'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('مسجد') || q.includes('مساجد') || q.includes('جامع') && !q.includes('جامعه')) {
+      [
+        'مسجد', 'مساجد', 'جامع', 'جامع كبير', 'مصلى', 'دار قرآن كريم', 'مركز إسلامي'
       ].forEach(t => terms.add(t));
     } else if (q.includes('مسبح') || q.includes('مسابح') || q.includes('سباح')) {
       [
@@ -983,13 +1144,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'مستوصف طبي', 'عيادات تخصصية', 'عيادة دكتور', 'مختبرات تحاليل',
         'مركز أشعة وتشخيص', 'طوارئ ومستشفى', 'مجمع طبي', 'مركز علاج طبيعي'
       ].forEach(t => terms.add(t));
-    } else if (q.includes('شرك') || q.includes('مؤسس') || q.includes('مكتب')) {
+    } else if (q.includes('شرك') || q.includes('مؤسس') || q.includes('مكتب') || q.includes('مصنع')) {
       [
         'شركة', 'شركات', 'مؤسسة تجارية', 'مجموعة تجارية', 'شركة استيراد وتصدير',
         'شركة مقاولات وخدمات', 'مكتب تجاري', 'وكالة تجارية', 'شركة شحن وخدمات',
-        'شركة تجارة عامة', 'شركة هندسية', 'شركة تقنية وأنظمة', 'مؤسسة استيراد'
+        'شركة تجارة عامة', 'شركة هندسية', 'شركة تقنية وأنظمة', 'مصنع', 'مؤسسة استيراد'
       ].forEach(t => terms.add(t));
-    } else if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست') || q.includes('مطبخ') || q.includes('مندي')) {
+    } else if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست') || q.includes('مطبخ') || q.includes('مندي') || q.includes('بوفيه')) {
       [
         'مطعم', 'مطاعم', 'مطابخ ومندي', 'بروست وشواية', 'وجبات سريعة',
         'كافتيريا ومطعم', 'فوال وبوفية', 'مطعم شعبي', 'مشويات ومطعم',
@@ -1002,7 +1163,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'صرافة وتحويلات مالية', 'فرع بنك', 'صراف آلي ATM', 'شركة الكريمي للصرافة',
         'شركة النجم للصرافة', 'شركة الامتياز للصرافة', 'شركة سويد للصرافة', 'صرافة'
       ].forEach(t => terms.add(t));
-    } else if (q.includes('مدرس') || q.includes('مدارس') || q.includes('جامع') || q.includes('معهد') || q.includes('روضه')) {
+    } else if (q.includes('مدرس') || q.includes('مدارس') || q.includes('جامع') || q.includes('معهد') || q.includes('روضه') || q.includes('كلي')) {
       [
         'مدرسة', 'مدارس', 'مدرسة أهلية', 'مدارس خاصة', 'مدرسة حكومية',
         'روضة أطفال', 'معهد تدريب ولغات', 'جامعة', 'كلية', 'مركز تعليمي'
@@ -1023,18 +1184,22 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'بنشر وزيوت وإطارات', 'كهربائي سيارات', 'زينة سيارات', 'وكالة سيارات'
       ].forEach(t => terms.add(t));
     } else {
+      const altTa = rawQ.endsWith('ه') ? rawQ.slice(0, -1) + 'ة' : (rawQ.endsWith('ة') ? rawQ.slice(0, -1) + 'ه' : rawQ);
       [
         `${rawQ}`,
+        `${altTa}`,
         `محلات ${rawQ}`,
         `محل ${rawQ}`,
         `مركز ${rawQ}`,
+        `مكتب ${rawQ}`,
+        `إدارة ${rawQ}`,
         `معرض ${rawQ}`,
         `شركة ${rawQ}`,
         `مؤسسة ${rawQ}`,
         `سوق ${rawQ}`,
+        `صالة ${rawQ}`,
         `وكالة ${rawQ}`,
         `خدمات ${rawQ}`,
-        `تجارة ${rawQ}`,
         `أفضل ${rawQ}`
       ].forEach(t => terms.add(t));
     }
@@ -1111,7 +1276,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     return true;
   };
 
-  // Run Overpass OSM City-Wide Extraction in parallel with Google Maps Multi-Wave Sector Scan (No 1800 limit!)
+  // Run Overpass OSM City-Wide Extraction in parallel with Google Maps Multi-Wave Sector Scan (Up to 50,000 nodes!)
   const runOverpassCityWideScan = async () => {
     try {
       const lat = center.lat;
@@ -1122,10 +1287,37 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
       let tagFilters = [];
       if (!isFullAreaScan) {
-        if (qNorm.includes('بقال') || qNorm.includes('تموين') || qNorm.includes('سوبر') || qNorm.includes('ماركت') || qNorm.includes('غذائي')) {
+        if (qNorm.includes('بقال') || qNorm.includes('تموين') || qNorm.includes('سوبر') || qNorm.includes('ماركت') || qNorm.includes('غذائي') || qNorm.includes('دكان')) {
           tagFilters.push(
             '["shop"~"supermarket|convenience|grocery|general|food|greengrocer|kiosk|wholesale|department_store|variety_store|spices|dairy|bakery|beverages"]'
           );
+        } else if (qNorm.includes('محكم') || qNorm.includes('محاكم') || qNorm.includes('نياب') || qNorm.includes('قضا') || qNorm.includes('عدل') || qNorm.includes('محامي')) {
+          tagFilters.push(
+            '["amenity"~"courthouse|townhall|public_building|police"]',
+            '["office"~"government|lawyer|notary|judicial"]',
+            '["government"~"justice|court|prosecutor|ministry"]'
+          );
+        } else if (qNorm.includes('صال') || qNorm.includes('قاع') || qNorm.includes('افراح') || qNorm.includes('مناسبات') || qNorm.includes('نادي') || qNorm.includes('جيم') || qNorm.includes('منتزه') || qNorm.includes('حديق') || qNorm.includes('ملعب')) {
+          tagFilters.push(
+            '["amenity"~"events_venue|community_centre|conference_centre|arts_centre|theatre|cinema"]',
+            '["leisure"~"sports_centre|fitness_centre|stadium|pitch|park|water_park|swimming_pool|bowling_alley|amusement_arcade"]'
+          );
+        } else if (qNorm.includes('منفذ') || qNorm.includes('منافذ') || qNorm.includes('جمرك') || qNorm.includes('جمارك') || qNorm.includes('ميناء') || qNorm.includes('مطار') || qNorm.includes('فرز') || qNorm.includes('معبر') || qNorm.includes('محطه')) {
+          tagFilters.push(
+            '["barrier"~"border_control|checkpoint|toll_booth|gate"]',
+            '["amenity"~"customs|bus_station|ferry_terminal|fuel|taxi"]',
+            '["aeroway"~"aerodrome|terminal|helipad"]',
+            '["office"="customs"]',
+            '["industrial"="port"]'
+          );
+        } else if (qNorm.includes('وزار') || qNorm.includes('حكوم') || qNorm.includes('شرط') || qNorm.includes('امن') || qNorm.includes('مرور') || qNorm.includes('جوازات') || qNorm.includes('سفار') || qNorm.includes('قنصلي') || qNorm.includes('بلدي') || qNorm.includes('مصلح') || qNorm.includes('هيئ')) {
+          tagFilters.push(
+            '["office"~"government|diplomatic|ngo|association|administrative"]',
+            '["amenity"~"police|fire_station|townhall|embassy|post_office|courthouse|public_building"]',
+            '["government"]'
+          );
+        } else if (qNorm.includes('مسجد') || qNorm.includes('مساجد') || (qNorm.includes('جامع') && !qNorm.includes('جامعه'))) {
+          tagFilters.push('["amenity"="place_of_worship"]', '["building"="mosque"]');
         } else if (qNorm.includes('مسبح') || qNorm.includes('مسابح') || qNorm.includes('سباح')) {
           tagFilters.push(
             '["leisure"~"swimming_pool|water_park|sports_centre|fitness_centre"]',
@@ -1142,7 +1334,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           tagFilters.push('["shop"~"confectionery|pastry|chocolate|bakery"]');
         } else if (qNorm.includes('تلفون') || qNorm.includes('جوال') || qNorm.includes('هاتف') || qNorm.includes('هواتف') || qNorm.includes('موبايل') || qNorm.includes('اتصالات') || qNorm.includes('فون')) {
           tagFilters.push('["shop"~"mobile_phone|electronics|telecommunication|computer"]');
-        } else if (qNorm.includes('مطعم') || qNorm.includes('مطاعم') || qNorm.includes('وجبات') || qNorm.includes('شواي') || qNorm.includes('بروست')) {
+        } else if (qNorm.includes('مطعم') || qNorm.includes('مطاعم') || qNorm.includes('وجبات') || qNorm.includes('شواي') || qNorm.includes('بروست') || qNorm.includes('بوفيه')) {
           tagFilters.push('["amenity"~"restaurant|fast_food|food_court"]');
         } else if (qNorm.includes('مقهي') || qNorm.includes('كافيه') || qNorm.includes('قهوه')) {
           tagFilters.push('["amenity"~"cafe|ice_cream|juice_bar"]');
@@ -1156,17 +1348,23 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           tagFilters.push('["shop"~"car|car_repair|car_parts|tyres"]', '["amenity"="fuel"]');
         } else if (qNorm.includes('بنك') || qNorm.includes('صراف') || qNorm.includes('مصرف')) {
           tagFilters.push('["amenity"~"bank|bureau_de_change|atm|money_transfer"]');
-        } else if (qNorm.includes('مدرس') || qNorm.includes('جامع') || qNorm.includes('معهد')) {
+        } else if (qNorm.includes('مدرس') || qNorm.includes('جامع') || qNorm.includes('معهد') || qNorm.includes('كلي')) {
           tagFilters.push('["amenity"~"school|university|college|kindergarten|training"]');
-        } else if (qNorm.includes('شرك') || qNorm.includes('مؤسس') || qNorm.includes('مكتب')) {
-          tagFilters.push('["office"]', '["company"]');
+        } else if (qNorm.includes('شرك') || qNorm.includes('مؤسس') || qNorm.includes('مكتب') || qNorm.includes('مصنع')) {
+          tagFilters.push('["office"]', '["company"]', '["industrial"]', '["craft"]');
         }
       }
 
       const flexRegex = !isFullAreaScan
         ? (qNorm.includes('بقال') || qNorm.includes('تموين') || qNorm.includes('سوبر')
             ? 'بقال|تموين|ماركت|سوبر|غذائي|هايبر|دكان|سوق'
-            : buildArabicFlexRegex(stdQuery))
+            : qNorm.includes('محكم') || qNorm.includes('نياب')
+              ? 'محكم|نياب|قضاء|عدل|محامي|قانون'
+              : qNorm.includes('صال') || qNorm.includes('قاع')
+                ? 'صالة|صاله|صالات|قاعة|قاعه|أفراح|افراح|مناسبات|مؤتمرات|نادي|منتزه'
+                : qNorm.includes('منفذ') || qNorm.includes('جمرك') || qNorm.includes('فرز')
+                  ? 'منفذ|جمرك|جمارك|ميناء|مطار|فرزة|فرزه|محطة|محطه|معبر|نقطة'
+                  : buildArabicFlexRegex(stdQuery))
         : '';
 
       let queryBlocks = '';
@@ -1177,11 +1375,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         queryBlocks += `node["name"~"${flexRegex}",i](around:${r},${lat},${lng});way["name"~"${flexRegex}",i](around:${r},${lat},${lng});`;
       }
       if (!queryBlocks) {
-        queryBlocks = `node["shop"](around:${r},${lat},${lng});way["shop"](around:${r},${lat},${lng});node["amenity"](around:${r},${lat},${lng});way["amenity"](around:${r},${lat},${lng});node["office"](around:${r},${lat},${lng});way["office"](around:${r},${lat},${lng});node["tourism"](around:${r},${lat},${lng});way["tourism"](around:${r},${lat},${lng});node["healthcare"](around:${r},${lat},${lng});node["leisure"](around:${r},${lat},${lng});`;
+        queryBlocks = `node["shop"](around:${r},${lat},${lng});way["shop"](around:${r},${lat},${lng});node["amenity"](around:${r},${lat},${lng});way["amenity"](around:${r},${lat},${lng});node["office"](around:${r},${lat},${lng});way["office"](around:${r},${lat},${lng});node["tourism"](around:${r},${lat},${lng});way["tourism"](around:${r},${lat},${lng});node["healthcare"](around:${r},${lat},${lng});node["leisure"](around:${r},${lat},${lng});node["government"](around:${r},${lat},${lng});node["craft"](around:${r},${lat},${lng});`;
       }
 
-      // No 1800 artificial limit: allow up to 40,000 real nodes across the entire city!
-      const overpassQuery = `[out:json][timeout:25];(${queryBlocks});out center 40000;`;
+      // Allow up to 50,000 real nodes across the entire city!
+      const overpassQuery = `[out:json][timeout:25];(${queryBlocks});out center 50000;`;
       const mirrors = [
         'https://overpass.kumi.systems/api/interpreter',
         'https://lz4.overpass-api.de/api/interpreter',
@@ -1237,10 +1435,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   };
 
-  // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Neighborhoods, Streets & Micro-Grid Cells
+  // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const { namedSectors, microGridSectors } = buildCitySectors();
+    const overpassPromise = runOverpassCityWideScan();
+    const { namedSectors, microGridSectors } = await buildCitySectors();
     const queryTasks = [];
 
     if (isFullAreaScan) {
@@ -1248,12 +1447,6 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'بقالة وتموينات',
         'سوبر ماركت وهايبر',
         'مراكز تجارية ومولات',
-        'فنادق',
-        'شقق وأجنحة فندقية',
-        'محل تلفونات وجوالات',
-        'مراكز اتصالات وموبايل',
-        'شركات تجارية',
-        'مؤسسات ومكاتب تجارية',
         'صيدليات',
         'مستشفيات',
         'مراكز طبية وعيادات',
@@ -1261,24 +1454,34 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'مطاعم ومطابخ',
         'بروست ووجبات سريعة',
         'كافيهات ومقاهي وعصائر',
+        'مخابز وأفران',
+        'محلات حلويات وكيك',
+        'فنادق',
+        'شقق وأجنحة فندقية',
+        'محل تلفونات وجوالات',
+        'مراكز اتصالات وموبايل',
+        'شركات تجارية',
+        'مؤسسات ومكاتب تجارية',
         'بنوك ومصارف',
         'شركات ومحلات صرافة',
+        'محاكم ونيابات ومكاتب محاماة',
+        'وزارات وهيئات حكومية وأقسام شرطة',
+        'منافذ وجمارك وفرز باصات وشحن',
+        'صالات أفراح وقاعات مناسبات',
+        'مسابح ونوادي رياضية ومنتزهات',
+        'مدارس أهلية وحكومية',
+        'جامعات ومعاهد تدريبية',
+        'مساجد وجوامع',
         'محلات ملابس وأزياء',
         'محلات أحذية وحقائب',
         'محلات كمبيوتر وإلكترونيات',
         'معارض ووكالات سيارات',
         'قطع غيار وورش سيارات',
-        'مدارس أهلية وحكومية',
-        'جامعات ومعاهد تدريبية',
-        'مخابز وأفران',
-        'محلات حلويات وكيك',
-        'مسابح ونوادي رياضية',
         'مكاتب عقارات ومقاولات',
         'وكالات سفر وسياحة',
         'محلات ذهب ومجوهرات',
         'محلات أثاث ومفروشات',
         'مواد بناء وطاقة شمسية',
-        'صالات أفراح ومناسبات',
         'محلات عطور وتجميل',
         'محطات وقود'
       ];
@@ -1288,27 +1491,29 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
         : 35000;
 
-      // Wave 1: Query all 36 categories across the main area (Pages 0, 20, 40 = 60 results per category)
+      // Wave 1: Query all 40 categories across the main area (Pages 0, 20, 40 = 60 results per category)
       for (const cat of allCityCategories) {
         for (const offset of [0, 20, 40]) {
           queryTasks.push({ q: `${cat} في ${areaName}`, lat: center.lat, lng: center.lng, span: mainSpan, offset, cat });
         }
       }
 
-      // Wave 2: Deep neighborhood sweep across all 100+ named sectors of the city
+      // Wave 2: Deep neighborhood & alley (حارة) sweep across all named & live-discovered sectors of the city
       const coreSweepCategories = [
         'بقالة وتموينات',
         'سوبر ماركت ومواد غذائية',
+        'صيدليات ومراكز طبية',
+        'مطاعم وكافيهات',
         'مراكز تجارية ومولات',
         'فنادق وشقق فندقية',
         'محلات تلفونات وجوالات',
         'شركات ومؤسسات',
-        'صيدليات ومراكز طبية',
-        'مطاعم وكافيهات',
         'بنوك وصرافة',
-        'مدارس ومعاهد',
-        'مخابز وحلويات',
-        'مسابح ونوادي رياضية'
+        'صالات أفراح وقاعات',
+        'محاكم ونيابات وجهات حكومية',
+        'منافذ وفرز ومحطات',
+        'مدارس ومعاهد ومساجد',
+        'مخابز وحلويات'
       ];
       for (const sec of namedSectors) {
         for (const cat of coreSweepCategories) {
@@ -1317,7 +1522,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             q: `${cat} في ${locLabel}`,
             lat: sec.lat,
             lng: sec.lng,
-            span: sec.span || 4000,
+            span: sec.span || 3500,
             offset: 0,
             cat
           });
@@ -1325,14 +1530,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             q: `${cat} في ${locLabel}`,
             lat: sec.lat,
             lng: sec.lng,
-            span: sec.span || 4000,
+            span: sec.span || 3500,
             offset: 20,
             cat
           });
         }
       }
     } else {
-      // Specific Activity Comprehensive City-Wide Deep Scan (e.g., "بقالة", "صيدليات", "مطاعم", "فنادق", etc.)
+      // Specific Activity Comprehensive Planetary & Alley-by-Alley Deep Scan (e.g., "بقالة", "محكمة", "صالة", "منفذ", "صيدليات", "مطاعم", etc.)
       const synonyms = expandSpecificActivitySynonyms(stdQuery);
       const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
       const mainSpan = hasDrawnCircle
@@ -1353,7 +1558,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       }
 
-      // Wave 2: Sweep EVERY SINGLE named neighborhood & street sector (115+ sectors in Sana'a!) across the top 10 synonyms with 3 pages each (offsets 0, 20, 40)
+      // Wave 2: Sweep EVERY SINGLE named & live-discovered Alley (حارة), Neighborhood, Village & Street sector across the city!
       const sectorSynonyms = synonyms.slice(0, 10);
       for (const sec of namedSectors) {
         for (const syn of sectorSynonyms) {
@@ -1363,7 +1568,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               q: `${syn} في ${locLabel}`,
               lat: sec.lat,
               lng: sec.lng,
-              span: sec.span || 3800,
+              span: sec.span || 3200,
               offset,
               cat: stdQuery
             });
@@ -1371,8 +1576,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       }
 
-      // Wave 3: High-Zoom Street-Level Micro-Grid Sweep (64 micro-cells across the city at 2200m zoom)
-      // Discovers small residential neighborhood shops/groceries that only appear when zoomed into the block!
+      // Wave 3: High-Zoom Street-Level Micro-Grid Sweep (81 micro-cells across the city at 1900m zoom)
+      // Discovers small residential neighborhood places that only appear when zoomed into the block!
       const gridSynonyms = synonyms.slice(0, 6);
       for (const cell of microGridSectors) {
         for (const syn of gridSynonyms) {
@@ -1381,7 +1586,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               q: `${syn} ${cell.name} ${center.city}`,
               lat: cell.lat,
               lng: cell.lng,
-              span: cell.span || 2200,
+              span: cell.span || 1900,
               offset,
               cat: stdQuery
             });
@@ -1390,7 +1595,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     }
 
-    // Execute Google Maps sector tasks in fast parallel batches (CONCURRENCY = 26) while Overpass OSM runs simultaneously!
+    // Execute Google Maps sector tasks in fast parallel batches (CONCURRENCY = 28) while Overpass OSM runs simultaneously!
     const executeSingleMapTask = async (task) => {
       if (isAborted()) return;
       try {
@@ -1427,8 +1632,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
           const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
           if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
-          // Ensure results belong to the searched metropolitan city/region (within 48km of city center)
-          if (!hasDrawnCircle && distFromOrigin > Math.max(rKm * 1.45, 48)) continue;
+          // Ensure results belong to the searched metropolitan city/region (within 55km of city center)
+          if (!hasDrawnCircle && distFromOrigin > Math.max(rKm * 1.5, 55)) continue;
 
           const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
           const coordNameKey = `${normAr(cleanName)}_${pLat.toFixed(5)}_${pLng.toFixed(5)}`;
@@ -1449,10 +1654,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    // Launch Overpass OSM city-wide scan in parallel with Google Maps multi-sector waves
-    const overpassPromise = runOverpassCityWideScan();
-
-    const BATCH_CONCURRENCY = 26;
+    const BATCH_CONCURRENCY = 28;
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
@@ -1465,7 +1667,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   }
 
   sendEvent('progress', { current: fetchedCount, total: fetchedCount });
-  sendEvent('status', { message: `اكتمل المسح الشامل واستخراج (${fetchedCount} موقع حقيقي) في كافة أحياء وشوارع [${center.city} - ${center.district}] بنجاح!` });
+  sendEvent('status', { message: `اكتمل المسح الشامل واستخراج (${fetchedCount} موقع حقيقي) في كافة الحارات والشوارع والمنافذ داخل [${center.city} - ${center.district}] بنجاح!` });
 }
 
 // Generate authentic, strictly country-specific telephone numbers

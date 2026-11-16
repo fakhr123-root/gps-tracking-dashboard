@@ -676,30 +676,30 @@
                 type="text"
                 id="queryInput"
                 oninput="onQueryInputChange(this.value)"
-                placeholder="النشاط (مثال: فنادق، شركات...)"
+                placeholder="أي شيء (بقالة، صيدلية، مطعم، صالة، محكمة، منفذ...)"
                 class="w-full bg-transparent text-[11px] sm:text-xs text-white placeholder-slate-500 focus:outline-none font-bold"
               />
             </div>
 
-            <!-- City Input (4 cols on phone, 2 cols on computer) -->
+            <!-- City / Country Input (4 cols on phone, 2 cols on computer) -->
             <div class="col-span-4 lg:col-span-2 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-lg px-2 py-1.5 flex items-center gap-1 transition">
               <i data-lucide="map-pin" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-cyan-400 shrink-0"></i>
               <input
                 type="text"
                 id="locationInput"
                 value="صنعاء"
-                placeholder="المدينة"
+                placeholder="المدينة أو الدولة"
                 class="w-full bg-transparent text-[11px] sm:text-xs font-bold text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
 
-            <!-- Neighborhood Input (3 cols on phone, 2 cols on computer) -->
+            <!-- Neighborhood / Alley / Street Input (3 cols on phone, 2 cols on computer) -->
             <div class="col-span-3 lg:col-span-2 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-lg px-2 py-1.5 flex items-center gap-1 transition">
               <i data-lucide="navigation" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-teal-400 shrink-0"></i>
               <input
                 type="text"
                 id="neighborhoodInput"
-                placeholder="الحي"
+                placeholder="الحي / الحارة / الشارع"
                 class="w-full bg-transparent text-[11px] sm:text-xs text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
@@ -718,7 +718,7 @@
                 type="button"
                 onclick="scanEntireCityAllActivities()"
                 class="px-2.5 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-extrabold text-[10px] sm:text-[11px] flex items-center gap-1 transition cursor-pointer shrink-0"
-                title="مسح شامل لجميع الأنشطة في المدينة"
+                title="مسح شامل لجميع الأنشطة في كافة الحارات والشوارع"
               >
                 <span>📡 مسح شامل</span>
               </button>
@@ -738,17 +738,20 @@
           <div class="flex flex-wrap items-center justify-between gap-1 pt-1.5 border-t border-slate-800/70">
             <!-- Quick Categories (Compact Pills on Phone & Computer) -->
             <div class="flex flex-wrap items-center gap-1">
+              <button type="button" onclick="triggerCategorySearch('بقالة', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🛒 بقالات</button>
+              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">💊 صيدليات</button>
+              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🍽️ مطاعم</button>
+              <button type="button" onclick="triggerCategorySearch('صالات وقاعات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🎉 صالات</button>
+              <button type="button" onclick="triggerCategorySearch('محاكم ونيابات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">⚖️ محاكم</button>
+              <button type="button" onclick="triggerCategorySearch('منافذ وفرز وجمارك', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🚧 منافذ وفرز</button>
+              <button type="button" onclick="triggerCategorySearch('وزارات وجهات حكومية', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏛️ جهات حكومية</button>
+              <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏥 مستشفيات</button>
               <button type="button" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏬 مولات</button>
               <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏨 فنادق</button>
               <button type="button" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">📱 تلفونات</button>
               <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏢 شركات</button>
-              <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">💊 صيدليات</button>
-              <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏥 مستشفيات</button>
-              <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🍽️ مطاعم</button>
-              <button type="button" onclick="triggerCategorySearch('بنوك', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏦 بنوك</button>
-              <button type="button" onclick="triggerCategorySearch('شركات الصرافة', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">💱 صرافة</button>
+              <button type="button" onclick="triggerCategorySearch('بنوك وصرافة', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏦 بنوك وصرافة</button>
               <button type="button" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🏊 مسابح</button>
-              <button type="button" onclick="triggerCategorySearch('محلات تجارية', this)" class="cat-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold cursor-pointer">🛍️ محلات</button>
             </div>
 
             <!-- Scope & Filter Pills (Compact on Phone & Computer) -->

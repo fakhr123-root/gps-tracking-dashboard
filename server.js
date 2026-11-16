@@ -715,10 +715,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   const qNorm = normAr(isFullAreaScan ? '' : query);
   const rKm = hasDrawnCircle ? circleFilter.radiusKm : Math.max(radiusMeters / 1000, 35);
 
+  // Use the user's exact live GPS coordinates (userLat, userLng) as the proximity origin so closest places appear FIRST!
+  const hasValidUserGps = Boolean(
+    typeof userLat === 'number' && !isNaN(userLat) &&
+    typeof userLng === 'number' && !isNaN(userLng) &&
+    calcDistanceKm(center.lat, center.lng, userLat, userLng) <= 120
+  );
+  const refLat = hasDrawnCircle ? center.lat : (hasValidUserGps ? userLat : center.lat);
+  const refLng = hasDrawnCircle ? center.lng : (hasValidUserGps ? userLng : center.lng);
+
   sendEvent('status', {
     message: isFullAreaScan
-      ? `📡 جارٍ المسح الشامل واستخراج كافة الأنشطة والمحلات والمراكز في جميع أحياء وشوارع [${center.city} - ${center.district}]...`
-      : `📡 جارٍ المسح الشامل والمعمّق في كافة أحياء وشوارع وحارات [${center.city} - ${center.district}] لاستخراج كل: (${stdQuery})...`
+      ? `📡 جارٍ المسح الشامل بدءاً من الأقرب لموقعك ثم كافة أحياء وشوارع [${center.city} - ${center.district}]...`
+      : `📡 جارٍ المسح الشامل بدءاً من الأقرب لموقعك أولاً ثم بقية أحياء وحارات [${center.city} - ${center.district}] لاستخراج كل: (${stdQuery})...`
   });
 
   // Helper to immediately format and stream a Google Maps place record without waiting for all pages
@@ -759,6 +768,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       p[7]?.[0] ||
       `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}/@${pLat.toFixed(6)},${pLng.toFixed(6)},18z`;
 
+    const distKmFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
+
     const item = {
       id: (typeof p[78] === 'string' && p[78]) || `gmap_${Date.now()}_${fetchedCount}_${Math.floor(Math.random() * 10000)}`,
       name: cleanName,
@@ -773,6 +784,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       workingHours: hoursInfo.workingHours,
       lat: parseFloat(pLat.toFixed(6)),
       lng: parseFloat(pLng.toFixed(6)),
+      distanceKm: Number(distKmFromUser.toFixed(3)),
       locationUrl: `https://www.google.com/maps?q=${pLat.toFixed(6)},${pLng.toFixed(6)}`,
       website: website,
       address: fullAddress,
@@ -1051,6 +1063,27 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         });
       }
     }
+
+    // 5. Inject User's Exact Live GPS Spot + Immediate Surrounding Micro-Ring (300m-800m) and sort ALL sectors by proximity to User!
+    if (hasValidUserGps) {
+      const uHood = resolveLocalNeighborhood(refLat, refLng)?.shortHood || 'موقعك الحالي';
+      const immediateOffsets = [
+        [0, 0, 500],
+        [0.0035, 0, 800], [-0.0035, 0, 800], [0, 0.0035, 800], [0, -0.0035, 800],
+        [0.007, 0.007, 1100], [-0.007, 0.007, 1100], [0.007, -0.007, 1100], [-0.007, -0.007, 1100]
+      ];
+      for (const [dLat, dLng, sp] of immediateOffsets) {
+        namedSectors.unshift({
+          name: uHood,
+          lat: refLat + dLat,
+          lng: refLng + dLng,
+          span: sp
+        });
+      }
+    }
+
+    namedSectors.sort((a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng));
+    microGridSectors.sort((a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng));
 
     return { namedSectors, microGridSectors };
   };
@@ -1489,6 +1522,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const ratingVal = (4.1 + ((fetchedCount * 7) % 9) * 0.1).toFixed(1);
     const reviewsCount = 35 + ((fetchedCount * 53) % 420);
     const hoursInfo = resolveWorkingHoursAndStatus(tags, cleanName, stdQuery, fetchedCount);
+    const distKmFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
 
     const item = {
       id: `map_${Date.now()}_${fetchedCount}_${Math.floor(Math.random() * 10000)}`,
@@ -1504,6 +1538,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       workingHours: hoursInfo.workingHours,
       lat: parseFloat(pLat.toFixed(6)),
       lng: parseFloat(pLng.toFixed(6)),
+      distanceKm: Number(distKmFromUser.toFixed(3)),
       locationUrl: `https://www.google.com/maps?q=${pLat.toFixed(6)},${pLng.toFixed(6)}`,
       website: website,
       address: `${center.city} - ${streetName} (${actualDistrict})`,
@@ -1641,18 +1676,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
                   const pLng = el.lon || el.center?.lon;
                   const tags = el.tags || {};
                   const name = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['operator'] || tags['name:en'] || '').trim();
-                  const dist = pLat && pLng ? calcDistanceKm(lat, lng, pLat, pLng) : 999;
-                  const hasRealPhone = Boolean(
-                    tags['phone'] || tags['contact:phone'] || tags['mobile'] || tags['contact:mobile'] ||
-                    tags['phone:1'] || tags['whatsapp'] || tags['contact:whatsapp']
-                  );
-                  return { el, pLat, pLng, tags, name, dist, hasRealPhone };
+                  const dist = pLat && pLng ? calcDistanceKm(refLat, refLng, pLat, pLng) : 999;
+                  return { el, pLat, pLng, tags, name, dist };
                 })
                 .filter(x => x.name && x.pLat && x.pLng)
-                .sort((a, b) => {
-                  if (a.hasRealPhone !== b.hasRealPhone) return a.hasRealPhone ? -1 : 1;
-                  return a.dist - b.dist;
-                });
+                .sort((a, b) => a.dist - b.dist);
 
               for (const item of elementsWithDist) {
                 if (isAborted()) break;
@@ -1755,9 +1783,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'مسجد',
         'مخبز وحلويات'
       ];
-      const allCombinedSectors = [...namedSectors, ...microGridSectors];
-      for (const cat of coreSweepCategories) {
-        for (const sec of allCombinedSectors) {
+      const allCombinedSectors = [...namedSectors, ...microGridSectors].sort(
+        (a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng)
+      );
+      for (const sec of allCombinedSectors) {
+        for (const cat of coreSweepCategories) {
           queryTasks.push({
             q: cat,
             lat: sec.lat,
@@ -1774,43 +1804,56 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       // IMPORTANT: Passing pure `q: syn` (without "في صنعاء") + `!7i100` makes Google Maps strictly obey the `pb` coordinate viewport (lat, lng)
       // and return up to 100 local places per single request inside that exact neighborhood, street, or grid cell!
       const synonyms = expandSpecificActivitySynonyms(stdQuery);
-      const allCitySectors = [...namedSectors, ...microGridSectors];
+      const allCitySectors = [...namedSectors, ...microGridSectors].sort(
+        (a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng)
+      );
       const coreSynonyms = synonyms.slice(0, 8);
       const extendedSynonyms = synonyms.slice(8);
 
-      // Pass 1 (Breadth-First City-Wide Sweep - Page 1: 0..100):
-      // Sweeps EVERY SINGLE neighborhood, alley (حارة), street & micro-grid cell across the entire city for each core synonym first!
-      for (const syn of coreSynonyms) {
-        for (const sec of allCitySectors) {
-          queryTasks.push({
-            q: syn,
-            lat: sec.lat,
-            lng: sec.lng,
-            span: sec.span || 1400,
-            offset: 0,
-            count: 100,
-            cat: stdQuery
-          });
+      // Group sectors into Concentric Proximity Rings around the user's location (refLat, refLng):
+      // Ring 1 (0 - 2.5 km: User's immediate neighborhood & streets) -> Ring 2 (2.5 - 6 km) -> Ring 3 (6 - 12 km) -> Ring 4 (12+ km)
+      const ring1 = allCitySectors.filter(s => calcDistanceKm(refLat, refLng, s.lat, s.lng) <= 2.5);
+      const ring2 = allCitySectors.filter(s => { const d = calcDistanceKm(refLat, refLng, s.lat, s.lng); return d > 2.5 && d <= 6.0; });
+      const ring3 = allCitySectors.filter(s => { const d = calcDistanceKm(refLat, refLng, s.lat, s.lng); return d > 6.0 && d <= 12.0; });
+      const ring4 = allCitySectors.filter(s => calcDistanceKm(refLat, refLng, s.lat, s.lng) > 12.0);
+      const proximityRings = [ring1, ring2, ring3, ring4];
+
+      // Pass 1 (Closest-First Concentric Rings Sweep - Page 1: 0..100):
+      // Scans all core synonyms in Ring 1 (closest to user) FIRST, then Ring 2, then Ring 3, then Ring 4!
+      for (const ring of proximityRings) {
+        for (const syn of coreSynonyms) {
+          for (const sec of ring) {
+            queryTasks.push({
+              q: syn,
+              lat: sec.lat,
+              lng: sec.lng,
+              span: sec.span || 1400,
+              offset: 0,
+              count: 100,
+              cat: stdQuery
+            });
+          }
         }
       }
 
-      // Pass 2 (Breadth-First City-Wide Deep Pagination - Page 2: 100..200):
-      // Sweeps all neighborhoods, streets & micro-grid cells for Page 2 (offset: 100) of the top 6 synonyms!
-      for (const syn of coreSynonyms.slice(0, 6)) {
-        for (const sec of allCitySectors) {
-          queryTasks.push({
-            q: syn,
-            lat: sec.lat,
-            lng: sec.lng,
-            span: sec.span || 1400,
-            offset: 100,
-            count: 100,
-            cat: stdQuery
-          });
+      // Pass 2 (Concentric Rings Deep Pagination - Page 2: 100..200):
+      for (const ring of proximityRings) {
+        for (const syn of coreSynonyms.slice(0, 6)) {
+          for (const sec of ring) {
+            queryTasks.push({
+              q: syn,
+              lat: sec.lat,
+              lng: sec.lng,
+              span: sec.span || 1400,
+              offset: 100,
+              count: 100,
+              cat: stdQuery
+            });
+          }
         }
       }
 
-      // Pass 3 (Extended Synonyms & Sub-Categories Sweep across all named neighborhoods & streets):
+      // Pass 3 (Extended Synonyms & Sub-Categories Sweep ordered from closest to farthest):
       for (const syn of extendedSynonyms) {
         for (const sec of namedSectors) {
           queryTasks.push({
@@ -1889,10 +1932,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           if (placeIdKey) seenNames.add(placeIdKey);
           seenNames.add(coordNameKey);
 
-          pagePlaces.push({ p, cleanName, pLat, pLng, distFromOrigin, cat: task.cat });
+          const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
+          pagePlaces.push({ p, cleanName, pLat, pLng, distFromUser, cat: task.cat });
         }
 
-        pagePlaces.sort((a, b) => a.distFromOrigin - b.distFromOrigin);
+        pagePlaces.sort((a, b) => a.distFromUser - b.distFromUser);
         for (const item of pagePlaces) {
           if (isAborted()) break;
           emitGooglePlaceImmediate(item.p, item.cleanName, item.pLat, item.pLng, item.cat);

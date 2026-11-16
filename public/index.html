@@ -1844,27 +1844,73 @@
     let streamRenderRafId = null;
     let liveExtractedPhonesTotal = 0;
 
+    function resolvePlaceDistanceFromUser(place) {
+      if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng && place.lat && place.lng) {
+        const d = getDistanceKm(cachedOptionalGps.lat, cachedOptionalGps.lng, Number(place.lat), Number(place.lng));
+        if (typeof d === 'number' && !isNaN(d) && d <= 150) {
+          place.distanceKm = Number(d.toFixed(3));
+          return place.distanceKm;
+        }
+      }
+      if (typeof place.distanceKm === 'number' && !isNaN(place.distanceKm)) {
+        return place.distanceKm;
+      }
+      return 9999;
+    }
+
+    function insertElementSortedByDistance(container, newEl, distKm) {
+      if (!container) return;
+      const children = container.children;
+      const len = children.length;
+      if (len === 0) {
+        container.appendChild(newEl);
+        return;
+      }
+      const lastDist = parseFloat(children[len - 1].dataset.distKm || '9999');
+      if (distKm >= lastDist) {
+        container.appendChild(newEl);
+        return;
+      }
+      // Binary search for exact insertion index so closest items always sit at the top in O(log N)
+      let low = 0;
+      let high = len - 1;
+      let insertIdx = len;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        const midDist = parseFloat(children[mid].dataset.distKm || '9999');
+        if (distKm < midDist) {
+          insertIdx = mid;
+          high = mid - 1;
+        } else {
+          low = mid + 1;
+        }
+      }
+      container.insertBefore(newEl, children[insertIdx]);
+    }
+
     function flushPendingStreamedPlaces() {
       streamRenderRafId = null;
       if (pendingStreamedPlaces.length === 0) return;
+
+      // Sort pending batch by distance from user first
+      pendingStreamedPlaces.sort((a, b) => resolvePlaceDistanceFromUser(a.place) - resolvePlaceDistanceFromUser(b.place));
 
       // Render in smooth 65-item chunks per frame so 10,000+ places never freeze the browser
       const batch = pendingStreamedPlaces.splice(0, 65);
       const bentoContainer = document.getElementById('bentoCardsWrapper');
       const tbody = document.getElementById('resultsTableBody');
-      const cardFrag = document.createDocumentFragment();
-      const rowFrag = document.createDocumentFragment();
 
       for (let i = 0; i < batch.length; i++) {
         const { place, idx } = batch[i];
-        const built = buildPlaceDomElements(place, idx);
-        if (built.card) cardFrag.appendChild(built.card);
-        if (built.tr) rowFrag.appendChild(built.tr);
+        const distKm = resolvePlaceDistanceFromUser(place);
+        const built = buildPlaceDomElements(place, idx, distKm);
+        if (built.card && bentoContainer) insertElementSortedByDistance(bentoContainer, built.card, distKm);
+        if (built.tr && tbody) insertElementSortedByDistance(tbody, built.tr, distKm);
         addMapMarker(place, idx, false);
       }
 
-      if (bentoContainer) bentoContainer.appendChild(cardFrag);
-      if (tbody) tbody.appendChild(rowFrag);
+      // Keep extractedPlaces array sorted by proximity to user for Excel/Copy exports
+      extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
 
       updateStats();
       if (pendingStreamedPlaces.length > 0) {
@@ -2002,7 +2048,7 @@
     }
 
     // Build Clean, Fast Bento Card & Row with Inline SVGs (Zero DOM Reflow Lag on Mobile)
-    function buildPlaceDomElements(place, index) {
+    function buildPlaceDomElements(place, index, distKm = 9999) {
       const phonesArr = Array.isArray(place.phones) && place.phones.length > 0
         ? place.phones
         : (place.phone && place.phone !== 'غير متوفر' ? String(place.phone).split(/[،;,/]+/).map(s => s.trim()).filter(Boolean) : []);
@@ -2022,12 +2068,18 @@
         : cityDistrictLabel;
       const googleMapsDirectUrl = `https://www.google.com/maps?q=${Number(place.lat || 0).toFixed(6)},${Number(place.lng || 0).toFixed(6)}`;
 
+      const hasValidDist = typeof distKm === 'number' && distKm < 500;
+      const distBadgeText = hasValidDist
+        ? (distKm < 1 ? `📍 ${Math.max(10, Math.round(distKm * 1000))} م` : `📍 ${distKm.toFixed(1)} كم`)
+        : '';
+
       let matchesFilter = true;
       if (filterOnlyPhone && !hasPhone) matchesFilter = false;
       if (filterOnlyOpen && !isOpen) matchesFilter = false;
 
       const card = document.createElement('div');
       card.id = `bento_${place.id}`;
+      card.dataset.distKm = String(distKm);
       card.className = "studio-card p-2.5 sm:p-3 rounded-xl flex flex-col justify-between gap-1.5 cursor-pointer";
       if (!matchesFilter) card.style.display = 'none';
       card.onclick = (ev) => {
@@ -2036,12 +2088,15 @@
       };
 
       card.innerHTML = `
-        <!-- Top Bar: Rating ★ on Right | Map Focus & Copy on Left -->
+        <!-- Top Bar: Rating ★ + Distance from User on Right | Map Focus & Copy on Left -->
         <div class="flex items-center justify-between gap-1">
-          <span class="px-1.5 py-0.5 rounded bg-slate-950/80 text-amber-400 font-num font-bold text-[10px] flex items-center gap-0.5 border border-amber-500/20">
-            <span>★</span>
-            <span>${ratingClean}</span>
-          </span>
+          <div class="flex items-center gap-1">
+            <span class="px-1.5 py-0.5 rounded bg-slate-950/80 text-amber-400 font-num font-bold text-[10px] flex items-center gap-0.5 border border-amber-500/20">
+              <span>★</span>
+              <span>${ratingClean}</span>
+            </span>
+            ${distBadgeText ? `<span class="px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 font-num font-bold text-[9px]" title="المسافة من موقعك">${distBadgeText}</span>` : ''}
+          </div>
           <div class="flex items-center gap-1">
             <button type="button" onclick="focusPlaceOnRadar('${place.id}', true)" title="عرض بالخريطة" class="px-1.5 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/35 text-cyan-300 text-[10px] font-bold flex items-center gap-0.5 transition cursor-pointer">
               <span>🎯 خريطة</span>
@@ -2097,11 +2152,12 @@
 
       const tr = document.createElement('tr');
       tr.id = `row_${place.id}`;
+      tr.dataset.distKm = String(distKm);
       tr.className = "hover:bg-emerald-500/10 transition border-b border-slate-800/60";
       if (!matchesFilter) tr.style.display = 'none';
       tr.innerHTML = `
         <td class="p-2 text-emerald-400 font-num font-bold">${index}</td>
-        <td class="p-2 font-bold text-white">${place.name}</td>
+        <td class="p-2 font-bold text-white">${place.name} ${distBadgeText ? `<span class="text-[10px] text-emerald-300 font-num mr-1">(${distBadgeText})</span>` : ''}</td>
         <td class="p-2 text-slate-300">
           <div class="font-bold text-emerald-300">${cityDistrictLabel}</div>
         </td>

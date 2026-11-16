@@ -2092,7 +2092,9 @@
           (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
         if (hasPhone) liveExtractedPhonesTotal++;
 
-        updateStats();
+        if (idx <= INITIAL_PAGE_SIZE || idx % 15 === 0) {
+          updateStats();
+        }
 
         if (idx === 1 && leafletMap && !drawnCircleState) {
           leafletMap.setView([place.lat, place.lng], 12);
@@ -2102,7 +2104,11 @@
         if (visibleRenderCount < INITIAL_PAGE_SIZE) {
           renderBatchToDom([place], visibleRenderCount, true);
           visibleRenderCount++;
-          updateSentinelVisibility(visibleRenderCount < extractedPlaces.length);
+        } else if (idx === INITIAL_PAGE_SIZE + 1) {
+          updateSentinelVisibility(true);
+          initInfiniteScrollObserver();
+        } else if (idx % 100 === 0) {
+          updateSentinelVisibility(true);
         }
       });
 
@@ -2111,8 +2117,12 @@
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
         }
-        extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
-        refreshVisibleResultsView(true);
+        if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
+          refreshVisibleResultsView(true);
+        } else {
+          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+          initInfiniteScrollObserver();
+        }
         updateStats();
         progressBar.style.width = '100%';
         setTimeout(() => progressContainer.classList.add('hidden'), 1500);
@@ -2124,8 +2134,13 @@
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
         }
-        extractedPlaces.sort((a, b) => (a.distanceKm ?? 9999) - (b.distanceKm ?? 9999));
-        refreshVisibleResultsView(true);
+        if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
+          refreshVisibleResultsView(true);
+        } else {
+          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+          initInfiniteScrollObserver();
+        }
+        updateStats();
         finishSearch();
       });
     }

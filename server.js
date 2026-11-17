@@ -2108,19 +2108,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
 
       // Allow up to 50,000 real nodes across the entire city using fast quadtree bbox index!
-      const overpassQuery = `[out:json][timeout:18];(${queryBlocks});out center 50000;`;
+      const overpassQuery = `[out:json][timeout:8];(${queryBlocks});out center 10000;`;
       const mirrors = [
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-        'https://overpass-api.de/api/interpreter',
-        'https://lz4.overpass-api.de/api/interpreter',
-        'https://overpass.kumi.systems/api/interpreter'
+        'https://overpass-api.de/api/interpreter'
       ];
 
       for (const mirror of mirrors) {
         if (isAborted()) break;
         try {
           const opRes = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(overpassQuery)}`, {
-            timeout: 18000,
+            timeout: 7000,
             headers: {
               'User-Agent': 'GeoRadarStudio/3.0 (https://gps-tracking-dashboard-sctg.onrender.com; contact@georadar.app)',
               'Accept': 'application/json, */*'
@@ -2385,19 +2383,29 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       };
 
       fetchedCount++;
-      sendEvent('place', item);
-      if (fetchedCount % 120 === 0) {
-        sendEvent('progress', { current: fetchedCount, total: Math.max(matchedSeedPlaces.length, fetchedCount + 50) });
-        await new Promise(r => setTimeout(r, 4));
+      if (fetchedCount <= 40) {
+        sendEvent('place', item);
+      } else {
+        if (!global._tempSeedBatchBuffer) global._tempSeedBatchBuffer = [];
+        global._tempSeedBatchBuffer.push(item);
+        if (global._tempSeedBatchBuffer.length >= 300) {
+          sendEvent('places_batch', global._tempSeedBatchBuffer);
+          global._tempSeedBatchBuffer = [];
+          sendEvent('progress', { current: fetchedCount, total: Math.max(matchedSeedPlaces.length, fetchedCount + 50) });
+          await new Promise(r => setTimeout(r, 8));
+        }
       }
+    }
+    if (global._tempSeedBatchBuffer && global._tempSeedBatchBuffer.length > 0) {
+      sendEvent('places_batch', global._tempSeedBatchBuffer);
+      global._tempSeedBatchBuffer = [];
     }
   }
 
   // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const isOutsideSanaa = !normAr(center.city).includes('صنعاء') || isCountrySearch;
-    const overpassPromise = (!isOutsideSanaa && fetchedCount >= 150)
+    const overpassPromise = (fetchedCount >= 15)
       ? Promise.resolve()
       : Promise.all([runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();
@@ -2624,7 +2632,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     const BATCH_CONCURRENCY = 14;
     let consecutiveDeadBatches = 0;
-    for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
+    const maxQueryTasksLimit = fetchedCount >= 25 ? 14 : Math.min(queryTasks.length, 42);
+    for (let i = 0; i < maxQueryTasksLimit; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       batchSuccessCount = 0;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
@@ -2636,7 +2645,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       } else {
         consecutiveDeadBatches = 0;
       }
-      if (i + BATCH_CONCURRENCY < queryTasks.length) {
+      if (i + BATCH_CONCURRENCY < maxQueryTasksLimit) {
         await new Promise(r => setTimeout(r, 25));
       }
     }
@@ -4302,6 +4311,7 @@ const server = http.createServer(async (req, res) => {
     const sendEvent = (event, data) => {
       if (isClientAborted) return;
       if (event === 'place') resultCount++;
+      else if (event === 'places_batch' && Array.isArray(data)) resultCount += data.length;
       try {
         res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       } catch (e) {}

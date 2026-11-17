@@ -1868,7 +1868,13 @@
       return 9999;
     }
 
+    const MAX_LIVE_DOM_NODES = 160;
+    let isScrollBatchLocked = false;
+
     function getActiveFilteredPlaces() {
+      if (!filterOnlyPhone && !filterOnlyOpen) {
+        return extractedPlaces;
+      }
       return extractedPlaces.filter(p => {
         if (filterOnlyPhone) {
           const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
@@ -1890,6 +1896,16 @@
       if (!append) {
         bentoContainer.innerHTML = '';
         if (tbody) tbody.innerHTML = '';
+      } else {
+        // Sliding DOM Window Cap: prevent accumulating thousands of DOM nodes during deep scrolling (eliminates Chrome "Page Unresponsive" freeze!)
+        while (bentoContainer.children.length > MAX_LIVE_DOM_NODES - placesBatch.length && bentoContainer.firstElementChild) {
+          bentoContainer.removeChild(bentoContainer.firstElementChild);
+        }
+        if (tbody) {
+          while (tbody.children.length > MAX_LIVE_DOM_NODES - placesBatch.length && tbody.firstElementChild) {
+            tbody.removeChild(tbody.firstElementChild);
+          }
+        }
       }
 
       const cardFragment = document.createDocumentFragment();
@@ -1898,7 +1914,7 @@
       for (let i = 0; i < placesBatch.length; i++) {
         const place = placesBatch[i];
         const displayIndex = startIndex + i + 1;
-        const distKm = resolvePlaceDistanceFromUser(place);
+        const distKm = typeof place.distanceKm === 'number' ? place.distanceKm : resolvePlaceDistanceFromUser(place);
         const built = buildPlaceDomElements(place, displayIndex, distKm);
         if (built.card) cardFragment.appendChild(built.card);
         if (built.tr) trFragment.appendChild(built.tr);
@@ -1912,11 +1928,15 @@
     }
 
     function renderNextBatchCards(userInitiated = false) {
+      if (isScrollBatchLocked && !userInitiated) return;
       const filtered = getActiveFilteredPlaces();
       if (visibleRenderCount >= filtered.length) {
         updateSentinelVisibility(false);
         return;
       }
+      isScrollBatchLocked = true;
+      setTimeout(() => { isScrollBatchLocked = false; }, 130);
+
       const nextBatch = filtered.slice(visibleRenderCount, visibleRenderCount + BATCH_LOAD_SIZE);
       if (nextBatch.length === 0) {
         updateSentinelVisibility(false);
@@ -1926,6 +1946,15 @@
       visibleRenderCount += nextBatch.length;
       updateSentinelVisibility(visibleRenderCount < filtered.length);
     }
+
+    // Automatically restore top 40 closest cards if user scrolls back to top after deep scrolling recycled top nodes
+    window.addEventListener('scroll', () => {
+      if (window.scrollY < 140 && visibleRenderCount > MAX_LIVE_DOM_NODES && extractedPlaces.length > 0 && !isScrollBatchLocked) {
+        isScrollBatchLocked = true;
+        refreshVisibleResultsView(true);
+        setTimeout(() => { isScrollBatchLocked = false; }, 250);
+      }
+    }, { passive: true });
 
     function updateSentinelVisibility(hasMore) {
       const sentinel = document.getElementById('resultsInfiniteSentinel');
@@ -2109,7 +2138,7 @@
 
       currentEventSource.addEventListener('place', (event) => {
         const place = JSON.parse(event.data);
-        resolvePlaceDistanceFromUser(place);
+        if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
         extractedPlaces.push(place);
         const idx = extractedPlaces.length;
 
@@ -2117,7 +2146,7 @@
           (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
         if (hasPhone) liveExtractedPhonesTotal++;
 
-        if (idx <= INITIAL_PAGE_SIZE || idx % 15 === 0) {
+        if (idx <= INITIAL_PAGE_SIZE || idx % 40 === 0) {
           updateStats();
         }
 
@@ -2132,9 +2161,28 @@
         } else if (idx === INITIAL_PAGE_SIZE + 1) {
           updateSentinelVisibility(true);
           initInfiniteScrollObserver();
-        } else if (idx % 100 === 0) {
-          updateSentinelVisibility(true);
         }
+      });
+
+      currentEventSource.addEventListener('places_batch', (event) => {
+        const batch = JSON.parse(event.data);
+        if (!Array.isArray(batch) || batch.length === 0) return;
+        for (let i = 0; i < batch.length; i++) {
+          const p = batch[i];
+          extractedPlaces.push(p);
+          if ((Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')) {
+            liveExtractedPhonesTotal++;
+          }
+        }
+        if (visibleRenderCount < INITIAL_PAGE_SIZE) {
+          const need = INITIAL_PAGE_SIZE - visibleRenderCount;
+          const slice = extractedPlaces.slice(visibleRenderCount, visibleRenderCount + need);
+          renderBatchToDom(slice, visibleRenderCount, true);
+          visibleRenderCount += slice.length;
+        }
+        updateStats();
+        updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+        if (!sentinelObserver) initInfiniteScrollObserver();
       });
 
       currentEventSource.addEventListener('complete', () => {

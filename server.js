@@ -1594,10 +1594,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     // Domain 6A: Barbers, Hair Salons, Coiffure & Beauty Centers ONLY (كوافير، صالون حلاقة، حلاق، مركز تجميل، مشغل)
     if (q.includes('كوافير') || q.includes('حلاق') || q.includes('صالون') || q.includes('تجميل') || q.includes('مشغل')) {
       const unrelatedSalonNoise = [
-        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'مستشفي', 'عياده', 'معهد', 'مدرسه',
-        'مطعم', 'بوفيه', 'ورشه', 'بنشر', 'مفروشات', 'شركه ادويه', 'للادويه', 'اتصالات', 'محكمه', 'محامي'
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'مستشفي', 'عياده', 'عيادات', 'اسنان', 'أسنان', 'دكتور', 'طبيب', 'جراحه',
+        'معهد', 'مدرسه', 'مطعم', 'بوفيه', 'ورشه', 'بنشر', 'مفروشات', 'شركه ادويه', 'للادويه', 'اتصالات', 'محكمه', 'محامي'
       ];
-      if (hasAny(nName, unrelatedSalonNoise) && !hasAny(nName, ['حلاق', 'حلاقه', 'صالون', 'كوافير', 'تجميل', 'مشغل'])) {
+      if (hasAny(combinedText, unrelatedSalonNoise) && !hasAny(nName, ['حلاق', 'حلاقه', 'صالون', 'كوافير', 'مشغل'])) {
         return false;
       }
       const salonKeywords = [
@@ -1659,13 +1659,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, gymKeywords);
     }
 
-    // Domain 6E: Wedding Halls, Event Venues & Conference Halls ONLY (صالة أعراس، صالة أفراح، قاعة مناسبات - blocks "اتصالات" and "نادية"!)
+    // Domain 6E: Wedding Halls, Event Venues & Conference Halls ONLY (صالة أعراس، صالة أفراح، قاعة مناسبات - blocks "اتصالات", "نادية", and gyms!)
     if (q.includes('صاله') || q.includes('صالة') || q.includes('صالات') || q.includes('قاع') || q.includes('افراح') || q.includes('اعراس') || q.includes('مناسبات')) {
-      const cleanWithoutTelecom = combinedText.replace(/اتصالات|الاتصالات/g, ' ');
+      const cleanWithoutTelecom = combinedText.replace(/اتصالات|الاتصالات|صاله رياضيه|صالة رياضية|صاله عرض|صالة عرض/g, ' ');
       const unrelatedHallNoise = [
         'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'للادويه', 'ادويه', 'ناديه', 'نادية',
         'ورشه', 'بنشر', 'مستشفي', 'عياده', 'معهد', 'مدرسه', 'حلاق', 'صالون', 'كوافير',
-        'حديقه', 'حديقة', 'منتزه', 'مفروشات', 'محامي', 'محكمه', 'بلياردو', 'العاب'
+        'حديقه', 'حديقة', 'منتزه', 'مفروشات', 'محامي', 'محكمه', 'بلياردو', 'العاب', 'نادي رياضي', 'النادي الرياضي', 'جيم', 'فتنس', 'كمال اجسام'
       ];
       if (hasAny(cleanWithoutTelecom, unrelatedHallNoise) && !hasAny(nName, ['صاله افراح', 'صالة أفراح', 'صاله اعراس', 'قاعه افراح', 'قاعة أفراح', 'للافراح والمناسبات'])) {
         return false;
@@ -2632,7 +2632,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     const BATCH_CONCURRENCY = 14;
     let consecutiveDeadBatches = 0;
-    const maxQueryTasksLimit = fetchedCount >= 25 ? 14 : Math.min(queryTasks.length, 42);
+    const maxQueryTasksLimit = fetchedCount >= 10 ? 0 : Math.min(queryTasks.length, 28);
     for (let i = 0; i < maxQueryTasksLimit; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       batchSuccessCount = 0;

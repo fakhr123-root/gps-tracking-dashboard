@@ -710,8 +710,9 @@
                 id="locationInput"
                 autocomplete="off"
                 spellcheck="false"
-                value="صنعاء"
-                placeholder="المدينة أو الدولة"
+                value=""
+                oninput="window.userManuallyEditedLocation = this.value.trim().length > 0 && this.value.trim() !== window.lastAutoDetectedGpsCity;"
+                placeholder="المدينة (تُحدد من موقعك)"
                 class="w-full bg-transparent text-[11px] sm:text-xs font-bold text-white placeholder-slate-500 focus:outline-none"
               />
             </div>
@@ -2026,7 +2027,11 @@
       liveExtractedPhonesTotal = 0;
 
       const query = document.getElementById('queryInput').value.trim();
-      const location = document.getElementById('locationInput').value.trim() || 'صنعاء';
+      const locInputEl = document.getElementById('locationInput');
+      if (locInputEl && !locInputEl.value.trim() && window.lastAutoDetectedGpsCity) {
+        locInputEl.value = window.lastAutoDetectedGpsCity;
+      }
+      const location = (locInputEl ? locInputEl.value.trim() : '') || window.lastAutoDetectedGpsCity || '';
       const neighborhood = document.getElementById('neighborhoodInput')?.value.trim() || '';
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
       lastActiveQuery = query || '__EMPTY__';
@@ -2687,6 +2692,66 @@
       showGateModalOnStep2();
     }
 
+    window.lastAutoDetectedGpsCity = '';
+    window.userManuallyEditedLocation = false;
+    let liveGpsWatchId = null;
+    let lastReverseGeocodedCoords = null;
+
+    async function syncLocationInputWithUserGps(lat, lng, forceUpdate = false) {
+      if (!lat || !lng) return;
+      try {
+        if (lastReverseGeocodedCoords && !forceUpdate) {
+          const dLat = Math.abs(lat - lastReverseGeocodedCoords.lat);
+          const dLng = Math.abs(lng - lastReverseGeocodedCoords.lng);
+          if (dLat < 0.0025 && dLng < 0.0025 && window.lastAutoDetectedGpsCity) {
+            const locInput = document.getElementById('locationInput');
+            if (locInput && !locInput.value.trim()) {
+              locInput.value = window.lastAutoDetectedGpsCity;
+            }
+            return;
+          }
+        }
+        lastReverseGeocodedCoords = { lat, lng };
+        const res = await fetch(`/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const detectedCity = (data && data.city ? String(data.city).trim() : '');
+        if (!detectedCity) return;
+
+        const prevAutoCity = window.lastAutoDetectedGpsCity;
+        window.lastAutoDetectedGpsCity = detectedCity;
+
+        const locInput = document.getElementById('locationInput');
+        if (locInput) {
+          const currentVal = locInput.value.trim();
+          if (forceUpdate || !currentVal || !window.userManuallyEditedLocation || currentVal === prevAutoCity) {
+            locInput.value = detectedCity;
+            window.userManuallyEditedLocation = false;
+          }
+        }
+      } catch (e) {}
+    }
+
+    function startLiveGpsLocationWatcher() {
+      if (!navigator.geolocation || liveGpsWatchId !== null) return;
+      try {
+        liveGpsWatchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (!pos || !pos.coords) return;
+            cachedOptionalGps = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy || 15)
+            };
+            renderUserGpsPinOnMap();
+            syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng);
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 15000, timeout: 15000 }
+        );
+      } catch (e) {}
+    }
+
     function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false) {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
@@ -2709,6 +2774,8 @@
           };
           markLocationGranted();
           renderUserGpsPinOnMap();
+          syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+          startLiveGpsLocationWatcher();
           autoRecordDeviceIpVisit();
           if (autoAdvanceOnSuccess) {
             goToLoginStep2();
@@ -2857,6 +2924,8 @@
       };
 
       if (cachedOptionalGps) {
+        syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+        startLiveGpsLocationWatcher();
         await completeAuthAttempt();
         return;
       }
@@ -2869,6 +2938,8 @@
             geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
             geoInfo.locationSource = 'GPS';
             cachedOptionalGps = { lat: geoInfo.lat, lng: geoInfo.lng, accuracy: geoInfo.accuracy };
+            syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+            startLiveGpsLocationWatcher();
             await completeAuthAttempt();
           },
           async () => {
@@ -3128,8 +3199,6 @@
         if (!raw) return;
         const prefs = JSON.parse(raw);
         if (prefs.city) {
-          const locInput = document.getElementById('locationInput');
-          if (locInput) locInput.value = prefs.city;
           const pc = document.getElementById('prefDefaultCity');
           if (pc) pc.value = prefs.city;
         }

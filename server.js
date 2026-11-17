@@ -711,9 +711,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         if (!cell) continue;
         for (const prev of cell) {
           const dKm = calcDistanceKm(prev.lat, prev.lng, pLat, pLng);
-          if (prev.fullNorm === fullNorm && dKm <= 0.60) return true;
-          if (coreNorm.length >= 3 && prev.coreNorm === coreNorm && dKm <= 0.35) return true;
-          if (dKm <= 0.06 && coreNorm.length >= 3 && prev.coreNorm.length >= 3 && (prev.coreNorm.includes(coreNorm) || coreNorm.includes(prev.coreNorm))) {
+          if (prev.fullNorm === fullNorm && dKm <= 0.055) return true;
+          if (coreNorm.length >= 3 && prev.coreNorm === coreNorm && dKm <= 0.045) return true;
+          if (dKm <= 0.035 && coreNorm.length >= 3 && prev.coreNorm.length >= 3 && (prev.coreNorm.includes(coreNorm) || coreNorm.includes(prev.coreNorm))) {
             return true;
           }
         }
@@ -732,7 +732,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
   const cleanNeighborhood = (neighborhood || '').trim();
   const nHoodNorm = normAr(cleanNeighborhood);
-  const center = await geocodeLocation(location || 'صنعاء');
+  let resolvedLocationInput = (location || '').trim();
+  if (!resolvedLocationInput && userLat && userLng) {
+    const localGpsMatch = resolveLocalNeighborhood(userLat, userLng);
+    if (localGpsMatch && localGpsMatch.distanceKm <= 28) {
+      resolvedLocationInput = localGpsMatch.city;
+    } else {
+      const rev = await reverseGeocodeCoords(userLat, userLng);
+      if (rev && rev.city) resolvedLocationInput = rev.city;
+    }
+  }
+  const center = await geocodeLocation(resolvedLocationInput || 'صنعاء');
   const hoodCorridorPoints = [];
 
   if (cleanNeighborhood) {
@@ -3998,6 +4008,35 @@ const server = http.createServer(async (req, res) => {
     const coords = await geocodeLocation(q);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(coords));
+    return;
+  }
+
+  // Reverse Geocoding endpoint (resolves live GPS coordinates to city, neighborhood, and country)
+  if (pathname === '/api/reverse-geocode') {
+    const lat = parseFloat(parsedUrl.query.lat);
+    const lng = parseFloat(parsedUrl.query.lng);
+    if (isNaN(lat) || isNaN(lng)) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ error: 'Invalid coordinates' }));
+      return;
+    }
+    const localMatch = resolveLocalNeighborhood(lat, lng);
+    if (localMatch && localMatch.distanceKm <= 28) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        city: localMatch.city,
+        neighborhood: localMatch.shortHood || localMatch.neighborhood,
+        country: localMatch.country
+      }));
+      return;
+    }
+    const rev = await reverseGeocodeCoords(lat, lng);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      city: rev?.city || localMatch?.city || '',
+      neighborhood: rev?.region || localMatch?.shortHood || '',
+      country: rev?.country || localMatch?.country || ''
+    }));
     return;
   }
 

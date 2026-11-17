@@ -687,7 +687,7 @@ function scheduleSavePersistentIndex() {
 
 function getCoreBusinessName(str = '') {
   return normAr(str)
-    .replace(/(^|\s)(بقاله|بقالات|تموينات|تموين|سوبر ماركت|سوبرماركت|ميني ماركت|هايبر|صيدليه|صيدليات|مطعم|مطاعم|مطبخ|مطابخ|بوفيه|كافيه|مقهي|مسبح|مسابح|حمام|حمامات|بخاري|بخاريه|البخاري|البخاريه|الحديث|الحديثه|شركه|مؤسسه|محل|محلات|مركز|مراكز|وكاله|معرض|صاله|صالات|قاعه|قاعات|فندق|اجنحه|بنك|صرافه|مدرسه|مدارس|جامعه|معهد|مسجد|جامع|فرع|صنعاء|اليمن)(?=\s|$)/g, ' ')
+    .replace(/(^|\s)و?(بقاله|بقالات|تموينات|تموين|سوبر ماركت|سوبرماركت|ميني ماركت|هايبر|صيدليه|صيدليات|مطعم|مطاعم|مطبخ|مطابخ|بوفيه|كافيه|مقهي|مسبح|مسابح|حمام|حمامات|بخاري|بخاريه|البخاري|البخاريه|الحديث|الحديثه|شركه|مؤسسه|محل|محلات|مركز|مراكز|وكاله|معرض|صاله|صالات|قاعه|قاعات|فندق|اجنحه|بنك|صرافه|مدرسه|مدارس|جامعه|معهد|مسجد|جامع|فرع|صنعاء|اليمن)(?=\s|$)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -1612,11 +1612,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 11: Banks, Exchange & Money Transfer (بنك، صرافة، مصرف، تحويلات)
     if (q.includes('بنك') || q.includes('بنوك') || q.includes('صراف') || q.includes('تحويل') || q.includes('مصرف')) {
-      const unrelatedBankNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ورشه', 'بنشر', 'صيدليه'];
+      const unrelatedBankNoise = ['قات', 'بقاله', 'سوبرماركت', 'مطعم', 'عبايات', 'ورشه', 'بنشر', 'صيدليه', 'استيراد وتصدير', 'مفروشات'];
       if (hasAny(nName, unrelatedBankNoise)) return false;
       const bankKeywords = [
         'بنك', 'بنوك', 'مصرف', 'صرافه', 'صرافة', 'صراف', 'تحويلات', 'مالي', 'كريمي',
-        'نجم', 'امتياز', 'سويد', 'اكوع', 'جزيره', 'تضامن', 'كاك', 'atm', 'bank', 'exchange', 'money', 'finance'
+        'كاك بنك', 'atm', 'bank', 'exchange', 'money transfer'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), bankKeywords);
       return hasAny(combinedText, bankKeywords);
@@ -1627,12 +1627,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const unrelatedPoolNoise = [
         'قات', 'بقاله', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه',
         'ادوات صحيه', 'أدوات صحية', 'سباكه', 'سيراميك', 'بلاط', 'مواد بناء',
-        'حمامات عامه', 'حمامات حديقه', 'دوره مياه'
+        'حمامات عامه', 'حمامات حديقه', 'دوره مياه', 'قطع غيار', 'سيارات', 'دراجات',
+        'مطعم البخاري', 'رز البخاري', 'شوايه البخاري'
       ];
       if (hasAny(combinedText, unrelatedPoolNoise)) return false;
       const poolKeywords = [
-        'مسبح', 'مسابح', 'سباحه', 'سباحة', 'بخار', 'ساونا', 'جاكوزي', 'منتجع', 'نادي صحي', 'استراحه',
-        'pool', 'swimming', 'spa', 'sauna', 'resort', 'aqua', 'water park'
+        'مسبح', 'مسابح', 'سباحه', 'سباحة', 'حمام بخار', 'حمامات بخار', 'البخاريه', 'البخارية',
+        'غرف بخار', 'ساونا', 'جاكوزي', 'نادي صحي', 'اكوابارك', 'المدينه المائيه',
+        'swimming', 'water park', 'aqua', 'sauna', 'health spa', 'day spa'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), poolKeywords);
       return hasAny(combinedText, poolKeywords);
@@ -2042,7 +2044,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const overpassPromise = fetchedCount >= 300
+    const overpassPromise = fetchedCount >= 10
       ? Promise.resolve()
       : Promise.all([runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();

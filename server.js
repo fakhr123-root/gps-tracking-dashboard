@@ -1617,6 +1617,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 9: Hotels, Furnished Apartments & Resorts ONLY (فندق، شقق فندقية، لوكاندة، منتجع - excludes home appliance stores "المنزلية" and restaurants "قصر الضيافة"!)
     if (q.includes('فندق') || q.includes('فنادق') || q.includes('لوكاند') || q.includes('اجنح') || q.includes('شقق مفروش')) {
+      if (hasAny(nName, ['اقفال الفنادق', 'تجهيز الفنادق', 'مستلزمات الفنادق', 'للحلول الامنيه'])) {
+        return false;
+      }
       const unrelatedHotelNoise = [
         'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه', 'مستشفي', 'عياده',
         'معهد', 'مدرسه', 'مفروشات', 'شركه', 'شركة', 'مؤسسه', 'مؤسسة', 'معرض', 'صيانه', 'منزليه', 'منزلية',

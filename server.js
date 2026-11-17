@@ -1509,7 +1509,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (hasAny(combinedText, unrelatedGroceryNoise) && !hasAny(nName, explicitGroceryName)) {
         return false;
       }
-      if ((nName.startsWith('شركه ') || nName.startsWith('شركة ') || nName.startsWith('مؤسسه ') || nName.startsWith('مؤسسة ')) && !hasAny(nName, explicitGroceryName)) {
+      if ((nName.startsWith('شركه ') || nName.startsWith('شركة ') || nName.startsWith('مؤسسه ') || nName.startsWith('مؤسسة ') || nName.startsWith('نقطه بيع') || nName.startsWith('نقطة بيع')) && !hasAny(nName, explicitGroceryName)) {
         return false;
       }
       const groceryKeywords = [
@@ -1523,18 +1523,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, groceryKeywords);
     }
 
-    // Domain 3: Pharmacies & Drugstores ONLY (صيدلية، دواء، فارما - excludes hospitals & clinics!)
+    // Domain 3: Pharmacies & Drugstores ONLY (صيدلية، دواء، فارما - excludes hospitals, clinics & general companies!)
     if (q.includes('صيدلي') || q.includes('دواء') || q.includes('فارما') || q.includes('ادوي')) {
       const unrelatedPharmNoise = [
         'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'سوبر ماركت', 'مطعم', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'مخبز',
         'مفروشات', 'للكمبيوتر', 'معدات', 'مستشفي', 'مستشفى', 'مستشفيات', 'مستوصف', 'عياده', 'عيادة', 'عيادات',
-        'مركز الدكتور', 'طب وجراحه', 'مختبر', 'مختبرات', 'اشعه', 'اسنان', 'معهد', 'مدرسه', 'فندق', 'محكمه', 'محامي'
+        'مركز الدكتور', 'طب وجراحه', 'مختبر', 'مختبرات', 'اشعه', 'اسنان', 'معهد', 'مدرسه', 'فندق', 'محكمه', 'محامي',
+        'شركه', 'شركة', 'مؤسسه', 'مؤسسة'
       ];
       if (hasAny(combinedText, unrelatedPharmNoise) && !hasAny(nName, ['صيدليه', 'صيدلية', 'صيدليات', 'فارما'])) {
         return false;
       }
       const pharmKeywords = [
-        'صيدليه', 'صيدلية', 'صيدليات', 'دواء', 'الدواء', 'فارما', 'ادويه', 'أدوية', 'pharmacy', 'drugstore', 'chemist', 'pharma'
+        'صيدليه', 'صيدلية', 'صيدليات', 'دواء', 'الدواء', 'فارما', 'pharmacy', 'drugstore', 'chemist', 'pharma'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), pharmKeywords);
       return hasAny(combinedText, pharmKeywords);
@@ -1558,14 +1559,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     // Domain 5: Restaurants, Cafes, Bakeries & Fast Food (مطعم، كافيه، بوفية، مندي، بروست)
     if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('وجبات') || q.includes('بروست') || q.includes('مطبخ') || q.includes('مندي') || q.includes('بوفيه') || q.includes('شاورما') || q.includes('كافيه') || q.includes('مقهي')) {
-      const unrelatedFoodNoise = ['قات', 'محكمه', 'صيدليه', 'مستشفي', 'عياده', 'دكتور', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'اماديوس نت', 'انترنت', 'مفروشات', 'ادويه', 'بقاله', 'تموينات', 'معهد', 'مدرسه', 'شركه برمجيات', 'محامي'];
-      if (hasAny(nName, unrelatedFoodNoise) && !hasAny(nName, ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'بوفيه', 'شاورما', 'بروست', 'مندي'])) {
+      const unrelatedFoodNoise = ['قات', 'محكمه', 'صيدليه', 'مستشفي', 'عياده', 'دكتور', 'عبايات', 'ملابس', 'ورشه', 'بنشر', 'اماديوس نت', 'انترنت', 'مفروشات', 'ادويه', 'بقاله', 'تموينات', 'معهد', 'مدرسه', 'شركه', 'شركة', 'مؤسسه', 'محامي'];
+      if (hasAny(nName, unrelatedFoodNoise) && !hasAny(nName, ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'بوفيه', 'شاورما', 'بروست', 'مندي', 'كافتيريا'])) {
         return false;
       }
       const foodKeywords = [
         'مطعم', 'مطاعم', 'مطبخ', 'مطابخ', 'مندي', 'مظبي', 'حنيذ', 'بروست', 'شوايه',
         'شاورما', 'فطائر', 'بيتزا', 'برجر', 'وجبات', 'ماكولات', 'مأكولات', 'كافتيريا',
-        'كافيه', 'مقهي', 'مقهى', 'قهوه', 'فوال', 'بوفيه', 'مشويات', 'اسماك', 'بحري', 'عصائر',
+        'كافيه', 'مقهي', 'مقهى', 'قهوه', 'فوال', 'بوفيه', 'مشويات', 'اسماك', 'بحري', 'عصائر', 'بطاطا', 'عصيد',
         'restaurant', 'cafe', 'coffee', 'fast food', 'grill', 'pizza', 'burger', 'kitchen', 'diner', 'bistro'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), foodKeywords);
@@ -1614,15 +1615,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, govKeywords);
     }
 
-    // Domain 9: Hotels, Furnished Apartments & Resorts (فندق، شقق فندقية، لوكاندة، منتجع)
+    // Domain 9: Hotels, Furnished Apartments & Resorts ONLY (فندق، شقق فندقية، لوكاندة، منتجع - excludes home appliance stores "المنزلية" and restaurants "قصر الضيافة"!)
     if (q.includes('فندق') || q.includes('فنادق') || q.includes('لوكاند') || q.includes('اجنح') || q.includes('شقق مفروش')) {
-      const unrelatedHotelNoise = ['قات', 'بقاله', 'تموينات', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه', 'مستشفي', 'عياده', 'معهد', 'مدرسه', 'مفروشات', 'شركه برمجيات'];
-      if (hasAny(nName, unrelatedHotelNoise) && !hasAny(nName, ['فندق', 'فنادق', 'اجنحه فندقيه', 'شقق مفروشه', 'لوكاند'])) {
+      const unrelatedHotelNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'عبايات', 'ورشه', 'بنشر', 'صيدليه', 'مستشفي', 'عياده',
+        'معهد', 'مدرسه', 'مفروشات', 'شركه', 'شركة', 'مؤسسه', 'مؤسسة', 'معرض', 'صيانه', 'منزليه', 'منزلية',
+        'مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مخبز', 'حلويات', 'محكمه', 'محامي'
+      ];
+      if (hasAny(combinedText, unrelatedHotelNoise) && !hasAny(nName, ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'شقق فندقيه', 'لوكاند'])) {
         return false;
       }
       const hotelKeywords = [
-        'فندق', 'فنادق', 'اجنحه', 'أجنحة', 'شقق فندقي', 'شقق مفروش', 'لوكاند',
-        'منتجع', 'نزل', 'ضيافه', 'hotel', 'motel', 'resort', 'suites', 'inn', 'hostel', 'lodge'
+        'فندق', 'فنادق', 'اجنحه فندقيه', 'اجنحه ملكيه', 'شقق فندقي', 'شقق مفروش', 'لوكاند',
+        'منتجع سياحي', 'دار ضيافه', 'hotel', 'motel', 'resort', 'suites', 'hostel', 'lodge'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), hotelKeywords);
       return hasAny(combinedText, hotelKeywords);

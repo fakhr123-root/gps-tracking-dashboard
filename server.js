@@ -883,11 +883,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   const qNorm = normAr(isFullAreaScan ? '' : query);
   const rKm = hasDrawnCircle ? circleFilter.radiusKm : Math.max(radiusMeters / 1000, 35);
 
+  const isCountrySearch = /^(اليمن|الجمهوريه اليمنيه|yemen)$/i.test(normAr(resolvedLocationInput));
+
   // Use the user's exact live GPS coordinates (userLat, userLng) as the proximity origin so closest places appear FIRST!
   const hasValidUserGps = Boolean(
     typeof userLat === 'number' && !isNaN(userLat) &&
     typeof userLng === 'number' && !isNaN(userLng) &&
-    calcDistanceKm(center.lat, center.lng, userLat, userLng) <= 120
+    calcDistanceKm(center.lat, center.lng, userLat, userLng) <= (isCountrySearch ? 1500 : 120)
   );
   const refLat = hasDrawnCircle ? center.lat : (hasValidUserGps ? userLat : center.lat);
   const refLng = hasDrawnCircle ? center.lng : (hasValidUserGps ? userLng : center.lng);
@@ -1975,8 +1977,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     } catch (e) {}
   };
 
-  const isCountrySearch = /^(اليمن|الجمهوريه اليمنيه|yemen)$/i.test(normAr(resolvedLocationInput));
-  const maxOriginRadiusKm = isCountrySearch ? 1400 : Math.max(rKm * 1.5, 45);
+  const maxOriginRadiusKm = isCountrySearch ? 1400 : Math.max(Math.min(rKm, 55), 42);
 
   // Fast Pinpoint Live Google Maps Lookup around User's Exact GPS Building (150m) & Direct Query before streaming index
   const livePinpointEntries = [];

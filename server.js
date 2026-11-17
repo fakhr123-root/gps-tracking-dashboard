@@ -2305,9 +2305,61 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   } catch (e) {}
 
+  // Strictly resolve the true Yemeni city/governorate of a coordinate so neighboring governorates (like Taiz & Ibb, or Aden & Lahj) NEVER mix when searching a single city!
+  const YEMEN_GOV_CENTERS = [
+    { city: 'صنعاء', lat: 15.3538, lng: 44.2058, maxR: 36 },
+    { city: 'عدن', lat: 12.8250, lng: 44.9950, maxR: 24 },
+    { city: 'تعز', lat: 13.5789, lng: 44.0178, maxR: 32 },
+    { city: 'إب', lat: 13.9756, lng: 44.1744, maxR: 34 },
+    { city: 'الحديدة', lat: 14.7979, lng: 42.9530, maxR: 42 },
+    { city: 'المكلا', lat: 14.5425, lng: 49.1242, maxR: 45 },
+    { city: 'سيئون', lat: 15.9430, lng: 48.7870, maxR: 45 },
+    { city: 'ذمار', lat: 14.5426, lng: 44.4051, maxR: 35 },
+    { city: 'مأرب', lat: 15.4620, lng: 45.3250, maxR: 45 },
+    { city: 'عمران', lat: 15.6594, lng: 43.9439, maxR: 32 },
+    { city: 'حجة', lat: 15.6944, lng: 43.6050, maxR: 38 },
+    { city: 'صعدة', lat: 16.9402, lng: 43.7639, maxR: 42 },
+    { city: 'البيضاء', lat: 14.1650, lng: 45.1500, maxR: 50 },
+    { city: 'شبوة', lat: 14.5370, lng: 46.8310, maxR: 55 },
+    { city: 'لحج', lat: 13.0560, lng: 44.8810, maxR: 28 },
+    { city: 'أبين', lat: 13.1680, lng: 45.3410, maxR: 38 },
+    { city: 'الضالع', lat: 13.6960, lng: 44.7310, maxR: 32 },
+    { city: 'المهرة', lat: 16.2080, lng: 52.1760, maxR: 60 },
+    { city: 'المحويت', lat: 15.4700, lng: 43.5450, maxR: 30 },
+    { city: 'سقطرى', lat: 12.6500, lng: 54.0180, maxR: 55 }
+  ];
+
+  const resolveTrueYemenCity = (pLat, pLng, hintCity = '', hintAddr = '') => {
+    // Hard geographic boundary between Taiz and Ibb (Al-Qa'idah / Jiblah / Ibb starts north of lat 13.725)
+    if (pLat >= 13.725 && pLat <= 14.36 && pLng >= 43.90 && pLng <= 44.52) {
+      return 'إب';
+    }
+    if (pLat >= 13.15 && pLat < 13.725 && pLng >= 43.20 && pLng <= 44.45) {
+      return 'تعز';
+    }
+    // Hard geographic boundary between Aden and Lahj
+    if (pLat >= 12.70 && pLat <= 12.935 && pLng >= 44.70 && pLng <= 45.12) {
+      return 'عدن';
+    }
+    if (pLat > 12.935 && pLat <= 13.35 && pLng >= 44.70 && pLng <= 45.10) {
+      return 'لحج';
+    }
+    let bestCity = hintCity || '';
+    let bestD = Infinity;
+    for (const g of YEMEN_GOV_CENTERS) {
+      const d = calcDistanceKm(pLat, pLng, g.lat, g.lng);
+      if (d < bestD) {
+        bestD = d;
+        bestCity = g.city;
+      }
+    }
+    return bestCity;
+  };
+
   // 0. INSTANT REAL-TIME WAVE (0.05s): Stream Verified Real Google Maps + OSM Index sorted from closest to user's GPS outward!
   if (SANAA_REAL_INDEX.length > 0 || livePinpointEntries.length > 0) {
     const matchedSeedPlaces = [];
+    const targetCityNorm = normAr(center.city);
     const combinedEntries = livePinpointEntries.concat(SANAA_REAL_INDEX);
     for (const entry of combinedEntries) {
       const cleanName = String(entry.n || entry.name || '').trim();
@@ -2331,8 +2383,24 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
       if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > maxOriginRadiusKm) continue;
 
+      const trueCity = (center.countryCode === 'YE' || isCountrySearch)
+        ? resolveTrueYemenCity(pLat, pLng, entry.ci || entry.city || '', entryAddress)
+        : (entry.ci || entry.city || center.city);
+
+      // Strict City Isolation: when searching a specific city (e.g. تعز), NEVER include places belonging to a neighboring city (e.g. إب)!
+      if (!isCountrySearch && !hasDrawnCircle) {
+        if (normAr(trueCity) !== targetCityNorm) continue;
+        // Also block places whose district or address explicitly names another city
+        if (targetCityNorm === normAr('تعز') && /\b(اب|إب|جبله|جبلة|يريم|القاعده|القاعدة)\b/.test(`${cleanName} ${entryDistrict} ${entryAddress}`)) {
+          continue;
+        }
+        if (targetCityNorm === normAr('اب') && /\b(تعز|الحوبان|التربه|التربة)\b/.test(`${cleanName} ${entryDistrict} ${entryAddress}`)) {
+          continue;
+        }
+      }
+
       const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
-      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser, entryDistrict, entryAddress, placeCategories });
+      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser, entryDistrict, entryAddress, placeCategories, trueCity });
     }
 
     // Sort strictly from closest to user's GPS location (refLat, refLng) outward!
@@ -2344,12 +2412,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (isDuplicatePlace(m.cleanName, m.pLat, m.pLng)) continue;
 
       const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
-      const actualCity = m.entry.ci || m.entry.city || (hoodMatch && hoodMatch.distanceKm <= 35 ? hoodMatch.city : (isCountrySearch ? 'صنعاء' : center.city));
+      const actualCity = m.trueCity || m.entry.ci || m.entry.city || (hoodMatch && hoodMatch.distanceKm <= 35 ? hoodMatch.city : (isCountrySearch ? 'صنعاء' : center.city));
       let actualDistrict = cleanNeighborhood ? cleanNeighborhood : m.entryDistrict;
-      if (!actualDistrict || actualDistrict === 'صنعاء' || actualDistrict === 'اليمن') {
-        actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 6.5)
+      if (!actualDistrict || actualDistrict === 'صنعاء' || actualDistrict === 'اليمن' || normAr(actualDistrict) !== normAr(actualDistrict)) {
+        actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 6.5 && normAr(hoodMatch.city) === normAr(actualCity))
           ? (hoodMatch.neighborhood || hoodMatch.shortHood)
-          : (isCountrySearch ? actualCity : center.district);
+          : (m.entryDistrict || actualCity);
       }
       const hoursInfo = resolveWorkingHoursAndStatus({}, m.cleanName, m.entry.q || m.placeCategories[0] || stdQuery || 'نشاط تجاري', fetchedCount);
       const phoneStr = m.entry.ph || m.entry.phone || '';

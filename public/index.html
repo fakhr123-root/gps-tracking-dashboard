@@ -935,15 +935,23 @@
           </table>
         </div>
 
-        <!-- High-Performance Infinite Scroll Sentinel & Batch Loader (0 Lag / 60 FPS) -->
-        <div id="resultsInfiniteSentinel" class="hidden mt-3 mb-6 text-center">
+        <!-- High-Performance Windowed Page Navigator & Batch Loader (120 Cards Max in DOM = 0 Lag / Never Freezes!) -->
+        <div id="resultsInfiniteSentinel" class="hidden mt-3 mb-6 text-center space-y-2">
           <div id="sentinelLoader" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/90 border border-emerald-500/30 text-emerald-300 text-xs font-bold shadow-lg">
             <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-            <span id="sentinelProgressText">جارٍ تحميل المزيد من المواقع تلقائياً...</span>
+            <span id="sentinelProgressText">جارٍ تحميل المزيد من المواقع...</span>
           </div>
-          <button id="btnLoadMoreCards" type="button" onclick="renderNextBatchCards(true)" class="hidden mt-2 px-4 py-2 rounded-xl bg-slate-900/90 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition flex items-center justify-center gap-2 mx-auto">
-            <span>عرض دفعة إضافية (+35 موقع)</span>
-          </button>
+          <div class="flex flex-wrap items-center justify-center gap-2">
+            <button id="btnFirstPageCards" type="button" onclick="jumpToResultsPageWindow(0)" class="hidden px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer">
+              ⏮️ أول دفعة (الأقرب)
+            </button>
+            <button id="btnPrevPageCards" type="button" onclick="jumpToPrevResultsPageWindow()" class="hidden px-3.5 py-2 rounded-xl bg-slate-900/90 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold transition cursor-pointer">
+              ➡️ الدفعة السابقة
+            </button>
+            <button id="btnLoadMoreCards" type="button" onclick="renderNextBatchCards(true)" class="px-5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 text-xs font-extrabold transition flex items-center justify-center gap-2 cursor-pointer shadow-lg">
+              <span id="btnLoadMoreCardsLabel">⬅️ عرض الدفعة التالية (+40 موقع)</span>
+            </button>
+          </div>
         </div>
 
       </section>
@@ -1847,7 +1855,9 @@
     }
 
     const INITIAL_PAGE_SIZE = 40;
-    const BATCH_LOAD_SIZE = 35;
+    const BATCH_LOAD_SIZE = 40;
+    const MAX_PAGE_WINDOW_CARDS = 120;
+    let currentPageStartIndex = 0;
     let visibleRenderCount = 0;
     let sentinelObserver = null;
     let streamThrottleTimeout = null;
@@ -1868,8 +1878,8 @@
       return 9999;
     }
 
-    const MAX_LIVE_DOM_NODES = 160;
     let isScrollBatchLocked = false;
+    let batchUiThrottleTimer = null;
 
     function getActiveFilteredPlaces() {
       if (!filterOnlyPhone && !filterOnlyOpen) {
@@ -1896,16 +1906,6 @@
       if (!append) {
         bentoContainer.innerHTML = '';
         if (tbody) tbody.innerHTML = '';
-      } else {
-        // Sliding DOM Window Cap: prevent accumulating thousands of DOM nodes during deep scrolling (eliminates Chrome "Page Unresponsive" freeze!)
-        while (bentoContainer.children.length > MAX_LIVE_DOM_NODES - placesBatch.length && bentoContainer.firstElementChild) {
-          bentoContainer.removeChild(bentoContainer.firstElementChild);
-        }
-        if (tbody) {
-          while (tbody.children.length > MAX_LIVE_DOM_NODES - placesBatch.length && tbody.firstElementChild) {
-            tbody.removeChild(tbody.firstElementChild);
-          }
-        }
       }
 
       const cardFragment = document.createDocumentFragment();
@@ -1927,6 +1927,23 @@
       if (tbody) tbody.appendChild(trFragment);
     }
 
+    function jumpToResultsPageWindow(newStartIndex) {
+      const filtered = getActiveFilteredPlaces();
+      if (filtered.length === 0) return;
+      currentPageStartIndex = Math.max(0, Math.min(newStartIndex, Math.max(0, filtered.length - 1)));
+      const initialBatch = filtered.slice(currentPageStartIndex, currentPageStartIndex + INITIAL_PAGE_SIZE);
+      renderBatchToDom(initialBatch, currentPageStartIndex, false);
+      visibleRenderCount = currentPageStartIndex + initialBatch.length;
+      updateSentinelVisibility(true);
+      initInfiniteScrollObserver();
+      document.getElementById('resultsSectionAnchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function jumpToPrevResultsPageWindow() {
+      const prevStart = Math.max(0, currentPageStartIndex - MAX_PAGE_WINDOW_CARDS);
+      jumpToResultsPageWindow(prevStart);
+    }
+
     function renderNextBatchCards(userInitiated = false) {
       if (isScrollBatchLocked && !userInitiated) return;
       const filtered = getActiveFilteredPlaces();
@@ -1934,40 +1951,66 @@
         updateSentinelVisibility(false);
         return;
       }
-      isScrollBatchLocked = true;
-      setTimeout(() => { isScrollBatchLocked = false; }, 130);
 
-      const nextBatch = filtered.slice(visibleRenderCount, visibleRenderCount + BATCH_LOAD_SIZE);
+      const renderedInCurrentPage = visibleRenderCount - currentPageStartIndex;
+      // Cap DOM at 120 cards per page! Auto-scroll stops at 120 cards; clicking the button cleanly switches to the next 120-card page!
+      if (renderedInCurrentPage >= MAX_PAGE_WINDOW_CARDS) {
+        if (!userInitiated) {
+          updateSentinelVisibility(true);
+          return;
+        }
+        // User clicked "الدفعة التالية" -> replace DOM with the next page window!
+        jumpToResultsPageWindow(visibleRenderCount);
+        return;
+      }
+
+      isScrollBatchLocked = true;
+      setTimeout(() => { isScrollBatchLocked = false; }, 140);
+
+      const remainingInWindow = MAX_PAGE_WINDOW_CARDS - renderedInCurrentPage;
+      const stepSize = Math.min(BATCH_LOAD_SIZE, remainingInWindow);
+      const nextBatch = filtered.slice(visibleRenderCount, visibleRenderCount + stepSize);
       if (nextBatch.length === 0) {
         updateSentinelVisibility(false);
         return;
       }
       renderBatchToDom(nextBatch, visibleRenderCount, true);
       visibleRenderCount += nextBatch.length;
-      updateSentinelVisibility(visibleRenderCount < filtered.length);
+      updateSentinelVisibility(visibleRenderCount < filtered.length || currentPageStartIndex > 0);
     }
-
-    // Automatically restore top 40 closest cards if user scrolls back to top after deep scrolling recycled top nodes
-    window.addEventListener('scroll', () => {
-      if (window.scrollY < 140 && visibleRenderCount > MAX_LIVE_DOM_NODES && extractedPlaces.length > 0 && !isScrollBatchLocked) {
-        isScrollBatchLocked = true;
-        refreshVisibleResultsView(true);
-        setTimeout(() => { isScrollBatchLocked = false; }, 250);
-      }
-    }, { passive: true });
 
     function updateSentinelVisibility(hasMore) {
       const sentinel = document.getElementById('resultsInfiniteSentinel');
       const sentinelText = document.getElementById('sentinelProgressText');
       const btnLoad = document.getElementById('btnLoadMoreCards');
+      const btnLoadLbl = document.getElementById('btnLoadMoreCardsLabel');
+      const btnPrev = document.getElementById('btnPrevPageCards');
+      const btnFirst = document.getElementById('btnFirstPageCards');
       if (!sentinel) return;
 
-      if (hasMore) {
+      const filtered = getActiveFilteredPlaces();
+      const total = filtered.length;
+      const hasPrev = currentPageStartIndex > 0;
+      const hasNext = visibleRenderCount < total;
+
+      if (hasNext || hasPrev) {
         sentinel.classList.remove('hidden');
-        if (btnLoad) btnLoad.classList.remove('hidden');
-        const filtered = getActiveFilteredPlaces();
+        if (btnPrev) btnPrev.classList.toggle('hidden', !hasPrev);
+        if (btnFirst) btnFirst.classList.toggle('hidden', currentPageStartIndex < MAX_PAGE_WINDOW_CARDS);
+        if (btnLoad) btnLoad.classList.toggle('hidden', !hasNext);
+
+        const renderedInCurrentPage = visibleRenderCount - currentPageStartIndex;
+        if (btnLoadLbl) {
+          if (renderedInCurrentPage >= MAX_PAGE_WINDOW_CARDS) {
+            const nextStart = visibleRenderCount + 1;
+            const nextEnd = Math.min(total, visibleRenderCount + MAX_PAGE_WINDOW_CARDS);
+            btnLoadLbl.innerText = `⬅️ الانتقال للدفعة التالية (${nextStart} - ${nextEnd})`;
+          } else {
+            btnLoadLbl.innerText = `⬅️ عرض المزيد (+40 موقع)`;
+          }
+        }
         if (sentinelText) {
-          sentinelText.innerText = `تم عرض ${visibleRenderCount} من أصل ${filtered.length} موقع مستخرج (اسحب للأسفل لعرض المزيد)`;
+          sentinelText.innerText = `معروض حالياً المواقع (${currentPageStartIndex + 1} - ${visibleRenderCount}) من أصل ${total} موقع مستخرج`;
         }
       } else {
         sentinel.classList.add('hidden');
@@ -1985,12 +2028,15 @@
       sentinelObserver = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            renderNextBatchCards();
+            const renderedInCurrentPage = visibleRenderCount - currentPageStartIndex;
+            if (renderedInCurrentPage < MAX_PAGE_WINDOW_CARDS) {
+              renderNextBatchCards(false);
+            }
           }
         }
       }, {
         root: null,
-        rootMargin: '400px 0px',
+        rootMargin: '250px 0px',
         threshold: 0.01
       });
       sentinelObserver.observe(sentinel);
@@ -2014,12 +2060,13 @@
       }
 
       if (resetToPageOne) {
+        currentPageStartIndex = 0;
         visibleRenderCount = 0;
         const initialBatch = filtered.slice(0, INITIAL_PAGE_SIZE);
         renderBatchToDom(initialBatch, 0, false);
         visibleRenderCount = initialBatch.length;
       }
-      updateSentinelVisibility(visibleRenderCount < filtered.length);
+      updateSentinelVisibility(visibleRenderCount < filtered.length || currentPageStartIndex > 0);
       initInfiniteScrollObserver();
     }
 
@@ -2180,9 +2227,14 @@
           renderBatchToDom(slice, visibleRenderCount, true);
           visibleRenderCount += slice.length;
         }
-        updateStats();
-        updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
-        if (!sentinelObserver) initInfiniteScrollObserver();
+        if (!batchUiThrottleTimer) {
+          batchUiThrottleTimer = setTimeout(() => {
+            batchUiThrottleTimer = null;
+            updateStats();
+            updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+            if (!sentinelObserver) initInfiniteScrollObserver();
+          }, 220);
+        }
       });
 
       currentEventSource.addEventListener('complete', () => {

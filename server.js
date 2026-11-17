@@ -1975,29 +1975,101 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     } catch (e) {}
   };
 
+  const isCountrySearch = /^(اليمن|الجمهوريه اليمنيه|yemen)$/i.test(normAr(resolvedLocationInput));
+  const maxOriginRadiusKm = isCountrySearch ? 1400 : Math.max(rKm * 1.5, 45);
+
+  // Fast Pinpoint Live Google Maps Lookup around User's Exact GPS Building (150m) & Direct Query before streaming index
+  const livePinpointEntries = [];
+  try {
+    const pinpointQueries = [];
+    if (!isFullAreaScan && stdQuery) {
+      pinpointQueries.push({ q: stdQuery, lat: refLat, lng: refLng, span: 350 });
+      pinpointQueries.push({ q: `${stdQuery} ${isCountrySearch ? 'صنعاء' : center.city}`, lat: center.lat, lng: center.lng, span: 4500 });
+    } else if (isFullAreaScan && hasValidUserGps) {
+      for (const localTerm of ['شركة', 'مؤسسة', 'مكتب', 'مركز', 'محل', 'بقالة', 'صيدلية', 'مطعم']) {
+        pinpointQueries.push({ q: localTerm, lat: userLat, lng: userLng, span: 160 });
+      }
+    }
+    if (pinpointQueries.length > 0) {
+      const PINPOINT_TLDS = ['www.google.com.sa', 'www.google.ae', 'www.google.com.eg', 'www.google.jo', 'www.google.com.kw', 'www.google.com'];
+      const pinpointResults = await Promise.all(pinpointQueries.map(async (pq, idx) => {
+        try {
+          const host = PINPOINT_TLDS[idx % PINPOINT_TLDS.length];
+          const pb = `!4m12!1m3!1d${pq.span}!2d${pq.lng}!3d${pq.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!10b1`;
+          const gUrl = `https://${host}/search?tbm=map&authuser=0&hl=ar&gl=ye&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(pq.q)}`;
+          const res = await fetchWithTimeout(gUrl, {
+            timeout: 2400,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'ar,en;q=0.9',
+              'Cookie': 'SOCS=CAESHAgBEhJnd3NfMjAyNDA1MTUtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+            }
+          });
+          if (!res.ok) return [];
+          let text = await res.text();
+          if (text.startsWith(")]}'")) text = text.slice(4).trim();
+          const data = JSON.parse(text);
+          const entries = data?.[0]?.[1] || [];
+          const out = [];
+          for (const entry of entries) {
+            const p = entry?.[14];
+            if (!p || !p[11]) continue;
+            const pLat = p[9]?.[2];
+            const pLng = p[9]?.[3];
+            if (!pLat || !pLng) continue;
+            const cats = Array.isArray(p[13]) ? p[13].filter(Boolean) : [];
+            const phoneData = extractGoogleMapsPlacePhones(p);
+            const addr = p[39] || p[18] || (Array.isArray(p[2]) ? p[2].join('، ') : '') || '';
+            out.push({
+              n: String(p[11]).trim(),
+              la: Number(pLat),
+              ln: Number(pLng),
+              c: cats,
+              d: '',
+              a: addr,
+              ph: phoneData.phone || '',
+              r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.6'
+            });
+          }
+          return out;
+        } catch (e) {
+          return [];
+        }
+      }));
+      for (const list of pinpointResults) {
+        for (const item of list) livePinpointEntries.push(item);
+      }
+    }
+  } catch (e) {}
+
   // 0. INSTANT REAL-TIME WAVE (0.05s): Stream Verified Real Google Maps + OSM Index sorted from closest to user's GPS outward!
-  if (SANAA_REAL_INDEX.length > 0) {
+  if (SANAA_REAL_INDEX.length > 0 || livePinpointEntries.length > 0) {
     const matchedSeedPlaces = [];
-    for (const entry of SANAA_REAL_INDEX) {
-      const cleanName = String(entry.n || '').trim();
-      const pLat = Number(entry.la);
-      const pLng = Number(entry.ln);
+    const combinedEntries = livePinpointEntries.concat(SANAA_REAL_INDEX);
+    for (const entry of combinedEntries) {
+      const cleanName = String(entry.n || entry.name || '').trim();
+      const pLat = Number(entry.la ?? entry.lat);
+      const pLng = Number(entry.ln ?? entry.lng);
       if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
 
-      const placeCategories = Array.isArray(entry.c) ? entry.c : [];
+      const placeCategories = Array.isArray(entry.c)
+        ? entry.c
+        : (entry.category ? [String(entry.category)] : []);
       if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
         continue;
       }
 
       const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
+      const entryDistrict = entry.d || entry.district || '';
+      const entryAddress = entry.a || entry.address || '';
       if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
-      if (!hasDrawnCircle && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entry.d, entry.a)) {
+      if (!hasDrawnCircle && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entryDistrict, entryAddress)) {
         continue;
       }
-      if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > Math.max(rKm * 1.5, 45)) continue;
+      if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > maxOriginRadiusKm) continue;
 
       const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
-      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser });
+      matchedSeedPlaces.push({ entry, cleanName, pLat, pLng, distFromUser, entryDistrict, entryAddress, placeCategories });
     }
 
     // Sort strictly from closest to user's GPS location (refLat, refLng) outward!
@@ -2008,28 +2080,31 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const m = matchedSeedPlaces[sIdx];
       if (isDuplicatePlace(m.cleanName, m.pLat, m.pLng)) continue;
 
-      let actualDistrict = cleanNeighborhood ? cleanNeighborhood : (m.entry.d || '');
-      if (!actualDistrict || actualDistrict === 'صنعاء') {
-        const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
-        actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 3.5)
+      const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
+      const actualCity = m.entry.ci || m.entry.city || (hoodMatch && hoodMatch.distanceKm <= 35 ? hoodMatch.city : (isCountrySearch ? 'صنعاء' : center.city));
+      let actualDistrict = cleanNeighborhood ? cleanNeighborhood : m.entryDistrict;
+      if (!actualDistrict || actualDistrict === 'صنعاء' || actualDistrict === 'اليمن') {
+        actualDistrict = (hoodMatch && hoodMatch.distanceKm <= 6.5)
           ? (hoodMatch.neighborhood || hoodMatch.shortHood)
-          : center.district;
+          : (isCountrySearch ? actualCity : center.district);
       }
-      const hoursInfo = resolveWorkingHoursAndStatus({}, m.cleanName, m.entry.q || stdQuery || 'نشاط تجاري', fetchedCount);
-      const phoneStr = m.entry.ph || '';
-      const phonesArr = phoneStr ? [phoneStr] : [];
+      const hoursInfo = resolveWorkingHoursAndStatus({}, m.cleanName, m.entry.q || m.placeCategories[0] || stdQuery || 'نشاط تجاري', fetchedCount);
+      const phoneStr = m.entry.ph || m.entry.phone || '';
+      const phonesArr = Array.isArray(m.entry.phones) && m.entry.phones.length > 0
+        ? m.entry.phones
+        : (phoneStr ? [phoneStr] : []);
 
       const item = {
         id: `gmap_idx_${fetchedCount}_${Math.floor(Math.random() * 100000)}`,
         name: m.cleanName,
-        city: center.city,
+        city: actualCity,
         district: actualDistrict,
         country: center.country,
         phone: phoneStr,
         phones: phonesArr,
         phoneVerified: phonesArr.length > 0,
-        rating: m.entry.r || '4.6',
-        reviews: 45 + ((fetchedCount * 37) % 320),
+        rating: m.entry.r || m.entry.rating || '4.6',
+        reviews: m.entry.reviews || (45 + ((fetchedCount * 37) % 320)),
         isOpenNow: hoursInfo.isOpenNow,
         openStatus: hoursInfo.openStatus,
         workingHours: hoursInfo.workingHours,
@@ -2037,8 +2112,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         lng: parseFloat(m.pLng.toFixed(6)),
         distanceKm: Number(m.distFromUser.toFixed(3)),
         locationUrl: `https://www.google.com/maps?q=${m.pLat.toFixed(6)},${m.pLng.toFixed(6)}`,
-        website: `https://www.google.com/maps/search/${encodeURIComponent(m.cleanName + ' ' + center.city)}/@${m.pLat.toFixed(6)},${m.pLng.toFixed(6)},18z`,
-        address: m.entry.a || `${center.city} - ${actualDistrict}`,
+        website: m.entry.website && m.entry.website.startsWith('http')
+          ? m.entry.website
+          : `https://www.google.com/maps/search/${encodeURIComponent(m.cleanName + ' ' + actualCity)}/@${m.pLat.toFixed(6)},${m.pLng.toFixed(6)},18z`,
+        address: m.entryAddress || `${actualCity} - ${actualDistrict}`,
         source: 'خرائط جوجل الرسمية الحية'
       };
 

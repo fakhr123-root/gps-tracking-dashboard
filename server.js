@@ -1306,12 +1306,30 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'النيابة العامة', 'نيابة استئناف', 'نيابة', 'وزارة العدل', 'مكتب محاماة',
         'محامي ومستشار قانوني', 'كاتب عدل', 'دار القضاء', 'مجلس القضاء', 'محكمة شمال', 'محكمة جنوب', 'محكمة غرب', 'محكمة شرق'
       ].forEach(t => terms.add(t));
-    } else if (q.includes('صال') || q.includes('قاع') || q.includes('افراح') || q.includes('مناسبات') || q.includes('نادي') || q.includes('جيم') || q.includes('منتزه') || q.includes('حديق') || q.includes('ملعب')) {
+    } else if (q.includes('كوافير') || q.includes('حلاق') || q.includes('صالون') || q.includes('تجميل') || q.includes('مشغل')) {
       [
-        'صالة', 'صالات', 'صالة أفراح', 'صالات أفراح ومناسبات', 'قاعة أفراح',
-        'قاعة مؤتمرات ومناسبات', 'صالة ملكية', 'صالة كبرى', 'صالة رياضية',
-        'نادي رياضي وجيم', 'صالة ألعاب ترفيهية', 'صالة بلياردو وبولينج',
-        'صالة عرض', 'قاعة احتفالات', 'استراحة وشاليه', 'منتزه وحديقة', 'ملعب رياضي'
+        'صالون حلاقة', 'حلاق رجالي', 'كوافير نسائي', 'مركز تجميل وكوافير',
+        'صالون تجميل', 'مشغل نسائي', 'حلاقة رجالية وأطفال', 'كوافير وتجهيز عرائس',
+        'مركز عناية بالبشرة والشعر', 'صالون', 'حلاق', 'كوافير'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('سفري') || q.includes('سياح') || q.includes('طيران') || q.includes('حج وعمر') || q.includes('تذاكر')) {
+      [
+        'مكتب سفريات وسياحة', 'شركة سفريات وسياحة', 'وكالة سفريات وطيران',
+        'مكتب طيران وحجوزات', 'خدمات الحج والعمرة', 'سفريات', 'سياحة وسفر', 'خطوط جوية وطيران'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('حديق') || q.includes('حدائق') || q.includes('منتزه') || q.includes('ملاهي')) {
+      [
+        'حديقة عامة', 'حدائق ومنتزهات', 'منتزه عائلي', 'مدينة ملاهي وألعاب',
+        'حديقة', 'منتزه', 'استراحة ومنتزه'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('نادي') || q.includes('جيم') || q.includes('فتنس') || q.includes('ملعب')) {
+      [
+        'نادي رياضي', 'جيم وفتنس', 'صالة حديد وكمال أجسام', 'ملعب كرة قدم', 'نادي صحي ورياضي'
+      ].forEach(t => terms.add(t));
+    } else if (q.includes('صاله') || q.includes('صالة') || q.includes('صالات') || q.includes('قاع') || q.includes('افراح') || q.includes('اعراس') || q.includes('مناسبات')) {
+      [
+        'صالة أفراح', 'صالة أعراس ومناسبات', 'قاعة أفراح', 'قاعة مؤتمرات ومناسبات',
+        'صالة ملكية للأفراح', 'صالة كبرى', 'قاعة احتفالات', 'صالات أفراح'
       ].forEach(t => terms.add(t));
     } else if (q.includes('منفذ') || q.includes('منافذ') || q.includes('جمرك') || q.includes('جمارك') || q.includes('ميناء') || q.includes('مطار') || q.includes('فرز') || q.includes('معبر') || q.includes('نقطه') || q.includes('محطه')) {
       [
@@ -1573,18 +1591,95 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return hasAny(combinedText, foodKeywords);
     }
 
-    // Domain 6: Halls, Event Venues, Sports Clubs & Parks (صالة، قاعة، أفراح، مناسبات، نادي، منتزه)
-    if (q.includes('صال') || q.includes('قاع') || q.includes('افراح') || q.includes('مناسبات') || q.includes('نادي') || q.includes('جيم') || q.includes('منتزه') || q.includes('حديق') || q.includes('ملعب')) {
-      const unrelatedHallNoise = ['قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'ورشه', 'بنشر', 'مستشفي', 'عياده', 'معهد', 'مدرسه'];
-      if (hasAny(nName, unrelatedHallNoise)) return false;
+    // Domain 6A: Barbers, Hair Salons, Coiffure & Beauty Centers ONLY (كوافير، صالون حلاقة، حلاق، مركز تجميل، مشغل)
+    if (q.includes('كوافير') || q.includes('حلاق') || q.includes('صالون') || q.includes('تجميل') || q.includes('مشغل')) {
+      const unrelatedSalonNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'مستشفي', 'عياده', 'معهد', 'مدرسه',
+        'مطعم', 'بوفيه', 'ورشه', 'بنشر', 'مفروشات', 'شركه ادويه', 'للادويه', 'اتصالات', 'محكمه', 'محامي'
+      ];
+      if (hasAny(nName, unrelatedSalonNoise) && !hasAny(nName, ['حلاق', 'حلاقه', 'صالون', 'كوافير', 'تجميل', 'مشغل'])) {
+        return false;
+      }
+      const salonKeywords = [
+        'حلاق', 'حلاقه', 'حلاقة', 'صالون', 'كوافير', 'تجميل', 'مشغل', 'عرائس', 'عروسه',
+        'بشره', 'شعر', 'نقش', 'حناء', 'مكياج', 'barber', 'hair', 'salon', 'beauty', 'coiffure', 'stylist', 'makeup'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), salonKeywords);
+      return hasAny(combinedText, salonKeywords);
+    }
+
+    // Domain 6B: Travel & Tourism Agencies, Airlines & Hajj/Umrah Offices ONLY (مكتب سفريات، سياحة، طيران، حج وعمرة)
+    if (q.includes('سفري') || q.includes('سياح') || q.includes('طيران') || q.includes('حج وعمر') || q.includes('تذاكر')) {
+      const unrelatedTravelNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'مستشفي', 'عياده', 'معهد', 'مدرسه',
+        'مطعم', 'بوفيه', 'ورشه', 'بنشر', 'مفروشات', 'حلاق', 'صالون', 'كوافير', 'مكتب ضواحي', 'مكتب المحامي', 'عقارات', 'مقاولات'
+      ];
+      if (hasAny(nName, unrelatedTravelNoise) && !hasAny(nName, ['سفريات', 'للسفريات', 'سياحه', 'سياحة', 'طيران', 'حج وعمره'])) {
+        return false;
+      }
+      const travelKeywords = [
+        'سفريات', 'للسفريات', 'سياحه', 'سياحة', 'طيران', 'خطوط جويه', 'حج وعمره', 'حج وعمرة',
+        'تذاكر سفر', 'تأشيرات', 'فيزا', 'travel', 'tourism', 'airline', 'aviation', 'tours', 'ticketing'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), travelKeywords);
+      return hasAny(combinedText, travelKeywords);
+    }
+
+    // Domain 6C: Parks, Gardens & Family Recreation ONLY (حديقة، حدائق، منتزه، ملاهي)
+    if (q.includes('حديق') || q.includes('حدائق') || q.includes('منتزه') || q.includes('ملاهي')) {
+      const unrelatedParkNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'مستشفي', 'عياده', 'معهد', 'مدرسه',
+        'ورشه', 'بنشر', 'مفروشات', 'حلاق', 'صالون', 'كوافير', 'شركه', 'مؤسسه', 'حمامات عامه'
+      ];
+      if (hasAny(nName, unrelatedParkNoise) && !hasAny(nName, ['حديقه', 'حديقة', 'منتزه', 'ملاهي'])) {
+        return false;
+      }
+      const parkKeywords = [
+        'حديقه', 'حديقة', 'حدائق', 'منتزه', 'منتزهات', 'ملاهي', 'العاب ترفيهيه', 'بارك',
+        'park', 'garden', 'amusement', 'theme park'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), parkKeywords);
+      return hasAny(combinedText, parkKeywords);
+    }
+
+    // Domain 6D: Sports Clubs, Gyms & Stadiums ONLY (نادي رياضي، جيم، ملعب - blocks "نادية"!)
+    if (q.includes('نادي') || q.includes('جيم') || q.includes('فتنس') || q.includes('ملعب')) {
+      const unrelatedGymNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'للادويه', 'ادويه', 'مستشفي', 'عياده',
+        'ناديه', 'نادية', 'ورشه', 'بنشر', 'مفروشات', 'اتصالات', 'محامي', 'محكمه'
+      ];
+      if (hasAny(combinedText, unrelatedGymNoise) && !hasAny(nName, ['نادي رياضي', 'جيم', 'فتنس', 'ملعب', 'كمال اجسام'])) {
+        return false;
+      }
+      const gymKeywords = [
+        'نادي رياضي', 'نادي صحي', 'جيم', 'فتنس', 'كمال اجسام', 'لياقه', 'ملعب', 'ملاعب', 'بلياردو', 'بولينج',
+        'gym', 'fitness', 'sports club', 'stadium', 'arena', 'workout'
+      ];
+      if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), gymKeywords);
+      return hasAny(combinedText, gymKeywords);
+    }
+
+    // Domain 6E: Wedding Halls, Event Venues & Conference Halls ONLY (صالة أعراس، صالة أفراح، قاعة مناسبات - blocks "اتصالات" and "نادية"!)
+    if (q.includes('صاله') || q.includes('صالة') || q.includes('صالات') || q.includes('قاع') || q.includes('افراح') || q.includes('اعراس') || q.includes('مناسبات')) {
+      const cleanWithoutTelecom = combinedText.replace(/اتصالات|الاتصالات/g, ' ');
+      const unrelatedHallNoise = [
+        'قات', 'بقاله', 'تموينات', 'سوبرماركت', 'صيدليه', 'للادويه', 'ادويه', 'ناديه', 'نادية',
+        'ورشه', 'بنشر', 'مستشفي', 'عياده', 'معهد', 'مدرسه', 'حلاق', 'صالون', 'كوافير',
+        'حديقه', 'حديقة', 'منتزه', 'مفروشات', 'محامي', 'محكمه', 'بلياردو', 'العاب'
+      ];
+      if (hasAny(cleanWithoutTelecom, unrelatedHallNoise) && !hasAny(nName, ['صاله افراح', 'صالة أفراح', 'صاله اعراس', 'قاعه افراح', 'قاعة أفراح', 'للافراح والمناسبات'])) {
+        return false;
+      }
+      if ((nName.includes('اتصالات') || nName.includes('الاتصالات')) && !nName.includes('صاله') && !nName.includes('قاعه')) {
+        return false;
+      }
       const hallKeywords = [
-        'صاله', 'صالة', 'صالات', 'قاعه', 'قاعة', 'قاعات', 'افراح', 'أفراح', 'مناسبات',
-        'مؤتمرات', 'احتفالات', 'نادي', 'جيم', 'رياضي', 'بلياردو', 'بولينج', 'العاب',
-        'ترفيه', 'منتزه', 'حديقه', 'حديقة', 'ملعب', 'استراحه', 'شاليه',
-        'hall', 'venue', 'banquet', 'wedding', 'event', 'gym', 'fitness', 'club', 'park', 'stadium', 'arena'
+        'صاله', 'صالة', 'صالات افراح', 'قاعه', 'قاعة', 'قاعات', 'افراح', 'أفراح', 'اعراس', 'أعراس',
+        'مناسبات', 'مؤتمرات', 'احتفالات', 'صاله ملكيه', 'قاعه ملكيه',
+        'banquet', 'wedding hall', 'event venue', 'conference center', 'ballroom'
       ];
       if (startsWithDirectionalLandmark) return hasAny(catsNorm.join(' '), hallKeywords);
-      return hasAny(combinedText, hallKeywords);
+      return hasAny(cleanWithoutTelecom, hallKeywords);
     }
 
     // Domain 7: Outlets, Border Crossings, Customs, Ports, Airports & Bus Stations (منفذ، جمرك، ميناء، مطار، فرزة)
@@ -1921,10 +2016,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             '["office"~"lawyer|notary|judicial"]',
             '["government"~"justice|court|prosecutor"]'
           );
-        } else if (qNorm.includes('صال') || qNorm.includes('قاع') || qNorm.includes('افراح') || qNorm.includes('مناسبات') || qNorm.includes('نادي') || qNorm.includes('جيم') || qNorm.includes('منتزه') || qNorm.includes('حديق') || qNorm.includes('ملعب')) {
+        } else if (qNorm.includes('كوافير') || qNorm.includes('حلاق') || qNorm.includes('صالون') || qNorm.includes('تجميل') || qNorm.includes('مشغل')) {
+          tagFilters.push('["shop"~"hairdresser|beauty|cosmetics|massage"]');
+        } else if (qNorm.includes('سفري') || qNorm.includes('سياح') || qNorm.includes('طيران') || qNorm.includes('حج وعمر')) {
+          tagFilters.push('["shop"="travel_agency"]', '["office"~"travel_agent|airline"]');
+        } else if (qNorm.includes('حديق') || qNorm.includes('حدائق') || qNorm.includes('منتزه') || qNorm.includes('ملاهي')) {
+          tagFilters.push('["leisure"~"park|garden|theme_park|nature_reserve"]');
+        } else if (qNorm.includes('نادي') || qNorm.includes('جيم') || qNorm.includes('فتنس') || qNorm.includes('ملعب')) {
+          tagFilters.push('["leisure"~"sports_centre|fitness_centre|stadium|pitch"]');
+        } else if (qNorm.includes('صاله') || qNorm.includes('صالة') || qNorm.includes('صالات') || qNorm.includes('قاع') || qNorm.includes('افراح') || qNorm.includes('اعراس') || qNorm.includes('مناسبات')) {
           tagFilters.push(
-            '["amenity"~"events_venue|community_centre|conference_centre|arts_centre|theatre|cinema"]',
-            '["leisure"~"sports_centre|fitness_centre|stadium|pitch|park|water_park|swimming_pool|bowling_alley|amusement_arcade"]'
+            '["amenity"~"events_venue|community_centre|conference_centre|social_centre"]'
           );
         } else if (qNorm.includes('منفذ') || qNorm.includes('منافذ') || qNorm.includes('جمرك') || qNorm.includes('جمارك') || qNorm.includes('ميناء') || qNorm.includes('مطار') || qNorm.includes('فرز') || qNorm.includes('معبر') || qNorm.includes('محطه')) {
           tagFilters.push(
@@ -1996,18 +2098,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
       let queryBlocks = '';
       for (const tf of tagFilters) {
-        queryBlocks += `node${tf}(${bbox});way${tf}(${bbox});`;
+        queryBlocks += `node${tf}(${bbox});`;
       }
       if (!queryBlocks && flexRegex && flexRegex.length >= 2) {
         queryBlocks = `node["shop"]["name"~"${flexRegex}"](${bbox});node["amenity"]["name"~"${flexRegex}"](${bbox});node["office"]["name"~"${flexRegex}"](${bbox});node["tourism"]["name"~"${flexRegex}"](${bbox});node["healthcare"]["name"~"${flexRegex}"](${bbox});node["leisure"]["name"~"${flexRegex}"](${bbox});`;
       }
       if (!queryBlocks) {
-        queryBlocks = `node["shop"](${bbox});way["shop"](${bbox});node["amenity"](${bbox});way["amenity"](${bbox});node["office"](${bbox});way["office"](${bbox});node["tourism"](${bbox});way["tourism"](${bbox});node["healthcare"](${bbox});node["leisure"](${bbox});node["government"](${bbox});node["craft"](${bbox});`;
+        queryBlocks = `node["shop"](${bbox});node["amenity"](${bbox});node["office"](${bbox});node["tourism"](${bbox});node["healthcare"](${bbox});node["leisure"](${bbox});node["government"](${bbox});node["craft"](${bbox});`;
       }
 
       // Allow up to 50,000 real nodes across the entire city using fast quadtree bbox index!
-      const overpassQuery = `[out:json][timeout:20];(${queryBlocks});out center 50000;`;
+      const overpassQuery = `[out:json][timeout:18];(${queryBlocks});out center 50000;`;
       const mirrors = [
+        'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         'https://overpass-api.de/api/interpreter',
         'https://lz4.overpass-api.de/api/interpreter',
         'https://overpass.kumi.systems/api/interpreter'
@@ -2058,8 +2161,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   const runGlobalPhotonAndArcgisScan = async () => {
     try {
       const searchTerms = isFullAreaScan
-        ? ['بقالة', 'سوبر ماركت', 'صيدلية', 'مطعم', 'فندق', 'مستشفى', 'بنك', 'شركة', 'مدرسة', 'مسجد', 'مول', 'كافيه']
-        : expandSpecificActivitySynonyms(stdQuery).slice(0, 6);
+        ? [
+            'بقالة', 'سوبر ماركت', 'صيدلية', 'مستشفى', 'عيادة', 'مطعم', 'كافيه', 'فندق',
+            'بنك', 'صرافة', 'شركة', 'مدرسة', 'جامعة', 'مسجد', 'مول', 'صالة أفراح',
+            'حديقة', 'صالون حلاقة', 'كوافير', 'مكتب سفريات', 'محكمة', 'مسبح'
+          ]
+        : expandSpecificActivitySynonyms(stdQuery).slice(0, 8);
+
+      const gridOffsets = [
+        [0, 0],
+        [0.035, 0.035],
+        [-0.035, 0.035],
+        [0.035, -0.035],
+        [-0.035, -0.035]
+      ];
 
       const tasks = [];
       for (const term of searchTerms) {
@@ -2067,7 +2182,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         tasks.push((async () => {
           if (isAborted()) return;
           try {
-            const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(term + ' ' + center.city)}&lat=${center.lat}&lon=${center.lng}&limit=50`;
+            const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&lat=${center.lat}&lon=${center.lng}&limit=50`;
             const pRes = await fetchWithTimeout(pUrl, {
               timeout: 6000,
               headers: { 'User-Agent': 'GeoRadarStudio/3.0', 'Accept': 'application/json' }
@@ -2083,6 +2198,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               const pLat = Number(coords[1]);
               const name = String(props.name || '').trim();
               if (!name || isNaN(pLat) || isNaN(pLng)) continue;
+              if (normAr(name) === normAr(`${term} ${center.city}`)) continue;
               if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) continue;
               await emitPlace(name, pLat, pLng, {
                 shop: props.osm_value,
@@ -2093,29 +2209,35 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           } catch (e) {}
         })());
 
-        // ArcGIS World Geocoder POI Engine
-        tasks.push((async () => {
-          if (isAborted()) return;
-          try {
-            const aUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(term + ' ' + center.city)}&location=${center.lng},${center.lat}&distance=${Math.min(rKm * 1000, 45000)}&maxLocations=50&outFields=PlaceName,Place_addr,Type,Phone&f=json`;
-            const aRes = await fetchWithTimeout(aUrl, { timeout: 6000 });
-            if (!aRes.ok) return;
-            const aData = await aRes.json();
-            for (const c of (aData.candidates || [])) {
-              if (isAborted()) break;
-              const pLat = Number(c.location?.y);
-              const pLng = Number(c.location?.x);
-              const name = String(c.attributes?.PlaceName || c.address || '').split(',')[0].trim();
-              if (!name || isNaN(pLat) || isNaN(pLng)) continue;
-              if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) continue;
-              await emitPlace(name, pLat, pLng, {
-                phone: c.attributes?.Phone || '',
-                shop: c.attributes?.Type || term,
-                'addr:street': c.attributes?.Place_addr || ''
-              }, 'خرائط جوجل / الرادار العالمي');
-            }
-          } catch (e) {}
-        })());
+        // ArcGIS World Geocoder POI Engine across 5 city sectors
+        for (const [dLa, dLn] of gridOffsets.slice(0, isFullAreaScan ? 2 : 5)) {
+          tasks.push((async () => {
+            if (isAborted()) return;
+            try {
+              const sLat = center.lat + dLa;
+              const sLng = center.lng + dLn;
+              const ext = `${(sLng - 0.06).toFixed(4)},${(sLat - 0.06).toFixed(4)},${(sLng + 0.06).toFixed(4)},${(sLat + 0.06).toFixed(4)}`;
+              const aUrl = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?SingleLine=${encodeURIComponent(term)}&location=${sLng},${sLat}&searchExtent=${encodeURIComponent(ext)}&maxLocations=50&outFields=PlaceName,Place_addr,Type,Phone&f=json`;
+              const aRes = await fetchWithTimeout(aUrl, { timeout: 6000 });
+              if (!aRes.ok) return;
+              const aData = await aRes.json();
+              for (const c of (aData.candidates || [])) {
+                if (isAborted()) break;
+                const pLat = Number(c.location?.y);
+                const pLng = Number(c.location?.x);
+                const name = String(c.attributes?.PlaceName || c.address || '').split(',')[0].trim();
+                if (!name || isNaN(pLat) || isNaN(pLng)) continue;
+                if (normAr(name) === normAr(`${term} ${center.city}`) || normAr(name) === normAr(center.city)) continue;
+                if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) continue;
+                await emitPlace(name, pLat, pLng, {
+                  phone: c.attributes?.Phone || '',
+                  shop: c.attributes?.Type || term,
+                  'addr:street': c.attributes?.Place_addr || ''
+                }, 'خرائط جوجل / الرادار العالمي');
+              }
+            } catch (e) {}
+          })());
+        }
       }
       await Promise.all(tasks);
     } catch (e) {}
@@ -2274,7 +2396,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
-    const overpassPromise = fetchedCount >= 10
+    const isOutsideSanaa = !normAr(center.city).includes('صنعاء') || isCountrySearch;
+    const overpassPromise = (!isOutsideSanaa && fetchedCount >= 150)
       ? Promise.resolve()
       : Promise.all([runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();

@@ -1,0 +1,28 @@
+{
+  "name": "GeoRadar 3D Studio - مستخرج خرائط جوجل العالمي",
+  "short_name": "GeoRadar",
+  "description": "منصة استخراج وتحليل بيانات المواقع والأنشطة التجارية من خرائط جوجل بدقة إحداثيات 6 خانات عشرية وتغطية عالمية شاملة.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
+  "lang": "ar",
+  "dir": "rtl",
+  "categories": ["business", "navigation", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%23020617'/%3E%3Ccircle cx='96' cy='96' r='68' fill='none' stroke='%2310b981' stroke-width='6' stroke-dasharray='18 8'/%3E%3Ccircle cx='96' cy='96' r='42' fill='%2310b981' fill-opacity='0.18' stroke='%2306b6d4' stroke-width='4'/%3E%3Ccircle cx='96' cy='96' r='14' fill='%2310b981'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%23020617'/%3E%3Ccircle cx='256' cy='256' r='180' fill='none' stroke='%2310b981' stroke-width='14' stroke-dasharray='42 18'/%3E%3Ccircle cx='256' cy='256' r='112' fill='%2310b981' fill-opacity='0.18' stroke='%2306b6d4' stroke-width='10'/%3E%3Ccircle cx='256' cy='256' r='36' fill='%2310b981'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

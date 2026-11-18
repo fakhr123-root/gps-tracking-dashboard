@@ -2,6 +2,73 @@ const http = require('http');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
+const { parsePhoneNumberFromString } = require('libphonenumber-js');
+const turfPointInPolygonPkg = require('@turf/boolean-point-in-polygon');
+const booleanPointInPolygon = turfPointInPolygonPkg.default || turfPointInPolygonPkg;
+
+// Dice coefficient string similarity (0.0 to 1.0) for 20m >80% smart deduplication
+function calcNameSimilarity(a = '', b = '') {
+  const s1 = String(a).trim().toLowerCase();
+  const s2 = String(b).trim().toLowerCase();
+  if (!s1 || !s2) return 0;
+  if (s1 === s2) return 1;
+  if (s1.length < 2 || s2.length < 2) return 0;
+  const bigrams = new Map();
+  for (let i = 0; i < s1.length - 1; i++) {
+    const bg = s1.slice(i, i + 2);
+    bigrams.set(bg, (bigrams.get(bg) || 0) + 1);
+  }
+  let inter = 0;
+  for (let i = 0; i < s2.length - 1; i++) {
+    const bg = s2.slice(i, i + 2);
+    const c = bigrams.get(bg) || 0;
+    if (c > 0) {
+      bigrams.set(bg, c - 1);
+      inter++;
+    }
+  }
+  return (2.0 * inter) / (s1.length - 1 + (s2.length - 1));
+}
+
+// Reject fake/placeholder phone numbers with repeated digits (00000, 111111, 771250000, 123456)
+function isFakeOrPlaceholderPhone(raw = '') {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (digits.length < 6 || digits.length > 15) return true;
+  if (/(\d)\1{4,}/.test(digits)) return true;
+  if (/1234567|7654321|771250000|00000/.test(digits)) return true;
+  if (/^(19|20)\d{6}$/.test(digits)) return true;
+  return false;
+}
+
+// Universal E.164 Phone Validator & Formatter using libphonenumber-js
+function validateAndFormatGlobalPhone(rawVal = '', defaultCountry = 'YE') {
+  if (!rawVal || typeof rawVal !== 'string') return '';
+  const cleaned = rawVal.trim();
+  if (isFakeOrPlaceholderPhone(cleaned)) return '';
+  try {
+    const parsed = parsePhoneNumberFromString(cleaned, defaultCountry || 'YE');
+    if (parsed && parsed.isValid()) {
+      return parsed.formatInternational();
+    }
+  } catch (e) {}
+  const digits = cleaned.replace(/\D/g, '');
+  if (digits.length >= 7 && digits.length <= 15 && !isFakeOrPlaceholderPhone(digits)) {
+    return cleaned;
+  }
+  return '';
+}
+
+// Point-in-Polygon spatial verifier using @turf/boolean-point-in-polygon
+function isPointStrictlyInsidePolygon(lat, lng, polygonGeoJson) {
+  if (!polygonGeoJson) return true;
+  try {
+    const pt = { type: 'Point', coordinates: [Number(lng), Number(lat)] };
+    return Boolean(booleanPointInPolygon(pt, polygonGeoJson));
+  } catch (e) {
+    return true;
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -161,10 +228,10 @@ async function geocodeLocation(locationQuery) {
     }
   }
 
-  // 2. Query Nominatim OpenStreetMap Global Geocoder (Covers every country, city, town, village, street, and border crossing on Earth)
+  // 2. Query Nominatim OpenStreetMap Global Geocoder with polygon_geojson=1 (Covers every country, city, town, village, street, and border crossing on Earth)
   if (raw) {
     try {
-      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&accept-language=ar,en&q=${encodeURIComponent(raw)}`;
+      const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&polygon_geojson=1&limit=1&accept-language=ar,en&q=${encodeURIComponent(raw)}`;
       const nRes = await fetchWithTimeout(nomUrl, { timeout: 5500 });
       if (nRes.ok) {
         const nData = await nRes.json();
@@ -175,6 +242,7 @@ async function geocodeLocation(locationQuery) {
           const district = addr.suburb || addr.neighbourhood || addr.quarter || addr.county || addr.road || 'كامل المنطقة';
           const country = addr.country || raw;
           const countryCode = String(addr.country_code || 'YE').toUpperCase();
+          const adminPolygon = (top.geojson && (top.geojson.type === 'Polygon' || top.geojson.type === 'MultiPolygon')) ? top.geojson : null;
           return {
             lat: parseFloat(top.lat),
             lng: parseFloat(top.lon),
@@ -182,6 +250,7 @@ async function geocodeLocation(locationQuery) {
             district,
             country,
             countryCode,
+            adminPolygon,
             displayName: top.display_name || `${city}، ${district}، ${country}`
           };
         }
@@ -484,7 +553,7 @@ function resolveWorkingHoursAndStatus(tags = {}, placeName = '', queryStr = '', 
 }
 
 // Extract real phone numbers from Google Maps place node `p[178]` or OSM tags (NEVER generate fake/random numbers)
-function extractGoogleMapsPlacePhones(p) {
+function extractGoogleMapsPlacePhones(p, defaultCountryCode = 'YE') {
   const phonesList = [];
   const seenDigits = new Set();
 
@@ -496,13 +565,15 @@ function extractGoogleMapsPlacePhones(p) {
       .filter(Boolean);
 
     for (const part of parts) {
-      const digits = part.replace(/\D/g, '');
-      if (digits.length < 3) continue;
+      const formatted = validateAndFormatGlobalPhone(part, defaultCountryCode);
+      if (!formatted) continue;
+      const digits = formatted.replace(/\D/g, '');
+      if (digits.length < 6) continue;
       // Normalize last 7 digits so local 01 235 486 and international +967 1 235 486 don't duplicate
       const dedupeKey = digits.length >= 7 ? digits.slice(-7) : digits;
       if (!seenDigits.has(dedupeKey)) {
         seenDigits.add(dedupeKey);
-        phonesList.push(part);
+        phonesList.push(formatted);
       }
     }
   };
@@ -693,7 +764,7 @@ function getCoreBusinessName(str = '') {
 }
 
 // Built-in Real-time Extractor (Fetches ALL REAL places in the selected area directly from Google Maps Live Engine + Overpass OSM without number limits)
-async function searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat = null, userLng = null, circleFilter = null, isAborted = () => false) {
+async function searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat = null, userLng = null, circleFilter = null, isAborted = () => false, polygonFilter = null, uiLang = 'ar') {
   let fetchedCount = 0;
   const seenNames = new Set();
   const seenSpatialBuckets = new Map();
@@ -713,6 +784,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           const dKm = calcDistanceKm(prev.lat, prev.lng, pLat, pLng);
           if (prev.fullNorm === fullNorm && dKm <= 0.055) return true;
           if (coreNorm.length >= 3 && prev.coreNorm === coreNorm && dKm <= 0.045) return true;
+          // Smart 20m deduplication with >80% name similarity
+          if (dKm <= 0.020 && calcNameSimilarity(prev.fullNorm, fullNorm) >= 0.80) return true;
           if (dKm <= 0.035 && coreNorm.length >= 3 && prev.coreNorm.length >= 3 && (prev.coreNorm.includes(coreNorm) || coreNorm.includes(prev.coreNorm))) {
             return true;
           }
@@ -854,7 +927,29 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     typeof circleFilter.radiusKm === 'number' && circleFilter.radiusKm > 0
   );
 
-  if (hasDrawnCircle) {
+  // Support custom drawn Polygon or Rectangle (Array of [lat, lng] points or GeoJSON Polygon)
+  let activePolygonGeoJson = null;
+  let polygonBounds = null;
+  if (polygonFilter && Array.isArray(polygonFilter) && polygonFilter.length >= 3) {
+    const ring = polygonFilter.map(pt => [Number(pt[1] ?? pt.lng), Number(pt[0] ?? pt.lat)]);
+    if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+      ring.push([...ring[0]]);
+    }
+    activePolygonGeoJson = { type: 'Polygon', coordinates: [ring] };
+    const lats = ring.map(c => c[1]);
+    const lngs = ring.map(c => c[0]);
+    polygonBounds = {
+      minLat: Math.min(...lats),
+      maxLat: Math.max(...lats),
+      minLng: Math.min(...lngs),
+      maxLng: Math.max(...lngs)
+    };
+    center.lat = (polygonBounds.minLat + polygonBounds.maxLat) / 2;
+    center.lng = (polygonBounds.minLng + polygonBounds.maxLng) / 2;
+    const diagKm = calcDistanceKm(polygonBounds.minLat, polygonBounds.minLng, polygonBounds.maxLat, polygonBounds.maxLng) / 2;
+    radiusMeters = Math.round(Math.max(diagKm, 0.5) * 1000);
+    center.district = 'المنطقة المرسومة بالمضلع';
+  } else if (hasDrawnCircle) {
     center.lat = circleFilter.lat;
     center.lng = circleFilter.lng;
     radiusMeters = Math.round(circleFilter.radiusKm * 1000);
@@ -868,6 +963,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     // Full City / Capital Coverage Mode (تغطية العاصمة أو المدينة بالكامل)
     center.district = `كامل مدينة ${center.city}`;
   }
+  const hasDrawnZone = hasDrawnCircle || Boolean(activePolygonGeoJson);
 
   sendEvent('center', {
     lat: center.lat,
@@ -1027,6 +1123,22 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   const buildCitySectors = async () => {
     const namedSectors = [];
     const microGridSectors = [];
+
+    if (activePolygonGeoJson && polygonBounds) {
+      namedSectors.push({ name: center.district, lat: center.lat, lng: center.lng, span: Math.min(Math.max(radiusMeters * 1.4, 800), 15000) });
+      const latSpan = Math.max(polygonBounds.maxLat - polygonBounds.minLat, 0.004);
+      const lngSpan = Math.max(polygonBounds.maxLng - polygonBounds.minLng, 0.004);
+      const stepLat = latSpan / 4;
+      const stepLng = lngSpan / 4;
+      for (let la = polygonBounds.minLat; la <= polygonBounds.maxLat; la += stepLat) {
+        for (let ln = polygonBounds.minLng; ln <= polygonBounds.maxLng; ln += stepLng) {
+          if (isPointStrictlyInsidePolygon(la, ln, activePolygonGeoJson)) {
+            namedSectors.push({ name: center.district, lat: la, lng: ln, span: Math.min(Math.max(radiusMeters * 0.5, 600), 5000) });
+          }
+        }
+      }
+      return { namedSectors, microGridSectors };
+    }
 
     if (hasDrawnCircle) {
       const rDegLat = (circleFilter.radiusKm / 111) * 0.65;
@@ -1931,6 +2043,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       return false;
     }
 
+    if (activePolygonGeoJson && !isPointStrictlyInsidePolygon(pLat, pLng, activePolygonGeoJson)) {
+      return false;
+    }
+
     if (hasDrawnCircle) {
       const dKm = calcDistanceKm(center.lat, center.lng, pLat, pLng);
       if (dKm > circleFilter.radiusKm * 1.05) return false;
@@ -2377,19 +2493,23 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const distFromOrigin = calcDistanceKm(center.lat, center.lng, pLat, pLng);
       const entryDistrict = entry.d || entry.district || '';
       const entryAddress = entry.a || entry.address || '';
+      if (activePolygonGeoJson && !isPointStrictlyInsidePolygon(pLat, pLng, activePolygonGeoJson)) continue;
       if (hasDrawnCircle && distFromOrigin > circleFilter.radiusKm * 1.05) continue;
-      if (!hasDrawnCircle && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entryDistrict, entryAddress)) {
+      if (!hasDrawnZone && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entryDistrict, entryAddress)) {
         continue;
       }
-      if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > maxOriginRadiusKm) continue;
+      if (!hasDrawnZone && !cleanNeighborhood && distFromOrigin > maxOriginRadiusKm) continue;
 
       const trueCity = (center.countryCode === 'YE' || isCountrySearch)
         ? resolveTrueYemenCity(pLat, pLng, entry.ci || entry.city || '', entryAddress)
         : (entry.ci || entry.city || center.city);
 
       // Strict City Isolation: when searching a specific city (e.g. تعز), NEVER include places belonging to a neighboring city (e.g. إب)!
-      if (!isCountrySearch && !hasDrawnCircle) {
+      if (!isCountrySearch && !hasDrawnZone) {
         if (normAr(trueCity) !== targetCityNorm) continue;
+        if (center.adminPolygon && !isPointStrictlyInsidePolygon(pLat, pLng, center.adminPolygon) && distFromOrigin > 18) {
+          continue;
+        }
         // Also block places whose district or address explicitly names another city
         if (targetCityNorm === normAr('تعز') && /\b(اب|إب|جبله|جبلة|يريم|القاعده|القاعدة)\b/.test(`${cleanName} ${entryDistrict} ${entryAddress}`)) {
           continue;
@@ -3329,12 +3449,17 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
     const key = `user:${cleanUser}`;
     const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
     const formattedUsername = `@${cleanUser}`;
+    const savedAcc = (logsMeta && logsMeta.savedAccounts && logsMeta.savedAccounts[cleanUser]) || {};
 
     if (!mapByKey.has(key)) {
       mapByKey.set(key, {
         ...item,
         visitorName: formattedUsername,
         username: formattedUsername,
+        accountPassword: '',
+        hasPasswordHash: Boolean(savedAcc.passwordHash || item.passwordHash || item.accountPassword),
+        searchQuota: typeof item.searchQuota === 'number' ? item.searchQuota : (typeof savedAcc.searchQuota === 'number' ? savedAcc.searchQuota : 1000),
+        suspended: Boolean(item.suspended || savedAcc.suspended),
         isDeviceIpAutoAuth: false,
         ip: resolvedIp,
         localIp: item.localIp || '',
@@ -3477,13 +3602,31 @@ async function recordVisitor(info) {
     }
 
     const existingAccount = logs.savedAccounts[rawUsername];
+    if (existingAccount && existingAccount.suspended) {
+      return {
+        authError: true,
+        code: 'ACCOUNT_SUSPENDED',
+        message: `تم إيقاف الحساب (@${rawUsername}) مؤقتاً من قِبل الإدارة.`
+      };
+    }
+
+    const verifyAccountPassword = (acc, plain) => {
+      if (!acc) return false;
+      if (acc.passwordHash && String(acc.passwordHash).startsWith('$2')) {
+        return bcrypt.compareSync(String(plain), acc.passwordHash);
+      }
+      if (acc.password) {
+        return String(acc.password) === String(plain);
+      }
+      return true;
+    };
 
     if (authMode === 'register') {
       if (existingAccount) {
         return {
           authError: true,
           code: 'USERNAME_TAKEN',
-          message: `اسم المستخدم (${rawUsername}) مستخدم مسبقاً! اختر اسم مستخدم آخر، أو اضغط على (تسجيل الدخول) بالأسفل إذا كان هذا حسابك.`
+          message: `اسم المستخدم (${rawUsername}) مستخدم مسبقاً! اختر اسم مستخدم آخر، أو انتقل إلى تبويب (تسجيل الدخول) إذا كان هذا حسابك.`
         };
       }
     } else if (authMode === 'login') {
@@ -3491,10 +3634,10 @@ async function recordVisitor(info) {
         return {
           authError: true,
           code: 'ACCOUNT_NOT_FOUND',
-          message: `اسم المستخدم (${rawUsername}) غير مسجل مسبقاً! اضغط على زر (إنشاء حساب جديد) بالأسفل لإنشاء الحساب.`
+          message: `اسم المستخدم (${rawUsername}) غير مسجل مسبقاً! انتقل إلى تبويب (إنشاء حساب جديد) لإنشاء الحساب.`
         };
       }
-      if (existingAccount.password !== cleanPassword) {
+      if (!verifyAccountPassword(existingAccount, cleanPassword)) {
         return {
           authError: true,
           code: 'WRONG_PASSWORD',
@@ -3502,7 +3645,7 @@ async function recordVisitor(info) {
         };
       }
     } else if (authMode === 'resume') {
-      if (existingAccount && existingAccount.password && existingAccount.password !== cleanPassword) {
+      if (existingAccount && (existingAccount.passwordHash || existingAccount.password) && !verifyAccountPassword(existingAccount, cleanPassword)) {
         return {
           authError: true,
           code: 'WRONG_PASSWORD',
@@ -3535,17 +3678,23 @@ async function recordVisitor(info) {
   const normInputName = !isAutoDeviceOnly ? rawUsername : '';
 
   if (!isAutoDeviceOnly && normInputName) {
-    const prevCreated = logs.savedAccounts[normInputName]?.createdAt || now;
+    const prevAcc = logs.savedAccounts[normInputName] || {};
+    const prevCreated = prevAcc.createdAt || now;
+    const hashed = (cleanPassword && !cleanPassword.startsWith('$2'))
+      ? bcrypt.hashSync(cleanPassword, 10)
+      : (prevAcc.passwordHash || '');
     logs.savedAccounts[normInputName] = {
       username: `@${normInputName}`,
-      password: cleanPassword,
+      passwordHash: hashed,
+      searchQuota: typeof prevAcc.searchQuota === 'number' ? prevAcc.searchQuota : 1000,
+      suspended: Boolean(prevAcc.suspended),
       device: cleanDevice,
       ip: incomingRealIp,
       createdAt: prevCreated,
       updatedAt: now
     };
   }
-  const effectivePassword = !isAutoDeviceOnly ? cleanPassword : '';
+  const effectivePassword = '';
 
   // Match existing visitor by:
   // 1) If logging into an existing @username (even from a 2nd device!), match that @username record first!
@@ -3777,6 +3926,7 @@ function recordSearch(searchInfo) {
     targetNeighborhood: searchInfo.neighborhood || 'الكل',
     radius: searchInfo.radiusKm || 10,
     resultsCount: searchInfo.resultsCount || 0,
+    cachedResults: Array.isArray(searchInfo.cachedResults) ? searchInfo.cachedResults.slice(0, 1500) : [],
     timestamp: now
   };
   logs.searches.unshift(record);
@@ -3904,13 +4054,17 @@ const server = http.createServer(async (req, res) => {
       }
 
       const now = new Date().toISOString();
+      const hashedNew = bcrypt.hashSync(newPassword, 10);
       if (logs.savedAccounts[rawUser]) {
-        logs.savedAccounts[rawUser].password = newPassword;
+        logs.savedAccounts[rawUser].passwordHash = hashedNew;
+        delete logs.savedAccounts[rawUser].password;
         logs.savedAccounts[rawUser].updatedAt = now;
       } else {
         logs.savedAccounts[rawUser] = {
           username: rawUser,
-          password: newPassword,
+          passwordHash: hashedNew,
+          searchQuota: 1000,
+          suspended: false,
           createdAt: now,
           updatedAt: now
         };
@@ -3920,8 +4074,9 @@ const server = http.createServer(async (req, res) => {
         logs.visitors.forEach(v => {
           const vUser = String(v.username || v.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
           if (vUser === rawUser || (visitorId && v.id === visitorId)) {
-            v.accountPassword = newPassword;
-            v.username = rawUser;
+            delete v.accountPassword;
+            v.passwordHash = hashedNew;
+            v.username = `@${rawUser}`;
           }
         });
       }
@@ -4336,6 +4491,110 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Admin User Management Actions Endpoint (تصفير الرمز / تحديد الرصيد / حظر وتفعيل)
+  if (pathname === '/api/admin/user-action' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') logs.savedAccounts = {};
+    const rawUser = normalizeIgUsername(data.username || '');
+    if (!rawUser) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: 'اسم المستخدم غير صالح' }));
+      return;
+    }
+    const now = new Date().toISOString();
+    if (!logs.savedAccounts[rawUser]) {
+      logs.savedAccounts[rawUser] = { username: `@${rawUser}`, searchQuota: 1000, suspended: false, createdAt: now, updatedAt: now };
+    }
+
+    if (data.action === 'reset_password') {
+      const tempPass = String(data.newPassword || '123456').trim();
+      const hashed = bcrypt.hashSync(tempPass, 10);
+      logs.savedAccounts[rawUser].passwordHash = hashed;
+      delete logs.savedAccounts[rawUser].password;
+      logs.savedAccounts[rawUser].updatedAt = now;
+      (logs.visitors || []).forEach(v => {
+        if (normalizeIgUsername(v.username || v.visitorName || '') === rawUser) {
+          delete v.accountPassword;
+          v.passwordHash = hashed;
+        }
+      });
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, message: `تم تصفير وتحديث رمز اليوزر (@${rawUser}) بنجاح وتشفيره بـ bcrypt!` }));
+      return;
+    }
+
+    if (data.action === 'set_quota') {
+      const quota = Math.max(0, parseInt(data.quota, 10) || 1000);
+      logs.savedAccounts[rawUser].searchQuota = quota;
+      logs.savedAccounts[rawUser].updatedAt = now;
+      (logs.visitors || []).forEach(v => {
+        if (normalizeIgUsername(v.username || v.visitorName || '') === rawUser) {
+          v.searchQuota = quota;
+        }
+      });
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: true, quota, message: `تم تحديد رصيد البحث لليوزر (@${rawUser}) بـ ${quota} عملية بحث!` }));
+      return;
+    }
+
+    if (data.action === 'toggle_suspend') {
+      const nextState = !Boolean(logs.savedAccounts[rawUser].suspended);
+      logs.savedAccounts[rawUser].suspended = nextState;
+      logs.savedAccounts[rawUser].updatedAt = now;
+      (logs.visitors || []).forEach(v => {
+        if (normalizeIgUsername(v.username || v.visitorName || '') === rawUser) {
+          v.suspended = nextState;
+        }
+      });
+      saveAdminLogs(logs);
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: true,
+        suspended: nextState,
+        message: nextState ? `تم حظر/إيقاف حساب (@${rawUser}) بنجاح` : `تم إعادة تفعيل حساب (@${rawUser}) بنجاح`
+      }));
+      return;
+    }
+  }
+
+  // Export Cached Search Results from Admin Search Log without re-scraping
+  if (pathname === '/api/admin/export-search') {
+    const searchId = String(parsedUrl.query.id || '').trim();
+    const logs = loadAdminLogs();
+    const found = (logs.searches || []).find(s => s && s.id === searchId);
+    if (!found) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: 'سجل البحث غير موجود' }));
+      return;
+    }
+    let places = Array.isArray(found.cachedResults) ? found.cachedResults : [];
+    if (places.length === 0 && SANAA_REAL_INDEX.length > 0) {
+      const q = String(found.query || '').replace(/غير محدد.*/, '').trim();
+      const loc = String(found.targetLocation || 'صنعاء').trim();
+      places = SANAA_REAL_INDEX
+        .filter(e => (!loc || loc === 'اليمن' || normAr(e.ci || 'صنعاء') === normAr(loc)) && (!q || normAr(`${e.n} ${(e.c || []).join(' ')}`).includes(normAr(q))))
+        .slice(0, 500)
+        .map((e, i) => ({
+          index: i + 1,
+          name: e.n,
+          city: e.ci || loc,
+          district: e.d || '',
+          address: e.a || '',
+          lat: Number(e.la).toFixed(6),
+          lng: Number(e.ln).toFixed(6),
+          coords: `${Number(e.la).toFixed(6)}, ${Number(e.ln).toFixed(6)}`,
+          phone: e.ph || '',
+          rating: e.r || '4.6'
+        }));
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, search: found, results: places }));
+    return;
+  }
+
   // Real-time Search Endpoint (SSE Streaming)
   if (pathname === '/api/search') {
     const query = parsedUrl.query.query || '';
@@ -4349,6 +4608,17 @@ const server = http.createServer(async (req, res) => {
     const visitorLocation = (parsedUrl.query.visitorLocation || '').trim();
     const userLat = parsedUrl.query.userLat ? parseFloat(parsedUrl.query.userLat) : null;
     const userLng = parsedUrl.query.userLng ? parseFloat(parsedUrl.query.userLng) : null;
+    const uiLang = (parsedUrl.query.lang || 'ar').trim();
+
+    let polygonFilter = null;
+    if (parsedUrl.query.polygon) {
+      try {
+        const parsedPoly = JSON.parse(parsedUrl.query.polygon);
+        if (Array.isArray(parsedPoly) && parsedPoly.length >= 3) {
+          polygonFilter = parsedPoly;
+        }
+      } catch (e) {}
+    }
 
     const circleLat = parsedUrl.query.circleLat ? parseFloat(parsedUrl.query.circleLat) : null;
     const circleLng = parsedUrl.query.circleLng ? parseFloat(parsedUrl.query.circleLng) : null;
@@ -4364,6 +4634,7 @@ const server = http.createServer(async (req, res) => {
     });
 
     let resultCount = 0;
+    const searchSampleCache = [];
     let isClientAborted = false;
     const keepAliveTimer = setInterval(() => {
       if (!isClientAborted) {
@@ -4378,8 +4649,15 @@ const server = http.createServer(async (req, res) => {
     });
     const sendEvent = (event, data) => {
       if (isClientAborted) return;
-      if (event === 'place') resultCount++;
-      else if (event === 'places_batch' && Array.isArray(data)) resultCount += data.length;
+      if (event === 'place') {
+        resultCount++;
+        if (searchSampleCache.length < 300) searchSampleCache.push(data);
+      } else if (event === 'places_batch' && Array.isArray(data)) {
+        resultCount += data.length;
+        for (let i = 0; i < data.length && searchSampleCache.length < 300; i++) {
+          searchSampleCache.push(data[i]);
+        }
+      }
       try {
         res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       } catch (e) {}
@@ -4397,7 +4675,7 @@ const server = http.createServer(async (req, res) => {
       if (apiKey) {
         await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent);
       } else {
-        await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted);
+        await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted, polygonFilter, uiLang);
       }
       sendEvent('complete', { message: 'تم إنجاز البحث واستخراج كامل المنطقة بنجاح 100%!' });
     } catch (e) {
@@ -4413,9 +4691,23 @@ const server = http.createServer(async (req, res) => {
           visitorLocation: visitorLocation || location || 'اليمن',
           query,
           location,
-          neighborhood: circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(4)}, ${circleFilter.lng.toFixed(4)})` : (neighborhood || 'كامل المدينة'),
+          neighborhood: polygonFilter
+            ? `مضلع مرسوم (${polygonFilter.length} نقاط)`
+            : (circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(6)}, ${circleFilter.lng.toFixed(6)})` : (neighborhood || 'كامل المدينة')),
           radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
-          resultsCount: resultCount
+          resultsCount: resultCount,
+          cachedResults: searchSampleCache.slice(0, 250).map((p, idx) => ({
+            index: idx + 1,
+            name: p.name,
+            city: p.city,
+            district: p.district,
+            address: p.address,
+            lat: Number(p.lat || 0).toFixed(6),
+            lng: Number(p.lng || 0).toFixed(6),
+            coords: `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
+            phone: p.phone || '',
+            rating: p.rating || '4.6'
+          }))
         });
       }
       res.end();

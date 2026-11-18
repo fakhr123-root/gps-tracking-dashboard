@@ -9,8 +9,18 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "keywords": ["google-maps", "extractor", "3d", "yemen"],
+  "keywords": [
+    "google-maps",
+    "extractor",
+    "3d",
+    "yemen"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs"
+  "type": "commonjs",
+  "dependencies": {
+    "@turf/boolean-point-in-polygon": "^7.4.0",
+    "bcryptjs": "^3.0.3",
+    "libphonenumber-js": "^1.13.16"
+  }
 }

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#070d17">
+  <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   
@@ -225,85 +226,88 @@
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none"></div>
 
       <!-- Step Progress Indicator (1 -> 2) -->
-      <div class="flex items-center justify-center gap-2 mb-3 relative z-10">
+      <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
         <div id="stepBadge1" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
           <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">1</span>
-          <span id="i18n_step1Badge">السماح بالموقع</span>
+          <span id="i18n_step1Badge">1. تفعيل النطاق الجغرافي</span>
         </div>
         <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
         <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
           <span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span>
-          <span id="i18n_step2Badge">تسجيل الدخول</span>
+          <span id="i18n_step2Badge">2. تسجيل الدخول</span>
         </div>
       </div>
 
-      <!-- Auto-Detected Phone Language & Optional World Language Switcher at Start of Login -->
-      <div class="flex items-center justify-between gap-2 mb-4 px-3 py-2 rounded-2xl bg-slate-900/90 border border-emerald-500/35 relative z-10 text-right">
-        <div class="flex items-center gap-2 min-w-0">
-          <div class="w-7 h-7 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 text-xs shrink-0">
-            🌐
-          </div>
-          <div class="min-w-0">
-            <div id="gateDetectedLangHint" class="text-[10px] text-slate-400 font-bold leading-tight truncate">
-              تم التعرف تلقائياً حسب لغة الهاتف:
-            </div>
-            <div id="gateCurrentLangDisplay" class="text-xs font-black text-emerald-300 truncate notranslate">
-              العربية (Arabic)
-            </div>
-          </div>
+      <!-- Compact Top Language Bar -->
+      <div class="flex items-center justify-between gap-2 mb-3.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-emerald-500/35 relative z-10">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <span class="text-xs font-extrabold text-emerald-300 truncate" id="gateCurrentLangDisplay">🌐 اللغة: العربية (تلقائي)</span>
+          <span id="gateDetectedLangHint" class="hidden"></span>
         </div>
         <button
           type="button"
           onclick="openWorldLanguageModal()"
-          class="px-2.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[11px] font-extrabold flex items-center gap-1 shrink-0 cursor-pointer transition"
+          class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[11px] font-extrabold flex items-center gap-1 shrink-0 cursor-pointer transition"
         >
-          <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-300"></i>
-          <span id="gateChangeLangBtnText">تغيير اللغة</span>
+          <i data-lucide="globe" class="w-3 h-3 text-emerald-300"></i>
+          <span id="gateChangeLangBtnText">تغيير</span>
         </button>
       </div>
 
       <!-- ==================== STEP 1: LOCATION PERMISSION SCREEN ==================== -->
-      <div id="gateStep1Location" class="space-y-4">
-        <!-- Glowing GPS Radar Emblem -->
-        <div class="relative w-20 h-20 mx-auto mb-2 flex items-center justify-center">
+      <div id="gateStep1Location" class="space-y-3.5">
+        <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
-          <div class="absolute inset-1.5 rounded-full border border-cyan-400/50"></div>
-          <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.6)]">
-            <i data-lucide="map-pin" class="w-7 h-7 text-slate-950"></i>
+          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)]">
+            <i data-lucide="map-pin" class="w-6 h-6 text-slate-950"></i>
           </div>
         </div>
 
-        <h2 class="text-xl font-black text-white">واجهة السماح بالموقع الجغرافي</h2>
+        <h2 class="text-lg font-black text-white">1. تفعيل النطاق الجغرافي</h2>
         <p class="text-xs text-slate-300 leading-relaxed">
-          يرجى السماح بفتح الموقع الجغرافي أولاً لتفعيل الرادار ثلاثي الأبعاد، وبعد فتح الموقع اضغط على <strong class="text-emerald-300">التالي</strong> للانتقال إلى تسجيل الدخول
+          يُرجى تفعيل الموقع لضبط الخريطة ونطاق البحث على مدينتك تلقائياً.
         </p>
 
         <!-- Location Status & Activation Box -->
-        <div id="geoPermissionBox" class="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/35 text-right space-y-3">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2.5">
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
-                <i data-lucide="navigation" class="w-5 h-5"></i>
+        <div id="geoPermissionBox" class="p-3.5 rounded-2xl bg-slate-900/90 border border-emerald-500/35 text-right space-y-2.5">
+          <div class="flex items-center justify-between gap-2.5">
+            <div class="flex items-center gap-2 min-w-0">
+              <div class="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
+                <i data-lucide="navigation" class="w-4 h-4"></i>
               </div>
-              <div>
+              <div class="min-w-0">
                 <div class="flex items-center gap-1.5">
-                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping" id="geoStatusDot"></span>
-                  <span class="text-xs font-extrabold text-white" id="geoStatusTitle">بانتظار السماح بالموقع الجغرافي...</span>
+                  <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping" id="geoStatusDot"></span>
+                  <span class="text-xs font-extrabold text-white truncate" id="geoStatusTitle">يُرجى تفعيل الموقع لضبط الخريطة ونطاق البحث على مدينتك تلقائياً.</span>
                 </div>
-                <p class="text-[11px] text-slate-400 mt-0.5" id="geoStatusDesc">اضغط على زر "فتح الموقع" بالأسفل ثم اختر (سماح / Allow)</p>
+                <p class="text-[11px] text-slate-400 mt-0.5" id="geoStatusDesc">اضغط على الزر بالأسفل ثم اختر (سماح / Allow)</p>
               </div>
             </div>
+          </div>
+
+          <!-- Polite Step-by-Step Guide When Permission is Denied/Blocked -->
+          <div id="geoBlockedGuideBox" class="hidden p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-[11px] text-amber-200 space-y-1">
+            <div class="font-black text-amber-300">💡 كيف تفعّل الموقع من المتصفح بسهولة؟</div>
+            <div>1️⃣ اضغط على أيقونة القفل 🔒 أو الإعدادات بجوار شريط العنوان بالأعلى.</div>
+            <div>2️⃣ اختر <strong>الأذونات (Permissions)</strong> ثم فعّل <strong>الموقع الجغرافي (Location: Allow)</strong>.</div>
+            <div>3️⃣ اضغط على زر <strong>"🔄 إعادة المحاولة"</strong> بالأسفل للمتابعة فوراً.</div>
           </div>
 
           <button
             type="button"
             id="enableGeoBtn"
-            onclick="requestOptionalGeolocationPrompt()"
-            class="w-full py-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/60 text-emerald-300 font-black text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.2)]"
+            onclick="requestOptionalGeolocationPrompt(true)"
+            class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.3)]"
           >
             <i data-lucide="locate-fixed" class="w-4 h-4"></i>
-            <span id="enableGeoBtnText">📍 السماح بالموقع وفتح الرادار</span>
+            <span id="enableGeoBtnText">📍 تفعيل الموقع والمتابعة</span>
           </button>
+
+          <!-- Trust & Privacy Badge + Privacy Policy Link -->
+          <div class="pt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400 border-t border-slate-800/80">
+            <span>🔒 بياناتك محمية — يُستخدم الموقع لضبط الخريطة فقط.</span>
+            <button type="button" onclick="openLegalInfoModal('privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-bold cursor-pointer">سياسة الخصوصية</button>
+          </div>
         </div>
 
         <!-- Step 1 "Next" Button (Disabled until Location is opened!) -->
@@ -312,20 +316,38 @@
           id="step1NextBtn"
           onclick="goToLoginStep2()"
           disabled
-          class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
+          class="w-full py-3 rounded-2xl font-black text-xs text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
         >
-          <span id="step1NextBtnText">التالي (يرجى فتح الموقع أولاً)</span>
+          <span id="step1NextBtnText">2. تسجيل الدخول (مقفل حتى تفعيل الموقع)</span>
           <i data-lucide="arrow-left" class="w-4 h-4"></i>
         </button>
       </div>
 
-      <!-- ==================== STEP 2: CLEAN INSTAGRAM-STYLE LOGIN / CREATE ACCOUNT (MATCHING WEBSITE EMERALD/CYAN THEME) ==================== -->
-      <div id="gateStep2Login" class="hidden space-y-5 pt-2 text-right">
-        <h2 id="gateAuthHeaderTitle" class="text-lg sm:text-xl font-black text-white text-right px-1">
-          تسجيل الدخول
-        </h2>
+      <!-- ==================== STEP 2: COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
+      <div id="gateStep2Login" class="hidden space-y-3.5 pt-1 text-right">
+        <!-- Clean Top Tab Switcher Inside Card -->
+        <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-900/95 border border-emerald-500/30">
+          <button
+            type="button"
+            id="tabBtnLoginMode"
+            onclick="setGateAuthMode('login')"
+            class="py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow"
+          >
+            تسجيل الدخول
+          </button>
+          <button
+            type="button"
+            id="tabBtnRegisterMode"
+            onclick="setGateAuthMode('register')"
+            class="py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white"
+          >
+            إنشاء حساب جديد
+          </button>
+        </div>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5" autocomplete="off">
+        <h2 id="gateAuthHeaderTitle" class="sr-only">تسجيل الدخول</h2>
+
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3" autocomplete="off">
           <!-- Username Input Box ("اسم المستخدم") -->
           <div class="relative">
             <input 
@@ -336,8 +358,8 @@
               maxlength="30"
               autocomplete="off"
               oninput="sanitizeInstagramUsernameInput(this)"
-              placeholder="اسم المستخدم"
-              class="w-full bg-slate-900/90 text-sm rounded-2xl px-4 py-4 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
+              placeholder="اسم المستخدم (a-z, 0-9)"
+              class="w-full bg-slate-900/90 text-sm rounded-2xl px-4 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
           </div>
 
@@ -350,22 +372,31 @@
               minlength="1"
               autocomplete="new-password"
               placeholder="كلمة المرور"
-              class="w-full bg-slate-900/90 text-sm rounded-2xl pr-4 pl-11 py-4 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
+              class="w-full bg-slate-900/90 text-sm rounded-2xl pr-4 pl-11 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
             <button
               type="button"
               onclick="toggleVisitorPasswordVisibility()"
-              class="absolute left-3.5 top-4 text-emerald-400/80 hover:text-emerald-300 transition cursor-pointer"
+              class="absolute left-3.5 top-3.5 text-emerald-400/80 hover:text-emerald-300 transition cursor-pointer"
               title="إظهار / إخفاء كلمة المرور"
             >
               <i id="visitorPassEyeIcon" data-lucide="eye" class="w-4 h-4"></i>
             </button>
           </div>
 
+          <!-- Remember Me Checkbox ("تذكرني") -->
+          <div class="flex items-center justify-between px-1 text-xs">
+            <label class="inline-flex items-center gap-2 cursor-pointer text-slate-300 font-bold select-none">
+              <input type="checkbox" id="rememberMeCheckbox" checked class="w-4 h-4 rounded accent-emerald-400 cursor-pointer" />
+              <span>تذكرني على هذا الجهاز</span>
+            </label>
+            <span id="gateApprovedCityBadge" class="text-[10px] text-emerald-300 font-bold"></span>
+          </div>
+
           <p id="usernameFormatHint" class="hidden text-[11px] text-amber-300 font-semibold px-1"></p>
 
           <!-- Error / Validation Box -->
-          <div id="loginNameError" class="hidden p-3 rounded-2xl bg-red-950/70 border border-red-500/50 text-xs text-red-300 font-bold leading-relaxed text-center">
+          <div id="loginNameError" class="hidden p-2.5 rounded-2xl bg-red-950/70 border border-red-500/50 text-xs text-red-300 font-bold leading-relaxed text-center">
             يرجى إدخال اسم المستخدم وكلمة المرور
           </div>
 
@@ -377,18 +408,6 @@
               class="w-full py-3.5 rounded-full font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span id="gateSubmitBtnText">تسجيل الدخول</span>
-            </button>
-          </div>
-
-          <!-- Secondary Bottom Outlined Pill Button ("إنشاء حساب جديد" / "تسجيل الدخول") -->
-          <div class="pt-6 border-t border-emerald-500/20">
-            <button
-              type="button"
-              id="gateToggleAuthModeBtn"
-              onclick="toggleGateAuthMode()"
-              class="w-full py-3 rounded-full font-bold text-sm text-emerald-300 hover:text-white bg-emerald-950/35 hover:bg-emerald-500/20 border border-emerald-400/50 transition flex items-center justify-center cursor-pointer"
-            >
-              <span id="gateToggleAuthModeBtnText">إنشاء حساب جديد</span>
             </button>
           </div>
         </form>
@@ -473,26 +492,26 @@
       </form>
 
       <!-- 2.5 Optional World Language Switcher (All Languages of the World) -->
-      <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2.5">
-        <div class="flex items-center justify-between gap-2">
-          <div class="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
-            <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>تغيير اللغة (اختياري — كل لغات العالم)</span>
+      <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-2.5 overflow-hidden">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5 min-w-0">
+            <i data-lucide="globe" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+            <span class="truncate">تغيير اللغة (كل لغات العالم)</span>
           </div>
           <button
             type="button"
             onclick="resetToPhoneDetectedLanguage()"
-            class="px-2 py-0.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 text-[10px] font-bold cursor-pointer transition"
+            class="px-2 py-0.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 text-[10px] font-bold cursor-pointer transition shrink-0"
           >
             📱 لغة الهاتف تلقائياً
           </button>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 min-w-0">
           <select
             id="settingsQuickLangSelect"
             onchange="applySelectedWorldLanguage(this.value, false)"
-            class="flex-1 bg-slate-950 border border-emerald-500/35 rounded-xl px-2.5 py-2 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none notranslate"
+            class="flex-1 min-w-0 bg-slate-950 border border-emerald-500/35 rounded-xl px-2.5 py-2 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none truncate notranslate"
           ></select>
           <button
             type="button"
@@ -503,7 +522,7 @@
             <span>كل اللغات</span>
           </button>
         </div>
-        <div id="settingsLangStatusNote" class="text-[10px] text-slate-400 font-semibold px-0.5">
+        <div id="settingsLangStatusNote" class="text-[10px] text-slate-400 font-semibold px-0.5 truncate">
           يتم التعرف تلقائياً على لغة هاتفك ويمكنك اختيار أي لغة من لغات العالم
         </div>
       </div>
@@ -519,6 +538,7 @@
           <div>
             <label class="block text-[10px] font-bold text-slate-400 mb-1">المدينة الافتراضية:</label>
             <select id="prefDefaultCity" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none">
+              <option value="auto">تلقائي حسب موقعي (Auto-Detect)</option>
               <option value="صنعاء">صنعاء</option>
               <option value="عدن">عدن</option>
               <option value="تعز">تعز</option>
@@ -551,8 +571,20 @@
             <select id="prefAutoPhoneFilter" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold focus:border-emerald-400 focus:outline-none">
               <option value="all">عرض كل المواقع</option>
               <option value="phone_only">برقم هاتف فقط</option>
+              <option value="verified_intl">أرقام دولية موثقة فقط (بدون أرقام وهمية)</option>
             </select>
           </div>
+        </div>
+
+        <!-- Custom WhatsApp Outreach Message Template -->
+        <div class="pt-1">
+          <label class="block text-[10px] font-bold text-emerald-300 mb-1">💬 رسالة واتساب التلقائية (يدعم المتغيرات <span dir="ltr">{name}</span> و <span dir="ltr">{area}</span>):</label>
+          <textarea
+            id="prefWhatsappTemplate"
+            rows="2"
+            placeholder="مرحباً {name} في {area}، تواصلت معكم عبر دليل الخرائط بخصوص..."
+            class="w-full bg-slate-950 border border-slate-700 focus:border-emerald-400 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none font-bold"
+          >مرحباً {name} ({area})، تواصلت معكم عبر دليل GeoRadar بخصوص خدماتكم.</textarea>
         </div>
 
         <!-- Quick Tools Inside Settings -->
@@ -563,6 +595,15 @@
           <button type="button" onclick="clearAllResults(true); closeUserSettingsModal();" class="py-1.5 px-2 rounded-lg bg-slate-950 hover:bg-amber-500/15 border border-slate-700 text-amber-300 text-[11px] font-bold flex items-center justify-center gap-1 cursor-pointer transition">
             <span>🧹 تفريغ النتائج</span>
           </button>
+        </div>
+
+        <!-- Legal & Support Links Inside Settings -->
+        <div class="flex flex-wrap items-center justify-center gap-3 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400">
+          <button type="button" onclick="openLegalInfoModal('privacy')" class="hover:text-emerald-300 underline cursor-pointer">🔒 سياسة الخصوصية</button>
+          <span>•</span>
+          <button type="button" onclick="openLegalInfoModal('terms')" class="hover:text-emerald-300 underline cursor-pointer">📜 شروط الاستخدام</button>
+          <span>•</span>
+          <button type="button" onclick="openLegalInfoModal('support')" class="hover:text-emerald-300 underline cursor-pointer">🛠️ الدعم الفني</button>
         </div>
 
         <button type="button" onclick="saveExtractorUserPreferences()" class="w-full py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition">
@@ -783,10 +824,10 @@
             <!-- Scope & Filter Pills (Compact on Phone & Computer) -->
             <div class="flex flex-wrap items-center gap-1">
               <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill active px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition">
-                <span>🌐 المدينة</span>
+                <span>🌐 مسح شامل للمدينة</span>
               </button>
               <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition border-cyan-400/50 text-cyan-200">
-                <span>⭕ رسم دائرة</span>
+                <span>✏️ بحث بالرسم على الخريطة</span>
               </button>
               <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer">
                 <span>📞 بهاتف</span>
@@ -798,7 +839,7 @@
           </div>
         </form>
 
-        <!-- COMPACT INTERACTIVE MAP & CIRCLE STUDIO -->
+        <!-- COMPACT INTERACTIVE MAP & DRAWING STUDIO (Circle / Custom Polygon / Rectangle) -->
         <div id="visualizerPanel" class="hidden w-full studio-card rounded-xl overflow-hidden border border-cyan-400/50 shadow-xl flex-col">
           
           <!-- Compact Map Header -->
@@ -806,15 +847,22 @@
             <div class="flex items-center gap-1.5">
               <i data-lucide="circle-dot" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
               <div>
-                <h3 class="text-[11px] sm:text-xs font-black text-white" id="drawnCircleTitle">🗺️ تحديد منطقة البحث بالخريطة</h3>
-                <p class="text-[9px] sm:text-[10px] text-emerald-300 font-bold" id="drawnCircleCoordsText">انقر على الخريطة لوضع الدائرة ثم اضغط مسح الدائرة</p>
+                <h3 class="text-[11px] sm:text-xs font-black text-white" id="drawnCircleTitle">🗺️ تحديد منطقة البحث بالخريطة (دائرة / مضلع حر / مستطيل)</h3>
+                <p class="text-[9px] sm:text-[10px] text-emerald-300 font-bold" id="drawnCircleCoordsText">اختر أداة الرسم ثم حدد المنطقة المطلوبة على الخريطة</p>
               </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-1">
-              <button type="button" id="mapDrawCircleBtn" onclick="enableCircleDrawTool()" class="px-2 py-0.5 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[10px] font-black cursor-pointer flex items-center gap-1">
-                <span>✏️ رسم</span>
+              <button type="button" id="mapDrawCircleBtn" onclick="selectMapDrawShapeTool('circle')" class="px-2 py-0.5 rounded bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-[10px] font-black cursor-pointer flex items-center gap-1">
+                <span>⭕ دائرة بنصف قطر</span>
               </button>
+              <button type="button" id="mapDrawPolygonBtn" onclick="selectMapDrawShapeTool('polygon')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer flex items-center gap-1">
+                <span>📐 مضلع حر</span>
+              </button>
+              <button type="button" id="mapDrawRectBtn" onclick="selectMapDrawShapeTool('rectangle')" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-teal-500/20 border border-teal-500/40 text-teal-300 text-[10px] font-bold cursor-pointer flex items-center gap-1">
+                <span>▭ مستطيل</span>
+              </button>
+              <button type="button" id="mapToggleHeatmapBtn" onclick="toggleMapHeatmapOverlay()" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer">🔥 كثافة حرارية</button>
               <button type="button" onclick="setViewMode('map', 'streets')" class="px-1.5 py-0.5 rounded bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer">شوارع</button>
               <button type="button" onclick="setViewMode('map', 'hybrid')" class="px-1.5 py-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold cursor-pointer">قمر صناعي</button>
               <button type="button" onclick="centerMapOnUserGps()" class="px-1.5 py-0.5 rounded bg-slate-900 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer">📍 موقعي</button>
@@ -830,7 +878,7 @@
             <div id="mapContainer" class="w-full h-full relative z-10">
               <div id="leafletMap" class="w-full h-full"></div>
               <div id="mapDrawHintOverlay" class="hidden absolute bottom-2 left-1/2 -translate-x-1/2 z-[1000] px-3 py-1 rounded-full bg-slate-950/90 border border-cyan-400/60 text-center text-[10px] font-bold text-cyan-300 shadow-lg pointer-events-none whitespace-nowrap">
-                ✏️ انقر على الخريطة أو اسحب لرسم الدائرة
+                ✏️ انقر على الخريطة أو اسحب لرسم المنطقة
               </div>
             </div>
           </div>
@@ -838,26 +886,26 @@
           <!-- Compact Map Footer -->
           <div id="drawnCircleBanner" class="bg-slate-950/95 border-t border-slate-800 px-2.5 py-1.5 flex flex-wrap items-center justify-between gap-1.5 text-[10px] sm:text-[11px]">
             <div class="flex flex-wrap items-center gap-1">
-              <span class="text-slate-300 font-bold">القطر:</span>
-              <button type="button" onclick="onDrawnCircleSliderChange(0.5)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-num text-cyan-300 cursor-pointer">0.5كم</button>
+              <span class="text-slate-300 font-bold">نصف القطر:</span>
+              <button type="button" onclick="onDrawnCircleSliderChange(0.5)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-num text-cyan-300 cursor-pointer">500م</button>
               <button type="button" onclick="onDrawnCircleSliderChange(1)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-num text-cyan-300 cursor-pointer">1كم</button>
               <button type="button" onclick="onDrawnCircleSliderChange(2)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-num text-cyan-300 cursor-pointer">2كم</button>
               <button type="button" onclick="onDrawnCircleSliderChange(5)" class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-num text-cyan-300 cursor-pointer">5كم</button>
               <div class="flex items-center gap-1 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
                 <input type="range" id="circleRadiusSlider" min="0.2" max="20" step="0.2" value="2.0" oninput="onDrawnCircleSliderChange(this.value)" class="w-16 sm:w-24 h-1 accent-cyan-400 cursor-pointer" />
-                <span id="circleRadiusValueLabel" class="text-[10px] font-num font-black text-emerald-400">2.0 كم</span>
+                <span id="circleRadiusValueLabel" class="text-[10px] font-num font-black text-emerald-400">2.0 كم (2000 م)</span>
               </div>
             </div>
 
             <div class="flex flex-wrap items-center gap-1">
               <button type="button" onclick="scanAllActivitiesInDrawnCircle()" class="px-2.5 py-1 rounded bg-gradient-to-r from-cyan-400 to-emerald-400 text-slate-950 font-black text-[10px] sm:text-[11px] flex items-center gap-1 cursor-pointer shadow">
-                <span>📡 مسح الدائرة</span>
+                <span>📡 مسح المنطقة المرسومة</span>
               </button>
               <button type="button" onclick="handleSearch(new Event('submit'))" class="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-200 font-bold text-[10px] sm:text-[11px] cursor-pointer">
-                <span>🔍 بحث بالدائرة</span>
+                <span>🔍 بحث بالرسم</span>
               </button>
-              <button type="button" onclick="clearDrawnCircle(false)" class="px-2 py-1 rounded bg-red-500/20 border border-red-400/40 text-red-300 font-bold text-[10px] cursor-pointer">
-                ✕
+              <button type="button" onclick="clearDrawnCircle(false)" class="px-2 py-1 rounded bg-red-500/20 border border-red-400/40 text-red-300 font-bold text-[10px] cursor-pointer" title="مسح الرسم">
+                ✕ مسح
               </button>
             </div>
           </div>
@@ -871,7 +919,7 @@
         
         <!-- Slim Results Toolbar -->
         <div class="studio-card rounded-xl px-2.5 py-1.5 border border-slate-800 flex flex-wrap items-center justify-between gap-1.5">
-          <div class="flex items-center gap-1.5">
+          <div class="flex flex-wrap items-center gap-1.5">
             <span class="text-[11px] sm:text-xs font-black text-white flex items-center gap-1">
               <i data-lucide="list-filter" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span>النتائج</span>
@@ -879,12 +927,27 @@
             <button type="button" onclick="toggleResultsViewMode()" class="px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 cursor-pointer">
               جدول / بطاقات
             </button>
+            <button type="button" onclick="toggleInteractiveResultsMap()" class="px-2 py-0.5 rounded bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-[10px] font-bold text-emerald-300 cursor-pointer flex items-center gap-1">
+              <span>🗺️ خريطة تفاعلية</span>
+            </button>
+            <button type="button" onclick="openSavedProjectsModal()" class="px-2 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-[10px] font-bold text-cyan-300 cursor-pointer flex items-center gap-1">
+              <span>📁 مشاريعي المحفوظة</span>
+            </button>
+            <button type="button" id="btnRestorePreviousSession" onclick="restorePreviousIdbSession()" class="hidden px-2 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-[10px] font-bold text-amber-300 cursor-pointer">
+              🔄 استعادة الجلسة السابقة
+            </button>
           </div>
 
           <div class="flex flex-wrap items-center gap-1">
             <button type="button" onclick="exportToExcel()" class="px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] sm:text-[11px] font-black flex items-center gap-1 cursor-pointer transition">
               <i data-lucide="file-spreadsheet" class="w-3 h-3"></i>
               <span>Excel</span>
+            </button>
+            <button type="button" onclick="exportToVcf()" class="px-2 py-1 rounded-lg bg-teal-600/80 hover:bg-teal-500 text-white text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer transition" title="تصدير جهات اتصال الهاتف vCard 3.0">
+              <span>📇 جهات اتصال VCF</span>
+            </button>
+            <button type="button" onclick="exportToKml()" class="px-2 py-1 rounded-lg bg-sky-600/80 hover:bg-sky-500 text-white text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer transition" title="تصدير ملف Google Earth / Maps KML">
+              <span>🌍 خرائط KML</span>
             </button>
             <button type="button" onclick="copyAllPhones()" class="px-2 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-cyan-300 text-[10px] sm:text-[11px] font-bold cursor-pointer transition">
               📞 الأرقام
@@ -895,11 +958,30 @@
           </div>
         </div>
 
-        <!-- Slim Live Progress Indicator -->
+        <!-- Compact Data Quality Summary Bar -->
+        <div id="dataQualitySummaryBar" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="font-black text-emerald-300">📊 جودة البيانات المستخرجة:</span>
+            <span class="px-2 py-0.5 rounded bg-slate-950 text-white font-num font-bold">الإجمالي: <strong id="dqTotalCount" class="text-emerald-400">0</strong></span>
+            <span class="px-2 py-0.5 rounded bg-slate-950 text-cyan-300 font-num font-bold">📞 بهاتف موثق: <strong id="dqPhoneRatio">0%</strong></span>
+            <span class="px-2 py-0.5 rounded bg-slate-950 text-teal-300 font-num font-bold">🧭 دقة إحداثيات 6 خانات: <strong>100%</strong></span>
+          </div>
+          <button type="button" onclick="saveCurrentResultsToProject()" class="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 font-extrabold cursor-pointer">
+            💾 حفظ في مشاريعي
+          </button>
+        </div>
+
+        <!-- Slim Live Progress Indicator with Percentage & Pause/Resume Controls -->
         <div id="progressContainer" class="hidden bg-slate-900/95 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 shadow">
           <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
             <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[140px] truncate">جارٍ البحث واستخراج البيانات...</span>
-            <span id="progressRatio" class="text-white font-num font-bold shrink-0 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع</span>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span id="progressPercentBadge" class="text-cyan-300 font-num font-black bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">0%</span>
+              <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع</span>
+              <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-300 font-bold text-[10px] cursor-pointer">
+                ⏸️ إيقاف مؤقت
+              </button>
+            </div>
           </div>
           <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-1">
             <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
@@ -960,6 +1042,43 @@
 
   </main>
 
+  <!-- SAVED PROJECTS MODAL (📁 مشاريعي المحفوظة) -->
+  <div id="savedProjectsModal" class="hidden fixed inset-0 z-[9996] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="w-full max-w-[520px] rounded-2xl bg-[#071521] border border-cyan-500/45 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-right space-y-3.5 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-400/50 flex items-center justify-center text-cyan-300 text-sm">📁</div>
+          <div>
+            <h3 class="text-sm sm:text-base font-black text-white">مشاريعي المحفوظة (Saved Projects)</h3>
+            <p class="text-[10px] text-slate-400">نظم نتائج بحثك في مجلدات خاصة بحسابك وصدّرها متى شئت</p>
+          </div>
+        </div>
+        <button type="button" onclick="closeSavedProjectsModal()" class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-red-500/20 border border-slate-700 text-slate-300 hover:text-red-300 flex items-center justify-center text-xs font-bold cursor-pointer">✕</button>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <input type="text" id="newProjectFolderNameInput" placeholder="اسم المجلد الجديد (مثال: صيدليات صنعاء - حدة)..." class="flex-1 bg-slate-950 border border-emerald-500/35 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 font-bold focus:outline-none focus:border-emerald-400" />
+        <button type="button" onclick="saveCurrentResultsToProject()" class="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-xs shrink-0 cursor-pointer">💾 حفظ النتائج الحالية</button>
+      </div>
+      <div id="savedProjectsListContainer" class="space-y-2 overflow-y-auto pr-1 flex-1 min-h-[160px]"></div>
+    </div>
+  </div>
+
+  <!-- LEGAL & SUPPORT MODAL (🔒 سياسة الخصوصية | 📜 شروط الاستخدام | 🛠️ الدعم الفني) -->
+  <div id="legalSupportModal" class="hidden fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+    <div class="w-full max-w-[500px] rounded-2xl bg-[#071521] border border-emerald-500/45 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-right space-y-3.5 max-h-[88vh] flex flex-col">
+      <div class="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
+        <h3 id="legalModalTitle" class="text-sm sm:text-base font-black text-emerald-300">🔒 سياسة الخصوصية وحماية البيانات</h3>
+        <button type="button" onclick="closeLegalInfoModal()" class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-red-500/20 border border-slate-700 text-slate-300 hover:text-red-300 flex items-center justify-center text-xs font-bold cursor-pointer">✕</button>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button type="button" onclick="openLegalInfoModal('privacy')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold cursor-pointer">🔒 سياسة الخصوصية</button>
+        <button type="button" onclick="openLegalInfoModal('terms')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-300 text-[11px] font-bold cursor-pointer">📜 شروط الاستخدام</button>
+        <button type="button" onclick="openLegalInfoModal('support')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-teal-500/20 border border-teal-500/35 text-teal-300 text-[11px] font-bold cursor-pointer">🛠️ الدعم الفني</button>
+      </div>
+      <div id="legalModalBody" class="text-xs text-slate-300 leading-relaxed space-y-2.5 overflow-y-auto pr-1 flex-1"></div>
+    </div>
+  </div>
+
   <!-- Mobile Bottom Navigation -->
   <nav class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-slate-950/95 backdrop-blur-xl border-t border-emerald-500/30 px-2 py-1.5 flex items-center justify-around">
     <button type="button" onclick="document.getElementById('searchForm').scrollIntoView({behavior:'smooth'})" class="flex flex-col items-center gap-0.5 text-emerald-400 text-[10px] font-bold">
@@ -968,11 +1087,15 @@
     </button>
     <button type="button" onclick="startDrawCircleOnMap()" class="flex flex-col items-center gap-0.5 text-cyan-400 text-[10px] font-bold">
       <i data-lucide="circle-dot" class="w-3.5 h-3.5"></i>
-      <span>دائرة</span>
+      <span>رسم خريطة</span>
+    </button>
+    <button type="button" onclick="openSavedProjectsModal()" class="flex flex-col items-center gap-0.5 text-amber-300 text-[10px] font-bold">
+      <i data-lucide="folder" class="w-3.5 h-3.5"></i>
+      <span>مشاريعي</span>
     </button>
     <button type="button" onclick="exportToExcel()" class="flex flex-col items-center gap-0.5 text-emerald-300 text-[10px] font-bold">
       <i data-lucide="download" class="w-3.5 h-3.5"></i>
-      <span>Excel</span>
+      <span>تصدير</span>
     </button>
     <button type="button" onclick="openUserSettingsModal()" class="flex flex-col items-center gap-0.5 text-teal-300 text-[10px] font-bold">
       <i data-lucide="settings" class="w-3.5 h-3.5"></i>
@@ -1456,14 +1579,80 @@
       setupMapCircleDrawingEvents();
     }
 
-    function enableCircleDrawTool() {
+    let activeMapShapeTool = 'circle'; // 'circle' | 'polygon' | 'rectangle'
+    let drawnPolygonCoords = []; // [[lat, lng], ...]
+    let drawnPolygonLayer = null;
+    let drawnPolygonVertexMarkers = [];
+    let isDrawingRectDrag = false;
+    let rectStartLatLng = null;
+    let isHeatmapOverlayActive = false;
+    let heatmapCanvasLayer = null;
+    let isScanPaused = false;
+    let pausedBufferedPlaces = [];
+
+    function selectMapDrawShapeTool(tool = 'circle') {
+      activeMapShapeTool = tool;
       isDrawingCircleMode = true;
       document.getElementById('btnFullCityMode')?.classList.remove('active');
       document.getElementById('btnDrawCircleMode')?.classList.add('active');
+
+      const btnCircle = document.getElementById('mapDrawCircleBtn');
+      const btnPoly = document.getElementById('mapDrawPolygonBtn');
+      const btnRect = document.getElementById('mapDrawRectBtn');
+      if (btnCircle) btnCircle.className = tool === 'circle' ? 'px-2 py-0.5 rounded bg-cyan-500 text-slate-950 text-[10px] font-black cursor-pointer flex items-center gap-1' : 'px-2 py-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold cursor-pointer flex items-center gap-1';
+      if (btnPoly) btnPoly.className = tool === 'polygon' ? 'px-2 py-0.5 rounded bg-emerald-400 text-slate-950 text-[10px] font-black cursor-pointer flex items-center gap-1' : 'px-2 py-0.5 rounded bg-slate-900 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold cursor-pointer flex items-center gap-1';
+      if (btnRect) btnRect.className = tool === 'rectangle' ? 'px-2 py-0.5 rounded bg-teal-400 text-slate-950 text-[10px] font-black cursor-pointer flex items-center gap-1' : 'px-2 py-0.5 rounded bg-slate-900 border border-teal-500/40 text-teal-300 text-[10px] font-bold cursor-pointer flex items-center gap-1';
+
       const hint = document.getElementById('mapDrawHintOverlay');
-      if (hint) hint.classList.remove('hidden');
+      if (hint) {
+        hint.classList.remove('hidden');
+        if (tool === 'polygon') {
+          drawnPolygonCoords = [];
+          if (drawnPolygonLayer && leafletMap) { leafletMap.removeLayer(drawnPolygonLayer); drawnPolygonLayer = null; }
+          drawnPolygonVertexMarkers.forEach(m => leafletMap && leafletMap.removeLayer(m));
+          drawnPolygonVertexMarkers = [];
+          hint.innerText = '📐 انقر عدة نقاط على الخريطة لرسم المضلع الحر حول الحي أو الشارع';
+        } else if (tool === 'rectangle') {
+          hint.innerText = '▭ اسحب على الخريطة لرسم مستطيل التحديد';
+        } else {
+          hint.innerText = '⭕ انقر على الخريطة أو اسحب لرسم دائرة بنصف قطر';
+        }
+      }
       if (leafletMap) {
         leafletMap.getContainer().style.cursor = 'crosshair';
+      }
+    }
+
+    function enableCircleDrawTool() {
+      selectMapDrawShapeTool(activeMapShapeTool || 'circle');
+    }
+
+    function updateDrawnPolygonOnMap(coords) {
+      drawnPolygonCoords = coords;
+      if (!leafletMap || coords.length === 0) return;
+      if (drawnCircleLayer) { leafletMap.removeLayer(drawnCircleLayer); drawnCircleLayer = null; }
+      if (drawnCenterMarker) { leafletMap.removeLayer(drawnCenterMarker); drawnCenterMarker = null; }
+      drawnCircleState = null;
+
+      if (drawnPolygonLayer) {
+        drawnPolygonLayer.setLatLngs(coords);
+      } else {
+        drawnPolygonLayer = L.polygon(coords, {
+          color: '#10b981',
+          weight: 2.5,
+          fillColor: '#06b6d4',
+          fillOpacity: 0.24
+        }).addTo(leafletMap);
+      }
+      const titleEl = document.getElementById('drawnCircleTitle');
+      if (titleEl) {
+        titleEl.innerText = activeMapShapeTool === 'rectangle'
+          ? `▭ تم تحديد منطقة المستطيل المرسوم (${coords.length} زوايا)`
+          : `📐 تم تحديد منطقة المضلع الحر (${coords.length} نقاط)`;
+      }
+      const coordsEl = document.getElementById('drawnCircleCoordsText');
+      if (coordsEl && coords[0]) {
+        coordsEl.innerText = `نقطة البداية: ${Number(coords[0][0]).toFixed(6)}, ${Number(coords[0][1]).toFixed(6)} — اضغط "مسح المنطقة المرسومة" أو "بحث بالرسم"`;
       }
     }
 
@@ -1471,33 +1660,71 @@
       if (!leafletMap) return;
       const mapEl = leafletMap.getContainer();
 
-      // Clicking anywhere on the map places/moves the circle center immediately
       leafletMap.on('click', (e) => {
-        if (!isDrawingCircleMode && !drawnCircleState) return;
-        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
-        updateDrawnCircleOnMap(e.latlng.lat, e.latlng.lng, sliderVal);
+        if (activeMapShapeTool === 'polygon' && isDrawingCircleMode) {
+          const pt = [Number(e.latlng.lat.toFixed(6)), Number(e.latlng.lng.toFixed(6))];
+          drawnPolygonCoords.push(pt);
+          const vMarker = L.circleMarker(pt, { radius: 5, color: '#fff', fillColor: '#10b981', fillOpacity: 1 }).addTo(leafletMap);
+          drawnPolygonVertexMarkers.push(vMarker);
+          updateDrawnPolygonOnMap(drawnPolygonCoords);
+          return;
+        }
+        if (activeMapShapeTool === 'circle') {
+          if (!isDrawingCircleMode && !drawnCircleState) return;
+          const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+          updateDrawnCircleOnMap(e.latlng.lat, e.latlng.lng, sliderVal);
+        }
       });
 
       leafletMap.on('mousedown', (e) => {
         if (!isDrawingCircleMode) return;
-        isDraggingCircle = true;
-        leafletMap.dragging.disable();
-        const startLat = e.latlng.lat;
-        const startLng = e.latlng.lng;
-        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
-        updateDrawnCircleOnMap(startLat, startLng, sliderVal);
+        if (activeMapShapeTool === 'rectangle') {
+          isDrawingRectDrag = true;
+          rectStartLatLng = e.latlng;
+          leafletMap.dragging.disable();
+          return;
+        }
+        if (activeMapShapeTool === 'circle') {
+          isDraggingCircle = true;
+          leafletMap.dragging.disable();
+          const startLat = e.latlng.lat;
+          const startLng = e.latlng.lng;
+          const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+          updateDrawnCircleOnMap(startLat, startLng, sliderVal);
+        }
       });
 
       leafletMap.on('mousemove', (e) => {
-        if (!isDrawingCircleMode || !isDraggingCircle || !drawnCircleState) return;
-        const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, e.latlng.lat, e.latlng.lng);
-        if (distKm && distKm > 0.15) {
-          const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
-          updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
+        if (activeMapShapeTool === 'rectangle' && isDrawingRectDrag && rectStartLatLng) {
+          const lat1 = rectStartLatLng.lat, lng1 = rectStartLatLng.lng;
+          const lat2 = e.latlng.lat, lng2 = e.latlng.lng;
+          updateDrawnPolygonOnMap([
+            [lat1, lng1],
+            [lat1, lng2],
+            [lat2, lng2],
+            [lat2, lng1]
+          ]);
+          return;
+        }
+        if (activeMapShapeTool === 'circle' && isDrawingCircleMode && isDraggingCircle && drawnCircleState) {
+          const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, e.latlng.lat, e.latlng.lng);
+          if (distKm && distKm > 0.1) {
+            const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
+            updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
+          }
         }
       });
 
       window.addEventListener('mouseup', () => {
+        if (isDrawingRectDrag) {
+          isDrawingRectDrag = false;
+          isDrawingCircleMode = false;
+          if (leafletMap) {
+            leafletMap.dragging.enable();
+            leafletMap.getContainer().style.cursor = '';
+          }
+          document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
+        }
         if (isDraggingCircle) {
           isDraggingCircle = false;
           isDrawingCircleMode = false;
@@ -1512,25 +1739,45 @@
       // Touch drawing support for mobile phones
       mapEl.addEventListener('touchstart', (ev) => {
         if (!isDrawingCircleMode || ev.touches.length !== 1) return;
-        isDraggingCircle = true;
-        leafletMap.dragging.disable();
         const pt = leafletMap.mouseEventToLatLng(ev.touches[0]);
-        const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
-        updateDrawnCircleOnMap(pt.lat, pt.lng, sliderVal);
+        if (activeMapShapeTool === 'rectangle') {
+          isDrawingRectDrag = true;
+          rectStartLatLng = pt;
+          leafletMap.dragging.disable();
+          return;
+        }
+        if (activeMapShapeTool === 'circle') {
+          isDraggingCircle = true;
+          leafletMap.dragging.disable();
+          const sliderVal = parseFloat(document.getElementById('circleRadiusSlider')?.value) || 2.0;
+          updateDrawnCircleOnMap(pt.lat, pt.lng, sliderVal);
+        }
       }, { passive: true });
 
       mapEl.addEventListener('touchmove', (ev) => {
-        if (!isDrawingCircleMode || !isDraggingCircle || !drawnCircleState || ev.touches.length !== 1) return;
+        if (ev.touches.length !== 1) return;
         const pt = leafletMap.mouseEventToLatLng(ev.touches[0]);
-        const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, pt.lat, pt.lng);
-        if (distKm && distKm > 0.15) {
-          const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
-          updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
+        if (activeMapShapeTool === 'rectangle' && isDrawingRectDrag && rectStartLatLng) {
+          updateDrawnPolygonOnMap([
+            [rectStartLatLng.lat, rectStartLatLng.lng],
+            [rectStartLatLng.lat, pt.lng],
+            [pt.lat, pt.lng],
+            [pt.lat, rectStartLatLng.lng]
+          ]);
+          return;
+        }
+        if (activeMapShapeTool === 'circle' && isDrawingCircleMode && isDraggingCircle && drawnCircleState) {
+          const distKm = getDistanceKm(drawnCircleState.lat, drawnCircleState.lng, pt.lat, pt.lng);
+          if (distKm && distKm > 0.1) {
+            const clampedKm = Math.min(Math.max(distKm, 0.2), 20);
+            updateDrawnCircleOnMap(drawnCircleState.lat, drawnCircleState.lng, clampedKm);
+          }
         }
       }, { passive: true });
 
       mapEl.addEventListener('touchend', () => {
-        if (isDraggingCircle) {
+        if (isDrawingRectDrag || isDraggingCircle) {
+          isDrawingRectDrag = false;
           isDraggingCircle = false;
           isDrawingCircleMode = false;
           if (leafletMap) leafletMap.dragging.enable();
@@ -1577,14 +1824,14 @@
       const banner = document.getElementById('drawnCircleBanner');
       if (banner) banner.classList.remove('hidden');
       const titleEl = document.getElementById('drawnCircleTitle');
-      if (titleEl) titleEl.innerText = `⭕ تم تحديد منطقة الدائرة المرسومة (${radiusKm.toFixed(1)} كم)`;
+      if (titleEl) titleEl.innerText = `⭕ تم تحديد منطقة الدائرة المرسومة (${radiusKm.toFixed(1)} كم / ${radiusMeters} متر)`;
       const coordsEl = document.getElementById('drawnCircleCoordsText');
-      if (coordsEl) coordsEl.innerText = `المركز: ${lat.toFixed(5)}, ${lng.toFixed(5)} — انقر في أي مكان لنقل الدائرة أو غيّر حجمها من الشريط بالأسفل`;
+      if (coordsEl) coordsEl.innerText = `المركز (Lat, Lng): ${lat.toFixed(6)}, ${lng.toFixed(6)} — نصف القطر: ${radiusMeters}م`;
 
       const slider = document.getElementById('circleRadiusSlider');
       if (slider) slider.value = Math.min(Math.max(radiusKm, 0.2), 20);
       const valLbl = document.getElementById('circleRadiusValueLabel');
-      if (valLbl) valLbl.innerText = `${radiusKm.toFixed(1)} كم`;
+      if (valLbl) valLbl.innerText = `${radiusKm.toFixed(1)} كم (${radiusMeters} م)`;
     }
 
     function showMobileMapPanel() {
@@ -1648,7 +1895,9 @@
     function clearDrawnCircle(resetToFullCity = false) {
       isDrawingCircleMode = false;
       isDraggingCircle = false;
+      isDrawingRectDrag = false;
       drawnCircleState = null;
+      drawnPolygonCoords = [];
       document.getElementById('btnDrawCircleMode')?.classList.remove('active');
       if (leafletMap) {
         leafletMap.dragging.enable();
@@ -1661,11 +1910,17 @@
           leafletMap.removeLayer(drawnCenterMarker);
           drawnCenterMarker = null;
         }
+        if (drawnPolygonLayer) {
+          leafletMap.removeLayer(drawnPolygonLayer);
+          drawnPolygonLayer = null;
+        }
+        drawnPolygonVertexMarkers.forEach(m => leafletMap.removeLayer(m));
+        drawnPolygonVertexMarkers = [];
       }
       const titleEl = document.getElementById('drawnCircleTitle');
-      if (titleEl) titleEl.innerText = '🗺️ الخريطة التفاعلية وتحديد المنطقة بالرسم';
+      if (titleEl) titleEl.innerText = '🗺️ تحديد منطقة البحث بالخريطة (دائرة / مضلع حر / مستطيل)';
       const coordsEl = document.getElementById('drawnCircleCoordsText');
-      if (coordsEl) coordsEl.innerText = 'انقر على "تفعيل الرسم" أو انقر في أي مكان على الخريطة لوضع دائرة التحديد';
+      if (coordsEl) coordsEl.innerText = 'اختر أداة الرسم ثم حدد المنطقة المطلوبة على الخريطة';
       document.getElementById('mapDrawHintOverlay')?.classList.add('hidden');
       if (resetToFullCity) {
         document.getElementById('btnFullCityMode')?.classList.add('active');
@@ -2148,6 +2403,7 @@
         neighborhood: neighborhood,
         radius: selectedRadius,
         apiKey: apiKey,
+        lang: currentActiveLangCode || 'ar',
         visitorId: visitorId,
         visitorName: visitorName,
         visitorLocation: location ? `${location} ${neighborhood}` : 'صنعاء، اليمن'
@@ -2158,11 +2414,18 @@
         params.set('userLng', cachedOptionalGps.lng);
       }
 
-      if (drawnCircleState && drawnCircleState.lat && drawnCircleState.lng && drawnCircleState.radiusKm > 0) {
+      if (drawnPolygonCoords && drawnPolygonCoords.length >= 3) {
+        params.set('polygon', JSON.stringify(drawnPolygonCoords));
+      } else if (drawnCircleState && drawnCircleState.lat && drawnCircleState.lng && drawnCircleState.radiusKm > 0) {
         params.set('circleLat', drawnCircleState.lat);
         params.set('circleLng', drawnCircleState.lng);
         params.set('circleRadiusKm', drawnCircleState.radiusKm);
       }
+
+      isScanPaused = false;
+      pausedBufferedPlaces = [];
+      const pauseBtn = document.getElementById('btnPauseResumeScan');
+      if (pauseBtn) pauseBtn.innerText = '⏸️ إيقاف مؤقت';
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
@@ -2175,45 +2438,34 @@
         const data = JSON.parse(event.data);
         const percent = data.total > 0 ? Math.min(Math.round((data.current / data.total) * 100), 98) : 85;
         progressBar.style.width = `${percent}%`;
+        const pctEl = document.getElementById('progressPercentBadge');
+        if (pctEl) pctEl.innerText = `${percent}%`;
         progressRatio.innerText = `تم استخراج ${data.current} موقع`;
       });
 
       currentEventSource.addEventListener('center', (event) => {
         const data = JSON.parse(event.data);
-        if (leafletMap && !drawnCircleState) leafletMap.setView([data.lat, data.lng], 12);
+        if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
+          leafletMap.setView([data.lat, data.lng], 12);
+        }
       });
 
       currentEventSource.addEventListener('place', (event) => {
         const place = JSON.parse(event.data);
-        if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
-        extractedPlaces.push(place);
-        const idx = extractedPlaces.length;
-
-        const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
-          (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
-        if (hasPhone) liveExtractedPhonesTotal++;
-
-        if (idx <= INITIAL_PAGE_SIZE || idx % 40 === 0) {
-          updateStats();
+        if (isScanPaused) {
+          pausedBufferedPlaces.push(place);
+          return;
         }
-
-        if (idx === 1 && leafletMap && !drawnCircleState) {
-          leafletMap.setView([place.lat, place.lng], 12);
-        }
-
-        // Render immediately for the first INITIAL_PAGE_SIZE (40) cards so user sees results appear instantly!
-        if (visibleRenderCount < INITIAL_PAGE_SIZE) {
-          renderBatchToDom([place], visibleRenderCount, true);
-          visibleRenderCount++;
-        } else if (idx === INITIAL_PAGE_SIZE + 1) {
-          updateSentinelVisibility(true);
-          initInfiniteScrollObserver();
-        }
+        ingestIncomingStreamPlace(place);
       });
 
       currentEventSource.addEventListener('places_batch', (event) => {
         const batch = JSON.parse(event.data);
         if (!Array.isArray(batch) || batch.length === 0) return;
+        if (isScanPaused) {
+          pausedBufferedPlaces.push(...batch);
+          return;
+        }
         for (let i = 0; i < batch.length; i++) {
           const p = batch[i];
           extractedPlaces.push(p);
@@ -2249,7 +2501,10 @@
           initInfiniteScrollObserver();
         }
         updateStats();
+        autoSaveIdbSessionSnapshot();
         progressBar.style.width = '100%';
+        const pctEl = document.getElementById('progressPercentBadge');
+        if (pctEl) pctEl.innerText = '100%';
         setTimeout(() => progressContainer.classList.add('hidden'), 1500);
         finishSearch();
       });
@@ -2268,6 +2523,66 @@
         updateStats();
         finishSearch();
       });
+    }
+
+    function ingestIncomingStreamPlace(place) {
+      if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
+      extractedPlaces.push(place);
+      const idx = extractedPlaces.length;
+
+      const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
+        (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
+      if (hasPhone) liveExtractedPhonesTotal++;
+
+      if (idx <= INITIAL_PAGE_SIZE || idx % 40 === 0) {
+        updateStats();
+      }
+
+      if (idx === 1 && leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
+        leafletMap.setView([place.lat, place.lng], 12);
+      }
+
+      if (visibleRenderCount < INITIAL_PAGE_SIZE) {
+        renderBatchToDom([place], visibleRenderCount, true);
+        visibleRenderCount++;
+      } else if (idx === INITIAL_PAGE_SIZE + 1) {
+        updateSentinelVisibility(true);
+        initInfiniteScrollObserver();
+      }
+    }
+
+    function togglePauseResumeActiveScan() {
+      isScanPaused = !isScanPaused;
+      const btn = document.getElementById('btnPauseResumeScan');
+      const statusMessage = document.getElementById('statusMessage');
+      if (isScanPaused) {
+        if (btn) btn.innerText = '▶️ استئناف المسح';
+        if (statusMessage) statusMessage.innerText = '⏸️ تم إيقاف المسح مؤقتاً — اضغط "استئناف المسح" للمتابعة';
+      } else {
+        if (btn) btn.innerText = '⏸️ إيقاف مؤقت';
+        if (statusMessage) statusMessage.innerText = '▶️ تم استئناف المسح واستخراج البيانات...';
+        if (pausedBufferedPlaces.length > 0) {
+          const buf = [...pausedBufferedPlaces];
+          pausedBufferedPlaces = [];
+          buf.forEach(p => ingestIncomingStreamPlace(p));
+          updateStats();
+        }
+      }
+    }
+
+    function buildWhatsappUrlWithTemplate(whatsappNumber, placeName = '', areaName = '') {
+      let tpl = 'مرحباً {name} ({area})، تواصلت معكم عبر دليل GeoRadar بخصوص خدماتكم.';
+      try {
+        const rawPrefs = localStorage.getItem('georadar_user_prefs');
+        if (rawPrefs) {
+          const p = JSON.parse(rawPrefs);
+          if (p.whatsappTemplate && p.whatsappTemplate.trim()) tpl = p.whatsappTemplate.trim();
+        }
+      } catch (e) {}
+      const msg = tpl
+        .replace(/\{name\}/gi, placeName || 'المنشأة')
+        .replace(/\{area\}/gi, areaName || 'المنطقة');
+      return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
     }
 
     function finishSearch() {
@@ -2360,9 +2675,9 @@
             <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${isOpen ? 'bg-emerald-500/15 text-emerald-300' : 'bg-amber-500/15 text-amber-300'}">${openStatusLabel}</span>
           </div>
 
-          <button type="button" onclick="copySingleCoords(${Number(place.lat || 0)}, ${Number(place.lng || 0)}, '${(place.name || '').replace(/'/g, '')}')" title="نسخ الإحداثيات" class="w-full px-2 py-0.5 rounded bg-slate-950/75 hover:bg-slate-900 border border-cyan-500/25 text-cyan-300 text-[9px] font-num flex items-center justify-between gap-1 cursor-pointer transition">
-            <span>🧭 إحداثيات:</span>
-            <span dir="ltr" class="font-bold text-emerald-300">${Number(place.lat || 0).toFixed(4)}, ${Number(place.lng || 0).toFixed(4)}</span>
+          <button type="button" onclick="copySingleCoords(${Number(place.lat || 0)}, ${Number(place.lng || 0)}, '${(place.name || '').replace(/'/g, '')}')" title="نسخ الإحداثيات (Lat, Lng)" class="w-full px-2 py-0.5 rounded bg-slate-950/75 hover:bg-slate-900 border border-cyan-500/25 text-cyan-300 text-[9px] font-num flex items-center justify-between gap-1 cursor-pointer transition">
+            <span>🧭 Lat, Lng:</span>
+            <span dir="ltr" class="font-bold text-emerald-300">${Number(place.lat || 0).toFixed(6)}, ${Number(place.lng || 0).toFixed(6)}</span>
           </button>
         </div>
 
@@ -2374,7 +2689,7 @@
           <a href="${primaryPhone ? 'tel:' + primaryPhone.replace(/\s+/g, '') : googleMapsDirectUrl}" ${primaryPhone ? '' : 'target="_blank"'} class="py-1.5 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[10px] font-extrabold flex items-center justify-center gap-0.5 transition">
             <span>📞 اتصال</span>
           </a>
-          <a href="${primaryPhone ? 'https://wa.me/' + whatsappNumber : googleMapsDirectUrl}" target="_blank" class="py-1.5 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[10px] font-extrabold flex items-center justify-center gap-0.5 transition">
+          <a href="${primaryPhone ? buildWhatsappUrlWithTemplate(whatsappNumber, place.name, cityDistrictLabel) : googleMapsDirectUrl}" target="_blank" class="py-1.5 px-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/40 text-emerald-300 text-[10px] font-extrabold flex items-center justify-center gap-0.5 transition">
             <span>💬 واتساب</span>
           </a>
         </div>
@@ -2391,7 +2706,7 @@
         <td class="p-2 text-slate-300">
           <div class="font-bold text-emerald-300">${cityDistrictLabel}</div>
         </td>
-        <td class="p-2 font-num text-cyan-300 font-bold" dir="ltr">${Number(place.lat || 0).toFixed(5)}, ${Number(place.lng || 0).toFixed(5)}</td>
+        <td class="p-2 font-num text-cyan-300 font-bold" dir="ltr">${Number(place.lat || 0).toFixed(6)}, ${Number(place.lng || 0).toFixed(6)}</td>
         <td class="p-2 text-slate-300">${openStatusLabel}</td>
         <td class="p-2 font-num text-emerald-400 font-bold" dir="ltr">${phonesArr.join(' | ')}</td>
         <td class="p-2 text-amber-400 font-num font-bold">${place.rating}</td>
@@ -2408,6 +2723,20 @@
 
       const phonesEl = document.getElementById('statPhones');
       if (phonesEl) phonesEl.innerText = liveExtractedPhonesTotal.toLocaleString();
+
+      const dqBar = document.getElementById('dataQualitySummaryBar');
+      if (dqBar) {
+        if (total > 0) {
+          dqBar.classList.remove('hidden');
+          const dqTotal = document.getElementById('dqTotalCount');
+          if (dqTotal) dqTotal.innerText = total.toLocaleString();
+          const dqRatio = document.getElementById('dqPhoneRatio');
+          const pct = Math.min(100, Math.round((liveExtractedPhonesTotal / total) * 100));
+          if (dqRatio) dqRatio.innerText = `${pct}% (${liveExtractedPhonesTotal.toLocaleString()})`;
+        } else {
+          dqBar.classList.add('hidden');
+        }
+      }
     }
 
     function copySingleCoords(lat, lng, name) {
@@ -2444,7 +2773,21 @@
 
     function exportToExcel() {
       if (extractedPlaces.length === 0) return alert('لا توجد بيانات لتصديرها!');
-      const rows = extractedPlaces.map((p, idx) => ({
+      const isEn = currentActiveLangCode && currentActiveLangCode.startsWith('en');
+      const rows = extractedPlaces.map((p, idx) => isEn ? ({
+        '#': idx + 1,
+        'Business Name': p.name,
+        'City': p.city,
+        'District / Area': p.district,
+        'Detailed Address': p.address || `${p.city || ''} - ${p.district || ''}`,
+        'Latitude': Number(p.lat || 0).toFixed(6),
+        'Longitude': Number(p.lng || 0).toFixed(6),
+        'Coordinates (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
+        'Verified Phone': p.phone || '',
+        'Status': p.openStatus || 'Open',
+        'Rating': p.rating,
+        'Google Maps URL': p.locationUrl
+      }) : ({
         '#': idx + 1,
         'الاسم': p.name,
         'المدينة': p.city,
@@ -2453,7 +2796,7 @@
         'خط العرض (Latitude)': Number(p.lat || 0).toFixed(6),
         'خط الطول (Longitude)': Number(p.lng || 0).toFixed(6),
         'الإحداثيات الكاملة (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
-        'رقم التلفون': p.phone || '',
+        'رقم التلفون الموثق': p.phone || '',
         'حالة الدوام': p.openStatus || 'مفتوح الآن',
         'أوقات الدوام': p.workingHours || '',
         'التقييم': p.rating,
@@ -2462,8 +2805,299 @@
       }));
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "نتائج ومواقع خرائط جوجل");
+      XLSX.utils.book_append_sheet(wb, ws, isEn ? "GeoRadar Locations" : "نتائج ومواقع خرائط جوجل");
       XLSX.writeFile(wb, `GeoRadar_Locations_${Date.now()}.xlsx`);
+    }
+
+    function exportToVcf() {
+      const withPhone = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== ''));
+      if (withPhone.length === 0) return alert('لا توجد أرقام هواتف في النتائج الحالية لتصديرها كجهات اتصال VCF!');
+      const vcards = withPhone.map(p => {
+        const ph = (Array.isArray(p.phones) && p.phones[0]) ? p.phones[0] : p.phone;
+        const cleanName = String(p.name || 'منشأة').replace(/[\r\n;]/g, ' ').trim();
+        const org = `${p.city || ''} - ${p.district || ''}`.replace(/[\r\n;]/g, ' ').trim();
+        const lat6 = Number(p.lat || 0).toFixed(6);
+        const lng6 = Number(p.lng || 0).toFixed(6);
+        return [
+          'BEGIN:VCARD',
+          'VERSION:3.0',
+          `FN:${cleanName}`,
+          `N:${cleanName};;;;`,
+          `ORG:${org}`,
+          `TEL;TYPE=CELL,VOICE:${ph}`,
+          `GEO:${lat6};${lng6}`,
+          `NOTE:GeoRadar (${lat6}, ${lng6}) - ${p.locationUrl || ''}`,
+          'END:VCARD'
+        ].join('\r\n');
+      }).join('\r\n');
+      const blob = new Blob([vcards], { type: 'text/vcard;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `GeoRadar_Contacts_${Date.now()}.vcf`;
+      link.click();
+    }
+
+    function exportToKml() {
+      if (extractedPlaces.length === 0) return alert('لا توجد نتائج لتصديرها إلى KML!');
+      const escXml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      const placemarks = extractedPlaces.map(p => {
+        const lat6 = Number(p.lat || 0).toFixed(6);
+        const lng6 = Number(p.lng || 0).toFixed(6);
+        const ph = (Array.isArray(p.phones) && p.phones[0]) ? p.phones[0] : (p.phone || 'غير متوفر');
+        return `
+    <Placemark>
+      <name>${escXml(p.name)}</name>
+      <description>${escXml(`${p.city || ''} - ${p.district || ''} | هاتف: ${ph} | Lat, Lng: ${lat6}, ${lng6}`)}</description>
+      <Point>
+        <coordinates>${lng6},${lat6},0</coordinates>
+      </Point>
+    </Placemark>`;
+      }).join('\n');
+      const kml = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>GeoRadar 3D Studio Locations</name>${placemarks}
+  </Document>
+</kml>`;
+      const blob = new Blob([kml], { type: 'application/vnd.google-earth.kml+xml;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `GeoRadar_Map_${Date.now()}.kml`;
+      link.click();
+    }
+
+    function toggleInteractiveResultsMap() {
+      const panel = document.getElementById('visualizerPanel');
+      if (!panel) return;
+      if (panel.classList.contains('hidden')) {
+        showMobileMapPanel();
+        setViewMode('map', 'streets');
+        setTimeout(() => {
+          if (leafletMap) {
+            leafletMap.invalidateSize();
+            if (extractedPlaces.length > 0) {
+              leafletMap.setView([extractedPlaces[0].lat, extractedPlaces[0].lng], 13);
+            }
+          }
+          panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 120);
+      } else {
+        hideMobileMapPanel();
+      }
+    }
+
+    function toggleMapHeatmapOverlay() {
+      isHeatmapOverlayActive = !isHeatmapOverlayActive;
+      const btn = document.getElementById('mapToggleHeatmapBtn');
+      if (btn) {
+        btn.className = isHeatmapOverlayActive
+          ? 'px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-[10px] font-black cursor-pointer'
+          : 'px-2 py-0.5 rounded bg-slate-900 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer';
+      }
+      if (!leafletMap) return;
+      if (heatmapCanvasLayer) {
+        leafletMap.removeLayer(heatmapCanvasLayer);
+        heatmapCanvasLayer = null;
+      }
+      if (isHeatmapOverlayActive && extractedPlaces.length > 0) {
+        const group = L.layerGroup();
+        const sample = extractedPlaces.slice(0, 400);
+        for (const p of sample) {
+          L.circle([p.lat, p.lng], {
+            radius: 160,
+            color: 'transparent',
+            fillColor: '#f59e0b',
+            fillOpacity: 0.28
+          }).addTo(group);
+        }
+        heatmapCanvasLayer = group.addTo(leafletMap);
+      }
+    }
+
+    // IndexedDB Auto-Save & Crash Recovery + Saved Projects per User
+    function openGeoRadarIdb() {
+      return new Promise((resolve, reject) => {
+        if (!window.indexedDB) return reject(new Error('No IDB'));
+        const req = indexedDB.open('GeoRadarCommercialDB', 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('sessions')) db.createObjectStore('sessions');
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e);
+      });
+    }
+
+    async function autoSaveIdbSessionSnapshot() {
+      if (!extractedPlaces || extractedPlaces.length === 0) return;
+      try {
+        const db = await openGeoRadarIdb();
+        const tx = db.transaction('sessions', 'readwrite');
+        tx.objectStore('sessions').put({
+          timestamp: Date.now(),
+          query: document.getElementById('queryInput')?.value || '',
+          location: document.getElementById('locationInput')?.value || '',
+          places: extractedPlaces.slice(0, 5000)
+        }, 'last_session');
+      } catch (e) {}
+    }
+
+    async function checkPreviousIdbSessionOnLoad() {
+      try {
+        const db = await openGeoRadarIdb();
+        const tx = db.transaction('sessions', 'readonly');
+        const req = tx.objectStore('sessions').get('last_session');
+        req.onsuccess = () => {
+          const data = req.result;
+          if (data && Array.isArray(data.places) && data.places.length > 0) {
+            const btn = document.getElementById('btnRestorePreviousSession');
+            if (btn) {
+              btn.classList.remove('hidden');
+              btn.innerText = `🔄 استعادة الجلسة السابقة (${data.places.length} موقع)`;
+            }
+          }
+        };
+      } catch (e) {}
+    }
+
+    async function restorePreviousIdbSession() {
+      try {
+        const db = await openGeoRadarIdb();
+        const tx = db.transaction('sessions', 'readonly');
+        const req = tx.objectStore('sessions').get('last_session');
+        req.onsuccess = () => {
+          const data = req.result;
+          if (!data || !Array.isArray(data.places) || data.places.length === 0) return;
+          clearAllResults(true);
+          extractedPlaces = data.places;
+          liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+          updateStats();
+          refreshVisibleResultsView(true);
+          document.getElementById('btnRestorePreviousSession')?.classList.add('hidden');
+        };
+      } catch (e) {}
+    }
+
+    function getUserSavedProjectsKey() {
+      const s = getSavedVisitorSession();
+      return `georadar_projects_${s.visitorName || 'guest'}`;
+    }
+
+    function openSavedProjectsModal() {
+      renderSavedProjectsList();
+      document.getElementById('savedProjectsModal')?.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function closeSavedProjectsModal() {
+      document.getElementById('savedProjectsModal')?.classList.add('hidden');
+    }
+
+    function saveCurrentResultsToProject() {
+      if (extractedPlaces.length === 0) return alert('لا توجد نتائج حالية لحفظها في مشروع! ابحث أولاً ثم احفظ النتائج.');
+      const inp = document.getElementById('newProjectFolderNameInput');
+      const defaultName = `${document.getElementById('queryInput')?.value || 'مسح شامل'} - ${document.getElementById('locationInput')?.value || 'صنعاء'}`;
+      const folderName = (inp && inp.value.trim()) ? inp.value.trim() : prompt('أدخل اسم المجلد لحفظ النتائج:', defaultName);
+      if (!folderName || !folderName.trim()) return;
+      const key = getUserSavedProjectsKey();
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(key) || '[]'); } catch (e) {}
+      list.unshift({
+        id: 'proj_' + Date.now(),
+        name: folderName.trim(),
+        createdAt: new Date().toISOString(),
+        count: extractedPlaces.length,
+        places: extractedPlaces.slice(0, 1500)
+      });
+      try {
+        localStorage.setItem(key, JSON.stringify(list.slice(0, 25)));
+      } catch (e) {}
+      if (inp) inp.value = '';
+      renderSavedProjectsList();
+      alert(`✅ تم حفظ (${extractedPlaces.length}) موقع في مجلد "${folderName.trim()}" بنجاح!`);
+    }
+
+    function renderSavedProjectsList() {
+      const box = document.getElementById('savedProjectsListContainer');
+      if (!box) return;
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(getUserSavedProjectsKey()) || '[]'); } catch (e) {}
+      if (list.length === 0) {
+        box.innerHTML = `<div class="p-6 text-center text-slate-500 text-xs">لا توجد مشاريع محفوظة بعد — قم بالبحث ثم اضغط "حفظ في مشاريعي".</div>`;
+        return;
+      }
+      box.innerHTML = list.map((p, idx) => `
+        <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div class="text-xs font-black text-emerald-300">📁 ${p.name}</div>
+            <div class="text-[10px] text-slate-400 font-num">${new Date(p.createdAt).toLocaleString('ar-SA')} • ${p.count} موقع</div>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button type="button" onclick="loadSavedProjectByIndex(${idx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold cursor-pointer">📂 استعراض</button>
+            <button type="button" onclick="deleteSavedProjectByIndex(${idx})" class="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 text-[10px] font-bold cursor-pointer">حذف</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function loadSavedProjectByIndex(idx) {
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(getUserSavedProjectsKey()) || '[]'); } catch (e) {}
+      const proj = list[idx];
+      if (!proj || !Array.isArray(proj.places)) return;
+      clearAllResults(true);
+      extractedPlaces = proj.places;
+      liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+      updateStats();
+      refreshVisibleResultsView(true);
+      closeSavedProjectsModal();
+    }
+
+    function deleteSavedProjectByIndex(idx) {
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(getUserSavedProjectsKey()) || '[]'); } catch (e) {}
+      list.splice(idx, 1);
+      localStorage.setItem(getUserSavedProjectsKey(), JSON.stringify(list));
+      renderSavedProjectsList();
+    }
+
+    function openLegalInfoModal(tab = 'privacy') {
+      const modal = document.getElementById('legalSupportModal');
+      const titleEl = document.getElementById('legalModalTitle');
+      const bodyEl = document.getElementById('legalModalBody');
+      if (!modal || !titleEl || !bodyEl) return;
+      if (tab === 'terms') {
+        titleEl.innerText = '📜 شروط الاستخدام والترخيص التجاري';
+        bodyEl.innerHTML = `
+          <p class="font-bold text-white">1. الاستخدام المصرح به:</p>
+          <p>تطبيق GeoRadar 3D Studio مخصص لاستكشاف الخرائط والبيانات التجارية العامة وتسهيل الوصول للمنشآت والخدمات حول العالم.</p>
+          <p class="font-bold text-white">2. دقة الإحداثيات والأرقام:</p>
+          <p>يتم توثيق الإحداثيات بدقة 6 خانات عشرية (Latitude, Longitude) وتنسيق أرقام الهواتف دولياً بصيغة E.164 القياسية.</p>
+          <p class="font-bold text-white">3. حماية الحسابات:</p>
+          <p>تُشفر جميع كلمات المرور خوارزمياً باستخدام معيار bcryptjs ولا يُسمح بمشاركة الحسابات خارج نطاق الاستخدام المخصص.</p>
+        `;
+      } else if (tab === 'support') {
+        titleEl.innerText = '🛠️ مركز الدعم الفني والمساعدة';
+        bodyEl.innerHTML = `
+          <p class="font-bold text-emerald-300">نحن هنا لمساعدتك على مدار الساعة:</p>
+          <p>• إذا واجهت مشكلة في تفعيل الموقع الجغرافي، اضغط على أيقونة القفل بجوار رابط الموقع في المتصفح واختر <strong>السماح بالموقع (Allow Location)</strong>.</p>
+          <p>• لتصدير النتائج إلى جهات اتصال هاتفك مباشرة، استخدم زر <strong>📇 جهات اتصال VCF</strong> أو <strong>Excel</strong>.</p>
+          <p>• جميع عمليات البحث تُحفظ تلقائياً في متصفحك (IndexedDB) لضمان عدم ضياع أي بيانات أثناء المسح العميق.</p>
+        `;
+      } else {
+        titleEl.innerText = '🔒 سياسة الخصوصية وحماية البيانات';
+        bodyEl.innerHTML = `
+          <p class="font-bold text-emerald-300">التزامنا الكامل بخصوصية وأمان بياناتك:</p>
+          <p>1. <strong>الموقع الجغرافي (GPS):</strong> يُستخدم الموقع الجغرافي لضبط الخريطة ونطاق البحث على مدينتك تلقائياً وترتيب المنشآت الأقرب إليك أولاً.</p>
+          <p>2. <strong>تشفير كلمات المرور:</strong> يتم تشفير كلمات المرور فورياً بمعيار <code>bcryptjs</code> القياسي العالمي ولا يتم تخزينها كنص مكشوف.</p>
+          <p>3. <strong>البيانات المحفوظة:</strong> تُحفظ مشاريعك وإعداداتك محلياً وبأمان تام لتمكينك من استكمال عملك في أي وقت.</p>
+        `;
+      }
+      modal.classList.remove('hidden');
+    }
+
+    function closeLegalInfoModal() {
+      document.getElementById('legalSupportModal')?.classList.add('hidden');
     }
 
     function exportToCSV() {
@@ -2550,7 +3184,8 @@
       currentGateAuthMode = mode === 'register' ? 'register' : 'login';
       const titleEl = document.getElementById('gateAuthHeaderTitle');
       const submitBtn = document.getElementById('gateSubmitBtn');
-      const toggleBtnTxt = document.getElementById('gateToggleAuthModeBtnText');
+      const tabLogin = document.getElementById('tabBtnLoginMode');
+      const tabRegister = document.getElementById('tabBtnRegisterMode');
       const errEl = document.getElementById('loginNameError');
       if (errEl) errEl.classList.add('hidden');
 
@@ -2560,14 +3195,16 @@
           submitBtn.disabled = false;
           submitBtn.innerHTML = `<span id="gateSubmitBtnText">إنشاء حساب جديد</span>`;
         }
-        if (toggleBtnTxt) toggleBtnTxt.innerText = 'تسجيل الدخول بحساب موجود';
+        if (tabRegister) tabRegister.className = 'py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
+        if (tabLogin) tabLogin.className = 'py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
       } else {
         if (titleEl) titleEl.innerText = 'تسجيل الدخول';
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerHTML = `<span id="gateSubmitBtnText">تسجيل الدخول</span>`;
         }
-        if (toggleBtnTxt) toggleBtnTxt.innerText = 'إنشاء حساب جديد';
+        if (tabLogin) tabLogin.className = 'py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
+        if (tabRegister) tabRegister.className = 'py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
       }
       lucide.createIcons();
     }
@@ -2689,17 +3326,22 @@
       }
     }
 
-    function markLocationGranted() {
+    function markLocationGranted(cityCountryStr = '') {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const dotEl = document.getElementById('geoStatusDot');
       const btnTxt = document.getElementById('enableGeoBtnText');
-      if (dotEl) dotEl.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400';
-      if (titleEl) titleEl.innerText = 'تم فتح الموقع الجغرافي بنجاح ✓';
+      const guideBox = document.getElementById('geoBlockedGuideBox');
+      if (guideBox) guideBox.classList.add('hidden');
+      if (dotEl) dotEl.className = 'w-2 h-2 rounded-full bg-emerald-400';
+      const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || 'موقعك الحالي';
+      if (titleEl) titleEl.innerText = `✅ تم ضبط النطاق على: ${displayScope}`;
       if (descEl) {
-        descEl.innerText = 'تم تفعيل الموقع الجغرافي بنجاح — اضغط على زر "التالي" للمتابعة';
+        descEl.innerText = 'تم تفعيل الموقع بنجاح — يمكنك الآن تسجيل الدخول والمتابعة';
       }
-      if (btnTxt) btnTxt.innerText = '✓ الموقع مفتوح';
+      if (btnTxt) btnTxt.innerText = `✅ تم ضبط النطاق على: ${displayScope}`;
+      const gateCityBadge = document.getElementById('gateApprovedCityBadge');
+      if (gateCityBadge) gateCityBadge.innerText = `📍 ${displayScope}`;
       setStep1NextEnabled(true);
     }
 
@@ -2816,10 +3458,13 @@
         if (!res.ok) return;
         const data = await res.json();
         const detectedCity = (data && data.city ? String(data.city).trim() : '');
+        const detectedCountry = (data && data.country ? String(data.country).trim() : '');
         if (!detectedCity) return;
 
         const prevAutoCity = window.lastAutoDetectedGpsCity;
         window.lastAutoDetectedGpsCity = detectedCity;
+        const scopeLabel = detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity;
+        markLocationGranted(scopeLabel);
 
         const locInput = document.getElementById('locationInput');
         if (locInput) {
@@ -2856,6 +3501,7 @@
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const btnTxt = document.getElementById('enableGeoBtnText');
+      const guideBox = document.getElementById('geoBlockedGuideBox');
       const session = getSavedVisitorSession();
 
       if (!navigator.geolocation) {
@@ -2863,7 +3509,7 @@
         showGateModalOnStep1();
         return;
       }
-      if (btnTxt) btnTxt.innerText = 'جاري فتح الموقع...';
+      if (btnTxt) btnTxt.innerText = 'جاري ضبط النطاق الجغرافي...';
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -2883,15 +3529,15 @@
         },
         () => {
           cachedOptionalGps = null;
-          if (btnTxt) btnTxt.innerText = '📍 إعادة المحاولة والسماح بالموقع';
-          if (titleEl) titleEl.innerText = 'الموقع مغلق أو لم يتم السماح به ✗';
+          if (guideBox) guideBox.classList.remove('hidden');
+          if (btnTxt) btnTxt.innerText = '🔄 إعادة المحاولة';
+          if (titleEl) titleEl.innerText = 'يُرجى تفعيل الموقع لضبط الخريطة ونطاق البحث على مدينتك تلقائياً.';
           if (descEl) {
             descEl.innerText = session.hasSession
-              ? `لديك حساب محفوظ باسم (@${session.visitorName})، يرجى السماح بالموقع أولاً للمتابعة`
-              : 'فعّل الموقع (GPS) من إعدادات المتصفح أو الهاتف ثم اضغط إعادة المحاولة';
+              ? `لديك حساب محفوظ باسم (@${session.visitorName})، يُرجى تفعيل الموقع من أيقونة القفل بالأعلى للمتابعة`
+              : 'اتبع الخطوات الموضحة أدناه لتفعيل الموقع من شريط عنوان المتصفح ثم اضغط إعادة المحاولة';
           }
           setStep1NextEnabled(false);
-          // Location is closed/disabled -> Show the Location Gate Modal immediately!
           showGateModalOnStep1();
         },
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
@@ -3269,12 +3915,14 @@
     }
 
     function saveExtractorUserPreferences() {
-      const city = document.getElementById('prefDefaultCity')?.value.trim() || 'صنعاء';
+      const rawCity = document.getElementById('prefDefaultCity')?.value.trim() || 'auto';
+      const city = rawCity === 'auto' ? (window.lastAutoDetectedGpsCity || 'صنعاء') : rawCity;
       const view = document.getElementById('prefDefaultView')?.value || 'streets';
       const display = document.getElementById('prefDefaultDisplay')?.value || 'cards';
       const phoneFilter = document.getElementById('prefAutoPhoneFilter')?.value || 'all';
+      const whatsappTemplate = document.getElementById('prefWhatsappTemplate')?.value || '';
 
-      localStorage.setItem('georadar_user_prefs', JSON.stringify({ city, view, display, phoneFilter }));
+      localStorage.setItem('georadar_user_prefs', JSON.stringify({ city: rawCity, view, display, phoneFilter, whatsappTemplate }));
 
       const locInput = document.getElementById('locationInput');
       if (locInput) locInput.value = city;
@@ -3282,7 +3930,7 @@
       if (view === 'hybrid') setViewMode('map', 'hybrid');
       else setViewMode('map', 'streets');
 
-      filterOnlyPhone = (phoneFilter === 'phone_only');
+      filterOnlyPhone = (phoneFilter === 'phone_only' || phoneFilter === 'verified_intl');
       document.getElementById('pill_phone')?.classList.toggle('active', filterOnlyPhone);
       applyResultsFilter();
 
@@ -3302,6 +3950,10 @@
           const pc = document.getElementById('prefDefaultCity');
           if (pc) pc.value = prefs.city;
         }
+        if (prefs.whatsappTemplate) {
+          const wt = document.getElementById('prefWhatsappTemplate');
+          if (wt) wt.value = prefs.whatsappTemplate;
+        }
         if (prefs.view) {
           const validView = prefs.view === 'hybrid' ? 'hybrid' : 'streets';
           const pv = document.getElementById('prefDefaultView');
@@ -3312,7 +3964,7 @@
         if (prefs.phoneFilter) {
           const pf = document.getElementById('prefAutoPhoneFilter');
           if (pf) pf.value = prefs.phoneFilter;
-          filterOnlyPhone = (prefs.phoneFilter === 'phone_only');
+          filterOnlyPhone = (prefs.phoneFilter === 'phone_only' || prefs.phoneFilter === 'verified_intl');
           document.getElementById('pill_phone')?.classList.toggle('active', filterOnlyPhone);
         }
         if (prefs.display === 'table' && !isTableView) {
@@ -3696,6 +4348,9 @@
     function applySelectedWorldLanguage(langCode = 'ar', isAutoDetected = false) {
       const meta = getLanguageMeta(langCode);
       currentActiveLangCode = meta.code;
+      const isRtl = Boolean(meta.rtl || ['ar', 'fa', 'ur', 'he', 'ps', 'ckb', 'sd', 'ug', 'dv', 'yi'].includes(meta.code));
+      document.documentElement.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
+      document.documentElement.setAttribute('lang', meta.code);
 
       localStorage.setItem(USER_LANG_STORAGE_KEY, meta.code);
       localStorage.setItem(USER_LANG_MODE_KEY, isAutoDetected ? 'auto' : 'manual');
@@ -3703,26 +4358,22 @@
       const dict = CORE_UI_TRANSLATIONS[meta.code] || CORE_UI_TRANSLATIONS[meta.code.split('-')[0]] || null;
 
       // Update Gate Language Bar
-      const gateHint = document.getElementById('gateDetectedLangHint');
       const gateDisp = document.getElementById('gateCurrentLangDisplay');
       const gateBtnTxt = document.getElementById('gateChangeLangBtnText');
-      if (gateHint) {
-        gateHint.innerText = isAutoDetected
-          ? (dict ? dict.detectedHintAuto : 'تم التعرف تلقائياً حسب لغة الهاتف:')
-          : (dict ? dict.detectedHintManual : 'اللغة المختارة حالياً:');
-      }
       if (gateDisp) {
-        gateDisp.innerText = `${meta.native} (${meta.arName})`;
+        gateDisp.innerText = isAutoDetected
+          ? `🌐 اللغة: ${meta.native} (تلقائي)`
+          : `🌐 اللغة: ${meta.native}`;
       }
-      if (gateBtnTxt && dict) {
-        gateBtnTxt.innerText = dict.changeLangBtn;
+      if (gateBtnTxt) {
+        gateBtnTxt.innerText = dict ? dict.changeLangBtn : 'تغيير';
       }
 
       if (dict) {
         const b1 = document.getElementById('i18n_step1Badge');
         const b2 = document.getElementById('i18n_step2Badge');
-        if (b1) b1.innerText = dict.step1Badge;
-        if (b2) b2.innerText = dict.step2Badge;
+        if (b1) b1.innerText = `1. ${dict.step1Badge}`;
+        if (b2) b2.innerText = `2. ${dict.step2Badge}`;
         const uIn = document.getElementById('visitorNameInput');
         const pIn = document.getElementById('visitorPasswordInput');
         if (uIn) uIn.placeholder = dict.usernamePlaceholder;
@@ -3866,6 +4517,7 @@
       loadExtractorUserPreferences();
       initOptionalGeolocationCheck();
       initSmartBackAndDoubleTapExit();
+      checkPreviousIdbSessionOnLoad();
       lucide.createIcons();
     });
   </script>

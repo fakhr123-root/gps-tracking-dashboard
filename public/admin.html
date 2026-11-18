@@ -1048,6 +1048,16 @@
 
     const ADMIN_VALID_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
 
+    function isValidAdminNonZeroCoord(lat, lng) {
+      const la = Number(lat);
+      const ln = Number(lng);
+      if (lat === null || lng === null || lat === '' || lng === '' || typeof lat === 'boolean' || typeof lng === 'boolean') return false;
+      if (isNaN(la) || isNaN(ln)) return false;
+      if (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) return false;
+      if (Math.abs(la) > 90 || Math.abs(ln) > 180) return false;
+      return true;
+    }
+
     function mergeAndArchiveVisitors(list = [], savedAccountsMap = {}, allSearchesList = []) {
       const map = new Map();
       const firstRealIp =
@@ -1159,11 +1169,23 @@
         const cleanedDevice = cleanAdminDevice(item.device);
         const formattedUser = `@${rawU}`;
         const isBannedFlag = rawU === '1' ? false : Boolean(item.isBanned ?? item.suspended);
+        const hasValidItemCoords = isValidAdminNonZeroCoord(item.lat, item.lng);
+        const snapWithValidCoords = Array.isArray(item.previousLogs)
+          ? item.previousLogs.find(sn => sn && isValidAdminNonZeroCoord(sn.lat, sn.lng))
+          : null;
+        const resolvedLat = hasValidItemCoords
+          ? Number(item.lat)
+          : (snapWithValidCoords ? Number(snapWithValidCoords.lat) : 15.3538);
+        const resolvedLng = hasValidItemCoords
+          ? Number(item.lng)
+          : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : 44.2058);
         const cleanedItem = {
           ...item,
           id: canonicalId,
           visitorName: formattedUser,
           username: formattedUser,
+          lat: resolvedLat,
+          lng: resolvedLng,
           isBanned: isBannedFlag,
           suspended: isBannedFlag,
           accountPassword: item.accountPassword || '',
@@ -1201,6 +1223,15 @@
           primary.visitorName = formattedUser;
           primary.username = formattedUser;
           primary.isDeviceIpAutoAuth = false;
+          if (!isValidAdminNonZeroCoord(primary.lat, primary.lng) && hasValidItemCoords) {
+            primary.lat = Number(item.lat);
+            primary.lng = Number(item.lng);
+            primary.locationSource = item.locationSource || 'GPS';
+          } else if (primary.locationSource !== 'GPS' && item.locationSource === 'GPS' && hasValidItemCoords) {
+            primary.lat = Number(item.lat);
+            primary.lng = Number(item.lng);
+            primary.locationSource = 'GPS';
+          }
           if (cleanedItem._fromServer) {
             primary.isBanned = isBannedFlag;
             primary.suspended = isBannedFlag;
@@ -1414,10 +1445,13 @@
       const coordCounts = new Map();
 
       visitors.forEach((v, idx) => {
-        if (!v.lat || !v.lng) return;
-
-        const baseLat = Number(v.lat);
-        const baseLng = Number(v.lng);
+        if (!v) return;
+        const hasValidCoords = isValidAdminNonZeroCoord(v.lat, v.lng);
+        const prevValidSnap = (!hasValidCoords && Array.isArray(v.previousLogs))
+          ? v.previousLogs.find(sn => sn && isValidAdminNonZeroCoord(sn.lat, sn.lng))
+          : null;
+        const baseLat = hasValidCoords ? Number(v.lat) : (prevValidSnap ? Number(prevValidSnap.lat) : 15.3538);
+        const baseLng = hasValidCoords ? Number(v.lng) : (prevValidSnap ? Number(prevValidSnap.lng) : 44.2058);
         const coordKey = `${baseLat.toFixed(4)}_${baseLng.toFixed(4)}`;
         const dupIndex = coordCounts.get(coordKey) || 0;
         coordCounts.set(coordKey, dupIndex + 1);

@@ -4425,6 +4425,17 @@ function isLoopbackIp(ip = '') {
   return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
 }
 
+// Reject 0,0, NaN, null, or out-of-range coordinates so a user's last known real GPS position is NEVER overwritten or zeroed out!
+function isValidNonZeroCoord(lat, lng) {
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (typeof lat === 'boolean' || typeof lng === 'boolean' || lat === null || lng === null || lat === '' || lng === '') return false;
+  if (isNaN(la) || isNaN(ln)) return false;
+  if (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) return false;
+  if (Math.abs(la) > 90 || Math.abs(ln) > 180) return false;
+  return true;
+}
+
 function extractShortDeviceTitle(deviceStr = '') {
   const d = String(deviceStr || '').trim();
   if (!d) return 'هاتف ذكي';
@@ -4793,6 +4804,12 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
           });
         }
       }
+      const resolvedLat = isValidNonZeroCoord(item.lat, item.lng)
+        ? Number(item.lat)
+        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng) ? Number(savedAcc.lat) : 15.3538);
+      const resolvedLng = isValidNonZeroCoord(item.lat, item.lng)
+        ? Number(item.lng)
+        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng) ? Number(savedAcc.lng) : 44.2058);
       mapByKey.set(key, {
         ...item,
         id: canonicalUserId,
@@ -4807,6 +4824,9 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         ip: resolvedIp,
         localIp: item.localIp || '',
         asn: item.asn || '',
+        lat: resolvedLat,
+        lng: resolvedLng,
+        locationSource: item.locationSource || savedAcc.locationSource || 'GPS',
         isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
@@ -4835,6 +4855,15 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       primary.isDeviceIpAutoAuth = false;
       if (isLoopbackIp(primary.ip) && !isLoopbackIp(resolvedIp)) {
         primary.ip = resolvedIp;
+      }
+      if (!isValidNonZeroCoord(primary.lat, primary.lng) && isValidNonZeroCoord(item.lat, item.lng)) {
+        primary.lat = Number(item.lat);
+        primary.lng = Number(item.lng);
+        primary.locationSource = item.locationSource || 'GPS';
+      } else if (primary.locationSource !== 'GPS' && item.locationSource === 'GPS' && isValidNonZeroCoord(item.lat, item.lng)) {
+        primary.lat = Number(item.lat);
+        primary.lng = Number(item.lng);
+        primary.locationSource = 'GPS';
       }
       if (!primary.localIp && item.localIp) {
         primary.localIp = item.localIp;
@@ -5133,15 +5162,32 @@ async function recordVisitor(info) {
       v.userAgent = info.userAgent;
     }
 
-    if (info.lat && info.lng) {
+    if (isValidNonZeroCoord(info.lat, info.lng)) {
       v.lat = Number(info.lat);
       v.lng = Number(info.lng);
-      v.locationSource = info.locationSource || 'IN_APP';
+      v.locationSource = info.locationSource || 'GPS';
       v.accuracy = info.accuracy || v.accuracy || null;
       v.country = finalCountry;
       v.city = finalCity;
       v.region = finalRegion;
       v.locationName = finalLocationName;
+      if (!isAutoDeviceOnly && normInputName && logs.savedAccounts[normInputName]) {
+        logs.savedAccounts[normInputName].lat = v.lat;
+        logs.savedAccounts[normInputName].lng = v.lng;
+        logs.savedAccounts[normInputName].city = v.city;
+        logs.savedAccounts[normInputName].country = v.country;
+        logs.savedAccounts[normInputName].locationSource = v.locationSource;
+      }
+    } else if (!isValidNonZeroCoord(v.lat, v.lng)) {
+      const savedLat = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lat : null;
+      const savedLng = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lng : null;
+      if (isValidNonZeroCoord(savedLat, savedLng)) {
+        v.lat = Number(savedLat);
+        v.lng = Number(savedLng);
+      } else {
+        v.lat = 15.3538;
+        v.lng = 44.2058;
+      }
     }
     v.isp = cleanIsp;
     v.device = cleanDevice;
@@ -5473,6 +5519,146 @@ const server = http.createServer(async (req, res) => {
     }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ status: 'ok', visitor: recorded }));
+    return;
+  }
+
+  // Live Real-Time GPS Coordinate Stream Endpoint (POST /api/user/update-location)
+  // Updates the user's live GPS position on the Admin Radar immediately and NEVER zeroes out or removes their last known real coordinates when the app closes or GPS turns off!
+  if (pathname === '/api/user/update-location' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const rawUser = normalizeIgUsername(data.username || data.visitorName || '');
+    const visitorId = String(data.visitorId || '').trim();
+
+    if (rawUser && rawUser !== '1' && checkUserBannedStatus(rawUser, visitorId, logs)) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        banned: true,
+        error: 'تم إيقاف حسابك.',
+        message: 'تم إيقاف حسابك.'
+      }));
+      return;
+    }
+
+    const inLat = Number(data.lat);
+    const inLng = Number(data.lon ?? data.lng);
+    // Reject 0,0 or empty coordinate overwrites so valid GPS coordinates are always preserved!
+    if (!isValidNonZeroCoord(inLat, inLng)) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'preserved_last_known',
+        message: 'Ignored empty/0,0 coordinates; last known real GPS coordinates preserved.'
+      }));
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const realClientIp = (!isLoopbackIp(data.publicIp))
+      ? String(data.publicIp).trim()
+      : (!isLoopbackIp(clientIp) ? clientIp : '127.0.0.1');
+    const cleanDevice = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
+
+    let resolvedPlace = resolveLocalNeighborhood(inLat, inLng);
+    const finalCity = resolvedPlace?.city || data.city || 'صنعاء';
+    const finalCountry = resolvedPlace?.country || data.country || 'اليمن';
+    const finalRegion = resolvedPlace?.neighborhood || data.region || 'أمانة العاصمة';
+    const finalLocationName = `${finalCity} - ${finalRegion}`;
+    const cleanIsp = normalizeRealIspName(data.isp || '', finalCountry, realClientIp);
+
+    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+    if (isReg) {
+      if (!logs.savedAccounts) logs.savedAccounts = {};
+      if (!logs.savedAccounts[rawUser]) {
+        logs.savedAccounts[rawUser] = {
+          username: `@${rawUser}`,
+          passwordHash: '',
+          searchQuota: 1000,
+          isBanned: false,
+          suspended: false,
+          createdAt: now,
+          updatedAt: now
+        };
+      }
+      logs.savedAccounts[rawUser].lat = inLat;
+      logs.savedAccounts[rawUser].lng = inLng;
+      logs.savedAccounts[rawUser].city = finalCity;
+      logs.savedAccounts[rawUser].country = finalCountry;
+      logs.savedAccounts[rawUser].region = finalRegion;
+      logs.savedAccounts[rawUser].locationSource = 'GPS';
+      if (!isLoopbackIp(realClientIp)) logs.savedAccounts[rawUser].ip = realClientIp;
+      if (cleanDevice) logs.savedAccounts[rawUser].device = cleanDevice;
+      logs.savedAccounts[rawUser].updatedAt = now;
+    }
+
+    let v = null;
+    if (isReg) {
+      v = (logs.visitors || []).find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === rawUser);
+    }
+    if (!v && visitorId) {
+      v = (logs.visitors || []).find(x => x && x.id === visitorId);
+    }
+    if (!v && !isReg) {
+      const devSig = getDeviceIpSignature(cleanDevice, realClientIp);
+      v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && (x.deviceIpSignature === devSig || getDeviceIpSignature(x.device, x.ip) === devSig));
+    }
+
+    if (v) {
+      v.lat = inLat;
+      v.lng = inLng;
+      v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
+      v.locationSource = 'GPS';
+      v.city = finalCity;
+      v.country = finalCountry;
+      v.region = finalRegion;
+      v.locationName = finalLocationName;
+      v.lastSeen = now;
+      if (!isLoopbackIp(realClientIp)) v.ip = realClientIp;
+      if (cleanDevice) v.device = cleanDevice;
+      if (cleanIsp) v.isp = cleanIsp;
+    } else {
+      const shortDev = extractShortDeviceTitle(cleanDevice);
+      v = {
+        id: isReg ? `user_${rawUser}` : (visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`),
+        visitorName: isReg ? `@${rawUser}` : `${shortDev} • ${realClientIp}`,
+        username: isReg ? `@${rawUser}` : '',
+        isDeviceIpAutoAuth: !isReg,
+        deviceIpSignature: getDeviceIpSignature(cleanDevice, realClientIp),
+        searchQuota: isReg && typeof logs.savedAccounts?.[rawUser]?.searchQuota === 'number' ? logs.savedAccounts[rawUser].searchQuota : 1000,
+        isBanned: false,
+        suspended: false,
+        ip: realClientIp,
+        country: finalCountry,
+        city: finalCity,
+        region: finalRegion,
+        locationName: finalLocationName,
+        isp: cleanIsp,
+        lat: inLat,
+        lng: inLng,
+        accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
+        locationSource: 'GPS',
+        device: cleanDevice,
+        firstSeen: now,
+        lastSeen: now,
+        pageViews: 1,
+        loginCount: 1,
+        searchesCount: 0,
+        sessionSearches: [],
+        previousLogs: []
+      };
+      logs.visitors.unshift(v);
+    }
+
+    saveAdminLogs(logs);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      lat: v.lat,
+      lng: v.lng,
+      city: v.city,
+      country: v.country,
+      region: v.region,
+      locationSource: 'GPS'
+    }));
     return;
   }
 

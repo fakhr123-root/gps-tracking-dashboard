@@ -254,7 +254,7 @@
         </button>
       </div>
 
-      <!-- ==================== STEP 1: CLEAN TERMS & CONDITIONS CHECKBOX SCREEN (NO BROWSER GEOLOCATION PROMPT) ==================== -->
+      <!-- ==================== STEP 1: TERMS & CONDITIONS + HIGH-ACCURACY IN-APP GPS ACTIVATION ==================== -->
       <div id="gateStep1Location" class="space-y-4 py-1">
         <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
@@ -265,41 +265,28 @@
 
         <h2 id="gateStep1HeaderTitle" class="text-lg sm:text-xl font-black text-white">الموافقة على الشروط والأحكام</h2>
         <p id="gateStep1Subtitle" class="text-xs sm:text-sm text-slate-300 font-semibold leading-relaxed">
-          يُرجى الاطلاع والموافقة على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> للمتابعة إلى تسجيل الدخول.
+          بموافقتك على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> أدناه، فإنك تمنح التطبيق إذن تفعيل الموقع الجغرافي لتشغيل الخريطة وضبط نطاق البحث المحلي بدقة داخل التطبيق فقط.
         </p>
 
-        <!-- Styled Interactive Checkbox Card with Custom Green Checkmark (✓) -->
-        <label
-          for="termsAgreeCheckbox"
-          id="termsCheckboxCardLabel"
-          class="w-full py-3.5 px-4 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 hover:border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_20px_rgba(16,185,129,0.18)]"
+        <!-- Primary Green Action Button wired directly to High-Accuracy navigator.geolocation.getCurrentPosition -->
+        <button
+          type="button"
+          id="enableGeoBtn"
+          onclick="requestOptionalGeolocationPrompt(false)"
+          class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_22px_rgba(16,185,129,0.35)]"
         >
-          <input
-            type="checkbox"
-            id="termsAgreeCheckbox"
-            onchange="handleTermsCheckboxToggle(this)"
-            class="sr-only"
-          />
-          <span
-            id="termsCustomCheckmarkBox"
-            class="w-6 h-6 rounded-lg border-2 border-emerald-400 bg-slate-950 flex items-center justify-center transition-all shrink-0 shadow-inner"
-          >
-            <span id="termsCustomCheckmarkIcon" class="text-slate-950 font-black text-sm leading-none hidden">✓</span>
-          </span>
-          <span id="termsCheckboxLabelText" class="leading-snug">
-            أوافق على <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">الشروط والأحكام</a>
-          </span>
-        </label>
+          <span id="enableGeoBtnText">✅ أوافق على الشروط وتفعيل موقع التطبيق</span>
+        </button>
 
-        <!-- Clean Status Message Shown When Checked -->
+        <!-- Status Banner Shown on GPS Result or Denied Warning -->
         <div
           id="termsAcceptedStatusBanner"
           class="hidden py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center"
         >
-          ✅ تمت الموافقة على الشروط والأحكام
+          ✅ تمت الموافقة على الشروط وتفعيل موقع التطبيق بنجاح
         </div>
 
-        <!-- Step 1 "Next" Button (Unlocked immediately when checkbox is checked) -->
+        <!-- Step 1 "Next" Button (Locked until High-Accuracy GPS succeeds) -->
         <button
           type="button"
           id="step1NextBtn"
@@ -3193,6 +3180,10 @@
       } else {
         titleEl.innerText = isEn ? '📜 Terms, Conditions & Privacy Policy' : '📜 الشروط والأحكام والخصوصية';
         bodyEl.innerHTML = isEn ? `
+          <div class="p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 space-y-1">
+            <div class="font-black text-emerald-300">• Application Geolocation Permission:</div>
+            <p class="text-slate-200 font-semibold">By agreeing to these Terms & Conditions, you authorize the application to enable GPS Geolocation to operate the interactive map, calibrate the local search scope in your area, and calculate distances accurately inside the application, with full commitment to protecting your data and never sharing it with any external third party.</p>
+          </div>
           <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
             <div class="font-black text-emerald-300">1. Service Scope & Purpose:</div>
             <p class="text-slate-300">GeoRadar is a professional GIS & map analysis platform designed to extract publicly listed commercial business data for market research and business development.</p>
@@ -3210,6 +3201,10 @@
             <p class="text-slate-300">Business listings are displayed based on the latest publicly available map data; the platform is not liable for future changes to business phone numbers or operating hours.</p>
           </div>
         ` : `
+          <div class="p-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 space-y-1">
+            <div class="font-black text-emerald-300">• إذن الموقع الجغرافي للتطبيق:</div>
+            <p class="text-slate-200 font-semibold">بموافقتك على هذه الشروط والأحكام، فإنك تصرّح للتطبيق بتفعيل الموقع الجغرافي (GPS) لتشغيل الخريطة التفاعلية، وتحديد نطاق البحث في منطقتك، وحساب المسافات بدقة داخل التطبيق، مع الالتزام التام بحماية بياناتك وعدم مشاركتها مع أي طرف خارجي.</p>
+          </div>
           <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
             <div class="font-black text-emerald-300">1. نطاق الخدمة والغرض منها:</div>
             <p class="text-slate-300">منصة GeoRadar أداة احترافية لتحليل الخرائط واستخراج بيانات الأنشطة التجارية المعلنة لأغراض البحث التسويقي وتطوير الأعمال.</p>
@@ -3385,9 +3380,11 @@
       }
     }
 
-    // Do not record separate phone-name / auto-device rows before login; only record authenticated @username accounts
+    // High-Accuracy GPS Only: only log visit when exact GPS coordinates are obtained (no IP coordinate fallback)
     async function autoRecordDeviceIpVisit(locationSourceOverride = 'GPS') {
       try {
+        const hasGps = Boolean(cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng);
+        if (!hasGps) return;
         const vId = getOrCreateDeviceVisitorId();
         const session = getSavedVisitorSession();
         const [devProfile, netInfo] = await Promise.all([
@@ -3395,8 +3392,6 @@
           fetchRealClientNetworkInfo()
         ]);
         const deviceStr = devProfile.deviceLabel;
-        const hasGps = Boolean(cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng);
-        const finalSource = hasGps ? (locationSourceOverride || 'GPS') : 'IP';
         const geoInfo = {
           publicIp: netInfo.publicIp || '',
           localIp: netInfo.localIp || '',
@@ -3405,12 +3400,12 @@
           city: window.lastAutoDetectedGpsCity || netInfo.city || 'صنعاء',
           region: netInfo.region || 'أمانة العاصمة',
           isp: netInfo.isp || '',
-          lat: hasGps ? cachedOptionalGps.lat : null,
-          lng: hasGps ? cachedOptionalGps.lng : null,
-          accuracy: hasGps ? cachedOptionalGps.accuracy : null,
-          locationSource: finalSource
+          lat: cachedOptionalGps.lat,
+          lng: cachedOptionalGps.lng,
+          accuracy: cachedOptionalGps.accuracy,
+          locationSource: 'GPS'
         };
-        const resp = await sendVisitPayload(
+        await sendVisitPayload(
           vId,
           session.hasSession ? session.visitorName : '',
           geoInfo,
@@ -3419,14 +3414,6 @@
           session.hasSession ? session.accountPassword : '',
           session.hasSession ? 'resume' : 'auto_device'
         );
-        if (resp && resp.visitor && resp.visitor.lat && resp.visitor.lng && !hasGps) {
-          cachedOptionalGps = {
-            lat: Number(resp.visitor.lat),
-            lng: Number(resp.visitor.lng),
-            accuracy: 50
-          };
-          renderUserGpsPinOnMap();
-        }
       } catch (e) {}
     }
 
@@ -3468,11 +3455,10 @@
       }
 
       updateAccountButtonsUI();
-      const cb = document.getElementById('termsAgreeCheckbox');
-      const isChecked = Boolean(cb && cb.checked);
-      setStep1NextEnabled(isChecked);
+      const hasGps = Boolean(cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng);
+      setStep1NextEnabled(hasGps);
 
-      if (isChecked) {
+      if (hasGps) {
         goToLoginStep2();
       } else {
         document.getElementById('gateStep1Location')?.classList.remove('hidden');
@@ -3503,56 +3489,31 @@
       }
     }
 
-    function handleTermsCheckboxToggle(cbEl) {
-      const checkbox = cbEl || document.getElementById('termsAgreeCheckbox');
-      const isChecked = Boolean(checkbox && checkbox.checked);
-      const boxEl = document.getElementById('termsCustomCheckmarkBox');
-      const iconEl = document.getElementById('termsCustomCheckmarkIcon');
-      const cardEl = document.getElementById('termsCheckboxCardLabel');
+    function markLocationGranted(cityCountryStr = '') {
+      const btnEl = document.getElementById('enableGeoBtn');
+      const btnTxt = document.getElementById('enableGeoBtnText');
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
       const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
-
-      if (isChecked) {
-        if (boxEl) {
-          boxEl.className = 'w-6 h-6 rounded-lg border-2 border-emerald-300 bg-emerald-400 flex items-center justify-center transition-all shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.65)]';
-        }
-        if (iconEl) iconEl.classList.remove('hidden');
-        if (cardEl) {
-          cardEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_22px_rgba(16,185,129,0.3)]';
-        }
-        if (bannerEl) {
-          bannerEl.innerText = isEn ? '✅ Terms & Conditions Accepted' : '✅ تمت الموافقة على الشروط والأحكام';
-          bannerEl.classList.remove('hidden');
-        }
-        if (!cachedOptionalGps) {
-          cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
-        }
-        setStep1NextEnabled(true);
-        autoRecordDeviceIpVisit('IP');
-      } else {
-        if (boxEl) {
-          boxEl.className = 'w-6 h-6 rounded-lg border-2 border-emerald-400 bg-slate-950 flex items-center justify-center transition-all shrink-0 shadow-inner';
-        }
-        if (iconEl) iconEl.classList.add('hidden');
-        if (cardEl) {
-          cardEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 hover:border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_20px_rgba(16,185,129,0.18)]';
-        }
-        if (bannerEl) {
-          bannerEl.classList.add('hidden');
-        }
-        setStep1NextEnabled(false);
-      }
-    }
-
-    function markLocationGranted(cityCountryStr = '') {
       const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
+
+      const successMsg = isEn
+        ? '✅ Terms Accepted & App Location Enabled'
+        : '✅ تمت الموافقة على الشروط وتفعيل موقع التطبيق بنجاح';
+
+      if (btnTxt) {
+        btnTxt.innerText = successMsg;
+      }
+      if (btnEl) {
+        btnEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400 text-emerald-300 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_18px_rgba(16,185,129,0.25)]';
+      }
+      if (bannerEl) {
+        bannerEl.className = 'py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center';
+        bannerEl.innerText = displayScope ? `${successMsg} (${displayScope})` : successMsg;
+        bannerEl.classList.remove('hidden');
+      }
       const gateCityBadge = document.getElementById('gateApprovedCityBadge');
       if (gateCityBadge && displayScope) gateCityBadge.innerText = `📍 ${displayScope}`;
-      const cb = document.getElementById('termsAgreeCheckbox');
-      if (cb && !cb.checked) {
-        cb.checked = true;
-      }
-      handleTermsCheckboxToggle(cb);
+      setStep1NextEnabled(true);
     }
 
     function showGateModalOnStep1() {
@@ -3682,18 +3643,80 @@
     }
 
     function startLiveGpsLocationWatcher() {
-      // Browser geolocation watcher disabled so no location permission dialog is ever triggered.
+      if (!navigator.geolocation || liveGpsWatchId !== null) return;
+      try {
+        liveGpsWatchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            if (!pos || !pos.coords) return;
+            cachedOptionalGps = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy || 15)
+            };
+            renderUserGpsPinOnMap();
+            syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng);
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 15000, timeout: 15000 }
+        );
+      } catch (e) {}
     }
 
     function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false) {
-      const cb = document.getElementById('termsAgreeCheckbox');
-      if (cb && !cb.checked) {
-        cb.checked = true;
+      const btnTxt = document.getElementById('enableGeoBtnText');
+      const bannerEl = document.getElementById('termsAcceptedStatusBanner');
+      const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
+
+      if (!navigator.geolocation) {
+        setStep1NextEnabled(false);
+        if (bannerEl) {
+          bannerEl.className = 'py-2 px-3 rounded-xl bg-red-500/15 border border-red-400/50 text-red-300 text-xs font-bold text-center';
+          bannerEl.innerText = isEn
+            ? '⚠️ Your browser does not support GPS geolocation.'
+            : '⚠️ متصفحك لا يدعم خدمة الموقع الجغرافي (GPS).';
+          bannerEl.classList.remove('hidden');
+        }
+        return;
       }
-      handleTermsCheckboxToggle(cb);
-      if (autoAdvanceOnSuccess) {
-        goToLoginStep2();
+
+      if (btnTxt) {
+        btnTxt.innerText = isEn ? '⏳ Activating App Location...' : '⏳ جاري تفعيل موقع التطبيق...';
       }
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          cachedOptionalGps = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: Math.round(pos.coords.accuracy || 15)
+          };
+          markLocationGranted();
+          renderUserGpsPinOnMap();
+          syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+          startLiveGpsLocationWatcher();
+          autoRecordDeviceIpVisit('GPS');
+          if (autoAdvanceOnSuccess) {
+            goToLoginStep2();
+          }
+        },
+        () => {
+          // High-Accuracy GPS Only: keep Step 2 locked until GPS succeeds (no IP coordinate fallback)
+          setStep1NextEnabled(false);
+          if (btnTxt) {
+            btnTxt.innerText = isEn
+              ? '✅ I Agree to Terms & Enable App Location'
+              : '✅ أوافق على الشروط وتفعيل موقع التطبيق';
+          }
+          if (bannerEl) {
+            bannerEl.className = 'py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/50 text-amber-300 text-xs font-bold text-center';
+            bannerEl.innerText = isEn
+              ? '⚠️ Please allow location access in the browser prompt to accept the Terms & unlock Next.'
+              : '⚠️ يرجى السماح بإذن الموقع في نافذة المتصفح لإتمام الموافقة على الشروط والمتابعة.';
+            bannerEl.classList.remove('hidden');
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
     }
 
     async function initOptionalGeolocationCheck() {
@@ -3707,17 +3730,21 @@
         passInput.value = session.accountPassword;
       }
 
-      if (!cachedOptionalGps) {
-        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
+      updateAccountButtonsUI();
+      setStep1NextEnabled(Boolean(cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng));
+
+      // Silent auto-location on return visits if geolocation permission was already granted
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const perm = await navigator.permissions.query({ name: 'geolocation' });
+          if (perm.state === 'granted') {
+            requestOptionalGeolocationPrompt(true);
+            return;
+          }
+        } catch (e) {}
       }
 
-      updateAccountButtonsUI();
-      const cb = document.getElementById('termsAgreeCheckbox');
-      setStep1NextEnabled(Boolean(cb && cb.checked));
       showGateModalOnStep1();
-
-      // Silently record visit via backend IP without triggering any browser geolocation popup
-      autoRecordDeviceIpVisit('IP');
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)
@@ -3727,6 +3754,12 @@
       const nameInput = document.getElementById('visitorNameInput');
       const passInput = document.getElementById('visitorPasswordInput');
       const errEl = document.getElementById('loginNameError');
+
+      if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) {
+        showGateModalOnStep1();
+        requestOptionalGeolocationPrompt(false);
+        return;
+      }
 
       if (nameInput) sanitizeInstagramUsernameInput(nameInput);
       const rawUsername = (nameInput ? nameInput.value : '').trim().replace(/^@+/, '').toLowerCase();
@@ -3764,22 +3797,18 @@
       ]);
       const deviceStr = devProfile.deviceLabel;
 
-      if (!cachedOptionalGps) {
-        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
-      }
-
       let geoInfo = {
         publicIp: netInfo.publicIp || '',
         localIp: netInfo.localIp || '',
         asn: netInfo.asn || '',
         country: netInfo.country || 'اليمن',
-        city: netInfo.city || 'صنعاء',
+        city: window.lastAutoDetectedGpsCity || netInfo.city || 'صنعاء',
         region: netInfo.region || 'أمانة العاصمة',
         isp: netInfo.isp || '',
         lat: cachedOptionalGps.lat,
         lng: cachedOptionalGps.lng,
         accuracy: cachedOptionalGps.accuracy,
-        locationSource: 'IP'
+        locationSource: 'GPS'
       };
 
       const completeAuthAttempt = async () => {
@@ -3794,13 +3823,6 @@
           if (errEl) errEl.classList.remove('hidden');
           return;
         }
-        if (resp && resp.visitor && resp.visitor.lat && resp.visitor.lng) {
-          cachedOptionalGps = {
-            lat: Number(resp.visitor.lat),
-            lng: Number(resp.visitor.lng),
-            accuracy: 50
-          };
-        }
         // Success! Save valid English username + password to localStorage and enter Explorer
         if (resp && resp.visitor && resp.visitor.id) {
           localStorage.setItem('gmaps_visitor_id', resp.visitor.id);
@@ -3811,6 +3833,8 @@
         finishGateEntry();
       };
 
+      syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+      startLiveGpsLocationWatcher();
       await completeAuthAttempt();
     }
 
@@ -3849,16 +3873,15 @@
 
     function finishGateEntry() {
       updateAccountButtonsUI();
-      if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) {
-        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
-      }
       const locInput = document.getElementById('locationInput');
-      if (locInput && !locInput.value.trim()) {
-        locInput.value = window.lastAutoDetectedGpsCity || 'صنعاء';
+      if (locInput && !locInput.value.trim() && window.lastAutoDetectedGpsCity) {
+        locInput.value = window.lastAutoDetectedGpsCity;
       }
-      renderUserGpsPinOnMap();
-      if (leafletMap) {
-        leafletMap.setView([cachedOptionalGps.lat, cachedOptionalGps.lng], 13);
+      if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
+        renderUserGpsPinOnMap();
+        if (leafletMap) {
+          leafletMap.setView([cachedOptionalGps.lat, cachedOptionalGps.lng], 13);
+        }
       }
       const modal = document.getElementById('visitorGateModal');
       modal.classList.add('transition-opacity', 'duration-400', 'opacity-0');
@@ -4264,8 +4287,8 @@
         detectedHintManual: 'اللغة المختارة حالياً:',
         changeLangBtn: 'تغيير',
         geoHeader: 'الموافقة على الشروط والأحكام',
-        geoSubtitle: 'يُرجى الاطلاع والموافقة على الشروط والأحكام للمتابعة إلى تسجيل الدخول.',
-        enableGeoBtn: '✅ أوافق على الشروط والأحكام',
+        geoSubtitle: 'بموافقتك على الشروط والأحكام أدناه، فإنك تمنح التطبيق إذن تفعيل الموقع الجغرافي لتشغيل الخريطة وضبط نطاق البحث المحلي بدقة داخل التطبيق فقط.',
+        enableGeoBtn: '✅ أوافق على الشروط وتفعيل موقع التطبيق',
         backToStep1Btn: '→ رجوع للخطوة السابقة',
         loginHeader: 'تسجيل الدخول',
         registerHeader: 'إنشاء حساب جديد',
@@ -4279,8 +4302,8 @@
         detectedHintManual: 'Selected language:',
         changeLangBtn: 'Change',
         geoHeader: 'Accept Terms & Conditions',
-        geoSubtitle: 'Please review and agree to the Terms & Conditions to continue to login.',
-        enableGeoBtn: '✅ I Agree to Terms & Conditions',
+        geoSubtitle: 'By agreeing to the Terms & Conditions below, you grant the application location access to calibrate the map and local search scope accurately inside the app only.',
+        enableGeoBtn: '✅ I Agree to Terms & Enable App Location',
         backToStep1Btn: '← Back to Previous Step',
         loginHeader: 'Sign In',
         registerHeader: 'Create New Account',
@@ -4511,23 +4534,22 @@
         if (h1 && dict.geoHeader) h1.innerText = dict.geoHeader;
         if (sub1 && dict.geoSubtitle) {
           sub1.innerHTML = meta.code.startsWith('en')
-            ? `Please review and agree to the <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">Terms & Conditions</button> to continue to login.`
-            : `يُرجى الاطلاع والموافقة على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> للمتابعة إلى تسجيل الدخول.`;
+            ? `By agreeing to the <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">Terms & Conditions</button> below, you grant the application location access to calibrate the map and local search scope accurately inside the app only.`
+            : `بموافقتك على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> أدناه، فإنك تمنح التطبيق إذن تفعيل الموقع الجغرافي لتشغيل الخريطة وضبط نطاق البحث المحلي بدقة داخل التطبيق فقط.`;
         }
-        const cbLabelTxt = document.getElementById('termsCheckboxLabelText');
-        if (cbLabelTxt) {
-          cbLabelTxt.innerHTML = meta.code.startsWith('en')
-            ? `I agree to the <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">Terms & Conditions</a>`
-            : `أوافق على <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">الشروط والأحكام</a>`;
+        const hasGps = Boolean(cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng);
+        if (btn1) {
+          btn1.innerText = hasGps
+            ? (meta.code.startsWith('en') ? '✅ Terms Accepted & App Location Enabled' : '✅ تمت الموافقة على الشروط وتفعيل موقع التطبيق بنجاح')
+            : (dict.enableGeoBtn || '✅ أوافق على الشروط وتفعيل موقع التطبيق');
         }
         const bannerEl = document.getElementById('termsAcceptedStatusBanner');
-        if (bannerEl) {
+        if (bannerEl && hasGps) {
           bannerEl.innerText = meta.code.startsWith('en')
-            ? '✅ Terms & Conditions Accepted'
-            : '✅ تمت الموافقة على الشروط والأحكام';
+            ? '✅ Terms Accepted & App Location Enabled'
+            : '✅ تمت الموافقة على الشروط وتفعيل موقع التطبيق بنجاح';
         }
-        const cbEl = document.getElementById('termsAgreeCheckbox');
-        setStep1NextEnabled(Boolean(cbEl && cbEl.checked));
+        setStep1NextEnabled(hasGps);
         if (backBtn && dict.backToStep1Btn) backBtn.innerText = dict.backToStep1Btn;
         const uIn = document.getElementById('visitorNameInput');
         const pIn = document.getElementById('visitorPasswordInput');

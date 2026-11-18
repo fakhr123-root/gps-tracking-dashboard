@@ -1294,19 +1294,39 @@
       }
     }
 
-    // Render Glowing Concentric Radar Rings on Map with @username badge on each pin
+    // Render Glowing Concentric Radar Rings on Map with @username badge, GPS/IP badge, and circular micro-offset for identical coords
     function renderMapPins(visitors = []) {
       if (!adminMap) return;
       visitorMarkers.forEach(m => adminMap.removeLayer(m));
       visitorMarkers = [];
 
+      const coordCounts = new Map();
+
       visitors.forEach((v, idx) => {
         if (!v.lat || !v.lng) return;
+
+        const baseLat = Number(v.lat);
+        const baseLng = Number(v.lng);
+        const coordKey = `${baseLat.toFixed(4)}_${baseLng.toFixed(4)}`;
+        const dupIndex = coordCounts.get(coordKey) || 0;
+        coordCounts.set(coordKey, dupIndex + 1);
+
+        // Apply tiny circular micro-offset (~0.00015 deg) when markers share identical coordinates
+        let plotLat = baseLat;
+        let plotLng = baseLng;
+        if (dupIndex > 0) {
+          const angle = (dupIndex * 60) * (Math.PI / 180);
+          const radiusOffset = 0.00015 * (1 + Math.floor((dupIndex - 1) / 6) * 0.6);
+          plotLat = baseLat + Math.sin(angle) * radiusOffset;
+          plotLng = baseLng + Math.cos(angle) * radiusOffset;
+        }
 
         const isPrimary = idx === 0;
         const ringColor = isPrimary ? '#22d3ee' : '#10b981';
         const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
-        const userBadgeText = cleanU ? `@${cleanU}` : (v.visitorName || 'User');
+        const userBadgeText = (cleanU && !v.isDeviceIpAutoAuth) ? `@${cleanU}` : (v.visitorName || 'زائر مباشر');
+        const locSourceTag = (v.locationSource === 'IP' || v.locationSource === 'IP_FALLBACK') ? 'IP' : 'GPS';
+        const locSourceColor = locSourceTag === 'GPS' ? '#10b981' : '#f59e0b';
         const labelPosStyle = (idx % 2 === 1)
           ? 'bottom:-20px;'
           : 'top:-20px;';
@@ -1318,8 +1338,9 @@
               <div class="target-ring-outer" style="position:absolute; width:52px; height:52px; border-radius:50%; border:2px solid ${ringColor}; background:${ringColor}18; box-shadow:0 0 20px ${ringColor}66;"></div>
               <div style="position:absolute; width:34px; height:34px; border-radius:50%; border:1.5px solid ${ringColor}; background:${ringColor}28;"></div>
               <div style="position:relative; width:14px; height:14px; border-radius:50%; background:${ringColor}; border:2px solid #ffffff; box-shadow:0 0 14px ${ringColor};"></div>
-              <div dir="ltr" style="position:absolute; ${labelPosStyle} left:50%; transform:translateX(-50%); background:rgba(3,12,14,0.94); border:1.5px solid ${ringColor}; color:#ffffff; font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; padding:1px 7px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.85), 0 0 10px ${ringColor}55; z-index:30; pointer-events:auto;">
-                ${userBadgeText}
+              <div dir="ltr" style="position:absolute; ${labelPosStyle} left:50%; transform:translateX(-50%); background:rgba(3,12,14,0.94); border:1.5px solid ${ringColor}; color:#ffffff; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; padding:1px 6px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.85), 0 0 10px ${ringColor}55; z-index:30; pointer-events:auto; display:flex; align-items:center; gap:4px;">
+                <span>${userBadgeText}</span>
+                <span style="background:${locSourceColor}33; color:${locSourceColor}; border:1px solid ${locSourceColor}88; padding:0 4px; border-radius:4px; font-size:8px;">${locSourceTag}</span>
               </div>
             </div>
           `,
@@ -1327,7 +1348,18 @@
           iconAnchor: [28, 28]
         });
 
-        const marker = L.marker([v.lat, v.lng], { icon: customIcon }).addTo(adminMap);
+        const marker = L.marker([plotLat, plotLng], { icon: customIcon }).addTo(adminMap);
+        marker.bindPopup(`
+          <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl; min-width:190px; color:#0f172a;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+              <strong style="font-size:12px;" dir="ltr">${userBadgeText}</strong>
+              <span style="background:${locSourceTag === 'GPS' ? '#10b981' : '#f59e0b'}; color:#fff; font-size:9px; font-weight:800; padding:1px 6px; border-radius:999px;">${locSourceTag}</span>
+            </div>
+            <div style="font-size:11px; color:#334155;">📍 ${v.city || 'صنعاء'} — ${v.country || 'اليمن'}</div>
+            <div style="font-size:10px; color:#0f766e; font-family:monospace;" dir="ltr">${baseLat.toFixed(6)}, ${baseLng.toFixed(6)}</div>
+            <div style="font-size:10px; color:#64748b;">🌐 IP: ${v.ip || ''}</div>
+          </div>
+        `);
         marker.on('click', () => inspectVisitor(idx));
         visitorMarkers.push(marker);
       });

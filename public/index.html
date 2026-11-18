@@ -303,10 +303,10 @@
             <span id="enableGeoBtnText">📍 تفعيل الموقع والمتابعة</span>
           </button>
 
-          <!-- Trust & Privacy Badge + Privacy Policy Link -->
+          <!-- Trust & Privacy Badge + Terms & Privacy Link -->
           <div class="pt-1 flex flex-wrap items-center justify-between gap-1 text-[10px] text-slate-400 border-t border-slate-800/80">
             <span>🔒 بياناتك محمية — يُستخدم الموقع لضبط الخريطة فقط.</span>
-            <button type="button" onclick="openLegalInfoModal('privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-bold cursor-pointer">سياسة الخصوصية</button>
+            <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-bold cursor-pointer">الشروط والأحكام</button>
           </div>
         </div>
 
@@ -596,13 +596,11 @@
           </button>
         </div>
 
-        <!-- Legal & Support Links Inside Settings -->
+        <!-- Legal & Instructions Links Inside Settings -->
         <div class="flex flex-wrap items-center justify-center gap-3 pt-1.5 border-t border-slate-800 text-[10px] text-slate-400">
-          <button type="button" onclick="openLegalInfoModal('privacy')" class="hover:text-emerald-300 underline cursor-pointer">🔒 سياسة الخصوصية</button>
+          <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="hover:text-emerald-300 underline cursor-pointer">📜 الشروط والأحكام والخصوصية</button>
           <span>•</span>
-          <button type="button" onclick="openLegalInfoModal('terms')" class="hover:text-emerald-300 underline cursor-pointer">📜 شروط الاستخدام</button>
-          <span>•</span>
-          <button type="button" onclick="openLegalInfoModal('support')" class="hover:text-emerald-300 underline cursor-pointer">🛠️ الدعم الفني</button>
+          <button type="button" onclick="openLegalInfoModal('instructions')" class="hover:text-emerald-300 underline cursor-pointer">📖 تعليمات الاستخدام</button>
         </div>
 
         <button type="button" onclick="saveExtractorUserPreferences()" class="w-full py-2.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer transition">
@@ -1037,6 +1035,19 @@
 
       </section>
 
+      <!-- Compact App Footer with Terms & Instructions Links -->
+      <footer class="w-full py-2 px-3 rounded-xl bg-slate-950/75 border border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px] text-slate-400">
+        <div class="flex items-center gap-1.5">
+          <span class="text-emerald-400 font-black">GeoRadar 3D Studio</span>
+          <span>— منصة استخراج وتحليل بيانات الخرائط</span>
+        </div>
+        <div class="flex items-center gap-3 font-bold">
+          <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline cursor-pointer">الشروط والأحكام</button>
+          <span>•</span>
+          <button type="button" onclick="openLegalInfoModal('instructions')" class="text-cyan-300 hover:text-cyan-200 underline cursor-pointer">تعليمات الاستخدام</button>
+        </div>
+      </footer>
+
     </div>
 
   </main>
@@ -1062,19 +1073,49 @@
     </div>
   </div>
 
-  <!-- LEGAL & SUPPORT MODAL (🔒 سياسة الخصوصية | 📜 شروط الاستخدام | 🛠️ الدعم الفني) -->
+  <!-- TERMS, PRIVACY & USER INSTRUCTIONS MODAL (2 Clean Tabs: الشروط والأحكام والخصوصية | تعليمات الاستخدام) -->
   <div id="legalSupportModal" class="hidden fixed inset-0 z-[9999] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-    <div class="w-full max-w-[500px] rounded-2xl bg-[#071521] border border-emerald-500/45 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-4 sm:p-5 text-right space-y-3.5 max-h-[88vh] flex flex-col">
+    <div class="w-full max-w-[540px] rounded-2xl bg-[#071521] border border-emerald-500/45 shadow-[0_25px_70px_rgba(0,0,0,0.9)] p-4 sm:p-5 space-y-3.5 max-h-[88vh] flex flex-col">
+      <!-- Modal Header -->
       <div class="flex items-center justify-between pb-2.5 border-b border-slate-800 shrink-0">
-        <h3 id="legalModalTitle" class="text-sm sm:text-base font-black text-emerald-300">🔒 سياسة الخصوصية وحماية البيانات</h3>
+        <h3 id="legalModalTitle" class="text-sm sm:text-base font-black text-emerald-300">📜 الشروط والأحكام والخصوصية</h3>
         <button type="button" onclick="closeLegalInfoModal()" class="w-7 h-7 rounded-lg bg-slate-900 hover:bg-red-500/20 border border-slate-700 text-slate-300 hover:text-red-300 flex items-center justify-center text-xs font-bold cursor-pointer">✕</button>
       </div>
-      <div class="flex items-center gap-1.5 shrink-0">
-        <button type="button" onclick="openLegalInfoModal('privacy')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-emerald-500/20 border border-emerald-500/35 text-emerald-300 text-[11px] font-bold cursor-pointer">🔒 سياسة الخصوصية</button>
-        <button type="button" onclick="openLegalInfoModal('terms')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-cyan-500/20 border border-cyan-500/35 text-cyan-300 text-[11px] font-bold cursor-pointer">📜 شروط الاستخدام</button>
-        <button type="button" onclick="openLegalInfoModal('support')" class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-teal-500/20 border border-teal-500/35 text-teal-300 text-[11px] font-bold cursor-pointer">🛠️ الدعم الفني</button>
+
+      <!-- 2 Clean Top Tabs -->
+      <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-900/95 border border-emerald-500/30 shrink-0">
+        <button
+          type="button"
+          id="legalTabBtnTerms"
+          onclick="openLegalInfoModal('terms_privacy')"
+          class="py-2 px-2 rounded-lg text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow"
+        >
+          الشروط والأحكام والخصوصية
+        </button>
+        <button
+          type="button"
+          id="legalTabBtnInstructions"
+          onclick="openLegalInfoModal('instructions')"
+          class="py-2 px-2 rounded-lg text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white"
+        >
+          تعليمات الاستخدام
+        </button>
       </div>
-      <div id="legalModalBody" class="text-xs text-slate-300 leading-relaxed space-y-2.5 overflow-y-auto pr-1 flex-1"></div>
+
+      <!-- Scrollable Modal Body -->
+      <div id="legalModalBody" class="text-xs text-slate-200 leading-relaxed space-y-3 overflow-y-auto pr-1 flex-1"></div>
+
+      <!-- Bottom Agree & Close Button ("موافق وإغلاق") -->
+      <div class="pt-2 border-t border-slate-800 shrink-0">
+        <button
+          type="button"
+          id="legalModalAgreeBtn"
+          onclick="closeLegalInfoModal()"
+          class="w-full py-2.5 rounded-xl font-black text-xs text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition cursor-pointer"
+        >
+          موافق وإغلاق
+        </button>
+      </div>
     </div>
   </div>
 
@@ -3060,36 +3101,102 @@
       renderSavedProjectsList();
     }
 
-    function openLegalInfoModal(tab = 'privacy') {
+    let currentLegalModalTab = 'terms_privacy';
+
+    function openLegalInfoModal(tab = 'terms_privacy') {
       const modal = document.getElementById('legalSupportModal');
       const titleEl = document.getElementById('legalModalTitle');
       const bodyEl = document.getElementById('legalModalBody');
+      const tabTermsBtn = document.getElementById('legalTabBtnTerms');
+      const tabInstBtn = document.getElementById('legalTabBtnInstructions');
+      const agreeBtn = document.getElementById('legalModalAgreeBtn');
       if (!modal || !titleEl || !bodyEl) return;
-      if (tab === 'terms') {
-        titleEl.innerText = '📜 شروط الاستخدام والترخيص التجاري';
-        bodyEl.innerHTML = `
-          <p class="font-bold text-white">1. الاستخدام المصرح به:</p>
-          <p>تطبيق GeoRadar 3D Studio مخصص لاستكشاف الخرائط والبيانات التجارية العامة وتسهيل الوصول للمنشآت والخدمات حول العالم.</p>
-          <p class="font-bold text-white">2. دقة الإحداثيات والأرقام:</p>
-          <p>يتم توثيق الإحداثيات بدقة 6 خانات عشرية (Latitude, Longitude) وتنسيق أرقام الهواتف دولياً بصيغة E.164 القياسية.</p>
-          <p class="font-bold text-white">3. حماية الحسابات:</p>
-          <p>تُشفر جميع كلمات المرور خوارزمياً باستخدام معيار bcryptjs ولا يُسمح بمشاركة الحسابات خارج نطاق الاستخدام المخصص.</p>
-        `;
-      } else if (tab === 'support') {
-        titleEl.innerText = '🛠️ مركز الدعم الفني والمساعدة';
-        bodyEl.innerHTML = `
-          <p class="font-bold text-emerald-300">نحن هنا لمساعدتك على مدار الساعة:</p>
-          <p>• إذا واجهت مشكلة في تفعيل الموقع الجغرافي، اضغط على أيقونة القفل بجوار رابط الموقع في المتصفح واختر <strong>السماح بالموقع (Allow Location)</strong>.</p>
-          <p>• لتصدير النتائج إلى جهات اتصال هاتفك مباشرة، استخدم زر <strong>📇 جهات اتصال VCF</strong> أو <strong>Excel</strong>.</p>
-          <p>• جميع عمليات البحث تُحفظ تلقائياً في متصفحك (IndexedDB) لضمان عدم ضياع أي بيانات أثناء المسح العميق.</p>
+
+      const isInstructions = (tab === 'instructions' || tab === 'support');
+      currentLegalModalTab = isInstructions ? 'instructions' : 'terms_privacy';
+      const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
+
+      if (tabTermsBtn) {
+        tabTermsBtn.innerText = isEn ? 'Terms & Privacy' : 'الشروط والأحكام والخصوصية';
+        tabTermsBtn.className = !isInstructions
+          ? 'py-2 px-2 rounded-lg text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow'
+          : 'py-2 px-2 rounded-lg text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
+      }
+      if (tabInstBtn) {
+        tabInstBtn.innerText = isEn ? 'How to Use' : 'تعليمات الاستخدام';
+        tabInstBtn.className = isInstructions
+          ? 'py-2 px-2 rounded-lg text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow'
+          : 'py-2 px-2 rounded-lg text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
+      }
+      if (agreeBtn) {
+        agreeBtn.innerText = isEn ? 'Agree & Close' : 'موافق وإغلاق';
+      }
+
+      if (isInstructions) {
+        titleEl.innerText = isEn ? '📖 How to Use GeoRadar' : '📖 تعليمات الاستخدام';
+        bodyEl.innerHTML = isEn ? `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1">
+            <div class="font-black text-emerald-300">Step 1 — Enable Location Scope & Sign In:</div>
+            <p class="text-slate-300">Accept the terms and grant browser location permission to automatically calibrate the map to your city, then sign in or create an account.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1">
+            <div class="font-black text-cyan-300">Step 2 — Select Search Mode:</div>
+            <p class="text-slate-300">Choose <strong>"Full City Scan (مسح شامل للمدينة)"</strong> to cover the entire administrative boundaries of your city, or choose <strong>"Draw on Map Search (بحث بالرسم على الخريطة)"</strong> to draw a custom polygon, radius circle, or rectangle around a specific neighborhood or street.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-teal-500/30 space-y-1">
+            <div class="font-black text-teal-300">Step 3 — Filter & Export:</div>
+            <p class="text-slate-300">Enable the verified phone numbers filter or currently open businesses filter, then export results as <code>Excel</code>, <code>VCF</code> contacts, or <code>KML</code> maps, or save them inside <strong>"My Saved Projects (مشاريعي المحفوظة)"</strong> for later reference.</p>
+          </div>
+        ` : `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-emerald-500/30 space-y-1">
+            <div class="font-black text-emerald-300">الخطوة 1 — تفعيل النطاق والدخول:</div>
+            <p class="text-slate-300">وافق على الشروط وفعّل إذن الموقع في المتصفح لضبط الخريطة على مدينتك تلقائياً، ثم سجّل الدخول أو أنشئ حساباً.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-cyan-500/30 space-y-1">
+            <div class="font-black text-cyan-300">الخطوة 2 — اختيار وضع البحث:</div>
+            <p class="text-slate-300">اختر <strong>"مسح شامل للمدينة"</strong> لتغطية كامل الحدود الإدارية لمدينتك، أو اختر <strong>"بحث بالرسم على الخريطة"</strong> لرسم مضلع أو دائرة أو مستطيل حول حي أو شارع محدد.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-teal-500/30 space-y-1">
+            <div class="font-black text-teal-300">الخطوة 3 — الفلترة والتصدير:</div>
+            <p class="text-slate-300">فعّل فلتر الأرقام الموثقة أو المنشآت المفتوحة حالياً، ثم صدّر النتائج بصيغة <code>Excel</code> أو جهات اتصال <code>VCF</code> أو خرائط <code>KML</code>، أو احفظها في <strong>"مشاريعي المحفوظة"</strong> للرجوع إليها لاحقاً.</p>
+          </div>
         `;
       } else {
-        titleEl.innerText = '🔒 سياسة الخصوصية وحماية البيانات';
-        bodyEl.innerHTML = `
-          <p class="font-bold text-emerald-300">التزامنا الكامل بخصوصية وأمان بياناتك:</p>
-          <p>1. <strong>الموقع الجغرافي (GPS):</strong> يُستخدم الموقع الجغرافي لضبط الخريطة ونطاق البحث على مدينتك تلقائياً وترتيب المنشآت الأقرب إليك أولاً.</p>
-          <p>2. <strong>تشفير كلمات المرور:</strong> يتم تشفير كلمات المرور فورياً بمعيار <code>bcryptjs</code> القياسي العالمي ولا يتم تخزينها كنص مكشوف.</p>
-          <p>3. <strong>البيانات المحفوظة:</strong> تُحفظ مشاريعك وإعداداتك محلياً وبأمان تام لتمكينك من استكمال عملك في أي وقت.</p>
+        titleEl.innerText = isEn ? '📜 Terms, Conditions & Privacy Policy' : '📜 الشروط والأحكام والخصوصية';
+        bodyEl.innerHTML = isEn ? `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">1. Service Scope & Purpose:</div>
+            <p class="text-slate-300">GeoRadar is a professional GIS & map analysis platform designed to extract publicly listed commercial business data for market research and business development.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">2. Lawful Use:</div>
+            <p class="text-slate-300">Users agree to utilize extracted data in full compliance with local and international regulations. Using data for unsolicited spam or any unlawful activity is strictly prohibited.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">3. Geolocation & Privacy Policy:</div>
+            <p class="text-slate-300">Map calibration requires enabling geolocation to set your city search scope and calculate distances accurately. Session and location data are stored for account security and system administration, with full password encryption (bcrypt) and zero selling or sharing of user data with any third party.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">4. Limitation of Liability:</div>
+            <p class="text-slate-300">Business listings are displayed based on the latest publicly available map data; the platform is not liable for future changes to business phone numbers or operating hours.</p>
+          </div>
+        ` : `
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">1. نطاق الخدمة والغرض منها:</div>
+            <p class="text-slate-300">منصة GeoRadar أداة احترافية لتحليل الخرائط واستخراج بيانات الأنشطة التجارية المعلنة لأغراض البحث التسويقي وتطوير الأعمال.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">2. الاستخدام المشروع:</div>
+            <p class="text-slate-300">يلتزم المستخدم باستخدام البيانات المستخرجة بما يتوافق مع القوانين المحلية والدولية، ويُحظر تماماً استخدامها في الإزعاج (Spam) أو أي أغراض مخالفة للقانون.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">3. سياسة الموقع الجغرافي والخصوصية:</div>
+            <p class="text-slate-300">يتطلب عمل الخريطة تفعيل الموقع الجغرافي لضبط نطاق البحث على مدينتك وحساب المسافات بدقة. تُحفظ بيانات الجلسة والموقع لأغراض تأمين الحسابات وإدارة النظام، مع تشفير كامل لكلمات المرور وعدم بيع أو مشاركة بيانات المستخدمين مع أي طرف ثالث.</p>
+          </div>
+          <div class="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-1">
+            <div class="font-black text-emerald-300">4. حدود المسؤولية:</div>
+            <p class="text-slate-300">تُعرض بيانات المنشآت وفق أحدث البيانات المتاحة على الخرائط العامة، ولا تتحمل المنصة مسؤولية تغيّر أرقام هواتف أو أوقات عمل الأنشطة التجارية مستقبلاً.</p>
+          </div>
         `;
       }
       modal.classList.remove('hidden');
@@ -4402,6 +4509,10 @@
           : `🌍 اللغة المختارة: ${meta.native} (${meta.arName})`;
       }
 
+      const legalModalEl = document.getElementById('legalSupportModal');
+      if (legalModalEl && !legalModalEl.classList.contains('hidden')) {
+        openLegalInfoModal(currentLegalModalTab);
+      }
       triggerGoogleTranslateLanguage(meta.code);
     }
 

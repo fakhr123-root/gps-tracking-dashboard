@@ -316,10 +316,9 @@
           id="step1NextBtn"
           onclick="goToLoginStep2()"
           disabled
-          class="w-full py-3 rounded-2xl font-black text-xs text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
+          class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
         >
-          <span id="step1NextBtnText">2. تسجيل الدخول (مقفل حتى تفعيل الموقع)</span>
-          <i data-lucide="arrow-left" class="w-4 h-4"></i>
+          <span id="step1NextBtnText">التالي (يرجى فتح الموقع أولاً)</span>
         </button>
       </div>
 
@@ -3314,11 +3313,13 @@
       if (!nextBtn) return;
       nextBtn.disabled = !enabled;
       if (enabled) {
+        nextBtn.removeAttribute('disabled');
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
         if (nextTxt) {
-          nextTxt.innerText = 'التالي';
+          nextTxt.innerText = 'التالي ←';
         }
       } else {
+        nextBtn.setAttribute('disabled', 'disabled');
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2";
         if (nextTxt) {
           nextTxt.innerText = 'التالي (يرجى فتح الموقع أولاً)';
@@ -3330,6 +3331,7 @@
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const dotEl = document.getElementById('geoStatusDot');
+      const btnEl = document.getElementById('enableGeoBtn');
       const btnTxt = document.getElementById('enableGeoBtnText');
       const guideBox = document.getElementById('geoBlockedGuideBox');
       if (guideBox) guideBox.classList.add('hidden');
@@ -3337,9 +3339,12 @@
       const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || 'موقعك الحالي';
       if (titleEl) titleEl.innerText = `✅ تم ضبط النطاق على: ${displayScope}`;
       if (descEl) {
-        descEl.innerText = 'تم تفعيل الموقع بنجاح — يمكنك الآن تسجيل الدخول والمتابعة';
+        descEl.innerText = 'تم تفعيل الموقع بنجاح — اضغط على "التالي ←" بالأسفل للمتابعة إلى تسجيل الدخول';
       }
-      if (btnTxt) btnTxt.innerText = `✅ تم ضبط النطاق على: ${displayScope}`;
+      if (btnTxt) btnTxt.innerText = '📍 تحديث الموقع';
+      if (btnEl) {
+        btnEl.className = 'w-full py-2.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer';
+      }
       const gateCityBadge = document.getElementById('gateApprovedCityBadge');
       if (gateCityBadge) gateCityBadge.innerText = `📍 ${displayScope}`;
       setStep1NextEnabled(true);
@@ -3497,7 +3502,7 @@
       } catch (e) {}
     }
 
-    function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false) {
+    function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false, isSilentCheck = false) {
       const titleEl = document.getElementById('geoStatusTitle');
       const descEl = document.getElementById('geoStatusDesc');
       const btnTxt = document.getElementById('enableGeoBtnText');
@@ -3509,7 +3514,7 @@
         showGateModalOnStep1();
         return;
       }
-      if (btnTxt) btnTxt.innerText = 'جاري ضبط النطاق الجغرافي...';
+      if (btnTxt && !isSilentCheck) btnTxt.innerText = 'جاري ضبط النطاق الجغرافي...';
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -3528,6 +3533,11 @@
           }
         },
         () => {
+          if (isSilentCheck && cachedOptionalGps) {
+            markLocationGranted();
+            if (autoAdvanceOnSuccess) goToLoginStep2();
+            return;
+          }
           cachedOptionalGps = null;
           if (guideBox) guideBox.classList.remove('hidden');
           if (btnTxt) btnTxt.innerText = '🔄 إعادة المحاولة';
@@ -3540,7 +3550,7 @@
           setStep1NextEnabled(false);
           showGateModalOnStep1();
         },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
       );
     }
 
@@ -3556,7 +3566,7 @@
       }
 
       updateAccountButtonsUI();
-      setStep1NextEnabled(false);
+      setStep1NextEnabled(Boolean(cachedOptionalGps));
 
       if (!navigator.geolocation) {
         showGateModalOnStep1();
@@ -3567,18 +3577,19 @@
         if (navigator.permissions && navigator.permissions.query) {
           const perm = await navigator.permissions.query({ name: 'geolocation' });
           perm.onchange = () => {
-            if (perm.state !== 'granted') {
+            if (perm.state === 'granted') {
+              requestOptionalGeolocationPrompt(true, true);
+            } else {
               cachedOptionalGps = null;
               setStep1NextEnabled(false);
               showGateModalOnStep1();
             }
           };
           if (perm.state === 'granted') {
-            // Location permission is granted -> verify live GPS silently and skip Step 1 if Location is open!
-            requestOptionalGeolocationPrompt(true);
+            // Permission is already granted -> silently fetch fresh GPS coordinates, unlock Step 2, and advance automatically!
+            requestOptionalGeolocationPrompt(true, true);
             return;
           } else {
-            // Location is closed or not yet allowed -> show Step 1 Location Gate!
             showGateModalOnStep1();
             return;
           }
@@ -3586,7 +3597,7 @@
       } catch (e) {}
 
       // Fallback when Permissions API is unavailable: test live GPS and show Step 1 only if closed
-      requestOptionalGeolocationPrompt(true);
+      requestOptionalGeolocationPrompt(true, true);
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)

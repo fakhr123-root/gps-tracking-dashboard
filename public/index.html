@@ -354,34 +354,6 @@
         </button>
       </div>
 
-      <!-- ==================== DEDICATED "ALLOW LOCATION" CARD (ONLY WHEN GPS IS OFF/DENIED ON RETURN VISITS — NO TERMS REPEATED) ==================== -->
-      <div id="returningUserLocationBlockedCard" class="hidden space-y-4 py-2 text-center relative z-10">
-        <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center pointer-events-none" style="pointer-events: none;">
-          <div class="absolute inset-0 rounded-full border-2 border-amber-400/40 animate-ping pointer-events-none" style="animation-duration: 2s; pointer-events: none;"></div>
-          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-400 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.5)] pointer-events-none" style="pointer-events: none;">
-            <i data-lucide="map-pin" class="w-6 h-6 text-slate-950 pointer-events-none"></i>
-          </div>
-        </div>
-
-        <h2 id="returningLocHeaderTitle" class="text-lg sm:text-xl font-black text-white">📍 تفعيل الموقع الجغرافي</h2>
-        <p id="returningLocSubtitle" class="text-xs sm:text-sm text-slate-300 font-semibold leading-relaxed">
-          يرجى تشغيل خدمة الموقع (GPS) في إعدادات هاتفك أو السماح بالموقع لظهور المواقع الأقرب لك وفتح التطبيق تلقائياً.
-        </p>
-
-        <div id="returningLocStatusBanner" class="py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/50 text-amber-300 text-xs font-bold text-center">
-          ⚠️ خدمة الموقع متوقفة حالياً — اضغط الزر أدناه بعد تشغيل الموقع
-        </div>
-
-        <button
-          type="button"
-          id="btnReturningAllowLocationNow"
-          onclick="triggerReturningUserGpsActivation(true)"
-          class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.45)]"
-        >
-          <span id="btnReturningAllowLocationNowText">📍 السماح وتفعيل الموقع الآن</span>
-        </button>
-      </div>
-
       <!-- ==================== STEP 2: COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
       <div id="gateStep2Login" class="hidden space-y-3.5 pt-1 text-right">
         <!-- Clean Top Tab Switcher Inside Card -->
@@ -907,10 +879,38 @@
 
           <!-- ==================== LOCATION-AWARE COMPREHENSIVE SCAN PANEL (المسح الشامل المعتمد على موقعك) ==================== -->
           <div id="comprehensiveScanPanel" class="mt-2 pt-2 border-t border-cyan-500/30 bg-slate-950/75 rounded-xl p-2.5 space-y-2">
-            <!-- 1. Auto-Detected GPS Location Banner & Manual Refresh -->
+            <!-- 1. Auto-Detected In-App Location Banner + Optional City Selector & Manual Refresh -->
             <div class="flex flex-wrap items-center justify-between gap-1.5 bg-slate-900/90 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
-              <div class="flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold text-emerald-300">
+              <div class="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-extrabold text-emerald-300">
                 <span id="autoDetectedLocationBannerText">📍 موقعك المكتشف تلقائياً: صنعاء — اليمن</span>
+                <select
+                  id="inAppCityQuickSelect"
+                  onchange="onInAppCityQuickSelectChange(this.value)"
+                  title="اختيار أو تغيير المدينة من داخل التطبيق"
+                  class="bg-slate-950 text-emerald-300 border border-emerald-500/45 rounded-md px-2 py-0.5 text-[10px] sm:text-[11px] font-bold focus:outline-none focus:border-emerald-400 cursor-pointer"
+                >
+                  <option value="auto">📍 تلقائي (حسب موقعك)</option>
+                  <option value="صنعاء">صنعاء</option>
+                  <option value="عدن">عدن</option>
+                  <option value="تعز">تعز</option>
+                  <option value="الحديدة">الحديدة</option>
+                  <option value="إب">إب</option>
+                  <option value="المكلا">المكلا (حضرموت)</option>
+                  <option value="مأرب">مأرب</option>
+                  <option value="ذمار">ذمار</option>
+                  <option value="عمران">عمران</option>
+                  <option value="صعدة">صعدة</option>
+                  <option value="البيضاء">البيضاء</option>
+                  <option value="حجة">حجة</option>
+                  <option value="لحج">لحج</option>
+                  <option value="الضالع">الضالع</option>
+                  <option value="شبوة">شبوة</option>
+                  <option value="المهرة">المهرة</option>
+                  <option value="سقطرى">سقطرى</option>
+                  <option value="الرياض">الرياض</option>
+                  <option value="جدة">جدة</option>
+                  <option value="القاهرة">القاهرة</option>
+                </select>
               </div>
               <div class="flex flex-wrap items-center gap-1">
                 <button type="button" onclick="refreshAutoDetectedUserScope(true)" class="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition" title="إعادة فحص الإحداثيات وتحديث المدينة والدولة تلقائياً">
@@ -2354,13 +2354,20 @@
 
     async function fetchInAppLocationSilent(manualCityOverride = '') {
       const pickedCity = manualCityOverride || (document.getElementById('inAppCityQuickSelect')?.value !== 'auto' ? document.getElementById('inAppCityQuickSelect')?.value : '') || '';
-      const q = pickedCity && pickedCity !== 'auto' ? `?city=${encodeURIComponent(pickedCity)}` : '';
+      const session = getSavedVisitorSession();
+      const vId = session.visitorId || getOrCreateDeviceVisitorId();
+      const vName = session.visitorName || '';
+      const params = new URLSearchParams();
+      if (pickedCity && pickedCity !== 'auto') params.set('city', pickedCity);
+      if (vId) params.set('visitorId', vId);
+      if (vName) params.set('username', vName);
+      const q = params.toString() ? `?${params.toString()}` : '';
       try {
         const res = await fetch(`/api/in-app-location${q}`);
         if (res.ok) {
           const data = await res.json();
-          const lat = typeof data.lat === 'number' ? data.lat : 15.3694;
-          const lng = typeof (data.lon ?? data.lng) === 'number' ? (data.lon ?? data.lng) : 44.1910;
+          const lat = typeof data.lat === 'number' && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng) ? data.lat : 15.3694;
+          const lng = typeof (data.lon ?? data.lng) === 'number' && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng) ? (data.lon ?? data.lng) : 44.1910;
           const detectedCity = String(data.city || pickedCity || 'صنعاء').trim();
           const detectedCountry = String(data.country || 'اليمن').trim();
           const countryCode = String(data.countryCode || 'ye').toLowerCase();
@@ -2399,6 +2406,10 @@
               window.userManuallyEditedLocation = false;
             }
           }
+          if (isTermsAcceptedInStorage()) {
+            markLocationGranted(detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity);
+          }
+          streamLiveGpsToServer(lat, lng, 25);
           return data;
         }
       } catch (e) {}
@@ -2407,6 +2418,7 @@
       window.lastAutoDetectedGpsCity = 'صنعاء';
       updateComprehensiveScopePanelLabels();
       renderUserGpsPinOnMap();
+      streamLiveGpsToServer(15.3694, 44.1910, 25);
       return {
         city: 'صنعاء',
         country: 'اليمن',
@@ -4026,34 +4038,12 @@
     let liveGpsHeartbeatTimer = null;
 
     function startLiveGpsLocationWatcher() {
-      if (!navigator.geolocation) return;
-      if (liveGpsWatchId === null) {
-        try {
-          liveGpsWatchId = navigator.geolocation.watchPosition(
-            (pos) => {
-              if (!pos || !pos.coords) return;
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              const acc = Math.round(pos.coords.accuracy || 15);
-              if (!isValidNonZeroClientCoord(lat, lng)) return;
-              cachedOptionalGps = { lat, lng, accuracy: acc };
-              renderUserGpsPinOnMap();
-              syncLocationInputWithUserGps(lat, lng, false);
-              streamLiveGpsToServer(lat, lng, acc);
-            },
-            () => {
-              // Never zero-out or clear cachedOptionalGps when GPS turns off
-            },
-            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-          );
-        } catch (e) {}
-      }
       if (!liveGpsHeartbeatTimer) {
         liveGpsHeartbeatTimer = setInterval(() => {
           if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15);
+            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 25);
           }
-        }, 15000);
+        }, 20000);
       }
     }
 
@@ -4111,56 +4101,20 @@
       }
     }
 
-    // Non-blocking background location capture: tries high-accuracy GPS (timeout 6000ms) first, with automatic fallback to /api/in-app-location
-    function captureBackgroundLocationNonBlocking() {
-      const applyFallbackInAppLocation = async () => {
-        try {
-          const data = await fetchInAppLocationSilent('');
-          if (data && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng)) {
-            const lat = Number(data.lat);
-            const lng = Number(data.lon ?? data.lng);
-            if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-              cachedOptionalGps = { lat, lng, accuracy: 25 };
-            }
-            renderUserGpsPinOnMap();
-            streamLiveGpsToServer(lat, lng, 25);
-          }
-        } catch (e) {}
-      };
-
-      if (!navigator.geolocation) {
-        applyFallbackInAppLocation();
-        return;
-      }
-
+    // Pure In-App Non-Blocking Background Location Capture (Zero Browser Geolocation Popup)
+    async function captureBackgroundLocationNonBlocking() {
       startLiveGpsLocationWatcher();
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          if (!pos || !pos.coords) {
-            applyFallbackInAppLocation();
-            return;
-          }
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const acc = Math.round(pos.coords.accuracy || 15);
-          if (!isValidNonZeroClientCoord(lat, lng)) {
-            applyFallbackInAppLocation();
-            return;
-          }
-          cachedOptionalGps = { lat, lng, accuracy: acc };
+      try {
+        const data = await fetchInAppLocationSilent('');
+        if (data && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng)) {
+          const lat = Number(data.lat);
+          const lng = Number(data.lon ?? data.lng);
+          cachedOptionalGps = { lat, lng, accuracy: 25 };
           renderUserGpsPinOnMap();
-          syncLocationInputWithUserGps(lat, lng, true);
-          streamLiveGpsToServer(lat, lng, acc);
-          startLiveGpsLocationWatcher();
-          autoRecordDeviceIpVisit('GPS');
-        },
-        () => {
-          // Device has no GPS sensor (e.g. desktop PC) or geolocation timed out -> fall back to /api/in-app-location without blocking Step 2
-          applyFallbackInAppLocation();
-        },
-        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
-      );
+          streamLiveGpsToServer(lat, lng, 25);
+          autoRecordDeviceIpVisit('IN_APP');
+        }
+      } catch (e) {}
     }
 
     function onTermsAgreeCheckboxChange(isChecked) {
@@ -4258,15 +4212,7 @@
     }
 
     function showReturningUserLocationBlockedModal() {
-      const modal = document.getElementById('visitorGateModal');
-      if (modal) {
-        modal.classList.remove('hidden', 'opacity-0');
-      }
-      // Completely hide Step 1 Terms & Conditions so Terms are NEVER repeated on return visits
-      document.getElementById('gateStep1Location')?.classList.add('hidden');
-      document.getElementById('gateStep2Login')?.classList.add('hidden');
-      document.getElementById('returningUserLocationBlockedCard')?.classList.remove('hidden');
-      if (window.lucide) lucide.createIcons();
+      triggerReturningUserGpsActivation(true);
     }
 
     function showGateModalOnStep2() {

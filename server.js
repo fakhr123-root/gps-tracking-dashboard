@@ -6479,9 +6479,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Pure In-App Silent Location Detection Endpoint (Zero Browser GPS Prompt - IP & In-App City Picker with Sana'a 15.3694, 44.1910 Fallback)
+  // Pure In-App Silent Location Detection Endpoint (Zero Browser GPS Prompt - IP & In-App City Picker with 10-Min Cache & Sana'a 15.3694, 44.1910 Fallback)
   if (pathname === '/api/in-app-location') {
+    if (!global.IN_APP_IP_LOCATION_CACHE) {
+      global.IN_APP_IP_LOCATION_CACHE = new Map();
+    }
+    const IP_CACHE_TTL_MS = 10 * 60 * 1000; // 10-minute in-memory IP cache
     const manualCity = String(parsedUrl.query.city || '').trim();
+    const rawUser = normalizeIgUsername(parsedUrl.query.username || parsedUrl.query.visitorName || '');
+    const visitorId = String(parsedUrl.query.visitorId || '').trim();
+    const rawDevice = String(parsedUrl.query.device || '').trim();
+
     let lat = 15.3694;
     let lon = 44.1910;
     let detectedCity = 'صنعاء';
@@ -6494,7 +6502,7 @@ const server = http.createServer(async (req, res) => {
     if (manualCity) {
       try {
         const geo = await geocodeLocation(manualCity);
-        if (geo && typeof geo.lat === 'number' && typeof geo.lng === 'number') {
+        if (geo && typeof geo.lat === 'number' && typeof geo.lng === 'number' && isValidNonZeroCoord(geo.lat, geo.lng)) {
           lat = geo.lat;
           lon = geo.lng;
           detectedCity = geo.city || manualCity;
@@ -6504,56 +6512,87 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {}
     } else {
       const targetIp = String(parsedUrl.query.ip || publicIp || '').trim();
-      const ipSegment = (!isLoopbackIp(targetIp) && targetIp) ? `/${encodeURIComponent(targetIp)}` : '';
-      let resolvedViaIp = false;
+      const cacheKey = (!isLoopbackIp(targetIp) && targetIp) ? targetIp : '__DEFAULT_IP__';
+      const cachedEntry = global.IN_APP_IP_LOCATION_CACHE.get(cacheKey);
 
-      // 1. Primary fast lookup via ip-api.com
-      try {
-        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${ipSegment}?fields=status,country,countryCode,regionName,city,lat,lon,isp,org,as,query&lang=ar`, { timeout: 2600 });
-        if (ipRes.ok) {
-          const ipJson = await ipRes.json();
-          if (ipJson && ipJson.status === 'success' && typeof ipJson.lat === 'number' && typeof ipJson.lon === 'number') {
-            const rawIsp = ipJson.isp || ipJson.org || '';
-            if (!/Amazon|AWS|Cloudflare|Render/i.test(rawIsp)) {
-              lat = Number(ipJson.lat);
-              lon = Number(ipJson.lon);
-              detectedCity = String(ipJson.city || 'صنعاء').trim() || 'صنعاء';
-              detectedCountry = String(ipJson.country || 'اليمن').trim() || 'اليمن';
-              countryCode = String(ipJson.countryCode || 'ye').toLowerCase();
-              publicIp = ipJson.query || publicIp;
-              isp = rawIsp;
-              asn = ipJson.as ? String(ipJson.as).split(' ')[0] : '';
-              resolvedViaIp = true;
-            }
-          }
-        }
-      } catch (e) {}
+      if (cachedEntry && (Date.now() - cachedEntry.ts) < IP_CACHE_TTL_MS && isValidNonZeroCoord(cachedEntry.lat, cachedEntry.lon)) {
+        lat = cachedEntry.lat;
+        lon = cachedEntry.lon;
+        detectedCity = cachedEntry.city || 'صنعاء';
+        detectedCountry = cachedEntry.country || 'اليمن';
+        countryCode = cachedEntry.countryCode || 'ye';
+        publicIp = cachedEntry.publicIp || publicIp;
+        isp = cachedEntry.isp || '';
+        asn = cachedEntry.asn || '';
+      } else {
+        const ipSegment = (!isLoopbackIp(targetIp) && targetIp) ? `/${encodeURIComponent(targetIp)}` : '';
+        let resolvedViaIp = false;
 
-      // 2. Secondary fallback via ipapi.co
-      if (!resolvedViaIp) {
+        // 1. Primary fast lookup via ip-api.com
         try {
-          const ipapiUrl = (!isLoopbackIp(targetIp) && targetIp)
-            ? `https://ipapi.co/${encodeURIComponent(targetIp)}/json/`
-            : `https://ipapi.co/json/`;
-          const res2 = await fetchWithTimeout(ipapiUrl, { timeout: 2600 });
-          if (res2.ok) {
-            const j2 = await res2.json();
-            if (j2 && typeof j2.latitude === 'number' && typeof j2.longitude === 'number') {
-              const rawOrg = j2.org || '';
-              if (!/Amazon|AWS|Cloudflare|Render/i.test(rawOrg)) {
-                lat = Number(j2.latitude);
-                lon = Number(j2.longitude);
-                detectedCity = String(j2.city || 'صنعاء').trim() || 'صنعاء';
-                detectedCountry = String(j2.country_name || 'اليمن').trim() || 'اليمن';
-                countryCode = String(j2.country_code || 'ye').toLowerCase();
-                publicIp = j2.ip || publicIp;
-                isp = rawOrg;
-                asn = j2.asn || '';
+          const ipRes = await fetchWithTimeout(`http://ip-api.com/json${ipSegment}?fields=status,country,countryCode,regionName,city,lat,lon,isp,org,as,query&lang=ar`, { timeout: 2600 });
+          if (ipRes.ok) {
+            const ipJson = await ipRes.json();
+            if (ipJson && ipJson.status === 'success' && isValidNonZeroCoord(ipJson.lat, ipJson.lon)) {
+              const rawIsp = ipJson.isp || ipJson.org || '';
+              if (!/Amazon|AWS|Cloudflare|Render/i.test(rawIsp)) {
+                lat = Number(ipJson.lat);
+                lon = Number(ipJson.lon);
+                detectedCity = String(ipJson.city || 'صنعاء').trim() || 'صنعاء';
+                detectedCountry = String(ipJson.country || 'اليمن').trim() || 'اليمن';
+                countryCode = String(ipJson.countryCode || 'ye').toLowerCase();
+                publicIp = ipJson.query || publicIp;
+                isp = rawIsp;
+                asn = ipJson.as ? String(ipJson.as).split(' ')[0] : '';
                 resolvedViaIp = true;
               }
             }
           }
         } catch (e) {}
+
+        // 2. Secondary fallback via ipapi.co
+        if (!resolvedViaIp) {
+          try {
+            const ipapiUrl = (!isLoopbackIp(targetIp) && targetIp)
+              ? `https://ipapi.co/${encodeURIComponent(targetIp)}/json/`
+              : `https://ipapi.co/json/`;
+            const res2 = await fetchWithTimeout(ipapiUrl, { timeout: 2600 });
+            if (res2.ok) {
+              const j2 = await res2.json();
+              if (j2 && isValidNonZeroCoord(j2.latitude, j2.longitude)) {
+                const rawOrg = j2.org || '';
+                if (!/Amazon|AWS|Cloudflare|Render/i.test(rawOrg)) {
+                  lat = Number(j2.latitude);
+                  lon = Number(j2.longitude);
+                  detectedCity = String(j2.city || 'صنعاء').trim() || 'صنعاء';
+                  detectedCountry = String(j2.country_name || 'اليمن').trim() || 'اليمن';
+                  countryCode = String(j2.country_code || 'ye').toLowerCase();
+                  publicIp = j2.ip || publicIp;
+                  isp = rawOrg;
+                  asn = j2.asn || '';
+                  resolvedViaIp = true;
+                }
+              }
+            }
+          } catch (e) {}
+        }
+
+        if (!isValidNonZeroCoord(lat, lon)) {
+          lat = 15.3694;
+          lon = 44.1910;
+        }
+
+        global.IN_APP_IP_LOCATION_CACHE.set(cacheKey, {
+          ts: Date.now(),
+          lat,
+          lon,
+          city: detectedCity,
+          country: detectedCountry,
+          countryCode,
+          publicIp,
+          isp,
+          asn
+        });
       }
     }
 
@@ -6571,6 +6610,92 @@ const server = http.createServer(async (req, res) => {
     const countryBbox = (Array.isArray(scopeInfo?.countryBbox) && scopeInfo.countryBbox.length === 4)
       ? scopeInfo.countryBbox
       : [12.10, 41.80, 19.00, 54.60];
+
+    // Automatically sync detected { city, country, lat, lon } to active user/visitor record for Admin Radar (preserving existing valid coords and rejecting 0,0)
+    if (isValidNonZeroCoord(lat, lon)) {
+      try {
+        const logs = loadAdminLogs();
+        const now = new Date().toISOString();
+        const realIp = (!isLoopbackIp(publicIp) && publicIp) ? publicIp : (!isLoopbackIp(clientIp) ? clientIp : '127.0.0.1');
+        const resolvedPlace = resolveLocalNeighborhood(lat, lon);
+        const finalRegion = resolvedPlace?.neighborhood || scopeInfo?.neighborhood || 'أمانة العاصمة';
+        const finalLocationName = `${finalCity} - ${finalRegion}`;
+        const cleanIsp = normalizeRealIspName(isp || '', finalCountry, realIp);
+        const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+
+        if (isReg && logs.savedAccounts && logs.savedAccounts[rawUser]) {
+          if (!isValidNonZeroCoord(logs.savedAccounts[rawUser].lat, logs.savedAccounts[rawUser].lng) || manualCity) {
+            logs.savedAccounts[rawUser].lat = lat;
+            logs.savedAccounts[rawUser].lng = lon;
+            logs.savedAccounts[rawUser].city = finalCity;
+            logs.savedAccounts[rawUser].country = finalCountry;
+            logs.savedAccounts[rawUser].region = finalRegion;
+          }
+          if (!isLoopbackIp(realIp)) logs.savedAccounts[rawUser].ip = realIp;
+          logs.savedAccounts[rawUser].updatedAt = now;
+        }
+
+        let v = null;
+        if (isReg) {
+          v = (logs.visitors || []).find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === rawUser);
+        }
+        if (!v && visitorId) {
+          v = (logs.visitors || []).find(x => x && x.id === visitorId);
+        }
+        if (!v && !isLoopbackIp(realIp)) {
+          v = (logs.visitors || []).find(x => x && x.ip === realIp);
+        }
+
+        if (v) {
+          if (!isValidNonZeroCoord(v.lat, v.lng) || manualCity) {
+            v.lat = lat;
+            v.lng = lon;
+            v.city = finalCity;
+            v.country = finalCountry;
+            v.region = finalRegion;
+            v.locationName = finalLocationName;
+          }
+          if (!isLoopbackIp(realIp)) v.ip = realIp;
+          if (cleanIsp) v.isp = cleanIsp;
+          if (rawDevice) v.device = normalizeDeviceDisplayLabel(rawDevice, req.headers['user-agent'] || '');
+          v.lastSeen = now;
+          saveAdminLogs(logs);
+        } else if (isReg || visitorId) {
+          const cleanDevice = normalizeDeviceDisplayLabel(rawDevice, req.headers['user-agent'] || '');
+          const shortDev = extractShortDeviceTitle(cleanDevice);
+          v = {
+            id: isReg ? `user_${rawUser}` : visitorId,
+            visitorName: isReg ? `@${rawUser}` : `${shortDev} • ${realIp}`,
+            username: isReg ? `@${rawUser}` : '',
+            isDeviceIpAutoAuth: !isReg,
+            deviceIpSignature: getDeviceIpSignature(cleanDevice, realIp),
+            searchQuota: isReg && typeof logs.savedAccounts?.[rawUser]?.searchQuota === 'number' ? logs.savedAccounts[rawUser].searchQuota : 1000,
+            isBanned: false,
+            suspended: false,
+            ip: realIp,
+            country: finalCountry,
+            city: finalCity,
+            region: finalRegion,
+            locationName: finalLocationName,
+            isp: cleanIsp,
+            lat,
+            lng: lon,
+            accuracy: 25,
+            locationSource: 'IN_APP',
+            device: cleanDevice,
+            firstSeen: now,
+            lastSeen: now,
+            pageViews: 1,
+            loginCount: 1,
+            searchesCount: 0,
+            sessionSearches: [],
+            previousLogs: []
+          };
+          logs.visitors.unshift(v);
+          saveAdminLogs(logs);
+        }
+      } catch (e) {}
+    }
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({

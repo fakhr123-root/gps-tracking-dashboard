@@ -254,7 +254,7 @@
         </button>
       </div>
 
-      <!-- ==================== STEP 1: CLEAN TERMS & CONDITIONS SCREEN (WITH DUAL-TRIGGER GPS) ==================== -->
+      <!-- ==================== STEP 1: CLEAN TERMS & CONDITIONS CHECKBOX SCREEN (NO BROWSER GEOLOCATION PROMPT) ==================== -->
       <div id="gateStep1Location" class="space-y-4 py-1">
         <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center">
           <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
@@ -268,17 +268,38 @@
           يُرجى الاطلاع والموافقة على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> للمتابعة إلى تسجيل الدخول.
         </p>
 
-        <!-- Single Primary Green Button ("✅ أوافق على الشروط والأحكام") wired to trigger getCurrentPosition & instant backend logging -->
-        <button
-          type="button"
-          id="enableGeoBtn"
-          onclick="requestOptionalGeolocationPrompt(false, false)"
-          class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_22px_rgba(16,185,129,0.35)]"
+        <!-- Styled Interactive Checkbox Card with Custom Green Checkmark (✓) -->
+        <label
+          for="termsAgreeCheckbox"
+          id="termsCheckboxCardLabel"
+          class="w-full py-3.5 px-4 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 hover:border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_20px_rgba(16,185,129,0.18)]"
         >
-          <span id="enableGeoBtnText">✅ أوافق على الشروط والأحكام</span>
-        </button>
+          <input
+            type="checkbox"
+            id="termsAgreeCheckbox"
+            onchange="handleTermsCheckboxToggle(this)"
+            class="sr-only"
+          />
+          <span
+            id="termsCustomCheckmarkBox"
+            class="w-6 h-6 rounded-lg border-2 border-emerald-400 bg-slate-950 flex items-center justify-center transition-all shrink-0 shadow-inner"
+          >
+            <span id="termsCustomCheckmarkIcon" class="text-slate-950 font-black text-sm leading-none hidden">✓</span>
+          </span>
+          <span id="termsCheckboxLabelText" class="leading-snug">
+            أوافق على <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">الشروط والأحكام</a>
+          </span>
+        </label>
 
-        <!-- Step 1 "Next" Button (Unlocked immediately upon capture/fallback) -->
+        <!-- Clean Status Message Shown When Checked -->
+        <div
+          id="termsAcceptedStatusBanner"
+          class="hidden py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center"
+        >
+          ✅ تمت الموافقة على الشروط والأحكام
+        </div>
+
+        <!-- Step 1 "Next" Button (Unlocked immediately when checkbox is checked) -->
         <button
           type="button"
           id="step1NextBtn"
@@ -3417,14 +3438,15 @@
       }
 
       updateAccountButtonsUI();
-      setStep1NextEnabled(Boolean(cachedOptionalGps));
+      const cb = document.getElementById('termsAgreeCheckbox');
+      const isChecked = Boolean(cb && cb.checked);
+      setStep1NextEnabled(isChecked);
 
-      if (cachedOptionalGps) {
+      if (isChecked) {
         goToLoginStep2();
       } else {
         document.getElementById('gateStep1Location')?.classList.remove('hidden');
         document.getElementById('gateStep2Login')?.classList.add('hidden');
-        requestOptionalGeolocationPrompt(false, true);
       }
       lucide.createIcons();
     }
@@ -3446,23 +3468,61 @@
         nextBtn.setAttribute('disabled', 'disabled');
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2";
         if (nextTxt) {
-          nextTxt.innerText = isEn ? 'Next (Accept Terms First)' : 'التالي (يرجى الموافقة على الشروط أولاً)';
+          nextTxt.innerText = isEn ? 'Next (Please Agree to Terms First)' : 'التالي (يرجى الموافقة على الشروط أولاً)';
         }
       }
     }
 
-    function markLocationGranted(cityCountryStr = '') {
-      const btnEl = document.getElementById('enableGeoBtn');
-      const btnTxt = document.getElementById('enableGeoBtnText');
+    function handleTermsCheckboxToggle(cbEl) {
+      const checkbox = cbEl || document.getElementById('termsAgreeCheckbox');
+      const isChecked = Boolean(checkbox && checkbox.checked);
+      const boxEl = document.getElementById('termsCustomCheckmarkBox');
+      const iconEl = document.getElementById('termsCustomCheckmarkIcon');
+      const cardEl = document.getElementById('termsCheckboxCardLabel');
+      const bannerEl = document.getElementById('termsAcceptedStatusBanner');
       const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
-      const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
-      if (btnTxt) btnTxt.innerText = isEn ? '✅ Terms & Conditions Accepted' : '✅ تمت الموافقة على الشروط والأحكام';
-      if (btnEl) {
-        btnEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400 text-emerald-300 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_18px_rgba(16,185,129,0.25)]';
+
+      if (isChecked) {
+        if (boxEl) {
+          boxEl.className = 'w-6 h-6 rounded-lg border-2 border-emerald-300 bg-emerald-400 flex items-center justify-center transition-all shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.65)]';
+        }
+        if (iconEl) iconEl.classList.remove('hidden');
+        if (cardEl) {
+          cardEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_22px_rgba(16,185,129,0.3)]';
+        }
+        if (bannerEl) {
+          bannerEl.innerText = isEn ? '✅ Terms & Conditions Accepted' : '✅ تمت الموافقة على الشروط والأحكام';
+          bannerEl.classList.remove('hidden');
+        }
+        if (!cachedOptionalGps) {
+          cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
+        }
+        setStep1NextEnabled(true);
+        autoRecordDeviceIpVisit('IP');
+      } else {
+        if (boxEl) {
+          boxEl.className = 'w-6 h-6 rounded-lg border-2 border-emerald-400 bg-slate-950 flex items-center justify-center transition-all shrink-0 shadow-inner';
+        }
+        if (iconEl) iconEl.classList.add('hidden');
+        if (cardEl) {
+          cardEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 hover:border-emerald-400 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-3 transition cursor-pointer select-none shadow-[0_0_20px_rgba(16,185,129,0.18)]';
+        }
+        if (bannerEl) {
+          bannerEl.classList.add('hidden');
+        }
+        setStep1NextEnabled(false);
       }
+    }
+
+    function markLocationGranted(cityCountryStr = '') {
+      const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
       const gateCityBadge = document.getElementById('gateApprovedCityBadge');
       if (gateCityBadge && displayScope) gateCityBadge.innerText = `📍 ${displayScope}`;
-      setStep1NextEnabled(true);
+      const cb = document.getElementById('termsAgreeCheckbox');
+      if (cb && !cb.checked) {
+        cb.checked = true;
+      }
+      handleTermsCheckboxToggle(cb);
     }
 
     function showGateModalOnStep1() {
@@ -3592,80 +3652,18 @@
     }
 
     function startLiveGpsLocationWatcher() {
-      if (!navigator.geolocation || liveGpsWatchId !== null) return;
-      try {
-        liveGpsWatchId = navigator.geolocation.watchPosition(
-          (pos) => {
-            if (!pos || !pos.coords) return;
-            cachedOptionalGps = {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              accuracy: Math.round(pos.coords.accuracy || 15)
-            };
-            renderUserGpsPinOnMap();
-            syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng);
-          },
-          () => {},
-          { enableHighAccuracy: true, maximumAge: 15000, timeout: 15000 }
-        );
-      } catch (e) {}
+      // Browser geolocation watcher disabled so no location permission dialog is ever triggered.
     }
 
-    // Dual-Trigger High-Accuracy GPS: runs automatically on page load AND when clicking "✅ أوافق على الشروط والأحكام"
-    function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false, isInitialLoadTrigger = false) {
-      const btnTxt = document.getElementById('enableGeoBtnText');
-      const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
-
-      if (!navigator.geolocation) {
-        if (!isInitialLoadTrigger) {
-          // Fallback to IP logging when clicked on a device without geolocation API
-          markLocationGranted();
-          autoRecordDeviceIpVisit('IP');
-          if (autoAdvanceOnSuccess) goToLoginStep2();
-        } else {
-          showGateModalOnStep1();
-        }
-        return;
+    function requestOptionalGeolocationPrompt(autoAdvanceOnSuccess = false) {
+      const cb = document.getElementById('termsAgreeCheckbox');
+      if (cb && !cb.checked) {
+        cb.checked = true;
       }
-
-      if (btnTxt && !isInitialLoadTrigger) {
-        btnTxt.innerText = isEn ? 'Verifying...' : 'جاري التأكيد...';
+      handleTermsCheckboxToggle(cb);
+      if (autoAdvanceOnSuccess) {
+        goToLoginStep2();
       }
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          cachedOptionalGps = {
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            accuracy: Math.round(pos.coords.accuracy || 15)
-          };
-          // Immediately update Step 1 UI and unlock "التالي ←"
-          markLocationGranted();
-          renderUserGpsPinOnMap();
-          syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
-          startLiveGpsLocationWatcher();
-          // Immediately dispatch GPS coordinates to Admin backend before login/signup!
-          autoRecordDeviceIpVisit('GPS');
-          if (autoAdvanceOnSuccess) {
-            goToLoginStep2();
-          }
-        },
-        () => {
-          if (!isInitialLoadTrigger) {
-            // Visitor clicked the button and denied/timed out -> silently fall back to IP logging and unlock "التالي ←"!
-            markLocationGranted();
-            autoRecordDeviceIpVisit('IP');
-            if (autoAdvanceOnSuccess) {
-              goToLoginStep2();
-            }
-          } else {
-            // Initial page load prompt was blocked by browser policy (e.g. iOS Safari requires tap) -> show Step 1 so user taps the button
-            setStep1NextEnabled(false);
-            showGateModalOnStep1();
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
     }
 
     async function initOptionalGeolocationCheck() {
@@ -3679,12 +3677,17 @@
         passInput.value = session.accountPassword;
       }
 
+      if (!cachedOptionalGps) {
+        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
+      }
+
       updateAccountButtonsUI();
-      setStep1NextEnabled(Boolean(cachedOptionalGps));
+      const cb = document.getElementById('termsAgreeCheckbox');
+      setStep1NextEnabled(Boolean(cb && cb.checked));
       showGateModalOnStep1();
 
-      // Trigger 1: Automatically invoke getCurrentPosition on page load (DOMContentLoaded)
-      requestOptionalGeolocationPrompt(session.hasSession, true);
+      // Silently record visit via backend IP without triggering any browser geolocation popup
+      autoRecordDeviceIpVisit('IP');
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)
@@ -3731,6 +3734,10 @@
       ]);
       const deviceStr = devProfile.deviceLabel;
 
+      if (!cachedOptionalGps) {
+        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
+      }
+
       let geoInfo = {
         publicIp: netInfo.publicIp || '',
         localIp: netInfo.localIp || '',
@@ -3739,10 +3746,10 @@
         city: netInfo.city || 'صنعاء',
         region: netInfo.region || 'أمانة العاصمة',
         isp: netInfo.isp || '',
-        lat: cachedOptionalGps ? cachedOptionalGps.lat : null,
-        lng: cachedOptionalGps ? cachedOptionalGps.lng : null,
-        accuracy: cachedOptionalGps ? cachedOptionalGps.accuracy : null,
-        locationSource: cachedOptionalGps ? 'GPS' : 'GPS'
+        lat: cachedOptionalGps.lat,
+        lng: cachedOptionalGps.lng,
+        accuracy: cachedOptionalGps.accuracy,
+        locationSource: 'IP'
       };
 
       const completeAuthAttempt = async () => {
@@ -3757,6 +3764,13 @@
           if (errEl) errEl.classList.remove('hidden');
           return;
         }
+        if (resp && resp.visitor && resp.visitor.lat && resp.visitor.lng) {
+          cachedOptionalGps = {
+            lat: Number(resp.visitor.lat),
+            lng: Number(resp.visitor.lng),
+            accuracy: 50
+          };
+        }
         // Success! Save valid English username + password to localStorage and enter Explorer
         if (resp && resp.visitor && resp.visitor.id) {
           localStorage.setItem('gmaps_visitor_id', resp.visitor.id);
@@ -3767,35 +3781,7 @@
         finishGateEntry();
       };
 
-      if (cachedOptionalGps) {
-        syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
-        startLiveGpsLocationWatcher();
-        await completeAuthAttempt();
-        return;
-      }
-
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          async (pos) => {
-            geoInfo.lat = pos.coords.latitude;
-            geoInfo.lng = pos.coords.longitude;
-            geoInfo.accuracy = Math.round(pos.coords.accuracy || 20);
-            geoInfo.locationSource = 'GPS';
-            cachedOptionalGps = { lat: geoInfo.lat, lng: geoInfo.lng, accuracy: geoInfo.accuracy };
-            syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
-            startLiveGpsLocationWatcher();
-            await completeAuthAttempt();
-          },
-          async () => {
-            geoInfo.locationSource = 'IP_FALLBACK';
-            await completeAuthAttempt();
-          },
-          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-        );
-      } else {
-        geoInfo.locationSource = 'IP_FALLBACK';
-        await completeAuthAttempt();
-      }
+      await completeAuthAttempt();
     }
 
     async function sendVisitPayload(vId, vName, geo, deviceStr, username = '', accountPassword = '', authMode = '') {
@@ -3833,6 +3819,17 @@
 
     function finishGateEntry() {
       updateAccountButtonsUI();
+      if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) {
+        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 50 };
+      }
+      const locInput = document.getElementById('locationInput');
+      if (locInput && !locInput.value.trim()) {
+        locInput.value = window.lastAutoDetectedGpsCity || 'صنعاء';
+      }
+      renderUserGpsPinOnMap();
+      if (leafletMap) {
+        leafletMap.setView([cachedOptionalGps.lat, cachedOptionalGps.lng], 13);
+      }
       const modal = document.getElementById('visitorGateModal');
       modal.classList.add('transition-opacity', 'duration-400', 'opacity-0');
       setTimeout(() => modal.classList.add('hidden'), 400);
@@ -4252,7 +4249,7 @@
         detectedHintManual: 'Selected language:',
         changeLangBtn: 'Change',
         geoHeader: 'Accept Terms & Conditions',
-        geoSubtitle: 'Please review and agree to the Terms & Conditions to proceed to Sign In.',
+        geoSubtitle: 'Please review and agree to the Terms & Conditions to continue to login.',
         enableGeoBtn: '✅ I Agree to Terms & Conditions',
         backToStep1Btn: '← Back to Previous Step',
         loginHeader: 'Sign In',
@@ -4484,10 +4481,23 @@
         if (h1 && dict.geoHeader) h1.innerText = dict.geoHeader;
         if (sub1 && dict.geoSubtitle) {
           sub1.innerHTML = meta.code.startsWith('en')
-            ? `By agreeing below, you accept the <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">Terms & Conditions</button> and allow Location activation to calibrate the map to your area.`
-            : `بالموافقة أدناه، فإنك تقرّ بـ<button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> وتسمح بتفعيل الموقع الجغرافي لضبط الخريطة على منطقتك.`;
+            ? `Please review and agree to the <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">Terms & Conditions</button> to continue to login.`
+            : `يُرجى الاطلاع والموافقة على <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> للمتابعة إلى تسجيل الدخول.`;
         }
-        if (btn1 && !cachedOptionalGps && dict.enableGeoBtn) btn1.innerText = dict.enableGeoBtn;
+        const cbLabelTxt = document.getElementById('termsCheckboxLabelText');
+        if (cbLabelTxt) {
+          cbLabelTxt.innerHTML = meta.code.startsWith('en')
+            ? `I agree to the <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">Terms & Conditions</a>`
+            : `أوافق على <a href="#" onclick="event.preventDefault(); event.stopPropagation(); openLegalInfoModal('terms_privacy');" class="text-emerald-300 hover:text-emerald-200 underline font-black">الشروط والأحكام</a>`;
+        }
+        const bannerEl = document.getElementById('termsAcceptedStatusBanner');
+        if (bannerEl) {
+          bannerEl.innerText = meta.code.startsWith('en')
+            ? '✅ Terms & Conditions Accepted'
+            : '✅ تمت الموافقة على الشروط والأحكام';
+        }
+        const cbEl = document.getElementById('termsAgreeCheckbox');
+        setStep1NextEnabled(Boolean(cbEl && cbEl.checked));
         if (backBtn && dict.backToStep1Btn) backBtn.innerText = dict.backToStep1Btn;
         const uIn = document.getElementById('visitorNameInput');
         const pIn = document.getElementById('visitorPasswordInput');

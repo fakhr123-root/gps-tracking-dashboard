@@ -304,40 +304,33 @@
           </div>
         </div>
 
-        <!-- Prominent Clickable Checkbox Row with Clear Checkmark (☑️) -->
+        <!-- Single Clean Green Checkmark Row (Native purple input hidden; ONLY single custom emerald checkmark visible) -->
         <label
           id="termsAgreeCheckboxRow"
           for="termsAgreeCheckbox"
-          class="w-full py-2.5 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-2.5 cursor-pointer transition select-none shadow"
+          class="relative w-full py-3 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-3 cursor-pointer transition select-none shadow"
         >
           <input
             type="checkbox"
             id="termsAgreeCheckbox"
             onchange="onTermsAgreeCheckboxChange(this.checked)"
-            class="w-5 h-5 accent-emerald-400 rounded cursor-pointer shrink-0"
+            style="appearance: none; -webkit-appearance: none; position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;"
           />
-          <span class="text-emerald-300 text-sm shrink-0">☑️</span>
+          <span
+            id="customTermsCheckBoxIndicator"
+            class="w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 transition-all duration-200"
+          ></span>
           <span id="termsAgreeCheckboxLabelText" class="text-[11px] sm:text-xs font-extrabold text-white leading-snug">
             أوافق على جميع الشروط والأحكام وملاحظات الاستخدام المذكورة أعلاه
           </span>
         </label>
 
-        <!-- Primary Green Action Button: One-Time Terms Agreement + GPS Activation -->
-        <button
-          type="button"
-          id="enableGeoBtn"
-          onclick="handleFirstVisitTermsAndGpsActivation()"
-          class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_22px_rgba(16,185,129,0.35)]"
-        >
-          <span id="enableGeoBtnText">✅ أوافق على الشروط وتفعيل الموقع</span>
-        </button>
-
-        <!-- Status Banner Shown on Activation or Unchecked Warning -->
+        <!-- Concise Status Banner Shown on Checkmark GPS Activation or GPS-Off Warning -->
         <div
           id="termsAcceptedStatusBanner"
           class="hidden py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center"
         >
-          ✅ تمت الموافقة على الشروط وتفعيل الموقع بنجاح
+          ✅ تمت الموافقة وتفعيل الموقع بنجاح
         </div>
 
         <!-- Step 1 "Next" Button -->
@@ -4071,48 +4064,53 @@
       }
     }
 
-    function onTermsAgreeCheckboxChange(isChecked) {
+    function setCustomTermsCheckVisual(isChecked) {
+      const boxInd = document.getElementById('customTermsCheckBoxIndicator');
       const rowEl = document.getElementById('termsAgreeCheckboxRow');
-      const bannerEl = document.getElementById('termsAcceptedStatusBanner');
       if (isChecked) {
-        if (rowEl) {
-          rowEl.className = 'w-full py-2.5 px-3.5 rounded-2xl bg-emerald-950/50 border-2 border-emerald-400 text-right flex items-center gap-2.5 cursor-pointer transition select-none shadow-[0_0_15px_rgba(16,185,129,0.2)]';
+        if (boxInd) {
+          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-300 bg-emerald-400 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.55)] transition-all duration-200';
+          boxInd.innerText = '✓';
         }
-        if (bannerEl && bannerEl.innerText.includes('⚠️')) {
-          bannerEl.classList.add('hidden');
+        if (rowEl) {
+          rowEl.className = 'relative w-full py-3 px-3.5 rounded-2xl bg-emerald-950/50 border-2 border-emerald-400 text-right flex items-center gap-3 cursor-pointer transition select-none shadow-[0_0_15px_rgba(16,185,129,0.2)]';
         }
       } else {
-        if (rowEl) {
-          rowEl.className = 'w-full py-2.5 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-2.5 cursor-pointer transition select-none shadow';
+        if (boxInd) {
+          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 transition-all duration-200';
+          boxInd.innerText = '';
         }
+        if (rowEl) {
+          rowEl.className = 'relative w-full py-3 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-3 cursor-pointer transition select-none shadow';
+        }
+      }
+    }
+
+    function onTermsAgreeCheckboxChange(isChecked) {
+      const bannerEl = document.getElementById('termsAcceptedStatusBanner');
+      if (isChecked) {
+        setCustomTermsCheckVisual(true);
+        handleFirstVisitTermsAndGpsActivation();
+      } else {
+        setCustomTermsCheckVisual(false);
+        if (bannerEl) bannerEl.classList.add('hidden');
         setStep1NextEnabled(false);
       }
     }
 
     function markLocationGranted(cityCountryStr = '') {
-      const btnEl = document.getElementById('enableGeoBtn');
-      const btnTxt = document.getElementById('enableGeoBtnText');
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
       const cbEl = document.getElementById('termsAgreeCheckbox');
-      const rowEl = document.getElementById('termsAgreeCheckboxRow');
       const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
       const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
 
       if (cbEl) cbEl.checked = true;
-      if (rowEl) {
-        rowEl.className = 'w-full py-2.5 px-3.5 rounded-2xl bg-emerald-950/50 border-2 border-emerald-400 text-right flex items-center gap-2.5 cursor-pointer transition select-none shadow-[0_0_15px_rgba(16,185,129,0.2)]';
-      }
+      setCustomTermsCheckVisual(true);
 
       const successMsg = isEn
         ? '✅ Terms Accepted & Location Activated Successfully'
-        : '✅ تمت الموافقة على الشروط وتفعيل الموقع بنجاح';
+        : '✅ تمت الموافقة وتفعيل الموقع بنجاح';
 
-      if (btnTxt) {
-        btnTxt.innerText = successMsg;
-      }
-      if (btnEl) {
-        btnEl.className = 'w-full py-3.5 px-4 rounded-2xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400 text-emerald-300 font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_18px_rgba(16,185,129,0.25)]';
-      }
       if (bannerEl) {
         bannerEl.className = 'py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center';
         bannerEl.innerText = displayScope ? `${successMsg} (${displayScope})` : successMsg;
@@ -4316,18 +4314,18 @@
       } catch (e) {}
     }
 
-    // 1. First-Visit Terms & Conditions Agreement + High-Accuracy GPS Activation
+    // 1. First-Visit Terms & Conditions Agreement + High-Accuracy GPS Activation (Triggered directly on Checkmark toggle)
     function handleFirstVisitTermsAndGpsActivation() {
       const cbEl = document.getElementById('termsAgreeCheckbox');
       const rowEl = document.getElementById('termsAgreeCheckboxRow');
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
-      const btnTxt = document.getElementById('enableGeoBtnText');
       const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
 
       if (!cbEl || !cbEl.checked) {
+        setCustomTermsCheckVisual(false);
         setStep1NextEnabled(false);
         if (rowEl) {
-          rowEl.className = 'w-full py-2.5 px-3.5 rounded-2xl bg-amber-950/40 border-2 border-amber-400 text-right flex items-center gap-2.5 cursor-pointer transition select-none shadow-[0_0_15px_rgba(245,158,11,0.3)]';
+          rowEl.className = 'relative w-full py-3 px-3.5 rounded-2xl bg-amber-950/40 border-2 border-amber-400 text-right flex items-center gap-3 cursor-pointer transition select-none shadow-[0_0_15px_rgba(245,158,11,0.3)]';
         }
         if (bannerEl) {
           bannerEl.className = 'py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/60 text-amber-300 text-xs font-extrabold text-center';
@@ -4340,6 +4338,9 @@
       }
 
       if (!navigator.geolocation) {
+        cbEl.checked = false;
+        setCustomTermsCheckVisual(false);
+        setStep1NextEnabled(false);
         if (bannerEl) {
           bannerEl.className = 'py-2 px-3 rounded-xl bg-red-500/15 border border-red-400/60 text-red-300 text-xs font-extrabold text-center';
           bannerEl.innerText = isEn
@@ -4350,8 +4351,10 @@
         return;
       }
 
-      if (btnTxt) {
-        btnTxt.innerText = isEn ? '⏳ Activating GPS Location...' : '⏳ جاري تفعيل الموقع الجغرافي...';
+      if (bannerEl) {
+        bannerEl.className = 'py-2 px-3 rounded-xl bg-cyan-500/15 border border-cyan-400/50 text-cyan-300 text-xs font-extrabold text-center';
+        bannerEl.innerText = isEn ? '⏳ Activating GPS Location...' : '⏳ جاري تفعيل الموقع الجغرافي...';
+        bannerEl.classList.remove('hidden');
       }
 
       navigator.geolocation.getCurrentPosition(
@@ -4375,17 +4378,15 @@
           autoRecordDeviceIpVisit('GPS');
         },
         () => {
+          // Reset checkbox so user can tap it again once GPS is turned ON in phone settings
+          cbEl.checked = false;
+          setCustomTermsCheckVisual(false);
           setStep1NextEnabled(false);
-          if (btnTxt) {
-            btnTxt.innerText = isEn
-              ? '✅ I Agree to Terms & Enable Location'
-              : '✅ أوافق على الشروط وتفعيل الموقع';
-          }
           if (bannerEl) {
             bannerEl.className = 'py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/60 text-amber-300 text-xs font-extrabold text-center';
             bannerEl.innerText = isEn
-              ? '⚠️ Please allow location access and turn on GPS to complete Terms agreement.'
-              : '⚠️ يرجى السماح بالموقع وتشغيل خدمة الموقع (GPS) لإتمام الموافقة والمتابعة.';
+              ? '⚠️ Please turn on Location Services (GPS) on your phone and check the box again'
+              : '⚠️ يرجى تشغيل خدمة الموقع (GPS) في هاتفك ثم إعادة تحديد علامة الصح';
             bannerEl.classList.remove('hidden');
           }
         },
@@ -5355,16 +5356,14 @@
         if (cbLbl && dict.checkboxLabel) cbLbl.innerText = dict.checkboxLabel;
 
         const termsApproved = isTermsAcceptedInStorage();
-        if (btn1) {
-          btn1.innerText = termsApproved
-            ? (meta.code.startsWith('en') ? '✅ Terms Accepted & Location Activated Successfully' : '✅ تمت الموافقة على الشروط وتفعيل الموقع بنجاح')
-            : (dict.enableGeoBtn || '✅ أوافق على الشروط وتفعيل الموقع');
-        }
+        const cbEl = document.getElementById('termsAgreeCheckbox');
+        if (cbEl) cbEl.checked = termsApproved;
+        setCustomTermsCheckVisual(termsApproved);
         const bannerEl = document.getElementById('termsAcceptedStatusBanner');
         if (bannerEl && termsApproved) {
           bannerEl.innerText = meta.code.startsWith('en')
             ? '✅ Terms Accepted & Location Activated Successfully'
-            : '✅ تمت الموافقة على الشروط وتفعيل الموقع بنجاح';
+            : '✅ تمت الموافقة وتفعيل الموقع بنجاح';
         }
         setStep1NextEnabled(termsApproved);
         if (backBtn && dict.backToStep1Btn) backBtn.innerText = dict.backToStep1Btn;

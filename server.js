@@ -3428,15 +3428,14 @@ function normalizeRealDeviceName(rawDevice = '', userAgent = '') {
   return d;
 }
 
-// Extract authentic client IP behind Render's proxy
+// Extract authentic client IP from Cloudflare / Render / Reverse Proxy headers
 function extractRealClientIp(req) {
-  const forwardedIp = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
   const candidates = [
-    forwardedIp,
     req.headers['cf-connecting-ip'],
     req.headers['true-client-ip'],
     req.headers['x-real-ip'],
     req.headers['x-client-ip'],
+    ...(req.headers['x-forwarded-for'] ? String(req.headers['x-forwarded-for']).split(',') : []),
     req.socket?.remoteAddress
   ];
 
@@ -3448,39 +3447,6 @@ function extractRealClientIp(req) {
     }
   }
   return '127.0.0.1';
-}
-
-async function resolveSilentIpGeo(ip = '') {
-  const fallback = {
-    ip: (!isLoopbackIp(ip) ? ip : '127.0.0.1'),
-    country: 'اليمن',
-    city: 'صنعاء',
-    region: 'أمانة العاصمة',
-    lat: 15.3694,
-    lon: 44.1910,
-    isp: 'يمن نت للاتصالات (YemenNet)'
-  };
-  try {
-    const targetIpSegment = (!isLoopbackIp(ip)) ? `/${encodeURIComponent(ip)}` : '';
-    const ipRes = await fetchWithTimeout(`http://ip-api.com/json${targetIpSegment}?fields=status,country,regionName,city,lat,lon,isp,org,as,query&lang=ar`, { timeout: 3000 });
-    if (ipRes.ok) {
-      const ipJson = await ipRes.json();
-      if (ipJson && ipJson.status === 'success') {
-        const isCloudDc = /Amazon|AWS|Cloudflare|Render|Google Cloud|DigitalOcean/i.test(ipJson.isp || ipJson.org || '');
-        return {
-          ip: (!isLoopbackIp(ip) ? ip : (ipJson.query || fallback.ip)),
-          country: (!isCloudDc && ipJson.country) ? ipJson.country : fallback.country,
-          city: (!isCloudDc && ipJson.city) ? ipJson.city : fallback.city,
-          region: (!isCloudDc && ipJson.regionName) ? ipJson.regionName : fallback.region,
-          lat: (!isCloudDc && typeof ipJson.lat === 'number') ? ipJson.lat : fallback.lat,
-          lon: (!isCloudDc && typeof ipJson.lon === 'number') ? ipJson.lon : fallback.lon,
-          isp: (!isCloudDc && (ipJson.isp || ipJson.org)) ? (ipJson.isp || ipJson.org) : fallback.isp,
-          asn: ipJson.as ? String(ipJson.as).split(' ')[0] : ''
-        };
-      }
-    }
-  } catch (e) {}
-  return fallback;
 }
 
 function isLoopbackIp(ip = '') {
@@ -4110,14 +4076,6 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const clientIp = extractRealClientIp(req);
 
-  // Silent IP Geolocation Session Init Endpoint (No browser GPS popup)
-  if (pathname === '/api/ip-geo' && req.method === 'GET') {
-    const geo = await resolveSilentIpGeo(clientIp);
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ status: 'ok', ...geo }));
-    return;
-  }
-
   // Log visitor entry endpoint
   if (pathname === '/api/log-visit' && req.method === 'POST') {
     const data = await readRequestBody(req);
@@ -4127,22 +4085,41 @@ const server = http.createServer(async (req, res) => {
       : (!isLoopbackIp(clientIp) ? clientIp : '');
     data.ip = realClientIp || clientIp;
 
-    const ipGeo = await resolveSilentIpGeo(realClientIp);
-    data.publicIp = data.publicIp || ipGeo.ip;
-    data.ip = data.ip || ipGeo.ip;
-    if (!data.isp || /Amazon|AWS|Cloudflare|Render|مزود الإنترنت/i.test(data.isp)) {
-      data.isp = ipGeo.isp;
-    }
-    if (!data.asn && ipGeo.asn) {
-      data.asn = ipGeo.asn;
-    }
-    data.country = data.country || ipGeo.country || 'اليمن';
-    data.city = data.city || ipGeo.city || 'صنعاء';
-    data.region = data.region || ipGeo.region || 'أمانة العاصمة';
-    if (!data.lat || !data.lng) {
-      data.lat = ipGeo.lat || 15.3694;
-      data.lng = ipGeo.lon || 44.1910;
-      data.locationSource = 'IP';
+    // Query ip-api specifically for the VISITOR'S IP (`/${realClientIp}`) so we NEVER get the Render/Amazon server's own ISP!
+    if (!data.isp || /Amazon|AWS|Cloudflare|Render|مزود الإنترنت/i.test(data.isp) || !realClientIp) {
+      try {
+        const targetIpSegment = realClientIp ? `/${encodeURIComponent(realClientIp)}` : '';
+        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${targetIpSegment}?fields=status,country,regionName,city,district,lat,lon,isp,org,as,query&lang=ar`, { timeout: 3500 });
+        if (ipRes.ok) {
+          const ipJson = await ipRes.json();
+          if (ipJson && ipJson.status === 'success') {
+            if (!realClientIp && ipJson.query && !/Amazon|AWS|Cloudflare|Render/i.test(ipJson.isp || ipJson.org || '')) {
+              data.publicIp = ipJson.query;
+              data.ip = ipJson.query;
+            } else if (realClientIp) {
+              data.publicIp = realClientIp;
+              data.ip = realClientIp;
+            }
+            const fetchedIsp = ipJson.isp || ipJson.org || '';
+            if (fetchedIsp && !/Amazon|AWS|Cloudflare|Render/i.test(fetchedIsp)) {
+              data.isp = fetchedIsp;
+            }
+            if (!data.asn && ipJson.as) {
+              data.asn = String(ipJson.as).split(' ')[0];
+            }
+            data.country = data.country || ipJson.country;
+            data.city = data.city || ipJson.city;
+            // ONLY use IP lat/lon if browser GPS did NOT provide coordinates
+            if (!data.lat || !data.lng || data.locationSource === 'IP_FALLBACK') {
+              data.lat = ipJson.lat;
+              data.lng = ipJson.lon;
+              data.locationSource = 'IP';
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore IP lookup failure
+      }
     }
 
     const recorded = await recordVisitor(data);

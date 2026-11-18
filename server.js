@@ -6045,7 +6045,121 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Reverse Geocoding endpoint (resolves live GPS coordinates to city, cityBbox, country, countryCode, countryBbox, and neighborhood)
+  // Pure In-App Silent Location Detection Endpoint (Zero Browser GPS Prompt - IP & In-App City Picker with Sana'a 15.3694, 44.1910 Fallback)
+  if (pathname === '/api/in-app-location') {
+    const manualCity = String(parsedUrl.query.city || '').trim();
+    let lat = 15.3694;
+    let lon = 44.1910;
+    let detectedCity = 'صنعاء';
+    let detectedCountry = 'اليمن';
+    let countryCode = 'ye';
+    let publicIp = !isLoopbackIp(clientIp) ? clientIp : '';
+    let isp = '';
+    let asn = '';
+
+    if (manualCity) {
+      try {
+        const geo = await geocodeLocation(manualCity);
+        if (geo && typeof geo.lat === 'number' && typeof geo.lng === 'number') {
+          lat = geo.lat;
+          lon = geo.lng;
+          detectedCity = geo.city || manualCity;
+          detectedCountry = geo.country || 'اليمن';
+          countryCode = String(geo.countryCode || 'ye').toLowerCase();
+        }
+      } catch (e) {}
+    } else {
+      const targetIp = String(parsedUrl.query.ip || publicIp || '').trim();
+      const ipSegment = (!isLoopbackIp(targetIp) && targetIp) ? `/${encodeURIComponent(targetIp)}` : '';
+      let resolvedViaIp = false;
+
+      // 1. Primary fast lookup via ip-api.com
+      try {
+        const ipRes = await fetchWithTimeout(`http://ip-api.com/json${ipSegment}?fields=status,country,countryCode,regionName,city,lat,lon,isp,org,as,query&lang=ar`, { timeout: 2600 });
+        if (ipRes.ok) {
+          const ipJson = await ipRes.json();
+          if (ipJson && ipJson.status === 'success' && typeof ipJson.lat === 'number' && typeof ipJson.lon === 'number') {
+            const rawIsp = ipJson.isp || ipJson.org || '';
+            if (!/Amazon|AWS|Cloudflare|Render/i.test(rawIsp)) {
+              lat = Number(ipJson.lat);
+              lon = Number(ipJson.lon);
+              detectedCity = String(ipJson.city || 'صنعاء').trim() || 'صنعاء';
+              detectedCountry = String(ipJson.country || 'اليمن').trim() || 'اليمن';
+              countryCode = String(ipJson.countryCode || 'ye').toLowerCase();
+              publicIp = ipJson.query || publicIp;
+              isp = rawIsp;
+              asn = ipJson.as ? String(ipJson.as).split(' ')[0] : '';
+              resolvedViaIp = true;
+            }
+          }
+        }
+      } catch (e) {}
+
+      // 2. Secondary fallback via ipapi.co
+      if (!resolvedViaIp) {
+        try {
+          const ipapiUrl = (!isLoopbackIp(targetIp) && targetIp)
+            ? `https://ipapi.co/${encodeURIComponent(targetIp)}/json/`
+            : `https://ipapi.co/json/`;
+          const res2 = await fetchWithTimeout(ipapiUrl, { timeout: 2600 });
+          if (res2.ok) {
+            const j2 = await res2.json();
+            if (j2 && typeof j2.latitude === 'number' && typeof j2.longitude === 'number') {
+              const rawOrg = j2.org || '';
+              if (!/Amazon|AWS|Cloudflare|Render/i.test(rawOrg)) {
+                lat = Number(j2.latitude);
+                lon = Number(j2.longitude);
+                detectedCity = String(j2.city || 'صنعاء').trim() || 'صنعاء';
+                detectedCountry = String(j2.country_name || 'اليمن').trim() || 'اليمن';
+                countryCode = String(j2.country_code || 'ye').toLowerCase();
+                publicIp = j2.ip || publicIp;
+                isp = rawOrg;
+                asn = j2.asn || '';
+                resolvedViaIp = true;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    }
+
+    let scopeInfo = null;
+    try {
+      scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
+    } catch (e) {}
+
+    const finalCity = (manualCity ? detectedCity : (scopeInfo?.city || detectedCity)) || 'صنعاء';
+    const finalCountry = (scopeInfo?.country || detectedCountry) || 'اليمن';
+    const finalCountryCode = (scopeInfo?.countryCode || countryCode || 'ye').toLowerCase();
+    const cityBbox = (Array.isArray(scopeInfo?.cityBbox) && scopeInfo.cityBbox.length === 4)
+      ? scopeInfo.cityBbox
+      : [15.20, 44.08, 15.55, 44.36];
+    const countryBbox = (Array.isArray(scopeInfo?.countryBbox) && scopeInfo.countryBbox.length === 4)
+      ? scopeInfo.countryBbox
+      : [12.10, 41.80, 19.00, 54.60];
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      city: finalCity,
+      country: finalCountry,
+      countryCode: finalCountryCode,
+      lat,
+      lon,
+      lng: lon,
+      boundingBox: cityBbox,
+      cityBbox,
+      countryBbox,
+      cityScopeKey: scopeInfo?.cityScopeKey || `${finalCountryCode}_${finalCity}`,
+      countryScopeKey: scopeInfo?.countryScopeKey || `${finalCountryCode}_${finalCountry}`,
+      publicIp,
+      isp,
+      asn,
+      locationSource: 'IN_APP'
+    }));
+    return;
+  }
+
+  // Reverse Geocoding endpoint (resolves live coordinates to city, cityBbox, country, countryCode, countryBbox, and neighborhood)
   if (pathname === '/api/reverse-geocode') {
     const lat = parseFloat(parsedUrl.query.lat);
     const lon = parseFloat(parsedUrl.query.lon ?? parsedUrl.query.lng);

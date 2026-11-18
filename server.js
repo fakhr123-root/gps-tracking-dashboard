@@ -3100,17 +3100,59 @@ function ensurePrimaryAdminAccount(logs) {
       }
     }
   }
-  // Always ensure primary Admin account (@1, password 'fakhr') exists in savedAccounts
+  // Always ensure primary Admin account ("1" / "@1", password "fakhr") exists in savedAccounts and visitors store with full Admin privileges
   if (!logs.savedAccounts['1'] || (!logs.savedAccounts['1'].passwordHash && !logs.savedAccounts['1'].password)) {
     logs.savedAccounts['1'] = {
       ...(logs.savedAccounts['1'] || {}),
-      username: '@1',
+      username: '1',
+      displayUsername: '@1',
+      role: 'admin',
+      isAdmin: true,
       passwordHash: PRIMARY_ADMIN_DEFAULT_HASH,
       searchQuota: 999999,
       suspended: false,
       createdAt: logs.savedAccounts['1']?.createdAt || nowIso,
       updatedAt: nowIso
     };
+  } else {
+    logs.savedAccounts['1'].role = 'admin';
+    logs.savedAccounts['1'].isAdmin = true;
+    logs.savedAccounts['1'].searchQuota = 999999;
+    logs.savedAccounts['1'].suspended = false;
+  }
+
+  if (Array.isArray(logs.visitors)) {
+    const hasAdminVisitor = logs.visitors.some(v => v && normalizeIgUsername(v.username || v.visitorName || '') === '1');
+    if (!hasAdminVisitor) {
+      logs.visitors.unshift({
+        id: 'vis_admin_1',
+        visitorName: '@1',
+        username: '@1',
+        role: 'admin',
+        isAdmin: true,
+        hasPasswordHash: true,
+        searchQuota: 999999,
+        suspended: false,
+        isDeviceIpAutoAuth: false,
+        ip: '127.0.0.1',
+        country: 'اليمن',
+        city: 'صنعاء',
+        region: 'أمانة العاصمة',
+        locationName: 'صنعاء، اليمن',
+        isp: 'يمن نت للاتصالات (YemenNet)',
+        lat: 15.340137,
+        lng: 44.191831,
+        locationSource: 'GPS',
+        device: 'حساب المشرف الرئيسي (@1)',
+        firstSeen: nowIso,
+        lastSeen: nowIso,
+        pageViews: 1,
+        loginCount: 1,
+        searchesCount: 0,
+        sessionSearches: [],
+        previousLogs: []
+      });
+    }
   }
 }
 

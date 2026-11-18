@@ -229,12 +229,12 @@
       <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
         <div id="stepBadge1" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
           <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">1</span>
-          <span id="i18n_step1Badge">1. تفعيل النطاق الجغرافي</span>
+          <span id="i18n_step1Badge">1.&nbsp;&rlm;السماح بالموقع</span>
         </div>
         <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
         <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
           <span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span>
-          <span id="i18n_step2Badge">2. تسجيل الدخول</span>
+          <span id="i18n_step2Badge">2.&nbsp;&rlm;تسجيل الدخول</span>
         </div>
       </div>
 
@@ -263,7 +263,7 @@
           </div>
         </div>
 
-        <h2 class="text-lg font-black text-white">1. تفعيل النطاق الجغرافي</h2>
+        <h2 class="text-lg font-black text-white">1.&nbsp;&rlm;السماح بالموقع</h2>
         <p class="text-xs text-slate-300 leading-relaxed">
           يُرجى تفعيل الموقع لضبط الخريطة ونطاق البحث على مدينتك تلقائياً.
         </p>
@@ -4372,8 +4372,9 @@
       if (dict) {
         const b1 = document.getElementById('i18n_step1Badge');
         const b2 = document.getElementById('i18n_step2Badge');
-        if (b1) b1.innerText = `1. ${dict.step1Badge}`;
-        if (b2) b2.innerText = `2. ${dict.step2Badge}`;
+        const stepMark = isRtl ? '\u200F' : '';
+        if (b1) b1.innerText = `1. ${stepMark}${dict.step1Badge}`;
+        if (b2) b2.innerText = `2. ${stepMark}${dict.step2Badge}`;
         const uIn = document.getElementById('visitorNameInput');
         const pIn = document.getElementById('visitorPasswordInput');
         if (uIn) uIn.placeholder = dict.usernamePlaceholder;

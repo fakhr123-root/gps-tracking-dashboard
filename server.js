@@ -1,4 +1,5 @@
 const http = require('http');
+const zlib = require('zlib');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
@@ -96,8 +97,62 @@ const EXPANDED_NAMED_POI_KEYS = [
   'building'
 ];
 
-// Load Pre-Verified Real Yemen Google Maps + OSM Index for Instant Streaming (No Hardcoded Caps)
+// Official City & Country Bounding Box Atlas [south, west, north, east] + Dynamic Nominatim Cache
+const OFFICIAL_CITY_BBOX_ATLAS = {
+  'صنعاء': [15.2000, 44.0800, 15.5000, 44.3400],
+  'عدن': [12.7300, 44.8200, 12.9400, 45.1200],
+  'تعز': [13.4800, 43.9000, 13.6800, 44.1400],
+  'إب': [13.8600, 44.0600, 14.0800, 44.2800],
+  'الحديدة': [14.7000, 42.8800, 14.9000, 43.0800],
+  'المكلا': [14.4600, 49.0000, 14.6400, 49.2400],
+  'سيئون': [15.8600, 48.6800, 16.0600, 48.9200],
+  'ذمار': [14.4600, 44.3200, 14.6400, 44.5000],
+  'مأرب': [15.3800, 45.2200, 15.5600, 45.4400],
+  'عمران': [15.5800, 43.8600, 15.7600, 44.0400],
+  'حجة': [15.6000, 43.5200, 15.7800, 43.7000],
+  'صعدة': [16.8600, 43.6800, 17.0400, 43.8600],
+  'البيضاء': [13.9000, 45.4600, 14.2400, 45.7000],
+  'لحج': [12.9800, 44.8000, 13.1600, 44.9800],
+  'الضالع': [13.6200, 44.6400, 13.8000, 44.8200],
+  'أبين': [13.0600, 45.2600, 13.2600, 45.4800],
+  'شبوة': [14.4400, 46.7200, 14.6400, 46.9400],
+  'عتق (شبوة)': [14.4400, 46.7200, 14.6400, 46.9400],
+  'المحويت': [15.4000, 43.4600, 15.5600, 43.6400],
+  'ريمة': [14.5400, 43.6200, 14.7200, 43.8000],
+  'الجوف': [16.0600, 44.6800, 16.2600, 44.8800],
+  'الحزم (الجوف)': [16.0600, 44.6800, 16.2600, 44.8800],
+  'المهرة': [16.1000, 52.0800, 16.3200, 52.3000],
+  'الغيضة (المهرة)': [16.1000, 52.0800, 16.3200, 52.3000],
+  'سقطرى': [12.2800, 53.3000, 12.7200, 54.5400],
+  'الرياض': [24.4800, 46.4600, 24.9800, 46.9600],
+  'جدة': [21.3000, 39.0600, 21.7400, 39.3400],
+  'مكة المكرمة': [21.2800, 39.7200, 21.5200, 40.0000],
+  'المدينة المنورة': [24.3600, 39.4600, 24.6200, 39.7400],
+  'الدمام': [26.3000, 49.9400, 26.5200, 50.2200],
+  'دبي': [24.9600, 55.0600, 25.3400, 55.5000],
+  'أبوظبي': [24.3200, 54.2800, 24.5800, 54.6400],
+  'القاهرة': [29.9200, 31.1400, 30.1800, 31.4800]
+};
+
+const OFFICIAL_COUNTRY_BBOX_ATLAS = {
+  'YE': { name: 'اليمن', bbox: [12.1000, 41.8000, 19.0000, 54.6000] },
+  'SA': { name: 'المملكة العربية السعودية', bbox: [16.3000, 34.5000, 32.1500, 55.6700] },
+  'AE': { name: 'الإمارات العربية المتحدة', bbox: [22.6000, 51.5000, 26.1000, 56.4000] },
+  'EG': { name: 'جمهورية مصر العربية', bbox: [22.0000, 24.7000, 31.7000, 36.9000] },
+  'OM': { name: 'سلطنة عمان', bbox: [16.6500, 52.0000, 26.4000, 59.8500] },
+  'QA': { name: 'قطر', bbox: [24.4700, 50.7400, 26.1800, 51.6500] },
+  'KW': { name: 'الكويت', bbox: [28.5200, 46.5500, 30.1000, 48.4500] },
+  'BH': { name: 'البحرين', bbox: [25.7900, 50.4500, 26.3000, 50.6700] },
+  'JO': { name: 'الأردن', bbox: [29.1800, 34.9500, 33.3800, 39.3000] },
+  'IQ': { name: 'العراق', bbox: [29.0600, 38.7900, 37.3800, 48.5700] },
+  'TR': { name: 'تركيا', bbox: [35.8000, 25.6600, 42.1000, 44.8200] }
+};
+
+const GEO_SCOPE_BBOX_CACHE = new Map();
+
+// Non-Blocking Async Database Loader (Server binds to PORT immediately before loading large JSON into memory)
 let SANAA_REAL_INDEX = [];
+let isDatabaseLoaded = false;
 const PERSISTENT_DB_IDS = new Set();
 const QUADTREE_CHECKPOINT_FILE = path.join(__dirname, 'data', 'quadtree_checkpoint.json');
 
@@ -110,27 +165,38 @@ function getCanonicalDbKeysForRecord(rec) {
   const ln = Number(rec.ln ?? rec.lng);
   if (nameClean && !isNaN(la) && !isNaN(ln)) {
     keys.push(`coord:${nameClean}_${la.toFixed(5)}_${ln.toFixed(5)}`);
+    // Also index ~25m spatial cell key for lossless cross-engine (Google + OSM) deduplication
+    keys.push(`prox25:${nameClean}_${Math.round(la * 4000)}_${Math.round(ln * 4000)}`);
   }
   return keys;
 }
 
-try {
-  const indexPath = path.join(__dirname, 'data', 'sanaa_real_index.json');
-  if (fs.existsSync(indexPath)) {
-    SANAA_REAL_INDEX = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
-    for (let i = 0; i < SANAA_REAL_INDEX.length; i++) {
-      const rec = SANAA_REAL_INDEX[i];
-      if (!rec.osm_id && !rec.place_id) {
-        rec.place_id = `ye_idx_${i + 1}`;
+async function loadInitialDatabaseAsync() {
+  if (isDatabaseLoaded) return;
+  try {
+    const indexPath = path.join(__dirname, 'data', 'sanaa_real_index.json');
+    if (fs.existsSync(indexPath)) {
+      const rawJson = await fs.promises.readFile(indexPath, 'utf8');
+      const parsed = JSON.parse(rawJson);
+      if (Array.isArray(parsed)) {
+        for (let i = 0; i < parsed.length; i++) {
+          const rec = parsed[i];
+          if (!rec.osm_id && !rec.place_id) {
+            rec.place_id = `ye_idx_${i + 1}`;
+          }
+          if (!rec.co) rec.co = 'اليمن';
+          for (const k of getCanonicalDbKeysForRecord(rec)) {
+            PERSISTENT_DB_IDS.add(k);
+          }
+          SANAA_REAL_INDEX.push(rec);
+        }
       }
-      for (const k of getCanonicalDbKeysForRecord(rec)) {
-        PERSISTENT_DB_IDS.add(k);
-      }
+      isDatabaseLoaded = true;
+      console.log(`✅ Non-blocking startup complete: Loaded ${SANAA_REAL_INDEX.length} verified places (${PERSISTENT_DB_IDS.size} deduplication keys)!`);
     }
-    console.log(`✅ Loaded ${SANAA_REAL_INDEX.length} real verified Yemen places into unlimited memory index (${PERSISTENT_DB_IDS.size} unique keys)!`);
+  } catch (e) {
+    console.error('Notice loading sanaa_real_index.json asynchronously:', e.message);
   }
-} catch (e) {
-  console.error('Notice loading sanaa_real_index.json:', e.message);
 }
 
 // MIME types for static assets
@@ -868,13 +934,38 @@ function upsertPlaceIntoPersistentDb(rec) {
   return true;
 }
 
-function saveQuadtreeCheckpoint(checkpointData) {
+let cachedCheckpointsStore = null;
+
+function loadAllQuadtreeCheckpoints() {
+  if (cachedCheckpointsStore) return cachedCheckpointsStore;
   try {
-    fs.writeFile(QUADTREE_CHECKPOINT_FILE, JSON.stringify({
-      updatedAt: new Date().toISOString(),
-      totalDatabasePlaces: SANAA_REAL_INDEX.length,
-      ...checkpointData
-    }, null, 2), () => {});
+    if (fs.existsSync(QUADTREE_CHECKPOINT_FILE)) {
+      const raw = JSON.parse(fs.readFileSync(QUADTREE_CHECKPOINT_FILE, 'utf8'));
+      cachedCheckpointsStore = (raw && typeof raw === 'object') ? raw : { scopes: {} };
+      if (!cachedCheckpointsStore.scopes) cachedCheckpointsStore.scopes = {};
+      return cachedCheckpointsStore;
+    }
+  } catch (e) {}
+  cachedCheckpointsStore = { scopes: {} };
+  return cachedCheckpointsStore;
+}
+
+function saveQuadtreeCheckpoint(checkpointData, scopeKey = 'YE_ALL') {
+  try {
+    const store = loadAllQuadtreeCheckpoints();
+    const nowIso = new Date().toISOString();
+    const cleanKey = String(scopeKey || checkpointData?.scopeKey || 'YE_ALL').trim();
+    store.updatedAt = nowIso;
+    store.totalDatabasePlaces = SANAA_REAL_INDEX.length;
+    store.lastActiveScopeKey = cleanKey;
+    store.scopes[cleanKey] = {
+      ...(store.scopes[cleanKey] || {}),
+      ...checkpointData,
+      scopeKey: cleanKey,
+      updatedAt: nowIso,
+      totalDatabasePlaces: SANAA_REAL_INDEX.length
+    };
+    fs.writeFile(QUADTREE_CHECKPOINT_FILE, JSON.stringify(store, null, 2), () => {});
   } catch (e) {}
 }
 
@@ -886,14 +977,24 @@ function getCoreBusinessName(str = '') {
 }
 
 // Built-in Real-time Extractor (Fetches ALL REAL places in the selected area directly from Google Maps Live Engine + Overpass OSM without number limits)
-async function searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat = null, userLng = null, circleFilter = null, isAborted = () => false, polygonFilter = null, uiLang = 'ar') {
+async function searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat = null, userLng = null, circleFilter = null, isAborted = () => false, polygonFilter = null, uiLang = 'ar', scanOptions = {}) {
   let fetchedCount = 0;
+  let googleExtractedCount = 0;
+  let osmExtractedCount = 0;
   const seenNames = new Set();
   const seenSpatialBuckets = new Map();
 
   let quadtreeScannedCells = 0;
   let quadtreeTotalCells = 0;
   let quadtreeSubdividedCells = 0;
+
+  const requestedScopeMode = String(scanOptions.scopeMode || '').trim(); // 'city' | 'country' | 'viewport' | ''
+  const customViewportBbox = (Array.isArray(scanOptions.customBbox) && scanOptions.customBbox.length === 4)
+    ? scanOptions.customBbox.map(Number)
+    : null;
+  const resumeFromCheckpoint = Boolean(scanOptions.resumeCheckpoint);
+  let activeScopeKey = String(scanOptions.scopeKey || '').trim();
+  let activeScopeLabel = '';
 
   const isDuplicatePlace = (cleanName, pLat, pLng, placeId = '', osmId = '') => {
     const uniqueKey = osmId ? `osm:${osmId}` : (placeId ? `pid:${placeId}` : '');
@@ -1196,9 +1297,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     };
 
     fetchedCount++;
+    googleExtractedCount++;
     sendEvent('place', item);
     if (fetchedCount % 15 === 0 || fetchedCount <= 5) {
-      sendEvent('progress', { current: fetchedCount, total: fetchedCount + 60 });
+      sendEvent('progress', {
+        current: fetchedCount,
+        total: fetchedCount + 60,
+        deduplicatedTotal: fetchedCount,
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount,
+        scannedCells: quadtreeScannedCells,
+        totalCells: quadtreeTotalCells,
+        subdividedCells: quadtreeSubdividedCells,
+        activeScopeLabel
+      });
     }
   };
 
@@ -2253,6 +2365,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       la: Number(pLat.toFixed(6)),
       ln: Number(pLng.toFixed(6)),
       ci: resolvedItemCity,
+      co: center.country || 'اليمن',
       d: actualDistrict,
       a: item.address,
       ph: realPhoneData.phones[0] || '',
@@ -2261,15 +2374,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     });
 
     fetchedCount++;
+    osmExtractedCount++;
     sendEvent('place', item);
     if (fetchedCount % 20 === 0) {
       sendEvent('progress', {
         current: fetchedCount,
         total: fetchedCount + 120,
         deduplicatedTotal: fetchedCount,
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount,
         scannedCells: quadtreeScannedCells,
         totalCells: quadtreeTotalCells,
-        subdividedCells: quadtreeSubdividedCells
+        subdividedCells: quadtreeSubdividedCells,
+        activeScopeLabel
       });
     }
     return true;
@@ -2435,9 +2552,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   };
 
-  // Adaptive Quadtree Subdivision Engine covering Yemen's full bounding box (lat: 12.10 to 19.00, lon: 41.80 to 54.60)
-  // Automatically subdivides any dense cell reaching the per-request threshold into 4 quadrants (SW, SE, NW, NE) recursively!
-  const runYemenAdaptiveQuadtreeScan = async () => {
+  // Lossless Dual-Engine Adaptive Quadtree Scanner (Generalized for ANY City, Country, or Map Viewport Worldwide!)
+  // Queries BOTH OpenStreetMap/Overpass (all 11 EXPANDED_NAMED_POI_KEYS) AND Live Google Maps per cell, subdividing any cell reaching 60+ results into 4 quadrants (SW, SE, NW, NE) down to ~450m street level!
+  const runAdaptiveQuadtreeScan = async (targetScope = {}) => {
     try {
       const OVERPASS_MIRRORS = [
         'https://overpass-api.de/api/interpreter',
@@ -2445,87 +2562,185 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         'https://overpass.kumi.systems/api/interpreter',
         'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
       ];
+      const GMAPS_CELL_DOMAINS = [
+        'www.google.com', 'www.google.com.sa', 'www.google.ae', 'www.google.com.eg',
+        'maps.google.com', 'www.google.jo', 'www.google.com.om', 'www.google.com.kw'
+      ];
+      const GMAPS_CELL_TERMS = ['شركة ومكتب', 'محل وسوبر ماركت', 'مطعم وكافيه', 'صيدلية ومستشفى', 'مدرسة ومسجد وفندق'];
       let mirrorCursor = 0;
+      let gmapsCellCursor = 0;
 
-      // Per-request saturation threshold: if a cell returns >= 60 results (or Overpass reaches cell limit), subdivide into 4 quadrants
       const QUADTREE_SPLIT_THRESHOLD = 60;
       const OVERPASS_CELL_CAP = 320;
-      const MIN_CELL_SPAN_DEG = 0.0045; // ~450m street-neighborhood level
+      const MIN_CELL_SPAN_DEG = 0.0045; // ~450m street level
       const MAX_QUADTREE_DEPTH = 7;
+
+      // Determine active scope mode & bounding box [south, west, north, east]
+      const scopeMode = targetScope.scopeMode || (isCountrySearch ? 'country' : 'city');
+      const countryCode = (center.countryCode || 'YE').toUpperCase();
+      let bboxArr = Array.isArray(targetScope.bbox) && targetScope.bbox.length === 4 ? targetScope.bbox : null;
+
+      if (!bboxArr) {
+        if (scopeMode === 'viewport' && customViewportBbox) {
+          bboxArr = customViewportBbox;
+        } else if (scopeMode === 'country') {
+          bboxArr = OFFICIAL_COUNTRY_BBOX_ATLAS[countryCode]?.bbox || [
+            center.lat - 3.0, center.lng - 4.0, center.lat + 3.0, center.lng + 4.0
+          ];
+        } else {
+          // City mode (Default): look up official city bbox
+          for (const [cKey, bVal] of Object.entries(OFFICIAL_CITY_BBOX_ATLAS)) {
+            if (normAr(cKey) === normAr(center.city) || normAr(center.city).includes(normAr(cKey))) {
+              bboxArr = bVal;
+              break;
+            }
+          }
+          if (!bboxArr) {
+            const resolvedGeo = await resolveLocationScopeWithBoundingBoxes(center.lat, center.lng);
+            bboxArr = (scopeMode === 'country' ? resolvedGeo.countryBbox : resolvedGeo.cityBbox) || [
+              center.lat - 0.16, center.lng - 0.16, center.lat + 0.16, center.lng + 0.16
+            ];
+          }
+        }
+      }
+
+      const rootMinLat = Math.min(bboxArr[0], bboxArr[2]);
+      const rootMaxLat = Math.max(bboxArr[0], bboxArr[2]);
+      const rootMinLon = Math.min(bboxArr[1], bboxArr[3]);
+      const rootMaxLon = Math.max(bboxArr[1], bboxArr[3]);
+
+      const scopeKey = targetScope.scopeKey || activeScopeKey || (
+        scopeMode === 'country'
+          ? `${countryCode}_country_${normAr(center.country || 'اليمن').replace(/\s+/g, '_')}`
+          : scopeMode === 'viewport'
+            ? `${countryCode}_viewport_${rootMinLat.toFixed(2)}_${rootMinLon.toFixed(2)}`
+            : `${countryCode}_city_${normAr(center.city || 'صنعاء').replace(/\s+/g, '_')}`
+      );
+      activeScopeKey = scopeKey;
+      activeScopeLabel = scopeMode === 'country'
+        ? `كامل دولة ${center.country || 'اليمن'}`
+        : scopeMode === 'viewport'
+          ? `المنطقة المعروضة على الخريطة (${center.city})`
+          : `كامل مدينة ${center.city} — ${center.country}`;
 
       const quadtreeQueue = [];
       const visitedCellKeys = new Set();
+      const completedCellKeys = new Set();
+
+      const getCellKey = (minLat, minLon, maxLat, maxLon) =>
+        `${Number(minLat).toFixed(4)}_${Number(minLon).toFixed(4)}_${Number(maxLat).toFixed(4)}_${Number(maxLon).toFixed(4)}`;
 
       const enqueueCell = (minLat, minLon, maxLat, maxLon, depth, label, priority = false) => {
-        const key = `${minLat.toFixed(4)}_${minLon.toFixed(4)}_${maxLat.toFixed(4)}_${maxLon.toFixed(4)}`;
-        if (visitedCellKeys.has(key)) return;
+        const key = getCellKey(minLat, minLon, maxLat, maxLon);
+        if (visitedCellKeys.has(key) || completedCellKeys.has(key)) return;
         visitedCellKeys.add(key);
-        const cell = { minLat, minLon, maxLat, maxLon, depth, label };
+        const cell = { minLat, minLon, maxLat, maxLon, depth, label, key };
         if (priority) {
           quadtreeQueue.unshift(cell);
         } else {
           quadtreeQueue.push(cell);
         }
-        quadtreeTotalCells = quadtreeQueue.length + quadtreeScannedCells;
+        quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
       };
 
-      // 1. Seed high-density metropolitan Quadtree roots for Sana'a, Aden, Taiz, Ibb, Al Hudaydah, Mukalla & major governorate capitals
-      const denseMetroBoxes = [
-        { label: 'صنعاء الكبرى', lat: 15.3538, lon: 44.2058, halfLat: 0.14, halfLon: 0.14 },
-        { label: 'عدن الكبرى', lat: 12.8150, lon: 45.0050, halfLat: 0.11, halfLon: 0.12 },
-        { label: 'تعز والحوبان', lat: 13.5850, lon: 44.0350, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'إب وجبلة والقاعدة', lat: 13.9650, lon: 44.1780, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'الحديدة والميناء', lat: 14.7980, lon: 42.9650, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'المكلا وحضرموت', lat: 14.5425, lon: 49.1242, halfLat: 0.13, halfLon: 0.14 },
-        { label: 'ذمار ومعبر', lat: 14.5426, lon: 44.4051, halfLat: 0.11, halfLon: 0.11 },
-        { label: 'مأرب المدينة', lat: 15.4620, lon: 45.3250, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'سيئون وتريم (وادي حضرموت)', lat: 15.9430, lon: 48.7870, halfLat: 0.14, halfLon: 0.16 },
-        { label: 'عمران وخمر', lat: 15.6594, lon: 43.9439, halfLat: 0.11, halfLon: 0.11 },
-        { label: 'حجة وعبس', lat: 15.6944, lon: 43.6050, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'صعدة', lat: 16.9402, lon: 43.7639, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'البيضاء ورداع', lat: 14.1650, lon: 45.1500, halfLat: 0.14, halfLon: 0.14 },
-        { label: 'لحج والحوطة', lat: 13.0560, lon: 44.8810, halfLat: 0.10, halfLon: 0.10 },
-        { label: 'الضالع وقعطبة', lat: 13.6960, lon: 44.7310, halfLat: 0.10, halfLon: 0.10 },
-        { label: 'أبين وزنجبار وجعار', lat: 13.1680, lon: 45.3410, halfLat: 0.12, halfLon: 0.12 },
-        { label: 'عتق وشبوة', lat: 14.5370, lon: 46.8310, halfLat: 0.13, halfLon: 0.13 },
-        { label: 'المحويت', lat: 15.4700, lon: 43.5450, halfLat: 0.10, halfLon: 0.10 },
-        { label: 'الغيضة والمهرة', lat: 16.2080, lon: 52.1760, halfLat: 0.14, halfLon: 0.14 },
-        { label: 'سقطرى (حديبو)', lat: 12.6500, lon: 54.0180, halfLat: 0.14, halfLon: 0.14 }
-      ];
-
-      // Sort dense metros by proximity to current search center so the user's target region is subdivided first
-      denseMetroBoxes.sort((a, b) => calcDistanceKm(center.lat, center.lng, a.lat, a.lon) - calcDistanceKm(center.lat, center.lng, b.lat, b.lon));
-
-      for (const metro of denseMetroBoxes) {
-        if (!isCountrySearch && !isFullAreaScan && calcDistanceKm(center.lat, center.lng, metro.lat, metro.lon) > maxOriginRadiusKm + 25) {
-          continue;
+      // Check if resuming from a saved checkpoint for this scopeKey
+      const allCheckpoints = loadAllQuadtreeCheckpoints();
+      const existingCheckpoint = allCheckpoints?.scopes?.[scopeKey];
+      if (resumeFromCheckpoint && existingCheckpoint && Array.isArray(existingCheckpoint.pendingQueue) && existingCheckpoint.pendingQueue.length > 0) {
+        if (Array.isArray(existingCheckpoint.scannedCellKeys)) {
+          existingCheckpoint.scannedCellKeys.forEach(k => {
+            completedCellKeys.add(k);
+            visitedCellKeys.add(k);
+          });
         }
-        // Pre-split each dense metro into 4 initial quadrants (SW, SE, NW, NE) so urban cores immediately scan at high resolution
-        const midLat = metro.lat;
-        const midLon = metro.lon;
-        const minLat = metro.lat - metro.halfLat;
-        const maxLat = metro.lat + metro.halfLat;
-        const minLon = metro.lon - metro.halfLon;
-        const maxLon = metro.lon + metro.halfLon;
-        enqueueCell(minLat, minLon, midLat, midLon, 1, `${metro.label} (جنوب غرب)`);
-        enqueueCell(minLat, midLon, midLat, maxLon, 1, `${metro.label} (جنوب شرق)`);
-        enqueueCell(midLat, minLon, maxLat, midLon, 1, `${metro.label} (شمال غرب)`);
-        enqueueCell(midLat, midLon, maxLat, maxLon, 1, `${metro.label} (شمال شرق)`);
+        quadtreeScannedCells = Number(existingCheckpoint.scannedCells) || completedCellKeys.size;
+        quadtreeSubdividedCells = Number(existingCheckpoint.subdividedCells) || 0;
+        for (const savedCell of existingCheckpoint.pendingQueue) {
+          if (savedCell && typeof savedCell.minLat === 'number') {
+            const k = savedCell.key || getCellKey(savedCell.minLat, savedCell.minLon, savedCell.maxLat, savedCell.maxLon);
+            if (!completedCellKeys.has(k)) {
+              visitedCellKeys.add(k);
+              quadtreeQueue.push({ ...savedCell, key: k });
+            }
+          }
+        }
+        quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
+        sendEvent('status', {
+          message: `⏯️ تم استئناف المسح الشامل للنطاق [${activeScopeLabel}] من نقطة التوقف المحفوظة (خلية ${quadtreeScannedCells} / ${quadtreeTotalCells})...`
+        });
       }
 
-      // 2. Cover Yemen's full bounding box (lat: 12.10 to 19.00, lon: 41.80 to 54.60) in adaptive macro-cells
-      if (isCountrySearch || isFullAreaScan) {
-        const latStep = 1.15; // 6 rows covering 12.10 -> 19.00
-        const lonStep = 1.60; // 8 cols covering 41.80 -> 54.60
-        for (let la = YEMEN_FULL_BBOX.minLat; la < YEMEN_FULL_BBOX.maxLat - 0.01; la += latStep) {
-          for (let ln = YEMEN_FULL_BBOX.minLon; ln < YEMEN_FULL_BBOX.maxLon - 0.01; ln += lonStep) {
-            const cMaxLat = Math.min(Number((la + latStep).toFixed(4)), YEMEN_FULL_BBOX.maxLat);
-            const cMaxLon = Math.min(Number((ln + lonStep).toFixed(4)), YEMEN_FULL_BBOX.maxLon);
-            const cMidLat = (la + cMaxLat) / 2;
-            const cMidLon = (ln + cMaxLon) / 2;
-            const nearCity = typeof resolveTrueYemenCity === 'function' ? resolveTrueYemenCity(cMidLat, cMidLon) : 'اليمن';
-            enqueueCell(Number(la.toFixed(4)), Number(ln.toFixed(4)), cMaxLat, cMaxLon, 0, `قطاع ${nearCity} [${la.toFixed(2)},${ln.toFixed(2)}]`);
+      if (quadtreeQueue.length === 0) {
+        if (scopeMode === 'country' && countryCode === 'YE') {
+          // Priority dense metro roots for Yemen country scan + full country grid
+          const denseMetroBoxes = [
+            { label: 'صنعاء الكبرى', lat: 15.3538, lon: 44.2058, halfLat: 0.14, halfLon: 0.14 },
+            { label: 'عدن الكبرى', lat: 12.8150, lon: 45.0050, halfLat: 0.11, halfLon: 0.12 },
+            { label: 'تعز والحوبان', lat: 13.5850, lon: 44.0350, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'إب وجبلة والقاعدة', lat: 13.9650, lon: 44.1780, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'الحديدة والميناء', lat: 14.7980, lon: 42.9650, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'المكلا وحضرموت', lat: 14.5425, lon: 49.1242, halfLat: 0.13, halfLon: 0.14 },
+            { label: 'ذمار ومعبر', lat: 14.5426, lon: 44.4051, halfLat: 0.11, halfLon: 0.11 },
+            { label: 'مأرب المدينة', lat: 15.4620, lon: 45.3250, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'سيئون وتريم', lat: 15.9430, lon: 48.7870, halfLat: 0.14, halfLon: 0.16 },
+            { label: 'عمران وخمر', lat: 15.6594, lon: 43.9439, halfLat: 0.11, halfLon: 0.11 },
+            { label: 'حجة وعبس', lat: 15.6944, lon: 43.6050, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'صعدة', lat: 16.9402, lon: 43.7639, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'البيضاء ورداع', lat: 14.1650, lon: 45.1500, halfLat: 0.14, halfLon: 0.14 },
+            { label: 'لحج والحوطة', lat: 13.0560, lon: 44.8810, halfLat: 0.10, halfLon: 0.10 },
+            { label: 'الضالع وقعطبة', lat: 13.6960, lon: 44.7310, halfLat: 0.10, halfLon: 0.10 },
+            { label: 'أبين وزنجبار وجعار', lat: 13.1680, lon: 45.3410, halfLat: 0.12, halfLon: 0.12 },
+            { label: 'عتق وشبوة', lat: 14.5370, lon: 46.8310, halfLat: 0.13, halfLon: 0.13 },
+            { label: 'المحويت', lat: 15.4700, lon: 43.5450, halfLat: 0.10, halfLon: 0.10 },
+            { label: 'الغيضة والمهرة', lat: 16.2080, lon: 52.1760, halfLat: 0.14, halfLon: 0.14 },
+            { label: 'سقطرى (حديبو)', lat: 12.6500, lon: 54.0180, halfLat: 0.14, halfLon: 0.14 }
+          ];
+          denseMetroBoxes.sort((a, b) => calcDistanceKm(center.lat, center.lng, a.lat, a.lon) - calcDistanceKm(center.lat, center.lng, b.lat, b.lon));
+          for (const metro of denseMetroBoxes) {
+            const midLat = metro.lat, midLon = metro.lon;
+            enqueueCell(midLat - metro.halfLat, midLon - metro.halfLon, midLat, midLon, 1, `${metro.label} (جنوب غرب)`);
+            enqueueCell(midLat - metro.halfLat, midLon, midLat, midLon + metro.halfLon, 1, `${metro.label} (جنوب شرق)`);
+            enqueueCell(midLat, midLon - metro.halfLon, midLat + metro.halfLat, midLon, 1, `${metro.label} (شمال غرب)`);
+            enqueueCell(midLat, midLon, midLat + metro.halfLat, midLon + metro.halfLon, 1, `${metro.label} (شمال شرق)`);
           }
+        }
+
+        // Subdivide target bounding box (any city, country, or map viewport worldwide) into initial Quadtree grid cells
+        const totalLatSpan = Math.max(rootMaxLat - rootMinLat, 0.02);
+        const totalLonSpan = Math.max(rootMaxLon - rootMinLon, 0.02);
+        const gridDivisions = scopeMode === 'country' ? 6 : 4; // 4x4=16 initial quadrants for city/viewport, 6x6=36 for country
+        const stepLat = totalLatSpan / gridDivisions;
+        const stepLon = totalLonSpan / gridDivisions;
+
+        const initialCells = [];
+        for (let r = 0; r < gridDivisions; r++) {
+          for (let c = 0; c < gridDivisions; c++) {
+            const cMinLat = Number((rootMinLat + r * stepLat).toFixed(4));
+            const cMaxLat = Number((r === gridDivisions - 1 ? rootMaxLat : rootMinLat + (r + 1) * stepLat).toFixed(4));
+            const cMinLon = Number((rootMinLon + c * stepLon).toFixed(4));
+            const cMaxLon = Number((c === gridDivisions - 1 ? rootMaxLon : rootMinLon + (c + 1) * stepLon).toFixed(4));
+            const cMidLat = (cMinLat + cMaxLat) / 2;
+            const cMidLon = (cMinLon + cMaxLon) / 2;
+            const nearHood = resolveLocalNeighborhood(cMidLat, cMidLon);
+            const cellLabel = (nearHood && nearHood.distanceKm <= 15)
+              ? `${nearHood.city} - ${nearHood.shortHood}`
+              : `${center.city} [${cMidLat.toFixed(3)}, ${cMidLon.toFixed(3)}]`;
+            initialCells.push({
+              minLat: cMinLat,
+              minLon: cMinLon,
+              maxLat: cMaxLat,
+              maxLon: cMaxLon,
+              midLat: cMidLat,
+              midLon: cMidLon,
+              depth: 1,
+              label: cellLabel
+            });
+          }
+        }
+        // Order initial cells from closest to user's GPS / center outward
+        initialCells.sort((a, b) => calcDistanceKm(refLat, refLng, a.midLat, a.midLon) - calcDistanceKm(refLat, refLng, b.midLat, b.midLon));
+        for (const ic of initialCells) {
+          enqueueCell(ic.minLat, ic.minLon, ic.maxLat, ic.maxLon, ic.depth, ic.label);
         }
       }
 
@@ -2539,132 +2754,259 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const midLon = Number(((cell.minLon + cell.maxLon) / 2).toFixed(5));
         const nextDepth = cell.depth + 1;
         quadtreeSubdividedCells++;
-        // Push 4 quadrants (NE, NW, SE, SW) at the front of the queue for recursive depth-first urban extraction
-        enqueueCell(midLat, midLon, cell.maxLat, cell.maxLon, nextDepth, `${cell.label} ↗ Q1`, true);
-        enqueueCell(midLat, cell.minLon, cell.maxLat, midLon, nextDepth, `${cell.label} ↖ Q2`, true);
-        enqueueCell(cell.minLat, midLon, midLat, cell.maxLon, nextDepth, `${cell.label} ↘ Q3`, true);
-        enqueueCell(cell.minLat, cell.minLon, midLat, midLon, nextDepth, `${cell.label} ↙ Q4`, true);
+        enqueueCell(midLat, midLon, cell.maxLat, cell.maxLon, nextDepth, `${cell.label} ↗ NE`, true);
+        enqueueCell(midLat, cell.minLon, cell.maxLat, midLon, nextDepth, `${cell.label} ↖ NW`, true);
+        enqueueCell(cell.minLat, midLon, midLat, cell.maxLon, nextDepth, `${cell.label} ↘ SE`, true);
+        enqueueCell(cell.minLat, cell.minLon, midLat, midLon, nextDepth, `${cell.label} ↙ SW`, true);
         return true;
+      };
+
+      // Engine 2 Helper: Live Google Maps Extraction for the active Quadtree cell
+      const queryGoogleMapsForQuadtreeCell = async (cell) => {
+        if (isAborted()) return 0;
+        const midLat = Number(((cell.minLat + cell.maxLat) / 2).toFixed(6));
+        const midLon = Number(((cell.minLon + cell.maxLon) / 2).toFixed(6));
+        const diagKm = Math.max(calcDistanceKm(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon), 0.45);
+        const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 450), 25000);
+        const term = isFullAreaScan
+          ? GMAPS_CELL_TERMS[(gmapsCellCursor) % GMAPS_CELL_TERMS.length]
+          : (stdQuery || 'نشاط تجاري');
+        const gDomain = GMAPS_CELL_DOMAINS[(gmapsCellCursor++) % GMAPS_CELL_DOMAINS.length];
+        const glCode = (center.countryCode || 'YE').toLowerCase();
+        const pb = `!4m12!1m3!1d${spanMeters}!2d${midLon}!3d${midLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!8i0!10b1`;
+        const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${glCode}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(term)}`;
+
+        try {
+          const gRes = await fetchWithExponentialBackoff(gUrl, {
+            timeout: 5500,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'ar,en;q=0.9',
+              'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+            }
+          }, 2, isAborted);
+
+          if (!gRes.ok) return 0;
+          let gText = await gRes.text();
+          if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
+          const gData = JSON.parse(gText);
+          const entries = gData?.[0]?.[1] || [];
+          if (!Array.isArray(entries) || entries.length === 0) return 0;
+
+          for (const entry of entries) {
+            if (isAborted()) break;
+            const p = entry?.[14];
+            if (!Array.isArray(p) || !p[11]) continue;
+            const cleanName = String(p[11]).trim();
+            const pLat = parseFloat(p[9]?.[2]);
+            const pLng = parseFloat(p[9]?.[3]);
+            if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
+
+            // Keep within target scope bounding box
+            if (pLat < rootMinLat - 0.02 || pLat > rootMaxLat + 0.02 || pLng < rootMinLon - 0.02 || pLng > rootMaxLon + 0.02) {
+              continue;
+            }
+            const placeCategories = Array.isArray(p[13]) ? p[13] : [];
+            if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
+              continue;
+            }
+            const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
+            if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey)) continue;
+
+            emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
+            const phData = extractGoogleMapsPlacePhones(p);
+            const hMatch = resolveLocalNeighborhood(pLat, pLng);
+            const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
+              ? resolveTrueYemenCity(pLat, pLng, center.city)
+              : (hMatch?.city || center.city);
+            upsertPlaceIntoPersistentDb({
+              place_id: placeIdKey || undefined,
+              n: cleanName,
+              la: Number(pLat.toFixed(6)),
+              ln: Number(pLng.toFixed(6)),
+              ci: resolvedCity,
+              co: center.country || 'اليمن',
+              d: cleanNeighborhood || hMatch?.shortHood || center.district,
+              a: String(p[39] || p[18] || `${resolvedCity} - ${hMatch?.shortHood || center.district}`).trim(),
+              ph: phData.phones[0] || '',
+              c: placeCategories.length > 0 ? placeCategories : [term],
+              r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.5'
+            });
+          }
+          return entries.length;
+        } catch (e) {
+          return 0;
+        }
       };
 
       const processSingleQuadtreeCell = async (cell) => {
         if (isAborted()) return;
         const bbox = `${cell.minLat.toFixed(4)},${cell.minLon.toFixed(4)},${cell.maxLat.toFixed(4)},${cell.maxLon.toFixed(4)}`;
 
-        // Build expanded Overpass query for all 11 named POI & landmark categories:
-        // amenity, shop, healthcare, office, craft, tourism, leisure, historic, place, industrial, and named building
         let qBody = '';
         for (const catKey of EXPANDED_NAMED_POI_KEYS) {
           qBody += `node["${catKey}"]["name"](${bbox});way["${catKey}"]["name"](${bbox});`;
         }
         const overpassQuery = `[out:json][timeout:18];(${qBody});out center ${OVERPASS_CELL_CAP};`;
 
-        let cellElementCount = 0;
+        let cellOsmCount = 0;
         let hitSaturationOrTimeout = false;
 
-        for (let mAttempt = 0; mAttempt < 2; mAttempt++) {
-          if (isAborted()) break;
-          const mirror = OVERPASS_MIRRORS[(mirrorCursor++) % OVERPASS_MIRRORS.length];
-          try {
-            const res = await fetchWithExponentialBackoff(
-              `${mirror}?data=${encodeURIComponent(overpassQuery)}`,
-              {
-                timeout: 12000,
-                headers: {
-                  'User-Agent': 'GeoRadar3DStudio/3.5 (https://gps-tracking-dashboard-sctg.onrender.com)',
-                  'Accept': 'application/json'
-                }
-              },
-              3,
-              isAborted
-            );
+        // Run BOTH Engine 1 (Overpass OSM) AND Engine 2 (Live Google Maps) in parallel for this Quadtree cell!
+        const osmTask = (async () => {
+          for (let mAttempt = 0; mAttempt < 2; mAttempt++) {
+            if (isAborted()) break;
+            const mirror = OVERPASS_MIRRORS[(mirrorCursor++) % OVERPASS_MIRRORS.length];
+            try {
+              const res = await fetchWithExponentialBackoff(
+                `${mirror}?data=${encodeURIComponent(overpassQuery)}`,
+                {
+                  timeout: 12000,
+                  headers: {
+                    'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
+                    'Accept': 'application/json'
+                  }
+                },
+                3,
+                isAborted
+              );
 
-            if (res.status === 504 || res.status === 429) {
-              hitSaturationOrTimeout = true;
-              continue;
-            }
-
-            if (res.ok) {
-              const data = await res.json();
-              const elements = Array.isArray(data.elements) ? data.elements : [];
-              cellElementCount = elements.length;
-
-              for (const el of elements) {
-                if (isAborted()) break;
-                const pLat = el.lat || el.center?.lat;
-                const pLng = el.lon || el.center?.lon;
-                const tags = el.tags || {};
-                const name = (
-                  tags['name:ar'] ||
-                  tags['name'] ||
-                  tags['brand:ar'] ||
-                  tags['brand'] ||
-                  tags['operator'] ||
-                  tags['official_name:ar'] ||
-                  tags['official_name'] ||
-                  tags['name:en'] ||
-                  ''
-                ).trim();
-                if (!name || !pLat || !pLng) continue;
-                const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
-                await emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId);
+              if (res.status === 504 || res.status === 429) {
+                hitSaturationOrTimeout = true;
+                continue;
               }
-              break;
+
+              if (res.ok) {
+                const data = await res.json();
+                const elements = Array.isArray(data.elements) ? data.elements : [];
+                cellOsmCount = elements.length;
+
+                for (const el of elements) {
+                  if (isAborted()) break;
+                  const pLat = el.lat || el.center?.lat;
+                  const pLng = el.lon || el.center?.lon;
+                  const tags = el.tags || {};
+                  const name = (
+                    tags['name:ar'] ||
+                    tags['name'] ||
+                    tags['brand:ar'] ||
+                    tags['brand'] ||
+                    tags['operator'] ||
+                    tags['official_name:ar'] ||
+                    tags['official_name'] ||
+                    tags['name:en'] ||
+                    ''
+                  ).trim();
+                  if (!name || !pLat || !pLng) continue;
+                  const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+                  await emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId);
+                }
+                break;
+              }
+            } catch (err) {
+              hitSaturationOrTimeout = true;
             }
-          } catch (err) {
-            hitSaturationOrTimeout = true;
           }
-        }
+        })();
 
-        quadtreeScannedCells++;
-        quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
+        const gmapsTask = queryGoogleMapsForQuadtreeCell(cell);
+        const [, cellGoogleCount] = await Promise.all([osmTask, gmapsTask]);
 
-        // If cell reached per-request API limit (>= 60 results or saturated Overpass response), subdivide into 4 smaller quadrants!
-        if (cellElementCount >= QUADTREE_SPLIT_THRESHOLD || (hitSaturationOrTimeout && cell.depth < 3)) {
-          subdivideQuadtreeCell(cell);
-        }
+        if (!isAborted()) {
+          completedCellKeys.add(cell.key || getCellKey(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon));
+          quadtreeScannedCells++;
+          quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
 
-        sendEvent('quadtree_progress', {
-          scannedCells: quadtreeScannedCells,
-          totalCells: quadtreeTotalCells,
-          subdividedCells: quadtreeSubdividedCells,
-          quadtreeDepth: cell.depth,
-          activeCellLabel: cell.label,
-          deduplicatedTotal: fetchedCount
-        });
+          // Subdivide into 4 smaller quadrants (SW, SE, NW, NE) if EITHER Overpass OR Google Maps reached 60+ results!
+          if (cellOsmCount >= QUADTREE_SPLIT_THRESHOLD || cellGoogleCount >= QUADTREE_SPLIT_THRESHOLD || (hitSaturationOrTimeout && cell.depth < 3)) {
+            subdivideQuadtreeCell(cell);
+          }
 
-        sendEvent('progress', {
-          current: fetchedCount,
-          total: Math.max(fetchedCount + quadtreeQueue.length * 25, fetchedCount),
-          deduplicatedTotal: fetchedCount,
-          scannedCells: quadtreeScannedCells,
-          totalCells: quadtreeTotalCells,
-          subdividedCells: quadtreeSubdividedCells
-        });
-
-        if (quadtreeScannedCells % 6 === 0) {
-          saveQuadtreeCheckpoint({
-            lastScannedCell: cell.label,
+          sendEvent('quadtree_progress', {
+            scopeKey,
+            scopeMode,
+            activeScopeLabel,
             scannedCells: quadtreeScannedCells,
-            remainingCells: quadtreeQueue.length,
+            totalCells: quadtreeTotalCells,
             subdividedCells: quadtreeSubdividedCells,
-            deduplicatedSessionCount: fetchedCount
+            quadtreeDepth: cell.depth,
+            activeCellLabel: cell.label,
+            googleCount: googleExtractedCount,
+            osmCount: osmExtractedCount,
+            deduplicatedTotal: fetchedCount
           });
+
+          sendEvent('progress', {
+            current: fetchedCount,
+            total: Math.max(fetchedCount + quadtreeQueue.length * 25, fetchedCount),
+            deduplicatedTotal: fetchedCount,
+            googleCount: googleExtractedCount,
+            osmCount: osmExtractedCount,
+            scannedCells: quadtreeScannedCells,
+            totalCells: quadtreeTotalCells,
+            subdividedCells: quadtreeSubdividedCells,
+            activeScopeLabel,
+            scopeKey
+          });
+
+          if (quadtreeScannedCells % 4 === 0 || quadtreeQueue.length === 0) {
+            saveQuadtreeCheckpoint({
+              scopeKey,
+              scopeMode,
+              city: center.city,
+              country: center.country,
+              activeScopeLabel,
+              bbox: [rootMinLat, rootMinLon, rootMaxLat, rootMaxLon],
+              lastScannedCell: cell.label,
+              scannedCells: quadtreeScannedCells,
+              remainingCells: quadtreeQueue.length,
+              subdividedCells: quadtreeSubdividedCells,
+              googleCount: googleExtractedCount,
+              osmCount: osmExtractedCount,
+              deduplicatedSessionCount: fetchedCount,
+              scannedCellKeys: Array.from(completedCellKeys).slice(-2500),
+              pendingQueue: quadtreeQueue.slice(0, 1200),
+              status: quadtreeQueue.length === 0 ? 'completed' : 'running'
+            }, scopeKey);
+          }
         }
       };
 
-      // Process Quadtree queue with controlled concurrency (3 cells in parallel) to respect Overpass rate limits
       const QUADTREE_CONCURRENCY = 3;
       while (quadtreeQueue.length > 0 && !isAborted()) {
         const batch = quadtreeQueue.splice(0, QUADTREE_CONCURRENCY);
         await Promise.all(batch.map(processSingleQuadtreeCell));
       }
 
+      // Save final checkpoint state (paused if client aborted mid-queue, completed if queue finished)
+      saveQuadtreeCheckpoint({
+        scopeKey,
+        scopeMode,
+        city: center.city,
+        country: center.country,
+        activeScopeLabel,
+        bbox: [rootMinLat, rootMinLon, rootMaxLat, rootMaxLon],
+        scannedCells: quadtreeScannedCells,
+        remainingCells: quadtreeQueue.length,
+        subdividedCells: quadtreeSubdividedCells,
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount,
+        deduplicatedSessionCount: fetchedCount,
+        scannedCellKeys: Array.from(completedCellKeys).slice(-2500),
+        pendingQueue: quadtreeQueue.slice(0, 1200),
+        status: quadtreeQueue.length > 0 ? 'paused' : 'completed'
+      }, scopeKey);
+
       scheduleSavePersistentIndex(true);
     } catch (qtErr) {
       console.log('Adaptive Quadtree notice:', qtErr.message);
     }
   };
+  const runYemenAdaptiveQuadtreeScan = () => runAdaptiveQuadtreeScan({
+    scopeMode: requestedScopeMode || (isCountrySearch ? 'country' : 'city'),
+    bbox: customViewportBbox,
+    scopeKey: activeScopeKey
+  });
 
   // Fast Global Planetary Multi-Engine (Photon Komoot + ArcGIS World Geocoder) for ANY City on Planet Earth (0.4s response, zero cloud IP blocks!)
   const runGlobalPhotonAndArcgisScan = async () => {
@@ -2893,15 +3235,27 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (!hasDrawnZone && cleanNeighborhood && !isPlaceInsideRequestedNeighborhood(cleanName, pLat, pLng, entryDistrict, entryAddress)) {
         continue;
       }
-      const effectiveMaxRadiusKm = (isFullAreaScan && !hasDrawnZone && !cleanNeighborhood && (isCountrySearch || center.countryCode === 'YE')) ? 2800 : maxOriginRadiusKm;
+      const effectiveMaxRadiusKm = (requestedScopeMode === 'country' || requestedScopeMode === 'viewport' || isCountrySearch) ? 2800 : maxOriginRadiusKm;
       if (!hasDrawnZone && !cleanNeighborhood && distFromOrigin > effectiveMaxRadiusKm) continue;
 
       const trueCity = (center.countryCode === 'YE' || isCountrySearch)
         ? resolveTrueYemenCity(pLat, pLng, entry.ci || entry.city || '', entryAddress)
         : (entry.ci || entry.city || center.city);
 
-      // Full Yemen Comprehensive Scan Mode: when running "مسح شامل" (isFullAreaScan) without a drawn circle/polygon or specific neighborhood, include all Yemeni governorates!
-      const isYemenWideComprehensive = isFullAreaScan && !hasDrawnZone && !cleanNeighborhood && (isCountrySearch || center.countryCode === 'YE');
+      // If viewport mode with customViewportBbox is selected, filter strictly to that bounding box [south, west, north, east]
+      if (requestedScopeMode === 'viewport' && customViewportBbox) {
+        const vMinLat = Math.min(customViewportBbox[0], customViewportBbox[2]);
+        const vMaxLat = Math.max(customViewportBbox[0], customViewportBbox[2]);
+        const vMinLon = Math.min(customViewportBbox[1], customViewportBbox[3]);
+        const vMaxLon = Math.max(customViewportBbox[1], customViewportBbox[3]);
+        if (pLat < vMinLat || pLat > vMaxLat || pLng < vMinLon || pLng > vMaxLon) continue;
+      }
+
+      // Respect the 3-Mode Local Scope Selector:
+      // - 'country': include all governorates/cities in the user's detected country
+      // - 'city' (Default): isolate to the user's current city/governorate
+      // - 'viewport': already filtered by customViewportBbox above
+      const isYemenWideComprehensive = (requestedScopeMode === 'country' || (isCountrySearch && requestedScopeMode !== 'city')) && !hasDrawnZone && !cleanNeighborhood;
 
       // Strict City Isolation: when searching a specific activity in a single city (e.g. صيدليات في تعز), isolate to that city
       if (!isCountrySearch && !isYemenWideComprehensive && !hasDrawnZone) {
@@ -2970,6 +3324,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       };
 
       fetchedCount++;
+      if (m.entry.osm_id) osmExtractedCount++;
+      else googleExtractedCount++;
       if (fetchedCount <= 40) {
         sendEvent('place', item);
       } else {
@@ -2984,9 +3340,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             current: fetchedCount,
             total: Math.max(matchedSeedPlaces.length, fetchedCount + 50),
             deduplicatedTotal: fetchedCount,
+            googleCount: googleExtractedCount,
+            osmCount: osmExtractedCount,
             scannedCells: estScannedCells,
             totalCells: estTotalCells,
-            subdividedCells: Math.floor(estScannedCells / 4)
+            subdividedCells: Math.floor(estScannedCells / 4),
+            activeScopeLabel: requestedScopeMode === 'country' ? `كامل دولة ${center.country}` : `مدينة ${center.city}`
           });
           await new Promise(r => setTimeout(r, 6));
         }
@@ -3742,6 +4101,164 @@ async function reverseGeocodeCoords(lat, lng) {
     };
   }
   return null;
+}
+
+// Resolve user's GPS coordinates (lat, lon) into City + City Bounding Box [south, west, north, east] AND Country + ISO Code + Country Bounding Box [south, west, north, east]
+async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
+  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}`;
+  if (GEO_SCOPE_BBOX_CACHE.has(cacheKey)) {
+    return GEO_SCOPE_BBOX_CACHE.get(cacheKey);
+  }
+
+  const localMatch = resolveLocalNeighborhood(lat, lon);
+  let city = localMatch?.city || '';
+  let country = localMatch?.country || '';
+  let countryCode = 'YE';
+  let neighborhood = localMatch?.shortHood || localMatch?.neighborhood || '';
+  let cityBbox = null;
+  let countryBbox = null;
+
+  // Check if coordinates fall inside Yemen's bounding box [12.10, 41.80, 19.00, 54.60]
+  const isInsideYemen = lat >= 12.10 && lat <= 19.00 && lon >= 41.80 && lon <= 54.60;
+
+  // 1. Query Nominatim Reverse Geocoding for official city, country, ISO code & bounding box
+  try {
+    const nomRevUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1&accept-language=ar,en`;
+    const nRes = await fetchWithTimeout(nomRevUrl, {
+      timeout: 4500,
+      headers: {
+        'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
+        'Accept': 'application/json'
+      }
+    });
+    if (nRes.ok) {
+      const nData = await nRes.json();
+      const addr = nData?.address || {};
+      const detectedCity = addr.city || addr.state || addr.town || addr.county || addr.municipality || addr.province || nData?.name || '';
+      const detectedCountry = addr.country || '';
+      const detectedCode = String(addr.country_code || '').toUpperCase();
+      const detectedHood = addr.suburb || addr.neighbourhood || addr.quarter || addr.district || '';
+
+      if (detectedCity && (!city || !isInsideYemen)) city = detectedCity.replace(/^محافظة\s+/i, '').trim();
+      if (detectedCountry) country = detectedCountry;
+      if (detectedCode) countryCode = detectedCode;
+      if (detectedHood && !neighborhood) neighborhood = detectedHood;
+
+      if (Array.isArray(nData?.boundingbox) && nData.boundingbox.length === 4) {
+        const b = nData.boundingbox.map(Number); // [south, north, west, east] in Nominatim
+        const latSpan = Math.abs(b[1] - b[0]);
+        const lonSpan = Math.abs(b[3] - b[2]);
+        if (latSpan >= 0.04 && latSpan <= 2.5 && lonSpan >= 0.04 && lonSpan <= 2.5) {
+          cityBbox = [
+            Number(Math.min(b[0], b[1]).toFixed(4)),
+            Number(Math.min(b[2], b[3]).toFixed(4)),
+            Number(Math.max(b[0], b[1]).toFixed(4)),
+            Number(Math.max(b[2], b[3]).toFixed(4))
+          ];
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2. Fallback to BigDataCloud / reverseGeocodeCoords if city or country still missing
+  if (!city || !country) {
+    const rev = await reverseGeocodeCoords(lat, lon);
+    if (rev) {
+      if (!city && rev.city) city = rev.city;
+      if (!country && rev.country) country = rev.country;
+      if (!neighborhood && rev.region) neighborhood = rev.region;
+    }
+  }
+
+  if (isInsideYemen) {
+    countryCode = 'YE';
+    country = 'اليمن';
+    if (!city) city = 'صنعاء';
+  }
+  if (!city) city = 'صنعاء';
+  if (!country) country = 'اليمن';
+
+  // 3. Look up Official City Bounding Box [south, west, north, east] from Atlas or Nominatim City Search
+  for (const [cKey, bboxVal] of Object.entries(OFFICIAL_CITY_BBOX_ATLAS)) {
+    if (normAr(cKey) === normAr(city) || normAr(city).includes(normAr(cKey)) || normAr(cKey).includes(normAr(city))) {
+      cityBbox = bboxVal;
+      break;
+    }
+  }
+
+  if (!cityBbox) {
+    try {
+      const qCityUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ar,en&q=${encodeURIComponent(city + ' ' + country)}`;
+      const cRes = await fetchWithTimeout(qCityUrl, { timeout: 4000 });
+      if (cRes.ok) {
+        const cArr = await cRes.json();
+        if (Array.isArray(cArr) && cArr[0]?.boundingbox?.length === 4) {
+          const b = cArr[0].boundingbox.map(Number);
+          cityBbox = [
+            Number(Math.min(b[0], b[1]).toFixed(4)),
+            Number(Math.min(b[2], b[3]).toFixed(4)),
+            Number(Math.max(b[0], b[1]).toFixed(4)),
+            Number(Math.max(b[2], b[3]).toFixed(4))
+          ];
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!cityBbox) {
+    cityBbox = [
+      Number((lat - 0.16).toFixed(4)),
+      Number((lon - 0.16).toFixed(4)),
+      Number((lat + 0.16).toFixed(4)),
+      Number((lon + 0.16).toFixed(4))
+    ];
+  }
+
+  // 4. Look up Official Country Bounding Box [south, west, north, east] from Atlas or Nominatim Country Search
+  if (OFFICIAL_COUNTRY_BBOX_ATLAS[countryCode]) {
+    countryBbox = OFFICIAL_COUNTRY_BBOX_ATLAS[countryCode].bbox;
+  } else {
+    try {
+      const qCountryUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ar,en&country=${encodeURIComponent(country)}`;
+      const coRes = await fetchWithTimeout(qCountryUrl, { timeout: 4000 });
+      if (coRes.ok) {
+        const coArr = await coRes.json();
+        if (Array.isArray(coArr) && coArr[0]?.boundingbox?.length === 4) {
+          const b = coArr[0].boundingbox.map(Number);
+          countryBbox = [
+            Number(Math.min(b[0], b[1]).toFixed(4)),
+            Number(Math.min(b[2], b[3]).toFixed(4)),
+            Number(Math.max(b[0], b[1]).toFixed(4)),
+            Number(Math.max(b[2], b[3]).toFixed(4))
+          ];
+        }
+      }
+    } catch (e) {}
+  }
+
+  if (!countryBbox) {
+    countryBbox = isInsideYemen
+      ? [12.1000, 41.8000, 19.0000, 54.6000]
+      : [
+          Number((cityBbox[0] - 2.0).toFixed(4)),
+          Number((cityBbox[1] - 2.0).toFixed(4)),
+          Number((cityBbox[2] + 2.0).toFixed(4)),
+          Number((cityBbox[3] + 2.0).toFixed(4))
+        ];
+  }
+
+  const result = {
+    city,
+    country,
+    countryCode,
+    neighborhood,
+    cityBbox,
+    countryBbox,
+    cityScopeKey: `${countryCode}_city_${normAr(city).replace(/\s+/g, '_')}`,
+    countryScopeKey: `${countryCode}_country_ALL`
+  };
+  GEO_SCOPE_BBOX_CACHE.set(cacheKey, result);
+  return result;
 }
 
 // Format ISP / Telecom Network Name into a clean, single, non-repeating Arabic + English name
@@ -4580,11 +5097,52 @@ function recordSearch(searchInfo) {
   saveAdminLogs(logs);
 }
 
-// HTTP Server
+// HTTP Server with Automatic GZIP Compression (reduces HTML, CSS, JS, and JSON transfer size by ~70%)
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  const acceptEncoding = String(req.headers['accept-encoding'] || '');
+  const isSseRequest = req.url && req.url.startsWith('/api/search');
+  if (acceptEncoding.includes('gzip') && !isSseRequest) {
+    const origWriteHead = res.writeHead.bind(res);
+    const origEnd = res.end.bind(res);
+    let responseStatusCode = 200;
+    let responseHeaders = {};
+    res._gzipEnabled = true;
+    res.writeHead = (statusCode, headers = {}) => {
+      responseStatusCode = statusCode;
+      responseHeaders = { ...headers };
+      return res;
+    };
+    res.end = (chunk, encoding) => {
+      if (res._pipedStream) {
+        return origEnd(chunk, encoding);
+      }
+      if (!chunk) {
+        origWriteHead(responseStatusCode, responseHeaders);
+        return origEnd();
+      }
+      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk), encoding || 'utf8');
+      if (buf.length < 512) {
+        origWriteHead(responseStatusCode, responseHeaders);
+        return origEnd(buf);
+      }
+      zlib.gzip(buf, (err, compressed) => {
+        if (err) {
+          origWriteHead(responseStatusCode, responseHeaders);
+          return origEnd(buf);
+        }
+        responseHeaders['Content-Encoding'] = 'gzip';
+        responseHeaders['Vary'] = 'Accept-Encoding';
+        delete responseHeaders['Content-Length'];
+        origWriteHead(responseStatusCode, responseHeaders);
+        origEnd(compressed);
+      });
+    };
+    res._origWriteHead = origWriteHead;
+  }
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -5424,10 +5982,21 @@ const server = http.createServer(async (req, res) => {
     });
 
     try {
+      let customBbox = null;
+      if (parsedUrl.query.bbox) {
+        const parts = String(parsedUrl.query.bbox).split(',').map(Number);
+        if (parts.length === 4 && parts.every(n => !isNaN(n))) customBbox = parts;
+      }
+      const scanOptions = {
+        scopeMode: String(parsedUrl.query.scopeMode || '').trim(),
+        customBbox,
+        resumeCheckpoint: parsedUrl.query.resumeCheckpoint === '1' || parsedUrl.query.resumeCheckpoint === 'true',
+        scopeKey: String(parsedUrl.query.scopeKey || '').trim()
+      };
       if (apiKey) {
         await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent);
       } else {
-        await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted, polygonFilter, uiLang);
+        await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted, polygonFilter, uiLang, scanOptions);
       }
       sendEvent('complete', { message: 'تم إنجاز البحث واستخراج كامل المنطقة بنجاح 100%!' });
     } catch (e) {
@@ -5476,31 +6045,87 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Reverse Geocoding endpoint (resolves live GPS coordinates to city, neighborhood, and country)
+  // Reverse Geocoding endpoint (resolves live GPS coordinates to city, cityBbox, country, countryCode, countryBbox, and neighborhood)
   if (pathname === '/api/reverse-geocode') {
     const lat = parseFloat(parsedUrl.query.lat);
-    const lng = parseFloat(parsedUrl.query.lng);
-    if (isNaN(lat) || isNaN(lng)) {
+    const lon = parseFloat(parsedUrl.query.lon ?? parsedUrl.query.lng);
+    if (isNaN(lat) || isNaN(lon)) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Invalid coordinates' }));
       return;
     }
-    const localMatch = resolveLocalNeighborhood(lat, lng);
-    if (localMatch && localMatch.distanceKm <= 28) {
+    const scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(scopeInfo));
+    return;
+  }
+
+  // Scoped Quadtree Checkpoint Inspection & Pause/Resume Endpoint
+  if (pathname === '/api/scan/checkpoint') {
+    const store = loadAllQuadtreeCheckpoints();
+    if (req.method === 'POST') {
+      const body = await readRequestBody(req);
+      const sKey = String(body.scopeKey || store.lastActiveScopeKey || 'YE_ALL').trim();
+      if (body.action === 'pause' || body.status) {
+        saveQuadtreeCheckpoint({ status: body.status || 'paused' }, sKey);
+      }
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        city: localMatch.city,
-        neighborhood: localMatch.shortHood || localMatch.neighborhood,
-        country: localMatch.country
-      }));
+      res.end(JSON.stringify({ success: true, scopeKey: sKey, checkpoint: store.scopes?.[sKey] || null }));
       return;
     }
-    const rev = await reverseGeocodeCoords(lat, lng);
+    const sKey = String(parsedUrl.query.scopeKey || store.lastActiveScopeKey || '').trim();
+    const checkpoint = sKey ? (store.scopes?.[sKey] || null) : null;
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
-      city: rev?.city || localMatch?.city || '',
-      neighborhood: rev?.region || localMatch?.shortHood || '',
-      country: rev?.country || localMatch?.country || ''
+      success: true,
+      totalDatabasePlaces: SANAA_REAL_INDEX.length,
+      lastActiveScopeKey: store.lastActiveScopeKey || null,
+      checkpoint,
+      scopes: Object.keys(store.scopes || {}).map(k => ({
+        scopeKey: k,
+        city: store.scopes[k]?.city,
+        country: store.scopes[k]?.country,
+        activeScopeLabel: store.scopes[k]?.activeScopeLabel,
+        scannedCells: store.scopes[k]?.scannedCells || 0,
+        remainingCells: store.scopes[k]?.remainingCells || 0,
+        subdividedCells: store.scopes[k]?.subdividedCells || 0,
+        deduplicatedSessionCount: store.scopes[k]?.deduplicatedSessionCount || 0,
+        status: store.scopes[k]?.status || 'ready',
+        updatedAt: store.scopes[k]?.updatedAt
+      }))
+    }));
+    return;
+  }
+
+  // Database Local Backup Export Endpoint (JSON download filtered by city, country, or full database)
+  if (pathname === '/api/export-database') {
+    const filterCity = String(parsedUrl.query.city || '').trim();
+    const filterCountry = String(parsedUrl.query.country || '').trim();
+    const scopeMode = String(parsedUrl.query.scopeMode || 'all').trim();
+
+    let records = SANAA_REAL_INDEX;
+    if (scopeMode === 'city' && filterCity) {
+      const cNorm = normAr(filterCity);
+      records = SANAA_REAL_INDEX.filter(r => normAr(r.ci || r.city || 'صنعاء') === cNorm);
+    } else if (scopeMode === 'country' && filterCountry && !normAr(filterCountry).includes('يمن')) {
+      const coNorm = normAr(filterCountry);
+      records = SANAA_REAL_INDEX.filter(r => normAr(r.co || r.country || 'اليمن').includes(coNorm));
+    }
+
+    const safeName = (scopeMode === 'city' && filterCity)
+      ? filterCity
+      : (filterCountry || 'Yemen_Full');
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="GeoRadar_Database_${encodeURIComponent(safeName)}_${records.length}_places.json"`
+    });
+    res.end(JSON.stringify({
+      exportedAt: new Date().toISOString(),
+      scopeMode,
+      city: filterCity || 'الكل',
+      country: filterCountry || 'اليمن',
+      totalDeduplicatedCount: records.length,
+      places: records
     }));
     return;
   }
@@ -5546,30 +6171,47 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    const isHtmlDoc = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html';
     const headers = {
       'Content-Type': contentType,
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
+      'Cache-Control': isHtmlDoc
+        ? 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        : 'public, max-age=3600',
+      ...(isHtmlDoc ? { 'Pragma': 'no-cache', 'Expires': '0' } : {})
     };
 
-    res.writeHead(200, headers);
-    fs.createReadStream(filePath).pipe(res);
+    const compressibleExts = new Set(['.html', '.css', '.js', '.json', '.svg']);
+    if (res._gzipEnabled && res._origWriteHead && compressibleExts.has(ext)) {
+      res._pipedStream = true;
+      headers['Content-Encoding'] = 'gzip';
+      headers['Vary'] = 'Accept-Encoding';
+      res._origWriteHead(200, headers);
+      fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+    } else {
+      res._pipedStream = true;
+      const writeH = res._origWriteHead || res.writeHead.bind(res);
+      writeH(200, headers);
+      fs.createReadStream(filePath).pipe(res);
+    }
   });
 });
 
-// Seed and persist primary Admin account (@1 / fakhr) immediately on server startup
-try {
-  const initialStartupLogs = loadAdminLogs();
-  ensurePrimaryAdminAccount(initialStartupLogs);
-  saveAdminLogs(initialStartupLogs);
-} catch (err) {}
-
+// Bind to PORT immediately BEFORE loading large JSON archives into memory so incoming requests never hang!
 server.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`🚀 تطبيق استخراج بيانات خرائط جوجل 3D يعمل الآن بنجاح!`);
   console.log(`🌐 الرابط المحلي: http://localhost:${PORT}`);
   console.log(`=======================================================`);
+
+  // Asynchronously seed admin account and load 93,662+ verified database records after port is bound
+  setImmediate(async () => {
+    try {
+      const initialStartupLogs = loadAdminLogs();
+      ensurePrimaryAdminAccount(initialStartupLogs);
+      saveAdminLogs(initialStartupLogs);
+    } catch (err) {}
+    await loadInitialDatabaseAsync();
+  });
 
   // Self Keep-Alive every 5 minutes to prevent cloud container from sleeping and resetting memory
   const keepAliveUrl = process.env.RENDER_EXTERNAL_URL

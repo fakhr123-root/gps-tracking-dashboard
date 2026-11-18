@@ -7,25 +7,32 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
-  
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(regs) {
+        regs.forEach(function(sw) { sw.unregister(); });
+      }).catch(function() {});
+    }
+  </script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Cairo & Orbitron -->
+  <!-- Google Fonts: Cairo & Orbitron (Non-Blocking Async Load) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
   <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script defer src="https://unpkg.com/lucide@latest"></script>
   <!-- Three.js & OrbitControls -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <!-- Leaflet Map CSS & JS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- SheetJS for Instant Excel Export -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- Canvas Confetti -->
-  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
   <style>
     * {
@@ -820,6 +827,95 @@
               </button>
             </div>
           </div>
+
+          <!-- ==================== LOCATION-AWARE COMPREHENSIVE SCAN PANEL (المسح الشامل المعتمد على موقعك) ==================== -->
+          <div id="comprehensiveScanPanel" class="mt-2 pt-2 border-t border-cyan-500/30 bg-slate-950/75 rounded-xl p-2.5 space-y-2">
+            <!-- 1. Auto-Detected GPS Location Banner & Manual Refresh -->
+            <div class="flex flex-wrap items-center justify-between gap-1.5 bg-slate-900/90 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+              <div class="flex items-center gap-1.5 text-[11px] sm:text-xs font-extrabold text-emerald-300">
+                <span id="autoDetectedLocationBannerText">📍 موقعك المكتشف تلقائياً: صنعاء — اليمن</span>
+              </div>
+              <div class="flex flex-wrap items-center gap-1">
+                <button type="button" onclick="refreshAutoDetectedUserScope(true)" class="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition" title="إعادة فحص الإحداثيات وتحديث المدينة والدولة تلقائياً">
+                  <span>🔄 تحديث موقعي</span>
+                </button>
+                <button type="button" onclick="exportComprehensiveDatabaseBackup('json')" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition" title="تنزيل نسخة احتياطية كاملة لقاعدة البيانات (JSON)">
+                  <span>📥 تصدير قاعدة البيانات (JSON / Excel)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. Three-Mode Local Scope Selector -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                id="scopeModeBtn_city"
+                onclick="selectComprehensiveScopeMode('city')"
+                class="px-2.5 py-1.5 rounded-lg bg-emerald-500/25 border-2 border-emerald-400 text-emerald-200 font-black text-[10px] sm:text-[11px] text-right flex items-center justify-between gap-1 cursor-pointer transition shadow"
+              >
+                <span id="scopeModeCityLabel">🏙️ مسح مدينتي الحالية بالكامل (صنعاء)</span>
+                <span class="text-[9px] px-1.5 py-0.2 rounded bg-emerald-400 text-slate-950 font-black shrink-0">الافتراضي</span>
+              </button>
+
+              <button
+                type="button"
+                id="scopeModeBtn_country"
+                onclick="selectComprehensiveScopeMode('country')"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-extrabold text-[10px] sm:text-[11px] text-right flex items-center justify-between gap-1 cursor-pointer transition"
+              >
+                <span id="scopeModeCountryLabel">🌍 مسح دولتي الحالية بالكامل (اليمن)</span>
+                <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-cyan-300 font-bold shrink-0">شامل للدولة</span>
+              </button>
+
+              <button
+                type="button"
+                id="scopeModeBtn_viewport"
+                onclick="selectComprehensiveScopeMode('viewport')"
+                class="px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-extrabold text-[10px] sm:text-[11px] text-right flex items-center justify-between gap-1 cursor-pointer transition"
+              >
+                <span id="scopeModeViewportLabel">🗺️ مسح المنطقة المعروضة حالياً على الخريطة</span>
+                <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-amber-300 font-bold shrink-0">شاشة الخريطة</span>
+              </button>
+            </div>
+
+            <!-- 3. Start / Pause / Resume Controls & Live Dual-Engine Telemetry Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-1.5 pt-1">
+              <div class="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  id="btnStartComprehensiveScan"
+                  onclick="startLocationAwareComprehensiveScan(false)"
+                  class="px-3 py-1 rounded-lg bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 font-black text-[10px] sm:text-[11px] flex items-center gap-1 cursor-pointer shadow transition"
+                >
+                  <span>▶️ بدء المسح الشامل</span>
+                </button>
+                <button
+                  type="button"
+                  id="btnPauseComprehensiveScan"
+                  onclick="pauseLocationAwareComprehensiveScan()"
+                  class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-extrabold text-[10px] sm:text-[11px] flex items-center gap-1 cursor-pointer transition"
+                >
+                  <span>⏸️ إيقاف مؤقت</span>
+                </button>
+                <button
+                  type="button"
+                  id="btnResumeComprehensiveScan"
+                  onclick="startLocationAwareComprehensiveScan(true)"
+                  class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-extrabold text-[10px] sm:text-[11px] flex items-center gap-1 cursor-pointer transition"
+                  title="استئناف المسح من آخر نقطة حفظ تلقائية (Checkpoint)"
+                >
+                  <span>⏯️ استئناف</span>
+                </button>
+              </div>
+
+              <!-- Live Dual-Engine Telemetry Badges -->
+              <div class="flex flex-wrap items-center gap-1 text-[10px] font-num">
+                <span id="telemetryActiveScopeBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-emerald-500/40 text-emerald-300 font-bold">🎯 النطاق: صنعاء</span>
+                <span id="telemetryDualEngineBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 font-bold">🌐 Google: 0 | 🗺️ OSM: 0</span>
+                <span id="telemetryNetDedupBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-amber-500/40 text-amber-300 font-bold">✅ الإجمالي الصافي: 0</span>
+              </div>
+            </div>
+          </div>
         </form>
 
         <!-- COMPACT INTERACTIVE MAP & DRAWING STUDIO (Circle / Custom Polygon / Rectangle) -->
@@ -947,20 +1043,27 @@
             <span class="font-black text-emerald-300">📊 جودة البيانات المستخرجة:</span>
             <span class="px-2 py-0.5 rounded bg-slate-950 text-white font-num font-bold">الإجمالي الصافي (بدون تكرار): <strong id="dqTotalCount" class="text-emerald-400">0</strong></span>
             <span id="dqQuadtreeCellsStat" class="px-2 py-0.5 rounded bg-slate-950 text-amber-300 font-num font-bold">🔲 خلايا Quadtree: <strong id="dqQuadtreeCellsValue">0 / 0</strong></span>
+            <span id="dqDualEngineStat" class="px-2 py-0.5 rounded bg-slate-950 text-cyan-300 font-num font-bold">🌐 Google: <strong id="dqGoogleCount">0</strong> | 🗺️ OSM: <strong id="dqOsmCount">0</strong></span>
             <span class="px-2 py-0.5 rounded bg-slate-950 text-cyan-300 font-num font-bold">📞 بهاتف موثق: <strong id="dqPhoneRatio">0%</strong></span>
             <span class="px-2 py-0.5 rounded bg-slate-950 text-teal-300 font-num font-bold">🧭 دقة إحداثيات 6 خانات: <strong>100%</strong></span>
           </div>
-          <button type="button" onclick="saveCurrentResultsToProject()" class="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 font-extrabold cursor-pointer">
-            💾 حفظ في مشاريعي
-          </button>
+          <div class="flex flex-wrap items-center gap-1">
+            <button type="button" onclick="exportComprehensiveDatabaseBackup('json')" class="px-2.5 py-0.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-200 font-extrabold cursor-pointer">
+              📥 تصدير قاعدة البيانات (JSON)
+            </button>
+            <button type="button" onclick="saveCurrentResultsToProject()" class="px-2.5 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 font-extrabold cursor-pointer">
+              💾 حفظ في مشاريعي
+            </button>
+          </div>
         </div>
 
-        <!-- Slim Live Progress Indicator with Percentage, Quadtree Cell Counter, Deduplicated Total & Pause/Resume Controls -->
+        <!-- Slim Live Progress Indicator with Percentage, Quadtree Cell Counter, Dual-Engine Count, Deduplicated Total & Pause/Resume Controls -->
         <div id="progressContainer" class="hidden bg-slate-900/95 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 shadow">
           <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
             <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[140px] truncate">جارٍ البحث واستخراج البيانات...</span>
             <div class="flex flex-wrap items-center gap-1.5 shrink-0">
               <span id="quadtreeCellsBadge" class="text-amber-300 font-num font-bold bg-slate-950 border border-amber-500/40 px-2 py-0.5 rounded-full text-[10px]">🔲 الخلايا: 0 / 0</span>
+              <span id="progressDualEngineBadge" class="text-cyan-300 font-num font-bold bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">🌐 Google: 0 | 🗺️ OSM: 0</span>
               <span id="progressPercentBadge" class="text-cyan-300 font-num font-black bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">0%</span>
               <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع فريد</span>
               <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-300 font-bold text-[10px] cursor-pointer">
@@ -1956,13 +2059,141 @@
       }
     }
 
-    function scanEntireCityAllActivities() {
+    window.selectedComprehensiveScopeMode = 'city';
+    window.detectedUserGeoScope = {
+      city: 'صنعاء',
+      country: 'اليمن',
+      countryCode: 'ye',
+      neighborhood: '',
+      cityBbox: [15.20, 44.08, 15.55, 44.36],
+      countryBbox: [12.10, 41.80, 19.00, 54.60],
+      cityScopeKey: 'ye_صنعاء',
+      countryScopeKey: 'ye_اليمن'
+    };
+
+    function updateComprehensiveScopePanelLabels() {
+      const geo = window.detectedUserGeoScope || {};
+      const city = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
+      const country = geo.country || 'اليمن';
+
+      const bannerEl = document.getElementById('autoDetectedLocationBannerText');
+      if (bannerEl) {
+        bannerEl.innerText = `📍 موقعك المكتشف تلقائياً: ${city} — ${country}`;
+      }
+      const cityLbl = document.getElementById('scopeModeCityLabel');
+      if (cityLbl) {
+        cityLbl.innerText = `🏙️ مسح مدينتي الحالية بالكامل (${city})`;
+      }
+      const countryLbl = document.getElementById('scopeModeCountryLabel');
+      if (countryLbl) {
+        countryLbl.innerText = `🌍 مسح دولتي الحالية بالكامل (${country})`;
+      }
+      const activeScopeBadge = document.getElementById('telemetryActiveScopeBadge');
+      if (activeScopeBadge) {
+        const mode = window.selectedComprehensiveScopeMode || 'city';
+        const label = mode === 'country'
+          ? `${country} (الدولة بالكامل)`
+          : mode === 'viewport'
+            ? `شاشة الخريطة (${city})`
+            : `${city} (${country})`;
+        activeScopeBadge.innerText = `🎯 النطاق: ${label}`;
+      }
+    }
+
+    function selectComprehensiveScopeMode(mode) {
+      window.selectedComprehensiveScopeMode = ['city', 'country', 'viewport'].includes(mode) ? mode : 'city';
+      const modes = ['city', 'country', 'viewport'];
+      modes.forEach(m => {
+        const btn = document.getElementById(`scopeModeBtn_${m}`);
+        if (!btn) return;
+        if (m === window.selectedComprehensiveScopeMode) {
+          btn.className = 'px-2.5 py-1.5 rounded-lg bg-emerald-500/25 border-2 border-emerald-400 text-emerald-200 font-black text-[10px] sm:text-[11px] text-right flex items-center justify-between gap-1 cursor-pointer transition shadow';
+        } else {
+          btn.className = 'px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-extrabold text-[10px] sm:text-[11px] text-right flex items-center justify-between gap-1 cursor-pointer transition';
+        }
+      });
+
+      const geo = window.detectedUserGeoScope || {};
+      const locInput = document.getElementById('locationInput');
+      if (locInput) {
+        if (window.selectedComprehensiveScopeMode === 'country') {
+          locInput.value = geo.country || 'اليمن';
+        } else if (window.selectedComprehensiveScopeMode === 'city') {
+          locInput.value = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
+        }
+      }
+      if (window.selectedComprehensiveScopeMode === 'viewport') {
+        const panel = document.getElementById('visualizerPanel');
+        if (panel && panel.classList.contains('hidden')) {
+          panel.classList.remove('hidden');
+          panel.classList.add('flex');
+          setTimeout(() => {
+            if (!leafletMap) initLeafletMap();
+            else leafletMap.invalidateSize();
+          }, 120);
+        }
+      }
+      updateComprehensiveScopePanelLabels();
+    }
+
+    function getActiveComprehensiveScopeConfig() {
+      const mode = window.selectedComprehensiveScopeMode || 'city';
+      const geo = window.detectedUserGeoScope || {};
+      const city = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
+      const country = geo.country || 'اليمن';
+      const countryCode = geo.countryCode || 'ye';
+
+      if (mode === 'country') {
+        return {
+          scopeMode: 'country',
+          targetLocation: country,
+          city,
+          country,
+          bbox: Array.isArray(geo.countryBbox) && geo.countryBbox.length === 4 ? geo.countryBbox : [12.10, 41.80, 19.00, 54.60],
+          scopeKey: geo.countryScopeKey || `${countryCode}_${country}`
+        };
+      }
+      if (mode === 'viewport') {
+        if (!leafletMap) initLeafletMap();
+        let bbox = Array.isArray(geo.cityBbox) && geo.cityBbox.length === 4 ? geo.cityBbox : [15.20, 44.08, 15.55, 44.36];
+        if (leafletMap && typeof leafletMap.getBounds === 'function') {
+          const b = leafletMap.getBounds();
+          if (b && b.isValid()) {
+            bbox = [
+              Number(b.getSouth().toFixed(5)),
+              Number(b.getWest().toFixed(5)),
+              Number(b.getNorth().toFixed(5)),
+              Number(b.getEast().toFixed(5))
+            ];
+          }
+        }
+        return {
+          scopeMode: 'viewport',
+          targetLocation: city,
+          city,
+          country,
+          bbox,
+          scopeKey: `${countryCode}_viewport_${bbox.map(n => Number(n).toFixed(2)).join('_')}`
+        };
+      }
+      return {
+        scopeMode: 'city',
+        targetLocation: city,
+        city,
+        country,
+        bbox: Array.isArray(geo.cityBbox) && geo.cityBbox.length === 4 ? geo.cityBbox : [15.20, 44.08, 15.55, 44.36],
+        scopeKey: geo.cityScopeKey || `${countryCode}_${city}`
+      };
+    }
+
+    function startLocationAwareComprehensiveScan(resumeFromCheckpoint = false) {
       clearDrawnCircle(true);
       const qInput = document.getElementById('queryInput');
       if (qInput) qInput.value = '';
+      const cfg = getActiveComprehensiveScopeConfig();
       const locInput = document.getElementById('locationInput');
-      if (locInput && (!window.userManuallyEditedLocation || !locInput.value.trim() || locInput.value.trim() === 'صنعاء')) {
-        locInput.value = 'اليمن';
+      if (locInput) {
+        locInput.value = cfg.targetLocation;
       }
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
@@ -1971,11 +2202,78 @@
       document.getElementById('btnDrawCircleMode')?.classList.remove('active');
       setRadius(50);
       lastActiveQuery = '__FULL_CITY_SCAN__';
+      window.__activeComprehensiveScanOptions = {
+        isComprehensiveScan: true,
+        scopeMode: cfg.scopeMode,
+        city: cfg.city,
+        country: cfg.country,
+        bbox: cfg.bbox,
+        scopeKey: cfg.scopeKey,
+        resumeCheckpoint: Boolean(resumeFromCheckpoint)
+      };
 
       handleSearch(new Event('submit'));
       setTimeout(() => {
         document.getElementById('resultsSectionAnchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 250);
+    }
+
+    async function pauseLocationAwareComprehensiveScan() {
+      if (!isScanPaused) {
+        togglePauseResumeActiveScan();
+      }
+      const cfg = getActiveComprehensiveScopeConfig();
+      try {
+        await fetch('/api/scan/checkpoint', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'pause', scopeKey: cfg.scopeKey })
+        });
+      } catch (e) {}
+    }
+
+    function exportComprehensiveDatabaseBackup(format = 'json') {
+      const cfg = getActiveComprehensiveScopeConfig();
+      const cityParam = cfg.scopeMode === 'city' ? encodeURIComponent(cfg.city || '') : '';
+      const countryParam = encodeURIComponent(cfg.country || '');
+      const url = `/api/export-database?format=${encodeURIComponent(format)}&country=${countryParam}${cityParam ? `&city=${cityParam}` : ''}`;
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `georadar_database_${cfg.scopeKey || 'backup'}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function refreshAutoDetectedUserScope(forcePrompt = false) {
+      if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng && !forcePrompt) {
+        await syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+        return;
+      }
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            if (!pos || !pos.coords) return;
+            cachedOptionalGps = {
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+              accuracy: Math.round(pos.coords.accuracy || 15)
+            };
+            renderUserGpsPinOnMap();
+            await syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+          },
+          async () => {
+            if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
+              await syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+            }
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+    }
+
+    function scanEntireCityAllActivities() {
+      startLocationAwareComprehensiveScan(false);
     }
 
     function scanAllActivitiesInDrawnCircle() {
@@ -2452,6 +2750,21 @@
         params.set('circleLat', drawnCircleState.lat);
         params.set('circleLng', drawnCircleState.lng);
         params.set('circleRadiusKm', drawnCircleState.radiusKm);
+      } else {
+        const compOpts = window.__activeComprehensiveScanOptions || (!query ? getActiveComprehensiveScopeConfig() : null);
+        if (compOpts) {
+          params.set('scopeMode', compOpts.scopeMode || 'city');
+          if (compOpts.city) params.set('city', compOpts.city);
+          if (compOpts.country) params.set('country', compOpts.country);
+          if (compOpts.scopeKey) params.set('scopeKey', compOpts.scopeKey);
+          if (Array.isArray(compOpts.bbox) && compOpts.bbox.length === 4) {
+            params.set('bbox', JSON.stringify(compOpts.bbox));
+          }
+          if (compOpts.resumeCheckpoint) {
+            params.set('resumeCheckpoint', 'true');
+          }
+        }
+        window.__activeComprehensiveScanOptions = null;
       }
 
       isScanPaused = false;
@@ -2465,6 +2778,29 @@
         const data = JSON.parse(event.data);
         statusMessage.innerText = data.message;
       });
+
+      function updateDualEngineScanTelemetry(data) {
+        const dedupedCount = typeof data.deduplicatedTotal === 'number' ? data.deduplicatedTotal : (data.current || extractedPlaces.length);
+        const netBadge = document.getElementById('telemetryNetDedupBadge');
+        if (netBadge) netBadge.innerText = `✅ الإجمالي الصافي: ${Number(dedupedCount).toLocaleString()}`;
+        if (data.scopeLabel) {
+          const scopeEl = document.getElementById('telemetryActiveScopeBadge');
+          if (scopeEl) scopeEl.innerText = `🎯 النطاق: ${data.scopeLabel}`;
+        }
+        if (typeof data.googleCount === 'number' || typeof data.osmCount === 'number') {
+          const gVal = Number(data.googleCount || 0).toLocaleString();
+          const oVal = Number(data.osmCount || 0).toLocaleString();
+          const dualTxt = `🌐 Google: ${gVal} | 🗺️ OSM: ${oVal}`;
+          const tDual = document.getElementById('telemetryDualEngineBadge');
+          if (tDual) tDual.innerText = dualTxt;
+          const pDual = document.getElementById('progressDualEngineBadge');
+          if (pDual) pDual.innerText = dualTxt;
+          const dqG = document.getElementById('dqGoogleCount');
+          if (dqG) dqG.innerText = gVal;
+          const dqO = document.getElementById('dqOsmCount');
+          if (dqO) dqO.innerText = oVal;
+        }
+      }
 
       currentEventSource.addEventListener('progress', (event) => {
         const data = JSON.parse(event.data);
@@ -2481,6 +2817,7 @@
           const dqQt = document.getElementById('dqQuadtreeCellsValue');
           if (dqQt) dqQt.innerText = `${data.scannedCells} / ${data.totalCells}${subTxt}`;
         }
+        updateDualEngineScanTelemetry(data);
       });
 
       currentEventSource.addEventListener('quadtree_progress', (event) => {
@@ -2497,6 +2834,7 @@
         if (typeof data.deduplicatedTotal === 'number') {
           progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(data.deduplicatedTotal).toLocaleString()} موقع`;
         }
+        updateDualEngineScanTelemetry(data);
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -3655,27 +3993,41 @@
             if (locInput && !locInput.value.trim()) {
               locInput.value = window.lastAutoDetectedGpsCity;
             }
+            updateComprehensiveScopePanelLabels();
             return;
           }
         }
         lastReverseGeocodedCoords = { lat, lng };
-        const res = await fetch(`/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lng=${encodeURIComponent(lng)}`);
+        const res = await fetch(`/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&lng=${encodeURIComponent(lng)}`);
         if (!res.ok) return;
         const data = await res.json();
         const detectedCity = (data && data.city ? String(data.city).trim() : '');
-        const detectedCountry = (data && data.country ? String(data.country).trim() : '');
+        const detectedCountry = (data && data.country ? String(data.country).trim() : '') || 'اليمن';
         if (!detectedCity) return;
+
+        window.detectedUserGeoScope = {
+          city: detectedCity,
+          country: detectedCountry,
+          countryCode: (data && data.countryCode ? String(data.countryCode).trim() : 'ye'),
+          neighborhood: (data && data.neighborhood ? String(data.neighborhood).trim() : ''),
+          cityBbox: Array.isArray(data.cityBbox) && data.cityBbox.length === 4 ? data.cityBbox : [lat - 0.16, lng - 0.16, lat + 0.16, lng + 0.16],
+          countryBbox: Array.isArray(data.countryBbox) && data.countryBbox.length === 4 ? data.countryBbox : [12.10, 41.80, 19.00, 54.60],
+          cityScopeKey: data.cityScopeKey || `ye_${detectedCity}`,
+          countryScopeKey: data.countryScopeKey || `ye_${detectedCountry}`
+        };
 
         const prevAutoCity = window.lastAutoDetectedGpsCity;
         window.lastAutoDetectedGpsCity = detectedCity;
         const scopeLabel = detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity;
         markLocationGranted(scopeLabel);
+        updateComprehensiveScopePanelLabels();
 
         const locInput = document.getElementById('locationInput');
         if (locInput) {
           const currentVal = locInput.value.trim();
+          const targetLoc = window.selectedComprehensiveScopeMode === 'country' ? detectedCountry : detectedCity;
           if (forceUpdate || !currentVal || !window.userManuallyEditedLocation || currentVal === prevAutoCity) {
-            locInput.value = detectedCity;
+            locInput.value = targetLoc;
             window.userManuallyEditedLocation = false;
           }
         }
@@ -4744,10 +5096,11 @@
       detectUserDeviceProfile();
       initLeafletMap();
       loadExtractorUserPreferences();
+      updateComprehensiveScopePanelLabels();
       initOptionalGeolocationCheck();
       initSmartBackAndDoubleTapExit();
       checkPreviousIdbSessionOnLoad();
-      lucide.createIcons();
+      if (window.lucide) lucide.createIcons();
     });
   </script>
 </body>

@@ -4437,15 +4437,17 @@ function getDeviceIpSignature(deviceStr = '', ipStr = '') {
 
 function getVisitorCanonicalKey(item) {
   if (!item) return '';
-  const rawUser = String(item.username || '').trim().replace(/^@+/, '');
-  if (rawUser) {
-    return `user:${normAr(rawUser)}`;
+  const rawVName = String(item.visitorName || '').trim();
+  const cleanUser = normalizeIgUsername(item.username || (!rawVName.includes('•') ? rawVName : ''));
+  if (!item.isDeviceIpAutoAuth && cleanUser && VALID_IG_USERNAME_REGEX.test(cleanUser) && !rawVName.includes('•')) {
+    return `user:${cleanUser}`;
   }
-  const rawName = String(item.visitorName || '').trim().replace(/^@+/, '');
+  const rawName = rawVName.replace(/^@+/, '');
   const nName = normAr(rawName);
   const isGeneric =
     !nName ||
     item.isDeviceIpAutoAuth ||
+    rawVName.includes('•') ||
     nName === normAr('زائر غير مسمى') ||
     nName === normAr('زائر مباشر') ||
     nName === normAr('مستخدم التطبيق') ||
@@ -4462,12 +4464,33 @@ function getVisitorCanonicalKey(item) {
 
 function isVisitorTombstoned(item, logsMeta = {}) {
   if (!item) return true;
+  const rawVName = String(item.visitorName || '').trim();
+  const cleanUser = normalizeIgUsername(item.username || (!rawVName.includes('•') ? rawVName : ''));
+  const isRegisteredUser = Boolean(!item.isDeviceIpAutoAuth && cleanUser && VALID_IG_USERNAME_REGEX.test(cleanUser) && !rawVName.includes('•'));
+  if (cleanUser === '1') return false;
+
   const itemTime = new Date(item.lastSeen || item.firstSeen || 0).getTime() || 0;
   const clearedAt = Number(logsMeta.clearedAllVisitorsAt) || 0;
-  if (clearedAt > 0 && itemTime <= clearedAt) {
-    return true;
+  if (clearedAt > 0 && itemTime > 0 && itemTime <= clearedAt) {
+    // Only consider cleared if the account doesn't actively exist in savedAccounts
+    if (!isRegisteredUser || !(logsMeta.savedAccounts && logsMeta.savedAccounts[cleanUser])) {
+      return true;
+    }
   }
   const delMap = logsMeta.deletedVisitorKeys || {};
+  if (isRegisteredUser) {
+    // Registered users are keyed strictly by username — NEVER tombstone them by shared device/browser visitorId!
+    const userDelAt = Math.max(
+      Number(delMap[`user:${cleanUser}`]) || 0,
+      Number(delMap[`name:${cleanUser}`]) || 0,
+      Number(delMap[`id:user_${cleanUser}`]) || 0
+    );
+    if (userDelAt > 0 && itemTime > 0 && itemTime <= userDelAt && !(logsMeta.savedAccounts && logsMeta.savedAccounts[cleanUser])) {
+      return true;
+    }
+    return false;
+  }
+
   const key = getVisitorCanonicalKey(item);
   const idKey = `id:${item.id}`;
   const deletedAt = Math.max(Number(delMap[key]) || 0, Number(delMap[idKey]) || 0);
@@ -4499,7 +4522,7 @@ function checkUserBannedStatus(rawUsernameOrHandle = '', visitorId = '', logs = 
       if (!v) return false;
       const vUser = normalizeIgUsername(v.username || v.visitorName || '');
       if (vUser === '1') return false;
-      if (cleanU && vUser === cleanU) return true;
+      if (cleanU) return vUser === cleanU;
       if (visitorId && v.id === visitorId) return true;
       return false;
     });
@@ -4518,11 +4541,181 @@ function checkUserBannedStatus(rawUsernameOrHandle = '', visitorId = '', logs = 
   return false;
 }
 
-// Consolidate duplicate visitor entries (by same normalized @username) and archive older snapshots inside `previousLogs`
-// Only keeps valid @username accounts (never saves or displays standalone phone-name / auto-device entries)
+// Reconcile all registered accounts (`savedAccounts`), `visitors`, and distinct usernames found in `searches` (`searchLogs`, e.g. @medoyas)
+// Keyed strictly by `username` so accounts sharing the same IP or device NEVER overwrite or merge into each other!
+function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
+  if (!logs || typeof logs !== 'object') return;
+  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') logs.savedAccounts = {};
+  if (!Array.isArray(logs.visitors)) logs.visitors = [];
+  if (!Array.isArray(logs.searches)) logs.searches = [];
+
+  ensurePrimaryAdminAccount(logs);
+
+  const nowIso = new Date().toISOString();
+  const firstKnownRealIp = fallbackRealIp ||
+    (logs.visitors.find(v => v && !isLoopbackIp(v.ip))?.ip) ||
+    (logs.searches.find(s => s && !isLoopbackIp(s.ip))?.ip) ||
+    '127.0.0.1';
+
+  // 1. Discover any distinct username present in `logs.searches` (such as `medoyas`) and ensure it exists in `savedAccounts`
+  const searchesByUsername = new Map();
+  for (const s of logs.searches) {
+    if (!s) continue;
+    const rawSName = String(s.username || s.visitorName || '').trim();
+    if (!rawSName || rawSName.includes('•')) continue;
+    const cleanSU = normalizeIgUsername(rawSName);
+    if (!cleanSU || !VALID_IG_USERNAME_REGEX.test(cleanSU) || cleanSU === 'guest' || cleanSU === 'زائر') continue;
+
+    if (!searchesByUsername.has(cleanSU)) {
+      searchesByUsername.set(cleanSU, []);
+    }
+    searchesByUsername.get(cleanSU).push(s);
+
+    // Ensure a persistent entry in savedAccounts for any username discovered in searchLogs
+    if (!logs.savedAccounts[cleanSU]) {
+      const sIp = !isLoopbackIp(s.ip) ? s.ip : firstKnownRealIp;
+      const rawCity = String(s.targetLocation || s.visitorLocation || 'صنعاء').split(/[،,-]/)[0].trim() || 'صنعاء';
+      logs.savedAccounts[cleanSU] = {
+        username: `@${cleanSU}`,
+        passwordHash: '',
+        searchQuota: 1000,
+        isBanned: false,
+        suspended: false,
+        city: rawCity,
+        country: 'اليمن',
+        ip: sIp,
+        device: 'هاتف ذكي / متصفح ويب مباشر',
+        createdAt: s.timestamp || nowIso,
+        updatedAt: s.timestamp || nowIso
+      };
+    }
+  }
+
+  // 2. Ensure every registered user in `logs.visitors` is synced into `logs.savedAccounts`
+  for (const v of logs.visitors) {
+    if (!v || v.isDeviceIpAutoAuth) continue;
+    const rawVName = String(v.visitorName || '').trim();
+    if (rawVName.includes('•')) continue;
+    const u = normalizeIgUsername(v.username || rawVName);
+    if (!u || !VALID_IG_USERNAME_REGEX.test(u)) continue;
+
+    const p = String(v.accountPassword || '').trim();
+    const pHash = String(v.passwordHash || '').trim();
+    const computedHash = pHash.startsWith('$2')
+      ? pHash
+      : (p ? (p.startsWith('$2') ? p : bcrypt.hashSync(p, 10)) : '');
+
+    if (!logs.savedAccounts[u]) {
+      logs.savedAccounts[u] = {
+        username: `@${u}`,
+        passwordHash: computedHash,
+        searchQuota: typeof v.searchQuota === 'number' ? v.searchQuota : 1000,
+        isBanned: u === '1' ? false : Boolean(v.isBanned ?? v.suspended),
+        suspended: u === '1' ? false : Boolean(v.isBanned ?? v.suspended),
+        city: v.city || 'صنعاء',
+        country: v.country || 'اليمن',
+        lat: typeof v.lat === 'number' ? v.lat : 15.3538,
+        lng: typeof v.lng === 'number' ? v.lng : 44.2058,
+        device: v.device || '',
+        ip: !isLoopbackIp(v.ip) ? v.ip : firstKnownRealIp,
+        createdAt: v.firstSeen || nowIso,
+        updatedAt: v.lastSeen || nowIso
+      };
+    } else {
+      if (computedHash && !logs.savedAccounts[u].passwordHash) {
+        logs.savedAccounts[u].passwordHash = computedHash;
+      }
+      if (!logs.savedAccounts[u].ip || isLoopbackIp(logs.savedAccounts[u].ip)) {
+        if (!isLoopbackIp(v.ip)) logs.savedAccounts[u].ip = v.ip;
+      }
+      if (!logs.savedAccounts[u].device && v.device) {
+        logs.savedAccounts[u].device = v.device;
+      }
+      if (!logs.savedAccounts[u].city && v.city) {
+        logs.savedAccounts[u].city = v.city;
+      }
+    }
+    if (v.accountPassword) v.accountPassword = '';
+  }
+
+  // 3. Ensure EVERY registered user in `logs.savedAccounts` (including accounts from `savedAccounts` or `searches` like `@medoyas`) has an entry in `logs.visitors`
+  const existingUsersInVisitors = new Set();
+  for (const v of logs.visitors) {
+    if (!v || v.isDeviceIpAutoAuth) continue;
+    const rawVName = String(v.visitorName || '').trim();
+    if (rawVName.includes('•')) continue;
+    const u = normalizeIgUsername(v.username || rawVName);
+    if (u && VALID_IG_USERNAME_REGEX.test(u)) {
+      existingUsersInVisitors.add(u);
+    }
+  }
+
+  for (const [rawKey, acc] of Object.entries(logs.savedAccounts)) {
+    const cleanU = normalizeIgUsername(rawKey || acc?.username || '');
+    if (!cleanU || !VALID_IG_USERNAME_REGEX.test(cleanU)) continue;
+    if (existingUsersInVisitors.has(cleanU)) continue;
+
+    const userSearchList = searchesByUsername.get(cleanU) || [];
+    const latestSearch = userSearchList[0] || null;
+    const earliestSearch = userSearchList[userSearchList.length - 1] || null;
+    const resolvedIp = (!isLoopbackIp(acc?.ip) ? acc.ip : (!isLoopbackIp(latestSearch?.ip) ? latestSearch.ip : firstKnownRealIp)) || '127.0.0.1';
+    const resolvedCity = acc?.city || (latestSearch?.targetLocation ? String(latestSearch.targetLocation).split(/[،,-]/)[0].trim() : 'صنعاء') || 'صنعاء';
+    const resolvedCountry = acc?.country || 'اليمن';
+    const firstSeenIso = acc?.createdAt || earliestSearch?.timestamp || nowIso;
+    const lastSeenIso = latestSearch?.timestamp || acc?.updatedAt || firstSeenIso;
+    const isBannedFlag = cleanU === '1' ? false : Boolean(acc?.isBanned ?? acc?.suspended);
+
+    logs.visitors.push({
+      id: `user_${cleanU}`,
+      visitorName: `@${cleanU}`,
+      username: `@${cleanU}`,
+      accountPassword: '',
+      hasPasswordHash: Boolean(acc?.passwordHash),
+      searchQuota: typeof acc?.searchQuota === 'number' ? acc.searchQuota : 1000,
+      isBanned: isBannedFlag,
+      suspended: isBannedFlag,
+      isDeviceIpAutoAuth: false,
+      ip: resolvedIp,
+      localIp: acc?.localIp || '',
+      asn: acc?.asn || '',
+      country: resolvedCountry,
+      city: resolvedCity,
+      region: acc?.region || 'أمانة العاصمة',
+      locationName: `${resolvedCity}، ${resolvedCountry}`,
+      isp: normalizeRealIspName(acc?.isp || '', resolvedCountry, resolvedIp),
+      lat: typeof acc?.lat === 'number' ? acc.lat : 15.3538,
+      lng: typeof acc?.lng === 'number' ? acc.lng : 44.2058,
+      locationSource: acc?.locationSource || 'IN_APP',
+      accuracy: null,
+      device: normalizeRealDeviceName(acc?.device || 'هاتف ذكي / متصفح ويب مباشر', ''),
+      firstSeen: firstSeenIso,
+      lastSeen: lastSeenIso,
+      pageViews: Math.max(1, userSearchList.length),
+      loginCount: 1,
+      searchesCount: userSearchList.length,
+      sessionSearches: userSearchList.map(s => ({
+        id: s.id,
+        query: s.query || 'مسح شامل',
+        targetLocation: s.targetLocation || resolvedCity,
+        targetNeighborhood: s.targetNeighborhood || 'الكل',
+        resultsCount: s.resultsCount || 0,
+        timestamp: s.timestamp || lastSeenIso
+      })),
+      previousLogs: []
+    });
+    existingUsersInVisitors.add(cleanU);
+  }
+}
+
+// Consolidate duplicate visitor entries (registered users strictly by normalized @username; anonymous guests by IP/device)
 function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = {}) {
+  if (logsMeta && typeof logsMeta === 'object') {
+    logsMeta.visitors = visitors;
+    reconcileAllUsersAndVisitors(logsMeta, fallbackRealIp);
+    visitors = logsMeta.visitors;
+  }
+
   const mapByKey = new Map();
-  // Find any known real public IP in the logs to heal legacy ::1 loopback entries
   const firstKnownRealIp = fallbackRealIp || (visitors.find(v => v && !isLoopbackIp(v.ip))?.ip) || '';
 
   // Sort newest lastSeen first so the main record holds the latest state and older records become archived snapshots
@@ -4534,7 +4727,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
     if (!item || isVisitorTombstoned(item, logsMeta)) continue;
     const rawVName = String(item.visitorName || '').trim();
     const cleanUser = normalizeIgUsername(item.username || (!rawVName.includes('•') ? rawVName : ''));
-    // Keep pre-login / instant link-open GPS or IP sessions visible on the Admin map until upgraded on login
+
+    // Anonymous guest / pre-login device session: merge by IP/device only
     if (item.isDeviceIpAutoAuth || !cleanUser || !VALID_IG_USERNAME_REGEX.test(cleanUser) || rawVName.includes('•')) {
       const resolvedAutoIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
       const autoKey = item.deviceIpSignature || getDeviceIpSignature(item.device, resolvedAutoIp) || ('id:' + item.id);
@@ -4560,7 +4754,10 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       continue;
     }
 
+    // Registered user: key STRICTLY by username (`user:${cleanUser}`) and assign deterministic unique id (`user_${cleanUser}`)
+    // Never merge two different usernames even if they share the exact same IP address or device!
     const key = `user:${cleanUser}`;
+    const canonicalUserId = `user_${cleanUser}`;
     const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
     const formattedUsername = `@${cleanUser}`;
     const savedAcc = (logsMeta && logsMeta.savedAccounts && logsMeta.savedAccounts[cleanUser]) || {};
@@ -4572,14 +4769,34 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
             : (typeof savedAcc.suspended === 'boolean' ? savedAcc.suspended : (item.isBanned ?? item.suspended))
         );
 
+    // Match all searches belonging to this username from logsMeta.searches
+    const matchedUserSearches = Array.isArray(logsMeta?.searches)
+      ? logsMeta.searches.filter(s => s && normalizeIgUsername(s.username || s.visitorName || '') === cleanUser)
+      : [];
+
     if (!mapByKey.has(key)) {
+      const baseSessionSearches = Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [];
+      for (const ms of matchedUserSearches) {
+        const exists = baseSessionSearches.some(bs => (bs.id && bs.id === ms.id) || (bs.timestamp === ms.timestamp && bs.query === ms.query));
+        if (!exists) {
+          baseSessionSearches.push({
+            id: ms.id,
+            query: ms.query,
+            targetLocation: ms.targetLocation,
+            targetNeighborhood: ms.targetNeighborhood,
+            resultsCount: ms.resultsCount,
+            timestamp: ms.timestamp
+          });
+        }
+      }
       mapByKey.set(key, {
         ...item,
+        id: canonicalUserId,
         visitorName: formattedUsername,
         username: formattedUsername,
         accountPassword: '',
         hasPasswordHash: Boolean(savedAcc.passwordHash || item.passwordHash || item.accountPassword),
-        searchQuota: typeof item.searchQuota === 'number' ? item.searchQuota : (typeof savedAcc.searchQuota === 'number' ? savedAcc.searchQuota : 1000),
+        searchQuota: typeof savedAcc.searchQuota === 'number' ? savedAcc.searchQuota : (typeof item.searchQuota === 'number' ? item.searchQuota : 1000),
         isBanned: authoritativeBanned,
         suspended: authoritativeBanned,
         isDeviceIpAutoAuth: false,
@@ -4589,7 +4806,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
-        sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
+        searchesCount: Math.max(item.searchesCount || 0, baseSessionSearches.length),
+        sessionSearches: baseSessionSearches,
         previousLogs: Array.isArray(item.previousLogs)
           ? item.previousLogs.map(snap => {
               const snapIp = !isLoopbackIp(snap.ip) ? snap.ip : resolvedIp;
@@ -4607,6 +4825,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       });
     } else {
       const primary = mapByKey.get(key);
+      primary.id = canonicalUserId;
       primary.visitorName = formattedUsername;
       primary.username = formattedUsername;
       primary.isDeviceIpAutoAuth = false;
@@ -4616,19 +4835,13 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       if (!primary.localIp && item.localIp) {
         primary.localIp = item.localIp;
       }
-      if (!primary.accountPassword && item.accountPassword) {
-        primary.accountPassword = item.accountPassword;
-      }
       primary.pageViews = (primary.pageViews || 1) + (item.pageViews || 1);
       primary.loginCount = (primary.loginCount || 1) + (item.loginCount || 1);
-      primary.searchesCount = (primary.searchesCount || 0) + (item.searchesCount || 0);
 
-      // Keep earliest firstSeen
       if (item.firstSeen && (!primary.firstSeen || new Date(item.firstSeen) < new Date(primary.firstSeen))) {
         primary.firstSeen = item.firstSeen;
       }
 
-      // Archive this older duplicate record inside `previousLogs`
       primary.previousLogs.push({
         archivedAt: item.lastSeen || item.firstSeen || new Date().toISOString(),
         previousLastSeen: item.lastSeen || item.firstSeen,
@@ -4641,7 +4854,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         locationName: item.locationName,
         lat: item.lat,
         lng: item.lng,
-        locationSource: item.locationSource || 'GPS',
+        locationSource: item.locationSource || 'IN_APP',
         device: normalizeRealDeviceName(item.device, item.userAgent)
       });
 
@@ -4658,9 +4871,11 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
 
       if (Array.isArray(item.sessionSearches)) {
         for (const s of item.sessionSearches) {
-          primary.sessionSearches.push(s);
+          const exists = primary.sessionSearches.some(bs => (bs.id && bs.id === s.id) || (bs.timestamp === s.timestamp && bs.query === s.query));
+          if (!exists) primary.sessionSearches.push(s);
         }
       }
+      primary.searchesCount = Math.max(primary.searchesCount || 0, primary.sessionSearches.length);
     }
   }
 
@@ -4668,38 +4883,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
 }
 
 function syncSavedAccountsMap(logs) {
-  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
-    logs.savedAccounts = {};
-  }
-  ensurePrimaryAdminAccount(logs);
-  for (const v of (logs.visitors || [])) {
-    if (!v || v.isDeviceIpAutoAuth) continue;
-    const u = normalizeIgUsername(v.username || v.visitorName || '');
-    const p = String(v.accountPassword || '').trim();
-    const pHash = String(v.passwordHash || '').trim();
-    if (u && VALID_IG_USERNAME_REGEX.test(u)) {
-      if (!logs.savedAccounts[u]) {
-        const computedHash = pHash.startsWith('$2')
-          ? pHash
-          : (p ? (p.startsWith('$2') ? p : bcrypt.hashSync(p, 10)) : '');
-        if (computedHash) {
-          logs.savedAccounts[u] = {
-            username: `@${u}`,
-            passwordHash: computedHash,
-            searchQuota: typeof v.searchQuota === 'number' ? v.searchQuota : 1000,
-            suspended: Boolean(v.suspended),
-            device: v.device || '',
-            ip: v.ip || '',
-            createdAt: v.firstSeen || new Date().toISOString(),
-            updatedAt: v.lastSeen || new Date().toISOString()
-          };
-        }
-      }
-      if (v.accountPassword) {
-        v.accountPassword = '';
-      }
-    }
-  }
+  reconcileAllUsersAndVisitors(logs, '');
   return logs.savedAccounts;
 }
 
@@ -4830,51 +5014,62 @@ async function recordVisitor(info) {
     const hashed = (cleanPassword && !cleanPassword.startsWith('$2'))
       ? bcrypt.hashSync(cleanPassword, 10)
       : (prevAcc.passwordHash || '');
+    const isBannedFlag = normInputName === '1' ? false : Boolean(prevAcc.isBanned ?? prevAcc.suspended);
     logs.savedAccounts[normInputName] = {
+      ...prevAcc,
       username: `@${normInputName}`,
       passwordHash: hashed,
       searchQuota: typeof prevAcc.searchQuota === 'number' ? prevAcc.searchQuota : 1000,
-      suspended: Boolean(prevAcc.suspended),
+      isBanned: isBannedFlag,
+      suspended: isBannedFlag,
+      city: finalCity || prevAcc.city || 'صنعاء',
+      country: finalCountry || prevAcc.country || 'اليمن',
+      lat: info.lat ? Number(info.lat) : (typeof prevAcc.lat === 'number' ? prevAcc.lat : 15.3538),
+      lng: info.lng ? Number(info.lng) : (typeof prevAcc.lng === 'number' ? prevAcc.lng : 44.2058),
       device: cleanDevice,
-      ip: incomingRealIp,
+      ip: incomingRealIp || prevAcc.ip || '127.0.0.1',
       createdAt: prevCreated,
       updatedAt: now
     };
   }
   const effectivePassword = '';
 
-  // Match existing visitor by:
-  // 1) If logging into an existing @username (even from a 2nd device!), match that @username record first!
-  // 2) Or if upgrading an unregistered Device+IP visit on this same device into a newly registered @username, match by visitorId or deviceIpSig (only if that record doesn't belong to a DIFFERENT @username!)
+  // Match existing visitor STRICTLY by @username for registered users (NEVER merge or overwrite a different @username on the same IP/device!)
+  // Only match by IP/device when handling an anonymous guest (`isAutoDeviceOnly`).
   let vIndex = -1;
   if (!isAutoDeviceOnly && normInputName) {
-    // First look for an existing record with the exact same @username (supports logging in from a 2nd device!)
     vIndex = logs.visitors.findIndex(x => {
-      if (!x) return false;
-      const xUser = normalizeIgUsername(x.username || (!x.isDeviceIpAutoAuth ? x.visitorName : ''));
+      if (!x || x.isDeviceIpAutoAuth) return false;
+      const xUser = normalizeIgUsername(x.username || (!String(x.visitorName || '').includes('•') ? x.visitorName : ''));
       return xUser === normInputName;
     });
-    // If this is a brand new account registration, upgrade any unregistered auto-device record from the same device+IP
-    if (vIndex === -1) {
-      vIndex = logs.visitors.findIndex(x => {
-        if (!x || !x.isDeviceIpAutoAuth) return false;
-        if (info.visitorId && x.id === info.visitorId) return true;
-        const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
-        return Boolean(deviceIpSig && xDevIpSig === deviceIpSig);
-      });
-    }
-  } else {
-    // Auto Device+IP visit (unregistered visitor)
-    vIndex = logs.visitors.findIndex(x => {
-      if (!x) return false;
+    // Remove any leftover anonymous guest record on this same device+IP without overwriting any registered user
+    logs.visitors = logs.visitors.filter(x => {
+      if (!x || !x.isDeviceIpAutoAuth) return true;
       const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
-      if (deviceIpSig && xDevIpSig === deviceIpSig && x.isDeviceIpAutoAuth) return true;
-      if (info.visitorId && x.id === info.visitorId && x.isDeviceIpAutoAuth) return true;
+      if (deviceIpSig && xDevIpSig === deviceIpSig) return false;
+      if (info.visitorId && x.id === info.visitorId) return false;
+      return true;
+    });
+    // Recalculate vIndex after filtering anonymous guest entries
+    vIndex = logs.visitors.findIndex(x => {
+      if (!x || x.isDeviceIpAutoAuth) return false;
+      const xUser = normalizeIgUsername(x.username || (!String(x.visitorName || '').includes('•') ? x.visitorName : ''));
+      return xUser === normInputName;
+    });
+  } else {
+    // Auto Device+IP visit (unregistered anonymous guest only)
+    vIndex = logs.visitors.findIndex(x => {
+      if (!x || !x.isDeviceIpAutoAuth) return false;
+      const xDevIpSig = getDeviceIpSignature(x.device, x.ip);
+      if (deviceIpSig && xDevIpSig === deviceIpSig) return true;
+      if (info.visitorId && x.id === info.visitorId) return true;
       return false;
     });
   }
 
   let v = vIndex !== -1 ? logs.visitors[vIndex] : null;
+  const canonicalUserId = (!isAutoDeviceOnly && normInputName) ? `user_${normInputName}` : null;
 
   if (v) {
     // Archive previous session/location snapshot before updating with the new login/location data
@@ -4886,7 +5081,7 @@ async function recordVisitor(info) {
       previousLastSeen: v.lastSeen || v.firstSeen || now,
       visitorName: v.visitorName,
       username: v.username || '',
-      accountPassword: v.accountPassword || '',
+      accountPassword: '',
       ip: !isLoopbackIp(v.ip) ? v.ip : (incomingRealIp || v.ip),
       localIp: v.localIp || '',
       city: v.city,
@@ -4894,19 +5089,16 @@ async function recordVisitor(info) {
       locationName: v.locationName,
       lat: v.lat,
       lng: v.lng,
-      locationSource: v.locationSource || 'GPS',
+      locationSource: v.locationSource || 'IN_APP',
       isp: normalizeRealIspName(v.isp, v.country, v.ip),
       device: normalizeRealDeviceName(v.device, v.userAgent)
     });
-    // Keep up to 50 historical snapshots per user
     if (v.previousLogs.length > 50) {
       v.previousLogs = v.previousLogs.slice(0, 50);
     }
 
-    // Keep the latest visitorId linked if provided
-    if (info.visitorId) {
-      v.id = info.visitorId;
-    }
+    // Registered users ALWAYS use their deterministic `user_<username>` ID so two accounts on the same browser/IP never share `v.id`!
+    v.id = canonicalUserId || info.visitorId || v.id;
     v.lastSeen = now;
     v.pageViews = (v.pageViews || 1) + 1;
     v.loginCount = (v.loginCount || 1) + 1;
@@ -4924,7 +5116,6 @@ async function recordVisitor(info) {
     }
     v.deviceIpSignature = deviceIpSig;
 
-    // Always update with the latest real IP on every visit
     if (incomingRealIp) {
       v.ip = incomingRealIp;
     }
@@ -4938,11 +5129,10 @@ async function recordVisitor(info) {
       v.userAgent = info.userAgent;
     }
 
-    // Update coordinates strictly from High-Accuracy GPS (no IP coordinate fallback)
     if (info.lat && info.lng) {
       v.lat = Number(info.lat);
       v.lng = Number(info.lng);
-      v.locationSource = 'GPS';
+      v.locationSource = info.locationSource || 'IN_APP';
       v.accuracy = info.accuracy || v.accuracy || null;
       v.country = finalCountry;
       v.city = finalCity;
@@ -4952,7 +5142,6 @@ async function recordVisitor(info) {
     v.isp = cleanIsp;
     v.device = cleanDevice;
 
-    // Move updated visitor to the top of the list
     logs.visitors.splice(vIndex, 1);
     logs.visitors.unshift(v);
   } else {
@@ -4960,17 +5149,22 @@ async function recordVisitor(info) {
     const prevDelTs = Math.max(
       Number(logs.clearedAllVisitorsAt) || 0,
       Number(logs.deletedVisitorKeys?.[tempKey]) || 0,
-      Number(logs.deletedVisitorKeys?.[`name:${normInputName}`]) || 0,
-      Number(logs.deletedVisitorKeys?.[`id:${info.visitorId}`]) || 0
+      Number(logs.deletedVisitorKeys?.[`name:${normInputName}`]) || 0
     );
     const freshLoginMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
     const freshIso = new Date(freshLoginMs).toISOString();
 
     v = {
-      id: `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      id: canonicalUserId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       visitorName: cleanInputName,
       username: !isAutoDeviceOnly ? (cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`) : '',
       accountPassword: effectivePassword || '',
+      hasPasswordHash: Boolean(!isAutoDeviceOnly && normInputName && logs.savedAccounts[normInputName]?.passwordHash),
+      searchQuota: (!isAutoDeviceOnly && normInputName && typeof logs.savedAccounts[normInputName]?.searchQuota === 'number')
+        ? logs.savedAccounts[normInputName].searchQuota
+        : 1000,
+      isBanned: false,
+      suspended: false,
       isDeviceIpAutoAuth: isAutoDeviceOnly,
       deviceIpSignature: deviceIpSig,
       ip: incomingRealIp || info.ip || '127.0.0.1',
@@ -4982,9 +5176,9 @@ async function recordVisitor(info) {
       region: finalRegion,
       locationName: finalLocationName,
       isp: cleanIsp,
-      lat: info.lat ? Number(info.lat) : null,
-      lng: info.lng ? Number(info.lng) : null,
-      locationSource: 'GPS',
+      lat: info.lat ? Number(info.lat) : 15.3538,
+      lng: info.lng ? Number(info.lng) : 44.2058,
+      locationSource: info.locationSource || 'IN_APP',
       accuracy: info.accuracy || null,
       device: cleanDevice,
       firstSeen: freshIso,
@@ -4999,52 +5193,85 @@ async function recordVisitor(info) {
   }
   if (logs.deletedVisitorKeys && v) {
     delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
-    delete logs.deletedVisitorKeys[`name:${normInputName}`];
-    delete logs.deletedVisitorKeys[deviceIpSig];
-    delete logs.deletedVisitorKeys[`id:${v.id}`];
-    if (info.visitorId) {
-      delete logs.deletedVisitorKeys[`id:${info.visitorId}`];
+    if (normInputName) {
+      delete logs.deletedVisitorKeys[`user:${normInputName}`];
+      delete logs.deletedVisitorKeys[`name:${normInputName}`];
+      delete logs.deletedVisitorKeys[`id:user_${normInputName}`];
     }
+    delete logs.deletedVisitorKeys[`id:${v.id}`];
   }
+  reconcileAllUsersAndVisitors(logs, incomingRealIp);
   saveAdminLogs(logs);
   return v;
 }
 
 function recordSearch(searchInfo) {
   const logs = loadAdminLogs();
-  const cleanSearchName = String(searchInfo.visitorName || '').trim();
-  const normSearchName = normAr(cleanSearchName);
+  const rawSearchName = String(searchInfo.visitorName || searchInfo.username || '').trim();
+  const cleanSearchUser = (!rawSearchName.includes('•')) ? normalizeIgUsername(rawSearchName) : '';
+  const isRegisteredSearchUser = Boolean(cleanSearchUser && VALID_IG_USERNAME_REGEX.test(cleanSearchUser) && cleanSearchUser !== 'guest');
 
-  let v = logs.visitors.find(x =>
-    (searchInfo.visitorId && x.id === searchInfo.visitorId) ||
-    (normSearchName && normAr(x.visitorName || '') === normSearchName)
-  );
+  // Match strictly by username FIRST so two accounts on the same browser/IP never attribute searches or overwrite each other via shared visitorId!
+  let v = null;
+  if (isRegisteredSearchUser) {
+    v = logs.visitors.find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === cleanSearchUser);
+  }
+  if (!v && !isRegisteredSearchUser && searchInfo.visitorId) {
+    v = logs.visitors.find(x => x && x.id === searchInfo.visitorId);
+  }
 
-  const tempKey = normSearchName ? `name:${normSearchName}` : `id:${searchInfo.visitorId || ''}`;
+  const tempKey = isRegisteredSearchUser ? `user:${cleanSearchUser}` : `id:${searchInfo.visitorId || ''}`;
   const prevDelTs = Math.max(
     Number(logs.clearedAllVisitorsAt) || 0,
     Number(logs.deletedVisitorKeys?.[tempKey]) || 0,
-    Number(logs.deletedVisitorKeys?.[`id:${searchInfo.visitorId}`]) || 0
+    Number(logs.deletedVisitorKeys?.[`name:${cleanSearchUser}`]) || 0
   );
   const freshMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
   const now = new Date(freshMs).toISOString();
 
-  // If the visitor was previously deleted and now actively performs a new search, register a fresh new session for them
-  if (!v && (searchInfo.visitorId || cleanSearchName)) {
+  // If the user performed a search (e.g. @medoyas) and is missing from visitors or savedAccounts, create a persistent entry for them immediately!
+  if (isRegisteredSearchUser) {
+    if (!logs.savedAccounts) logs.savedAccounts = {};
+    if (!logs.savedAccounts[cleanSearchUser]) {
+      logs.savedAccounts[cleanSearchUser] = {
+        username: `@${cleanSearchUser}`,
+        passwordHash: '',
+        searchQuota: 1000,
+        isBanned: false,
+        suspended: false,
+        city: searchInfo.location || 'صنعاء',
+        country: 'اليمن',
+        ip: searchInfo.ip || '127.0.0.1',
+        device: 'هاتف ذكي / متصفح ويب مباشر',
+        createdAt: now,
+        updatedAt: now
+      };
+    }
+  }
+
+  if (!v && (isRegisteredSearchUser || searchInfo.visitorId || rawSearchName)) {
+    const formattedName = isRegisteredSearchUser ? `@${cleanSearchUser}` : (rawSearchName || 'مستخدم التطبيق');
     v = {
-      id: `login_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
-      visitorName: cleanSearchName || 'مستخدم التطبيق',
+      id: isRegisteredSearchUser ? `user_${cleanSearchUser}` : `login_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      visitorName: formattedName,
+      username: isRegisteredSearchUser ? formattedName : '',
+      searchQuota: isRegisteredSearchUser && typeof logs.savedAccounts?.[cleanSearchUser]?.searchQuota === 'number'
+        ? logs.savedAccounts[cleanSearchUser].searchQuota
+        : 1000,
+      isBanned: false,
+      suspended: false,
+      isDeviceIpAutoAuth: !isRegisteredSearchUser,
       ip: searchInfo.ip || '127.0.0.1',
       country: 'اليمن',
       city: searchInfo.location || 'صنعاء',
       region: searchInfo.neighborhood || 'أمانة العاصمة',
       locationName: searchInfo.visitorLocation || `${searchInfo.location || 'صنعاء'}، اليمن`,
-      isp: 'مزود الإنترنت',
+      isp: normalizeRealIspName('', 'اليمن', searchInfo.ip || ''),
       lat: 15.340137,
       lng: 44.191831,
-      locationSource: 'SESSION',
+      locationSource: 'IN_APP',
       accuracy: null,
-      device: 'متصفح ويب',
+      device: 'هاتف ذكي / متصفح ويب مباشر',
       firstSeen: now,
       lastSeen: now,
       pageViews: 1,
@@ -5056,16 +5283,21 @@ function recordSearch(searchInfo) {
     logs.visitors.unshift(v);
     if (logs.deletedVisitorKeys) {
       delete logs.deletedVisitorKeys[getVisitorCanonicalKey(v)];
+      if (isRegisteredSearchUser) {
+        delete logs.deletedVisitorKeys[`user:${cleanSearchUser}`];
+        delete logs.deletedVisitorKeys[`name:${cleanSearchUser}`];
+        delete logs.deletedVisitorKeys[`id:user_${cleanSearchUser}`];
+      }
       delete logs.deletedVisitorKeys[`id:${v.id}`];
-      if (searchInfo.visitorId) delete logs.deletedVisitorKeys[`id:${searchInfo.visitorId}`];
     }
   }
 
   const record = {
     id: `srch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    visitorId: v ? v.id : (searchInfo.visitorId || 'guest'),
-    visitorName: v ? v.visitorName : (cleanSearchName || 'زائر'),
-    ip: v ? v.ip : (searchInfo.ip || '127.0.0.1'),
+    visitorId: isRegisteredSearchUser ? `user_${cleanSearchUser}` : (v ? v.id : (searchInfo.visitorId || 'guest')),
+    visitorName: isRegisteredSearchUser ? `@${cleanSearchUser}` : (v ? v.visitorName : (rawSearchName || 'زائر')),
+    username: isRegisteredSearchUser ? `@${cleanSearchUser}` : '',
+    ip: (v && !isLoopbackIp(v.ip)) ? v.ip : (searchInfo.ip || '127.0.0.1'),
     visitorLocation: v ? v.locationName : (searchInfo.visitorLocation || 'اليمن'),
     query: searchInfo.query || 'غير محدد (جميع الأنشطة)',
     targetLocation: searchInfo.location || 'صنعاء',
@@ -5154,13 +5386,15 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const clientIp = extractRealClientIp(req);
 
-  // Log visitor entry & user login endpoint (/api/log-visit and /api/login)
-  if ((pathname === '/api/log-visit' || pathname === '/api/login') && req.method === 'POST') {
+  // Log visitor entry, user login & user registration endpoint (/api/log-visit, /api/login, and /api/register)
+  if ((pathname === '/api/log-visit' || pathname === '/api/login' || pathname === '/api/register') && req.method === 'POST') {
     const data = await readRequestBody(req);
+    if (pathname === '/api/register' && !data.authMode) data.authMode = 'register';
+    if (pathname === '/api/login' && !data.authMode) data.authMode = 'login';
     const logs = loadAdminLogs();
     const checkUser = normalizeIgUsername(data.username || data.visitorName || '');
     if (checkUser && checkUser !== '1' && checkUserBannedStatus(checkUser, data.visitorId, logs)) {
-      const isLoginAttempt = pathname === '/api/login' || data.authMode === 'login' || data.authMode === 'register';
+      const isLoginAttempt = pathname === '/api/login' || pathname === '/api/register' || data.authMode === 'login' || data.authMode === 'register';
       const errText = isLoginAttempt
         ? 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.'
         : 'تم إيقاف حسابك.';
@@ -5444,16 +5678,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Admin Data Dashboard Endpoint (returns ALL non-deleted sessions and searches permanently, consolidated with archived history & normalized ISP/Device)
+  // Admin Data Dashboard Endpoint (returns ALL non-deleted sessions, registered accounts, and search-log users permanently, keyed strictly by username)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
     const fallbackIp = !isLoopbackIp(clientIp) ? clientIp : '';
-    const consolidated = consolidateVisitorsList(logs.visitors || [], fallbackIp, logs);
-    logs.visitors = consolidated;
 
     const deletedSearchSet = new Set(Array.isArray(logs.deletedSearchIds) ? logs.deletedSearchIds : []);
     const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
-    const knownRealIp = fallbackIp || (consolidated.find(v => !isLoopbackIp(v.ip))?.ip) || '';
+    const knownRealIp = fallbackIp || ((logs.visitors || []).find(v => v && !isLoopbackIp(v.ip))?.ip) || '';
 
     if (Array.isArray(logs.searches)) {
       logs.searches = logs.searches
@@ -5469,11 +5701,20 @@ const server = http.createServer(async (req, res) => {
           ip: (!knownRealIp || !isLoopbackIp(s.ip)) ? s.ip : knownRealIp
         }));
     }
+
+    // Reconcile all registered accounts (`savedAccounts`), `visitors`, and distinct usernames found in `logs.searches` (e.g. `medoyas`)
+    const consolidated = consolidateVisitorsList(logs.visitors || [], knownRealIp, logs);
+    logs.visitors = consolidated;
     saveAdminLogs(logs);
+
+    const registeredUsersCount = logs.visitors.filter(v => {
+      if (!v || v.isDeviceIpAutoAuth) return false;
+      const u = normalizeIgUsername(v.username || v.visitorName || '');
+      return Boolean(u && VALID_IG_USERNAME_REGEX.test(u));
+    }).length;
     const totalVisitors = logs.visitors.length;
     const totalSearches = logs.searches.length;
-    
-    // Calculate today visitors
+
     const todayStr = new Date().toISOString().slice(0, 10);
     const todayVisitors = logs.visitors.filter(v => (v.lastSeen || '').startsWith(todayStr)).length;
     const todaySearches = logs.searches.filter(s => (s.timestamp || '').startsWith(todayStr)).length;
@@ -5482,11 +5723,13 @@ const server = http.createServer(async (req, res) => {
     res.end(JSON.stringify({
       stats: {
         totalVisitors,
+        registeredUsersCount,
         totalSearches,
         todayVisitors,
         todaySearches
       },
       visitors: logs.visitors,
+      savedAccounts: logs.savedAccounts || {},
       searches: logs.searches,
       deletedVisitorKeys: logs.deletedVisitorKeys || {},
       deletedSearchIds: logs.deletedSearchIds || [],
@@ -5529,7 +5772,6 @@ const server = http.createServer(async (req, res) => {
         activeKeys.add(`id:${av.id}`);
       }
       for (const [k, ts] of Object.entries(data.deletedVisitorKeys)) {
-        // Never allow client sync to re-delete a visitor who has an active new session on the server!
         if (activeKeys.has(k)) continue;
         const numTs = Number(ts) || 0;
         if (numTs > (Number(logs.deletedVisitorKeys[k]) || 0)) {
@@ -5550,20 +5792,6 @@ const server = http.createServer(async (req, res) => {
       logs.deletedSearchIds = Array.from(sSet);
     }
 
-    if (Array.isArray(data.visitors)) {
-      const existingIds = new Set(logs.visitors.map(v => v.id));
-      for (const item of data.visitors) {
-        if (item && item.id && !existingIds.has(item.id) && !isVisitorTombstoned(item, logs)) {
-          logs.visitors.push(item);
-          existingIds.add(item.id);
-          changed = true;
-        }
-      }
-    }
-
-    logs.visitors = consolidateVisitorsList(logs.visitors, '', logs);
-    syncSavedAccountsMap(logs);
-
     const deletedSearchSet = new Set(logs.deletedSearchIds || []);
     const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
     if (Array.isArray(data.searches)) {
@@ -5583,12 +5811,28 @@ const server = http.createServer(async (req, res) => {
       return clearedSearchesAt === 0 || sTime > clearedSearchesAt;
     }).sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
 
+    // Merge incoming visitors keyed by canonical user key (`user:<username>`) rather than raw `id` so accounts sharing a device ID are never dropped!
+    if (Array.isArray(data.visitors)) {
+      const existingCanonKeys = new Set(logs.visitors.map(v => getVisitorCanonicalKey(v)));
+      for (const item of data.visitors) {
+        if (!item) continue;
+        const cKey = getVisitorCanonicalKey(item);
+        if (cKey && !existingCanonKeys.has(cKey) && !isVisitorTombstoned(item, logs)) {
+          logs.visitors.push(item);
+          existingCanonKeys.add(cKey);
+          changed = true;
+        }
+      }
+    }
+
+    logs.visitors = consolidateVisitorsList(logs.visitors, '', logs);
     saveAdminLogs(logs);
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       success: true,
       visitors: logs.visitors,
+      savedAccounts: logs.savedAccounts || {},
       searches: logs.searches,
       deletedVisitorKeys: logs.deletedVisitorKeys,
       deletedSearchIds: logs.deletedSearchIds,

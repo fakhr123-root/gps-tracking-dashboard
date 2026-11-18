@@ -928,8 +928,25 @@
 
     function isVisitorDeletedByTombstone(v, deletedVisitorKeys = {}, clearedAllVisitorsAt = 0) {
       if (!v) return true;
+      const rawVName = String(v.visitorName || '').trim();
+      const rawU = String(v.username || (!rawVName.includes('•') ? rawVName : '')).trim().replace(/^@+/, '').toLowerCase();
+      if (rawU === '1') return false;
+      const isRegUser = Boolean(!v.isDeviceIpAutoAuth && rawU && ADMIN_VALID_USERNAME_REGEX.test(rawU) && !rawVName.includes('•'));
+
       const vTime = new Date(v.lastSeen || v.firstSeen || 0).getTime() || 0;
-      if (clearedAllVisitorsAt > 0 && vTime <= clearedAllVisitorsAt) return true;
+      if (clearedAllVisitorsAt > 0 && vTime > 0 && vTime <= clearedAllVisitorsAt && !v._fromServer) return true;
+
+      if (isRegUser) {
+        // Registered users are keyed strictly by username — NEVER tombstone them by a shared device visitorId!
+        const userDelTs = Math.max(
+          Number(deletedVisitorKeys[`name:${rawU}`]) || 0,
+          Number(deletedVisitorKeys[`user:${rawU}`]) || 0,
+          Number(deletedVisitorKeys[`id:user_${rawU}`]) || 0
+        );
+        if (userDelTs > 0 && vTime > 0 && vTime <= userDelTs && !v._fromServer) return true;
+        return false;
+      }
+
       const cKey = normVisitorKey(v);
       const idKey = `id:${v.id}`;
       const delTs = Math.max(Number(deletedVisitorKeys[cKey]) || 0, Number(deletedVisitorKeys[idKey]) || 0);
@@ -1031,26 +1048,120 @@
 
     const ADMIN_VALID_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
 
-    function mergeAndArchiveVisitors(list = []) {
+    function mergeAndArchiveVisitors(list = [], savedAccountsMap = {}, allSearchesList = []) {
       const map = new Map();
-      const firstRealIp = (list.find(x => x && !isLoopbackAdminIp(x.ip))?.ip) || '';
-      const sorted = [...list].sort(
+      const firstRealIp =
+        (list.find(x => x && !isLoopbackAdminIp(x.ip))?.ip) ||
+        (allSearchesList.find(s => s && !isLoopbackAdminIp(s.ip))?.ip) ||
+        '';
+
+      // Reconcile accounts from savedAccountsMap and distinct usernames found in allSearchesList (e.g., @medoyas)
+      const reconciledInput = [...list];
+      const seenInputUsers = new Set();
+      for (const item of list) {
+        if (!item) continue;
+        const rawVName = String(item.visitorName || '').trim();
+        const rawU = String(item.username || (!rawVName.includes('•') ? rawVName : '')).trim().replace(/^@+/, '').toLowerCase();
+        if (!item.isDeviceIpAutoAuth && rawU && ADMIN_VALID_USERNAME_REGEX.test(rawU) && !rawVName.includes('•')) {
+          seenInputUsers.add(rawU);
+        }
+      }
+
+      // 1. Add any account from savedAccountsMap missing from list
+      if (savedAccountsMap && typeof savedAccountsMap === 'object') {
+        for (const [k, acc] of Object.entries(savedAccountsMap)) {
+          const cleanU = String(k || acc?.username || '').trim().replace(/^@+/, '').toLowerCase();
+          if (!cleanU || !ADMIN_VALID_USERNAME_REGEX.test(cleanU) || seenInputUsers.has(cleanU)) continue;
+          const userSearches = allSearchesList.filter(s => s && String(s.username || s.visitorName || '').trim().replace(/^@+/, '').toLowerCase() === cleanU);
+          const latestS = userSearches[0] || null;
+          const isBannedFlag = cleanU === '1' ? false : Boolean(acc?.isBanned ?? acc?.suspended);
+          reconciledInput.push({
+            id: `user_${cleanU}`,
+            visitorName: `@${cleanU}`,
+            username: `@${cleanU}`,
+            isBanned: isBannedFlag,
+            suspended: isBannedFlag,
+            searchQuota: typeof acc?.searchQuota === 'number' ? acc.searchQuota : 1000,
+            isDeviceIpAutoAuth: false,
+            ip: (!isLoopbackAdminIp(acc?.ip) ? acc.ip : (!isLoopbackAdminIp(latestS?.ip) ? latestS.ip : firstRealIp)) || '127.0.0.1',
+            city: acc?.city || (latestS?.targetLocation ? String(latestS.targetLocation).split(/[،,-]/)[0].trim() : 'صنعاء') || 'صنعاء',
+            country: acc?.country || 'اليمن',
+            region: 'أمانة العاصمة',
+            locationName: `${acc?.city || 'صنعاء'}، اليمن`,
+            lat: typeof acc?.lat === 'number' ? acc.lat : 15.3538,
+            lng: typeof acc?.lng === 'number' ? acc.lng : 44.2058,
+            locationSource: 'IN_APP',
+            isp: acc?.isp || '',
+            device: acc?.device || 'هاتف ذكي / متصفح مباشر',
+            firstSeen: acc?.createdAt || latestS?.timestamp || new Date().toISOString(),
+            lastSeen: latestS?.timestamp || acc?.updatedAt || new Date().toISOString(),
+            loginCount: 1,
+            searchesCount: userSearches.length,
+            sessionSearches: userSearches,
+            previousLogs: [],
+            _fromServer: true
+          });
+          seenInputUsers.add(cleanU);
+        }
+      }
+
+      // 2. Add any distinct username discovered in searchLogs (e.g. `medoyas`) missing from visitors
+      for (const s of allSearchesList) {
+        if (!s) continue;
+        const rawSName = String(s.username || s.visitorName || '').trim();
+        if (!rawSName || rawSName.includes('•')) continue;
+        const cleanSU = rawSName.replace(/^@+/, '').toLowerCase();
+        if (!cleanSU || !ADMIN_VALID_USERNAME_REGEX.test(cleanSU) || cleanSU === 'guest' || seenInputUsers.has(cleanSU)) continue;
+        const userSearches = allSearchesList.filter(x => x && String(x.username || x.visitorName || '').trim().replace(/^@+/, '').toLowerCase() === cleanSU);
+        const latestS = userSearches[0] || s;
+        const earliestS = userSearches[userSearches.length - 1] || s;
+        const cityStr = String(latestS.targetLocation || latestS.visitorLocation || 'صنعاء').split(/[،,-]/)[0].trim() || 'صنعاء';
+        reconciledInput.push({
+          id: `user_${cleanSU}`,
+          visitorName: `@${cleanSU}`,
+          username: `@${cleanSU}`,
+          isBanned: false,
+          suspended: false,
+          searchQuota: 1000,
+          isDeviceIpAutoAuth: false,
+          ip: (!isLoopbackAdminIp(latestS.ip) ? latestS.ip : firstRealIp) || '127.0.0.1',
+          city: cityStr,
+          country: 'اليمن',
+          region: 'أمانة العاصمة',
+          locationName: `${cityStr}، اليمن`,
+          lat: 15.3538,
+          lng: 44.2058,
+          locationSource: 'IN_APP',
+          isp: '',
+          device: 'هاتف ذكي / متصفح مباشر',
+          firstSeen: earliestS.timestamp || new Date().toISOString(),
+          lastSeen: latestS.timestamp || new Date().toISOString(),
+          loginCount: 1,
+          searchesCount: userSearches.length,
+          sessionSearches: userSearches,
+          previousLogs: []
+        });
+        seenInputUsers.add(cleanSU);
+      }
+
+      const sorted = [...reconciledInput].sort(
         (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
       );
       for (const item of sorted) {
-        if (!item || !item.id) continue;
+        if (!item) continue;
         const rawVName = String(item.visitorName || '').trim();
         const rawU = String(item.username || (!rawVName.includes('•') ? rawVName : '')).trim().replace(/^@+/, '').toLowerCase();
-        // Only keep valid @username accounts; skip any standalone phone-name / auto-device records
         if (item.isDeviceIpAutoAuth || !rawU || !ADMIN_VALID_USERNAME_REGEX.test(rawU) || rawVName.includes('•')) {
           continue;
         }
+        const canonicalId = `user_${rawU}`;
         const resolvedIp = !isLoopbackAdminIp(item.ip) ? item.ip : (firstRealIp || item.ip);
         const cleanedDevice = cleanAdminDevice(item.device);
         const formattedUser = `@${rawU}`;
         const isBannedFlag = rawU === '1' ? false : Boolean(item.isBanned ?? item.suspended);
         const cleanedItem = {
           ...item,
+          id: canonicalId,
           visitorName: formattedUser,
           username: formattedUser,
           isBanned: isBannedFlag,
@@ -1086,6 +1197,7 @@
           });
         } else {
           const primary = map.get(key);
+          primary.id = canonicalId;
           primary.visitorName = formattedUser;
           primary.username = formattedUser;
           primary.isDeviceIpAutoAuth = false;
@@ -1102,25 +1214,6 @@
           }
           if (!primary.localIp && cleanedItem.localIp) {
             primary.localIp = cleanedItem.localIp;
-          }
-          if (primary.id !== cleanedItem.id) {
-            primary.loginCount = (primary.loginCount || 1) + (cleanedItem.loginCount || 1);
-            primary.previousLogs.push({
-              archivedAt: cleanedItem.lastSeen || cleanedItem.firstSeen || new Date().toISOString(),
-              previousLastSeen: cleanedItem.lastSeen || cleanedItem.firstSeen,
-              visitorName: formattedUser,
-              username: formattedUser,
-              ip: cleanedItem.ip,
-              localIp: cleanedItem.localIp || '',
-              city: cleanedItem.city,
-              region: cleanedItem.region,
-              locationName: cleanedItem.locationName,
-              lat: cleanedItem.lat,
-              lng: cleanedItem.lng,
-              locationSource: cleanedItem.locationSource || 'GPS',
-              isp: cleanedItem.isp,
-              device: cleanedItem.device
-            });
           }
           if (Array.isArray(cleanedItem.previousLogs)) {
             for (const snap of cleanedItem.previousLogs) {
@@ -1188,13 +1281,6 @@
             Number(localArch.clearedAllSearchesAt) || 0
           );
 
-          // Filter out any tombstoned visitors BEFORE merging; tag server visitors so their latest ban/quota status always takes precedence over cached localArchive
-          const taggedServerVisitors = (data.visitors || []).map(v => ({ ...v, _fromServer: true }));
-          const combinedRawVisitors = [...taggedServerVisitors, ...(localArch.visitors || [])]
-            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
-          const mergedVisitors = mergeAndArchiveVisitors(combinedRawVisitors)
-            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
-
           const searchMap = new Map();
           for (const s of [...(localArch.searches || []), ...(data.searches || [])]) {
             if (!s || !s.id || mergedDeletedSearchSet.has(s.id)) continue;
@@ -1205,6 +1291,13 @@
           const mergedSearches = Array.from(searchMap.values()).sort(
             (a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
           );
+
+          // Filter out any tombstoned visitors BEFORE merging; reconcile savedAccounts AND distinct usernames in mergedSearches (e.g. @medoyas)
+          const taggedServerVisitors = (data.visitors || []).map(v => ({ ...v, _fromServer: true }));
+          const combinedRawVisitors = [...taggedServerVisitors, ...(localArch.visitors || [])]
+            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
+          const mergedVisitors = mergeAndArchiveVisitors(combinedRawVisitors, data.savedAccounts || {}, mergedSearches)
+            .filter(v => !isVisitorDeletedByTombstone(v, mergedDeletedVisitorKeys, mergedClearedVisitorsAt));
 
           const mergedDeletedSearchIds = Array.from(mergedDeletedSearchSet);
           saveLocalArchive(mergedVisitors, mergedSearches, {
@@ -1547,11 +1640,16 @@
     }
 
     function openVisitorFullDossierById(visitorId) {
+      if (selectedDossierVisitorId === visitorId && currentAdminUsernameQuery) {
+        clearAdminUsernameSearch();
+        return;
+      }
       selectedDossierVisitorId = visitorId;
       pushAdminHistoryStep('dossier');
       const allVisitors = currentAdminData.visitors || [];
-      const target = allVisitors.find(v => v.id === visitorId);
+      const target = allVisitors.find(v => v.id === visitorId || `user_${String(v.username || v.visitorName || '').replace(/^@+/, '').toLowerCase()}` === visitorId);
       if (target) {
+        selectedDossierVisitorId = target.id;
         const inp = document.getElementById('adminUsernameSearchInput');
         const cleanU = String(target.username || target.visitorName || '').replace(/^@+/, '');
         if (inp && cleanU && !target.isDeviceIpAutoAuth) {
@@ -1568,11 +1666,15 @@
       const countBadge = document.getElementById('uniqueUsernamesCountBadge');
       if (!box) return;
 
-      const registeredUsers = allVisitors.filter(v => {
-        if (!v || v.isDeviceIpAutoAuth) return false;
-        const u = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
-        return Boolean(u && !u.includes('•'));
-      });
+      const seenUsers = new Set();
+      const registeredUsers = [];
+      for (const v of allVisitors) {
+        if (!v || v.isDeviceIpAutoAuth) continue;
+        const u = String(v.username || v.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
+        if (!u || u.includes('•') || !ADMIN_VALID_USERNAME_REGEX.test(u) || seenUsers.has(u)) continue;
+        seenUsers.add(u);
+        registeredUsers.push(v);
+      }
 
       if (countBadge) {
         countBadge.innerText = `${registeredUsers.length} يوزر مسجل`;
@@ -1583,9 +1685,25 @@
         return;
       }
 
-      box.innerHTML = registeredUsers.map(v => {
+      const isAllActive = !selectedDossierVisitorId && !currentAdminUsernameQuery;
+      const allPillHtml = `
+        <button
+          type="button"
+          onclick="clearAdminUsernameSearch()"
+          class="px-3 py-1 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+            isAllActive
+              ? 'bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)]'
+              : 'bg-slate-900 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+          }"
+        >
+          <span>عرض الكل (${registeredUsers.length})</span>
+        </button>
+      `;
+
+      box.innerHTML = allPillHtml + registeredUsers.map(v => {
         const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
         const isSelected = selectedDossierVisitorId === v.id || (currentAdminUsernameQuery && cleanU.toLowerCase() === currentAdminUsernameQuery);
+        const isBanned = cleanU.toLowerCase() !== '1' && Boolean(v.isBanned ?? v.suspended);
         return `
           <button
             type="button"
@@ -1593,12 +1711,14 @@
             class="px-3 py-1 rounded-xl text-xs font-num font-bold transition flex items-center gap-1.5 cursor-pointer ${
               isSelected
                 ? 'bg-emerald-400 text-slate-950 shadow-[0_0_15px_rgba(16,185,129,0.5)]'
-                : 'bg-slate-950 hover:bg-emerald-500/20 text-cyan-300 border border-emerald-500/40'
+                : (isBanned
+                    ? 'bg-red-950/60 hover:bg-red-900/50 text-red-300 border border-red-500/50'
+                    : 'bg-slate-950 hover:bg-emerald-500/20 text-cyan-300 border border-emerald-500/40')
             }"
             dir="ltr"
           >
             <span>@${cleanU}</span>
-            <span class="text-[10px] ${isSelected ? 'text-slate-900' : 'text-emerald-400'}">(${v.city || 'صنعاء'})</span>
+            <span class="text-[10px] ${isSelected ? 'text-slate-900' : (isBanned ? 'text-red-400' : 'text-emerald-400')}">(${isBanned ? 'محظور' : (v.city || 'صنعاء')})</span>
           </button>
         `;
       }).join('');

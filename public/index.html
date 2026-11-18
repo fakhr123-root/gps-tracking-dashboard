@@ -2545,6 +2545,17 @@
         }
       });
 
+      currentEventSource.addEventListener('banned', (event) => {
+        let banMsg = 'تم إيقاف حسابك.';
+        try {
+          const data = JSON.parse(event.data);
+          if (data && (data.error || data.message)) banMsg = data.error || data.message;
+        } catch (e) {}
+        finishSearch();
+        document.getElementById('progressContainer')?.classList.add('hidden');
+        handleBannedAccountKickout(banMsg);
+      });
+
       currentEventSource.addEventListener('complete', () => {
         if (streamThrottleTimeout) {
           clearTimeout(streamThrottleTimeout);
@@ -3548,11 +3559,34 @@
       setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
     }
 
+    function handleBannedAccountKickout(banMessage = 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.') {
+      localStorage.removeItem('gmaps_visitor_id');
+      localStorage.removeItem('gmaps_visitor_name');
+      localStorage.removeItem('gmaps_visitor_password');
+      if (currentEventSource) {
+        currentEventSource.close();
+        currentEventSource = null;
+      }
+      closeUserSettingsModal();
+      updateAccountButtonsUI();
+      setGateAuthMode('login');
+      showGateModalOnStep2();
+      const btn = document.getElementById('gateSubmitBtn');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span id="gateSubmitBtnText">تسجيل الدخول</span>`;
+      }
+      const errEl = document.getElementById('loginNameError');
+      if (errEl) {
+        const cleanMsg = String(banMessage || 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.').replace(/^❌\s*/, '');
+        errEl.innerText = `❌ ${cleanMsg}`;
+        errEl.classList.remove('hidden');
+      }
+    }
+
     async function resumeSavedSessionIntoExplorer() {
       const session = getSavedVisitorSession();
       if (!session.hasSession) return;
-
-      finishGateEntry();
 
       const [devProfile, netInfo] = await Promise.all([
         detectUserDeviceProfile(),
@@ -3572,10 +3606,14 @@
         lat: hasGps ? cachedOptionalGps.lat : null,
         lng: hasGps ? cachedOptionalGps.lng : null,
         accuracy: hasGps ? cachedOptionalGps.accuracy : null,
-        locationSource: hasGps ? 'GPS' : 'IP'
+        locationSource: 'GPS'
       };
 
       const resp = await sendVisitPayload(session.visitorId, session.visitorName, geoInfo, deviceStr, session.visitorName, session.accountPassword, 'resume');
+      if (resp && (resp.banned || resp.code === 'ACCOUNT_BANNED' || resp.code === 'ACCOUNT_SUSPENDED')) {
+        handleBannedAccountKickout(resp.error || resp.message || 'تم إيقاف حسابك.');
+        return;
+      }
       if (resp && resp.authError) {
         localStorage.removeItem('gmaps_visitor_name');
         localStorage.removeItem('gmaps_visitor_password');
@@ -3588,6 +3626,8 @@
         }
         return;
       }
+
+      finishGateEntry();
     }
 
     function goToLoginStep2() {
@@ -3865,7 +3905,11 @@
             device: deviceStr
           })
         });
-        return await res.json();
+        const data = await res.json();
+        if (res.status === 403 || (data && data.banned)) {
+          handleBannedAccountKickout((data && (data.error || data.message)) || 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.');
+        }
+        return data;
       } catch (err) {
         return { status: 'network_error' };
       }
@@ -4005,6 +4049,10 @@
           })
         });
         const data = await res.json();
+        if (res.status === 403 || (data && data.banned)) {
+          handleBannedAccountKickout((data && (data.error || data.message)) || 'تم إيقاف حسابك.');
+          return;
+        }
         if (data && data.success) {
           localStorage.setItem('gmaps_visitor_password', newPass);
           if (msgEl) {

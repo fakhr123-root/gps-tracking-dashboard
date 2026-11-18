@@ -3966,6 +3966,41 @@ function normalizeIgUsername(raw = '') {
   return String(raw || '').trim().replace(/^@+/, '').toLowerCase();
 }
 
+function checkUserBannedStatus(rawUsernameOrHandle = '', visitorId = '', logs = null) {
+  const activeLogs = logs || loadAdminLogs();
+  const cleanU = normalizeIgUsername(rawUsernameOrHandle);
+  if (cleanU === '1') return false; // Primary admin "1" is permanently protected
+
+  if (cleanU && activeLogs.savedAccounts) {
+    const acc = activeLogs.savedAccounts[cleanU] || activeLogs.savedAccounts[`@${cleanU}`];
+    if (acc && Boolean(acc.isBanned ?? acc.suspended)) {
+      return true;
+    }
+  }
+  if (Array.isArray(activeLogs.visitors)) {
+    const matchedVisitor = activeLogs.visitors.find(v => {
+      if (!v) return false;
+      const vUser = normalizeIgUsername(v.username || v.visitorName || '');
+      if (vUser === '1') return false;
+      if (cleanU && vUser === cleanU) return true;
+      if (visitorId && v.id === visitorId) return true;
+      return false;
+    });
+    if (matchedVisitor) {
+      const mUser = normalizeIgUsername(matchedVisitor.username || matchedVisitor.visitorName || '');
+      if (mUser === '1') return false;
+      const mAcc = mUser && activeLogs.savedAccounts ? activeLogs.savedAccounts[mUser] : null;
+      if (mAcc && typeof (mAcc.isBanned ?? mAcc.suspended) === 'boolean') {
+        return Boolean(mAcc.isBanned ?? mAcc.suspended);
+      }
+      if (Boolean(matchedVisitor.isBanned ?? matchedVisitor.suspended)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 // Consolidate duplicate visitor entries (by same normalized @username) and archive older snapshots inside `previousLogs`
 // Only keeps valid @username accounts (never saves or displays standalone phone-name / auto-device entries)
 function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = {}) {
@@ -4012,6 +4047,13 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
     const resolvedIp = !isLoopbackIp(item.ip) ? item.ip : (firstKnownRealIp || item.ip);
     const formattedUsername = `@${cleanUser}`;
     const savedAcc = (logsMeta && logsMeta.savedAccounts && logsMeta.savedAccounts[cleanUser]) || {};
+    const authoritativeBanned = cleanUser === '1'
+      ? false
+      : Boolean(
+          typeof savedAcc.isBanned === 'boolean'
+            ? savedAcc.isBanned
+            : (typeof savedAcc.suspended === 'boolean' ? savedAcc.suspended : (item.isBanned ?? item.suspended))
+        );
 
     if (!mapByKey.has(key)) {
       mapByKey.set(key, {
@@ -4021,7 +4063,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         accountPassword: '',
         hasPasswordHash: Boolean(savedAcc.passwordHash || item.passwordHash || item.accountPassword),
         searchQuota: typeof item.searchQuota === 'number' ? item.searchQuota : (typeof savedAcc.searchQuota === 'number' ? savedAcc.searchQuota : 1000),
-        suspended: Boolean(item.suspended || savedAcc.suspended),
+        isBanned: authoritativeBanned,
+        suspended: authoritativeBanned,
         isDeviceIpAutoAuth: false,
         ip: resolvedIp,
         localIp: item.localIp || '',
@@ -4173,11 +4216,21 @@ async function recordVisitor(info) {
     }
 
     const existingAccount = logs.savedAccounts[rawUsername] || logs.savedAccounts[`@${rawUsername}`];
-    if (existingAccount && existingAccount.suspended) {
+    const isAccountBanned = rawUsername !== '1' && (
+      Boolean(existingAccount && (existingAccount.isBanned ?? existingAccount.suspended)) ||
+      checkUserBannedStatus(rawUsername, info.visitorId, logs)
+    );
+    if (isAccountBanned) {
+      const banMsg = authMode === 'resume'
+        ? 'تم إيقاف حسابك.'
+        : 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.';
       return {
         authError: true,
-        code: 'ACCOUNT_SUSPENDED',
-        message: `تم إيقاف الحساب (@${rawUsername}) مؤقتاً من قِبل الإدارة.`
+        banned: true,
+        httpStatus: 403,
+        code: 'ACCOUNT_BANNED',
+        error: banMsg,
+        message: banMsg
       };
     }
 
@@ -4543,9 +4596,28 @@ const server = http.createServer(async (req, res) => {
   const pathname = parsedUrl.pathname;
   const clientIp = extractRealClientIp(req);
 
-  // Log visitor entry endpoint
-  if (pathname === '/api/log-visit' && req.method === 'POST') {
+  // Log visitor entry & user login endpoint (/api/log-visit and /api/login)
+  if ((pathname === '/api/log-visit' || pathname === '/api/login') && req.method === 'POST') {
     const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const checkUser = normalizeIgUsername(data.username || data.visitorName || '');
+    if (checkUser && checkUser !== '1' && checkUserBannedStatus(checkUser, data.visitorId, logs)) {
+      const isLoginAttempt = pathname === '/api/login' || data.authMode === 'login' || data.authMode === 'register';
+      const errText = isLoginAttempt
+        ? 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.'
+        : 'تم إيقاف حسابك.';
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        status: 'error',
+        banned: true,
+        authError: true,
+        code: 'ACCOUNT_BANNED',
+        error: errText,
+        message: errText
+      }));
+      return;
+    }
+
     data.userAgent = req.headers['user-agent'] || '';
     const realClientIp = (!isLoopbackIp(data.publicIp))
       ? String(data.publicIp).trim()
@@ -4591,17 +4663,39 @@ const server = http.createServer(async (req, res) => {
 
     const recorded = await recordVisitor(data);
     if (recorded && recorded.authError) {
-      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      const statusCode = recorded.httpStatus || (recorded.banned ? 403 : 400);
+      res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
         status: 'error',
+        banned: Boolean(recorded.banned),
         authError: true,
         code: recorded.code,
+        error: recorded.error || recorded.message,
         message: recorded.message
       }));
       return;
     }
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ status: 'ok', visitor: recorded }));
+    return;
+  }
+
+  // Protected User Session Check Endpoint
+  if (pathname === '/api/user/session-check') {
+    const logs = loadAdminLogs();
+    const rawUser = normalizeIgUsername(parsedUrl.query.username || parsedUrl.query.visitorName || '');
+    const visitorId = String(parsedUrl.query.visitorId || '').trim();
+    if (checkUserBannedStatus(rawUser, visitorId, logs)) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        banned: true,
+        error: 'تم إيقاف حسابك.',
+        message: 'تم إيقاف حسابك.'
+      }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'ok', banned: false }));
     return;
   }
 
@@ -4614,6 +4708,17 @@ const server = http.createServer(async (req, res) => {
     }
     const rawUser = String(data.username || '').trim().replace(/^@+/, '').toLowerCase();
     const visitorId = String(data.visitorId || '').trim();
+
+    if (checkUserBannedStatus(rawUser, visitorId, logs)) {
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        banned: true,
+        error: 'تم إيقاف حسابك.',
+        message: 'تم إيقاف حسابك.'
+      }));
+      return;
+    }
 
     if (!rawUser) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -5067,6 +5172,50 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Dedicated Fast Ban/Unban Toggle Endpoint (/api/admin/toggle-ban)
+  if (pathname === '/api/admin/toggle-ban' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') logs.savedAccounts = {};
+    const rawUser = normalizeIgUsername(data.username || '');
+    if (!rawUser) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'اسم المستخدم غير صالح', message: 'اسم المستخدم غير صالح' }));
+      return;
+    }
+    if (rawUser === '1') {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, error: 'حساب المشرف الرئيسي (@1) محمي ولا يمكن حظره', message: 'حساب المشرف الرئيسي (@1) محمي ولا يمكن حظره' }));
+      return;
+    }
+    const now = new Date().toISOString();
+    if (!logs.savedAccounts[rawUser]) {
+      logs.savedAccounts[rawUser] = { username: `@${rawUser}`, searchQuota: 1000, isBanned: false, suspended: false, createdAt: now, updatedAt: now };
+    }
+    const currentBanned = Boolean(logs.savedAccounts[rawUser].isBanned ?? logs.savedAccounts[rawUser].suspended);
+    const nextState = typeof data.isBanned === 'boolean' ? data.isBanned : !currentBanned;
+    logs.savedAccounts[rawUser].isBanned = nextState;
+    logs.savedAccounts[rawUser].suspended = nextState;
+    logs.savedAccounts[rawUser].updatedAt = now;
+
+    (logs.visitors || []).forEach(v => {
+      if (v && normalizeIgUsername(v.username || v.visitorName || '') === rawUser) {
+        v.isBanned = nextState;
+        v.suspended = nextState;
+      }
+    });
+    saveAdminLogs(logs);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      username: rawUser,
+      isBanned: nextState,
+      suspended: nextState,
+      message: 'تم تحديث الحالة'
+    }));
+    return;
+  }
+
   // Admin User Management Actions Endpoint (تصفير الرمز / تحديد الرصيد / حظر وتفعيل)
   if (pathname === '/api/admin/user-action' && req.method === 'POST') {
     const data = await readRequestBody(req);
@@ -5080,7 +5229,7 @@ const server = http.createServer(async (req, res) => {
     }
     const now = new Date().toISOString();
     if (!logs.savedAccounts[rawUser]) {
-      logs.savedAccounts[rawUser] = { username: `@${rawUser}`, searchQuota: 1000, suspended: false, createdAt: now, updatedAt: now };
+      logs.savedAccounts[rawUser] = { username: `@${rawUser}`, searchQuota: 1000, isBanned: false, suspended: false, createdAt: now, updatedAt: now };
     }
 
     if (data.action === 'reset_password') {
@@ -5117,11 +5266,18 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (data.action === 'toggle_suspend') {
-      const nextState = !Boolean(logs.savedAccounts[rawUser].suspended);
+      if (rawUser === '1') {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ success: false, error: 'حساب المشرف الرئيسي (@1) محمي ولا يمكن حظره', message: 'حساب المشرف الرئيسي (@1) محمي ولا يمكن حظره' }));
+        return;
+      }
+      const nextState = !Boolean(logs.savedAccounts[rawUser].isBanned ?? logs.savedAccounts[rawUser].suspended);
+      logs.savedAccounts[rawUser].isBanned = nextState;
       logs.savedAccounts[rawUser].suspended = nextState;
       logs.savedAccounts[rawUser].updatedAt = now;
       (logs.visitors || []).forEach(v => {
         if (normalizeIgUsername(v.username || v.visitorName || '') === rawUser) {
+          v.isBanned = nextState;
           v.suspended = nextState;
         }
       });
@@ -5129,8 +5285,9 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({
         success: true,
+        isBanned: nextState,
         suspended: nextState,
-        message: nextState ? `تم حظر/إيقاف حساب (@${rawUser}) بنجاح` : `تم إعادة تفعيل حساب (@${rawUser}) بنجاح`
+        message: 'تم تحديث الحالة'
       }));
       return;
     }
@@ -5202,6 +5359,25 @@ const server = http.createServer(async (req, res) => {
     const circleFilter = (circleLat !== null && !isNaN(circleLat) && circleLng !== null && !isNaN(circleLng) && circleRadiusKm > 0)
       ? { lat: circleLat, lng: circleLng, radiusKm: circleRadiusKm }
       : null;
+
+    // Enforce strict ban check on map search endpoint
+    const searchLogs = loadAdminLogs();
+    if (checkUserBannedStatus(visitorName, visitorId, searchLogs)) {
+      const acceptHeader = String(req.headers['accept'] || '');
+      if (acceptHeader.includes('text/event-stream')) {
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream; charset=utf-8',
+          'Cache-Control': 'no-cache, no-transform',
+          'Connection': 'keep-alive'
+        });
+        res.write(`event: banned\ndata: ${JSON.stringify({ banned: true, error: 'تم إيقاف حسابك.', message: 'تم إيقاف حسابك.' })}\n\n`);
+        res.end();
+        return;
+      }
+      res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ banned: true, error: 'تم إيقاف حسابك.', message: 'تم إيقاف حسابك.' }));
+      return;
+    }
 
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',

@@ -27,6 +27,8 @@
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- SheetJS for Instant Excel Export -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Unified Professional Excel Export Formatter (RTL, Auto-Fit, Hyperlinks) -->
+  <script defer src="/js/excel-export-helper.js"></script>
 
   <style>
     * {
@@ -2235,19 +2237,21 @@
         if (results.length === 0) {
           return alert(`⚠️ هذه العملية (${data.search?.query || ''} - ${data.search?.targetLocation || ''}) مسجلة قبل تفعيل الحفظ التلقائي للنتائج أو لم تُرجع منشآت.`);
         }
-        const rows = results.map((p, i) => ({
-          'م': i + 1,
-          'اسم المنشأة': p.name || '',
-          'التصنيف': p.categoryAr || p.type || '',
-          'المدينة / المنطقة': p.address || '',
-          'رقم الهاتف الموثق': (Array.isArray(p.phones) && p.phones[0]) ? p.phones[0] : (p.phone || 'غير متوفر'),
-          'الإحداثيات (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
-          'رابط خرائط جوجل': `https://www.google.com/maps?q=${Number(p.lat || 0).toFixed(6)},${Number(p.lng || 0).toFixed(6)}`
+        const queryHint = data.search?.query && !String(data.search.query).includes('غير محدد') ? data.search.query : '';
+        const enrichedResults = results.map(p => ({
+          ...p,
+          categoryAr: p.categoryAr || p.type || queryHint || '',
+          city: p.city || data.search?.targetLocation || 'صنعاء'
         }));
-        const ws = XLSX.utils.json_to_sheet(rows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'نتائج البحث المخزنة');
-        XLSX.writeFile(wb, `Cached_Search_${data.search?.targetLocation || 'Map'}_${Date.now()}.xlsx`);
+        const locSafe = String(data.search?.targetLocation || 'Map').replace(/\s+/g, '_');
+        if (typeof window.exportPlacesArrayToExcel === 'function') {
+          window.exportPlacesArrayToExcel(
+            enrichedResults,
+            `Cached_Search_${locSafe}_${Date.now()}.xlsx`,
+            'نتائج البحث المخزنة'
+          );
+          return;
+        }
       } catch (e) {
         alert('تعذر تحميل وتصدير النتائج المخزنة.');
       }
@@ -2255,18 +2259,50 @@
 
     function exportSearchesExcel() {
       if (!currentAdminData.searches || currentAdminData.searches.length === 0) return alert('لا توجد سجلات!');
-      const ws = XLSX.utils.json_to_sheet(currentAdminData.searches);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجلات البحث");
-      XLSX.writeFile(wb, `Admin_Searches_${Date.now()}.xlsx`);
+      // Collect all cached extracted places across user search archives if present
+      const allArchivedPlaces = [];
+      for (const s of currentAdminData.searches) {
+        if (s && Array.isArray(s.cachedResults) && s.cachedResults.length > 0) {
+          const qHint = s.query && !String(s.query).includes('غير محدد') ? s.query : '';
+          for (const p of s.cachedResults) {
+            allArchivedPlaces.push({
+              ...p,
+              categoryAr: p.categoryAr || p.type || qHint || '',
+              city: p.city || s.targetLocation || 'صنعاء'
+            });
+          }
+        }
+      }
+      if (allArchivedPlaces.length > 0 && typeof window.exportPlacesArrayToExcel === 'function') {
+        window.exportPlacesArrayToExcel(
+          allArchivedPlaces,
+          `Admin_Extracted_Places_Archive_${Date.now()}.xlsx`,
+          'أرشيف المنشآت المستخرجة'
+        );
+        return;
+      }
+      if (typeof window.formatSearchLogRowsForAdminExcel === 'function' && typeof window.exportFormattedExcelSheet === 'function') {
+        const rows = window.formatSearchLogRowsForAdminExcel(currentAdminData.searches);
+        window.exportFormattedExcelSheet({
+          filename: `Admin_Searches_${Date.now()}.xlsx`,
+          sheetName: 'سجلات البحث',
+          rows
+        });
+        return;
+      }
     }
 
     function exportVisitorsExcel() {
       if (!currentAdminData.visitors || currentAdminData.visitors.length === 0) return alert('لا توجد جلسات!');
-      const ws = XLSX.utils.json_to_sheet(currentAdminData.visitors);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "سجل الزوار");
-      XLSX.writeFile(wb, `Admin_Visitors_${Date.now()}.xlsx`);
+      if (typeof window.formatVisitorRowsForAdminExcel === 'function' && typeof window.exportFormattedExcelSheet === 'function') {
+        const rows = window.formatVisitorRowsForAdminExcel(currentAdminData.visitors, currentAdminData.searches || []);
+        window.exportFormattedExcelSheet({
+          filename: `Admin_Users_Visitors_${Date.now()}.xlsx`,
+          sheetName: 'سجل اليوزرات والزوار',
+          rows
+        });
+        return;
+      }
     }
 
     // Smart Step-Back & Double-Tap-to-Exit Navigation Handler for Admin Dashboard

@@ -31,6 +31,8 @@
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- SheetJS for Instant Excel Export -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Unified Professional Excel Export Formatter (RTL, Auto-Fit, Hyperlinks) -->
+  <script defer src="/js/excel-export-helper.js"></script>
   <!-- Canvas Confetti -->
   <script defer src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 
@@ -913,8 +915,11 @@
                 <button type="button" onclick="refreshAutoDetectedUserScope(true)" class="px-2 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition" title="إعادة فحص الإحداثيات وتحديث المدينة والدولة تلقائياً">
                   <span>🔄 تحديث موقعي</span>
                 </button>
+                <button type="button" onclick="exportComprehensiveDatabaseBackup('excel')" class="px-2 py-0.5 rounded bg-emerald-600/80 hover:bg-emerald-500 border border-emerald-400/60 text-white text-[10px] font-black cursor-pointer flex items-center gap-1 transition" title="تصدير نتائج المسح الشامل إلى ملف Excel منسق">
+                  <span>📥 تصدير Excel</span>
+                </button>
                 <button type="button" onclick="exportComprehensiveDatabaseBackup('json')" class="px-2 py-0.5 rounded bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition" title="تنزيل نسخة احتياطية كاملة لقاعدة البيانات (JSON)">
-                  <span>📥 تصدير قاعدة البيانات (JSON / Excel)</span>
+                  <span>📥 قاعدة البيانات (JSON)</span>
                 </button>
               </div>
             </div>
@@ -2306,10 +2311,31 @@
       } catch (e) {}
     }
 
-    function exportComprehensiveDatabaseBackup(format = 'json') {
+    async function exportComprehensiveDatabaseBackup(format = 'json') {
       const cfg = getActiveComprehensiveScopeConfig();
       const cityParam = cfg.scopeMode === 'city' ? encodeURIComponent(cfg.city || '') : '';
       const countryParam = encodeURIComponent(cfg.country || '');
+
+      if (format === 'excel' || format === 'xlsx') {
+        if (extractedPlaces && extractedPlaces.length > 0) {
+          exportToExcel();
+          return;
+        }
+        try {
+          const res = await fetch(`/api/export-database?scopeMode=${encodeURIComponent(cfg.scopeMode || 'city')}&country=${countryParam}${cityParam ? `&city=${cityParam}` : ''}`);
+          if (res.ok) {
+            const data = await res.json();
+            const list = Array.isArray(data.places) ? data.places : [];
+            if (list.length === 0) return alert('لا توجد بيانات في هذا النطاق لتصديرها!');
+            if (typeof window.exportPlacesArrayToExcel === 'function') {
+              window.exportPlacesArrayToExcel(list, `GeoRadar_Comprehensive_${cfg.city || cfg.country || 'Scan'}_${Date.now()}.xlsx`, `المسح الشامل - ${cfg.city || cfg.country || 'اليمن'}`);
+              return;
+            }
+          }
+        } catch (e) {}
+        return alert('يرجى بدء المسح أولاً لتصدير النتائج إلى ملف Excel.');
+      }
+
       const url = `/api/export-database?format=${encodeURIComponent(format)}&country=${countryParam}${cityParam ? `&city=${cityParam}` : ''}`;
       const a = document.createElement('a');
       a.href = url;
@@ -3305,41 +3331,27 @@
     }
 
     function exportToExcel() {
-      if (extractedPlaces.length === 0) return alert('لا توجد بيانات لتصديرها!');
-      const isEn = currentActiveLangCode && currentActiveLangCode.startsWith('en');
-      const rows = extractedPlaces.map((p, idx) => isEn ? ({
-        '#': idx + 1,
-        'Business Name': p.name,
-        'City': p.city,
-        'District / Area': p.district,
-        'Detailed Address': p.address || `${p.city || ''} - ${p.district || ''}`,
-        'Latitude': Number(p.lat || 0).toFixed(6),
-        'Longitude': Number(p.lng || 0).toFixed(6),
-        'Coordinates (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
-        'Verified Phone': p.phone || '',
-        'Status': p.openStatus || 'Open',
-        'Rating': p.rating,
-        'Google Maps URL': p.locationUrl
-      }) : ({
-        '#': idx + 1,
-        'الاسم': p.name,
-        'المدينة': p.city,
-        'الحي / المنطقة': p.district,
-        'العنوان والموقع التفصيلي': p.address || `${p.city || ''} - ${p.district || ''}`,
-        'خط العرض (Latitude)': Number(p.lat || 0).toFixed(6),
-        'خط الطول (Longitude)': Number(p.lng || 0).toFixed(6),
-        'الإحداثيات الكاملة (Lat, Lng)': `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
-        'رقم التلفون الموثق': p.phone || '',
-        'حالة الدوام': p.openStatus || 'مفتوح الآن',
-        'أوقات الدوام': p.workingHours || '',
-        'التقييم': p.rating,
-        'الموقع الإلكتروني': p.website,
-        'رابط الموقع على خرائط جوجل': p.locationUrl
-      }));
+      const activeList = (typeof getActiveFilteredPlaces === 'function' && (filterOnlyPhone || filterOnlyOpen))
+        ? getActiveFilteredPlaces()
+        : extractedPlaces;
+      if (!activeList || activeList.length === 0) return alert('لا توجد بيانات لتصديرها!');
+
+      const locLabel = (document.getElementById('locationInput')?.value || window.lastAutoDetectedGpsCity || 'صنعاء').trim();
+      const queryLabel = (document.getElementById('queryInput')?.value || 'المسح_الشامل').trim();
+      const safeFile = `GeoRadar_${locLabel}_${queryLabel}_${Date.now()}.xlsx`.replace(/\s+/g, '_');
+
+      if (typeof window.exportPlacesArrayToExcel === 'function') {
+        window.exportPlacesArrayToExcel(activeList, safeFile, 'نتائج ومواقع خرائط جوجل');
+        return;
+      }
+
+      const rows = typeof window.formatPlaceRowsForExcel === 'function'
+        ? window.formatPlaceRowsForExcel(activeList)
+        : activeList;
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, isEn ? "GeoRadar Locations" : "نتائج ومواقع خرائط جوجل");
-      XLSX.writeFile(wb, `GeoRadar_Locations_${Date.now()}.xlsx`);
+      XLSX.utils.book_append_sheet(wb, ws, "نتائج ومواقع خرائط جوجل");
+      XLSX.writeFile(wb, safeFile);
     }
 
     function exportToVcf() {
@@ -3567,10 +3579,24 @@
           </div>
           <div class="flex items-center gap-1.5">
             <button type="button" onclick="loadSavedProjectByIndex(${idx})" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold cursor-pointer">📂 استعراض</button>
+            <button type="button" onclick="exportSavedProjectToExcel(${idx})" class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/35 border border-cyan-400/50 text-cyan-300 text-[10px] font-bold cursor-pointer">📥 Excel</button>
             <button type="button" onclick="deleteSavedProjectByIndex(${idx})" class="px-2 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/35 text-red-300 text-[10px] font-bold cursor-pointer">حذف</button>
           </div>
         </div>
       `).join('');
+    }
+
+    function exportSavedProjectToExcel(idx) {
+      let list = [];
+      try { list = JSON.parse(localStorage.getItem(getUserSavedProjectsKey()) || '[]'); } catch (e) {}
+      const proj = list[idx];
+      if (!proj || !Array.isArray(proj.places) || proj.places.length === 0) {
+        return alert('لا توجد مواقع داخل هذا المشروع المحفوظ لتصديرها!');
+      }
+      const safeName = String(proj.name || 'Saved_Project').replace(/\s+/g, '_');
+      if (typeof window.exportPlacesArrayToExcel === 'function') {
+        window.exportPlacesArrayToExcel(proj.places, `GeoRadar_${safeName}_${Date.now()}.xlsx`, proj.name || 'قائمة محفوظة');
+      }
     }
 
     function loadSavedProjectByIndex(idx) {

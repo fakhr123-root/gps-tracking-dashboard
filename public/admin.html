@@ -159,12 +159,15 @@
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none"></div>
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-cyan-400/30 pointer-events-none"></div>
 
-      <!-- Glowing Command Emblem -->
+      <!-- Glowing Command Emblem (Crisp Inline White Shield/Lock SVG so badge is never blank) -->
       <div class="relative w-20 h-20 mx-auto mb-4 flex items-center justify-center">
         <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.5s;"></div>
         <div class="absolute inset-1.5 rounded-full border border-cyan-400/50"></div>
         <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_30px_rgba(16,185,129,0.6)]">
-          <i data-lucide="layers" class="w-7 h-7 text-slate-950"></i>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" class="w-7 h-7 drop-shadow">
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
         </div>
       </div>
 
@@ -176,18 +179,22 @@
       <h2 class="text-xl font-black text-white mb-1">مركز قيادة المشرف</h2>
       <p class="text-xs text-slate-400 mb-6">بوابة الوصول إلى الرادار المباشر وفاحص الزوار وسجلات البحث</p>
 
-      <form onsubmit="handleAdminLogin(event)" class="space-y-4 text-right">
+      <form id="adminLoginForm" onsubmit="handleAdminLogin(event)" class="space-y-4 text-right">
         <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
           <label class="block text-xs font-bold text-slate-300 mb-1.5 flex items-center justify-between">
             <span>رمز دخول المشرف:</span>
             <span class="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-emerald-400 font-semibold">حماية المشرف</span>
           </label>
           <div class="relative">
-            <i data-lucide="key-round" class="absolute right-3.5 top-3 w-4 h-4 text-emerald-400"></i>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" class="absolute right-3.5 top-3 w-4 h-4 pointer-events-none">
+              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
             <input 
               type="password" 
               id="adminPasswordInput" 
               placeholder="أدخل كلمة مرور المشرف..." 
+              onkeydown="if(event.key==='Enter'){event.preventDefault();handleAdminLogin(event);}"
               class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 transition"
               required
               autofocus
@@ -200,10 +207,14 @@
         <button 
           type="submit" 
           id="loginSubmitBtn"
+          onclick="handleAdminLogin(event)"
           class="w-full py-3.5 rounded-2xl font-black text-sm bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 transition shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer"
         >
-          <i data-lucide="shield-check" class="w-5 h-5"></i>
-          <span>تشغيل مركز القيادة</span>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+            <path d="m9 12 2 2 4-4"/>
+          </svg>
+          <span id="loginSubmitBtnText">تشغيل مركز القيادة</span>
         </button>
       </form>
     </div>
@@ -637,7 +648,7 @@
   </div>
 
   <script>
-    lucide.createIcons();
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 
     let adminMap = null;
     let visitorMarkers = [];
@@ -678,8 +689,26 @@
 
     const ADMIN_CUSTOM_PASS_KEY = 'georadar_admin_custom_pass';
 
+    let isAdminLoginInFlight = false;
+
     window.addEventListener('DOMContentLoaded', () => {
       try { localStorage.removeItem('admin_permanent_archive_v1'); } catch (e) {}
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+      const loginBtn = document.getElementById('loginSubmitBtn');
+      if (loginBtn) {
+        loginBtn.addEventListener('click', (ev) => {
+          handleAdminLogin(ev);
+        });
+      }
+      const passIn = document.getElementById('adminPasswordInput');
+      if (passIn) {
+        passIn.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            handleAdminLogin(ev);
+          }
+        });
+      }
       syncAdminStateWithServer();
       const token = sessionStorage.getItem('admin_token');
       if (token === 'admin_auth_token_2026') {
@@ -689,40 +718,76 @@
     });
 
     async function handleAdminLogin(e) {
-      e.preventDefault();
-      const pass = document.getElementById('adminPasswordInput').value.trim();
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      if (isAdminLoginInFlight) return;
+
+      const passInputEl = document.getElementById('adminPasswordInput');
+      const pass = (passInputEl ? passInputEl.value : '').trim();
       const savedCustomPassword = (localStorage.getItem(ADMIN_CUSTOM_PASS_KEY) || '').trim();
       const errBox = document.getElementById('loginErrorMsg');
       const btn = document.getElementById('loginSubmitBtn');
 
-      errBox.classList.add('hidden');
-      btn.disabled = true;
-      btn.innerText = "جارٍ التحقق...";
+      if (!pass) {
+        if (errBox) {
+          errBox.innerText = '⚠️ يرجى إدخال رمز دخول المشرف أولاً';
+          errBox.classList.remove('hidden');
+        }
+        passInputEl?.focus();
+        return;
+      }
+
+      isAdminLoginInFlight = true;
+      if (errBox) errBox.classList.add('hidden');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span id="loginSubmitBtnText">⏳ جاري التحقق من الرمز...</span>`;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       try {
         const res = await fetch('/api/admin/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password: pass, savedCustomPassword })
+          body: JSON.stringify({ password: pass, savedCustomPassword }),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
         const data = await res.json();
 
-        if (res.ok && data.success) {
-          sessionStorage.setItem('admin_token', data.token);
+        if (res.ok && data && data.success) {
+          sessionStorage.setItem('admin_token', data.token || 'admin_auth_token_2026');
           if (data.activePassword && data.activePassword !== 'admin') {
             localStorage.setItem(ADMIN_CUSTOM_PASS_KEY, data.activePassword);
           }
           unlockDashboard();
         } else {
-          errBox.innerText = data.message || "كلمة المرور غير صحيحة!";
-          errBox.classList.remove('hidden');
+          if (errBox) {
+            errBox.innerText = (data && data.message) || '❌ كلمة المرور غير صحيحة!';
+            errBox.classList.remove('hidden');
+          }
         }
       } catch (err) {
-        errBox.innerText = "خطأ في الاتصال بالخادم";
-        errBox.classList.remove('hidden');
+        clearTimeout(timeoutId);
+        if (errBox) {
+          errBox.innerText = err && err.name === 'AbortError'
+            ? '⚠️ انتهت مهلة الاتصال بالخادم (15 ثانية) — يرجى المحاولة مرة أخرى'
+            : '⚠️ خطأ في الاتصال بالخادم — يرجى التحقق من الإنترنت والمحاولة مجدداً';
+          errBox.classList.remove('hidden');
+        }
       } finally {
-        btn.disabled = false;
-        btn.innerText = "دخول مركز القيادة";
+        isAdminLoginInFlight = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <span id="loginSubmitBtnText">تشغيل مركز القيادة</span>
+          `;
+        }
       }
     }
 
@@ -1573,7 +1638,7 @@
           </div>
         `).join('');
       }
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function toggleSelectAllSearches(checked) {
@@ -1930,7 +1995,7 @@
           </div>
         </div>
       `;
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function renderVisitors(visitors = [], allSearches = []) {
@@ -2117,7 +2182,7 @@
           `;
         }).join('');
       }
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function toggleSelectAllVisitors(checked) {

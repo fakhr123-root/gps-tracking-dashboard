@@ -340,7 +340,7 @@
         <button
           type="button"
           id="step1NextBtn"
-          onclick="goToLoginStep2()"
+          onclick="goToLoginStep2(event)"
           disabled
           class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
         >
@@ -1314,7 +1314,7 @@
   </div>
 
   <script>
-    lucide.createIcons();
+    if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 
     let extractedPlaces = [];
     let currentEventSource = null;
@@ -3526,7 +3526,7 @@
     function openSavedProjectsModal() {
       renderSavedProjectsList();
       document.getElementById('savedProjectsModal')?.classList.remove('hidden');
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function closeSavedProjectsModal() {
@@ -3834,7 +3834,7 @@
         if (tabLogin) tabLogin.className = 'py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
         if (tabRegister) tabRegister.className = 'py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
       }
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function getOrCreateDeviceVisitorId() {
@@ -3874,7 +3874,7 @@
       passInput.type = isPass ? 'text' : 'password';
       if (eyeIcon) {
         eyeIcon.setAttribute('data-lucide', isPass ? 'eye-off' : 'eye');
-        lucide.createIcons();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       }
     }
 
@@ -4319,11 +4319,17 @@
       finishGateEntry();
     }
 
-    function goToLoginStep2() {
-      if (!isTermsAcceptedInStorage()) {
-        handleFirstVisitTermsAndGpsActivation();
+    function goToLoginStep2(e) {
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      const cb = document.getElementById('termsAgreeCheckbox');
+      const isCheckedOrStored = Boolean((cb && cb.checked) || isTermsAcceptedInStorage());
+      if (!isCheckedOrStored) {
         return;
       }
+      localStorage.setItem('termsAcceptedOnce', 'true');
+      localStorage.setItem('termsAccepted', 'true');
+      localStorage.setItem('gmaps_terms_accepted', 'true');
+
       const session = getSavedVisitorSession();
       if (session.hasSession) {
         resumeSavedSessionIntoExplorer();
@@ -4659,7 +4665,7 @@
       if (!overlay) return;
       if (isOffline) {
         overlay.classList.remove('hidden');
-        lucide.createIcons();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       } else {
         overlay.classList.add('hidden');
       }
@@ -4699,7 +4705,7 @@
         modal.classList.remove('hidden');
         if (wasHidden && typeof pushAppHistoryStep === 'function') pushAppHistoryStep('settings');
       }
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function closeUserSettingsModal() {
@@ -4722,7 +4728,7 @@
       inp.type = isPass ? 'text' : 'password';
       if (icon) {
         icon.setAttribute('data-lucide', isPass ? 'eye-off' : 'eye');
-        lucide.createIcons();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       }
     }
 
@@ -5223,7 +5229,7 @@
       renderWorldLanguageList('');
       modal.classList.remove('hidden');
       if (wasHidden && typeof pushAppHistoryStep === 'function') pushAppHistoryStep('language_modal');
-      lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function closeWorldLanguageModal() {
@@ -5490,10 +5496,18 @@
       if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
+      const step1NextBtnEl = document.getElementById('step1NextBtn');
+      if (step1NextBtnEl) {
+        step1NextBtnEl.addEventListener('click', (e) => goToLoginStep2(e));
+      }
+      const termsCbEl = document.getElementById('termsAgreeCheckbox');
+      if (termsCbEl) {
+        termsCbEl.addEventListener('change', (e) => onTermsAgreeCheckboxChange(Boolean(e.target.checked)));
+      }
       initWorldLanguageSystem();
       initOptionalGeolocationCheck();
       updateComprehensiveScopePanelLabels();
-      if (window.lucide) lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       setTimeout(() => {
         detectUserDeviceProfile();
         initLeafletMap();

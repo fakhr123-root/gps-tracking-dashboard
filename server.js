@@ -5780,7 +5780,7 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Admin Login Endpoint
-  if (pathname === '/api/admin/login' && req.method === 'POST') {
+  if ((pathname === '/api/admin/login' || pathname === '/api/admin/verify') && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
     const savedCustom = String(data.savedCustomPassword || '').trim();

@@ -3071,12 +3071,56 @@ function getSingleCategoryTemplates(category = '', district = '') {
 // Admin Logs File Management
 const LOGS_FILE = path.join(__dirname, 'admin_logs.json');
 
+const PRIMARY_ADMIN_DEFAULT_HASH = bcrypt.hashSync('fakhr', 10);
+
+function ensurePrimaryAdminAccount(logs) {
+  if (!logs || typeof logs !== 'object') return;
+  if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
+    logs.savedAccounts = {};
+  }
+  const nowIso = new Date().toISOString();
+  // Normalize any keys in savedAccounts that accidentally have a leading '@'
+  for (const key of Object.keys(logs.savedAccounts)) {
+    const cleanKey = String(key || '').trim().replace(/^@+/, '').toLowerCase();
+    if (cleanKey && cleanKey !== key) {
+      if (!logs.savedAccounts[cleanKey]) {
+        logs.savedAccounts[cleanKey] = logs.savedAccounts[key];
+      }
+      delete logs.savedAccounts[key];
+    }
+    const acc = logs.savedAccounts[cleanKey];
+    if (acc) {
+      acc.username = `@${cleanKey}`;
+      // Auto-upgrade any legacy plain-text password to bcrypt hash
+      if (!acc.passwordHash && acc.password) {
+        acc.passwordHash = String(acc.password).startsWith('$2')
+          ? acc.password
+          : bcrypt.hashSync(String(acc.password), 10);
+        delete acc.password;
+      }
+    }
+  }
+  // Always ensure primary Admin account (@1, password 'fakhr') exists in savedAccounts
+  if (!logs.savedAccounts['1'] || (!logs.savedAccounts['1'].passwordHash && !logs.savedAccounts['1'].password)) {
+    logs.savedAccounts['1'] = {
+      ...(logs.savedAccounts['1'] || {}),
+      username: '@1',
+      passwordHash: PRIMARY_ADMIN_DEFAULT_HASH,
+      searchQuota: 999999,
+      suspended: false,
+      createdAt: logs.savedAccounts['1']?.createdAt || nowIso,
+      updatedAt: nowIso
+    };
+  }
+}
+
 function loadAdminLogs() {
   try {
     if (fs.existsSync(LOGS_FILE)) {
       const parsed = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
-      return {
+      const loaded = {
         adminPassword: parsed.adminPassword || 'admin',
+        savedAccounts: (parsed.savedAccounts && typeof parsed.savedAccounts === 'object') ? parsed.savedAccounts : {},
         visitors: Array.isArray(parsed.visitors) ? parsed.visitors : [],
         searches: Array.isArray(parsed.searches) ? parsed.searches : [],
         deletedVisitorKeys: (parsed.deletedVisitorKeys && typeof parsed.deletedVisitorKeys === 'object') ? parsed.deletedVisitorKeys : {},
@@ -3085,12 +3129,15 @@ function loadAdminLogs() {
         clearedAllSearchesAt: Number(parsed.clearedAllSearchesAt) || 0,
         adminSettings: parsed.adminSettings || {}
       };
+      ensurePrimaryAdminAccount(loaded);
+      return loaded;
     }
   } catch (e) {
     console.error('Error loading admin logs:', e.message);
   }
-  return {
+  const fallback = {
     adminPassword: 'admin',
+    savedAccounts: {},
     visitors: [],
     searches: [],
     deletedVisitorKeys: {},
@@ -3099,6 +3146,8 @@ function loadAdminLogs() {
     clearedAllSearchesAt: 0,
     adminSettings: {}
   };
+  ensurePrimaryAdminAccount(fallback);
+  return fallback;
 }
 
 function saveAdminLogs(data) {
@@ -3549,20 +3598,32 @@ function syncSavedAccountsMap(logs) {
   if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') {
     logs.savedAccounts = {};
   }
+  ensurePrimaryAdminAccount(logs);
   for (const v of (logs.visitors || [])) {
     if (!v || v.isDeviceIpAutoAuth) continue;
     const u = normalizeIgUsername(v.username || v.visitorName || '');
     const p = String(v.accountPassword || '').trim();
-    if (u && VALID_IG_USERNAME_REGEX.test(u) && p) {
+    const pHash = String(v.passwordHash || '').trim();
+    if (u && VALID_IG_USERNAME_REGEX.test(u)) {
       if (!logs.savedAccounts[u]) {
-        logs.savedAccounts[u] = {
-          username: `@${u}`,
-          password: p,
-          device: v.device || '',
-          ip: v.ip || '',
-          createdAt: v.firstSeen || new Date().toISOString(),
-          updatedAt: v.lastSeen || new Date().toISOString()
-        };
+        const computedHash = pHash.startsWith('$2')
+          ? pHash
+          : (p ? (p.startsWith('$2') ? p : bcrypt.hashSync(p, 10)) : '');
+        if (computedHash) {
+          logs.savedAccounts[u] = {
+            username: `@${u}`,
+            passwordHash: computedHash,
+            searchQuota: typeof v.searchQuota === 'number' ? v.searchQuota : 1000,
+            suspended: Boolean(v.suspended),
+            device: v.device || '',
+            ip: v.ip || '',
+            createdAt: v.firstSeen || new Date().toISOString(),
+            updatedAt: v.lastSeen || new Date().toISOString()
+          };
+        }
+      }
+      if (v.accountPassword) {
+        v.accountPassword = '';
       }
     }
   }
@@ -3601,7 +3662,7 @@ async function recordVisitor(info) {
       };
     }
 
-    const existingAccount = logs.savedAccounts[rawUsername];
+    const existingAccount = logs.savedAccounts[rawUsername] || logs.savedAccounts[`@${rawUsername}`];
     if (existingAccount && existingAccount.suspended) {
       return {
         authError: true,
@@ -3616,7 +3677,13 @@ async function recordVisitor(info) {
         return bcrypt.compareSync(String(plain), acc.passwordHash);
       }
       if (acc.password) {
-        return String(acc.password) === String(plain);
+        const matched = String(acc.password) === String(plain);
+        if (matched) {
+          // Automatically hash legacy plain-text password on first login
+          acc.passwordHash = bcrypt.hashSync(String(plain), 10);
+          delete acc.password;
+        }
+        return matched;
       }
       return true;
     };
@@ -4805,6 +4872,13 @@ const server = http.createServer(async (req, res) => {
     fs.createReadStream(filePath).pipe(res);
   });
 });
+
+// Seed and persist primary Admin account (@1 / fakhr) immediately on server startup
+try {
+  const initialStartupLogs = loadAdminLogs();
+  ensurePrimaryAdminAccount(initialStartupLogs);
+  saveAdminLogs(initialStartupLogs);
+} catch (err) {}
 
 server.listen(PORT, () => {
   console.log(`=======================================================`);

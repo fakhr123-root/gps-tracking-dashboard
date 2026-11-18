@@ -232,8 +232,8 @@
   <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
-      <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none"></div>
-      <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none"></div>
+      <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none" style="pointer-events: none;"></div>
+      <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none" style="pointer-events: none;"></div>
 
       <!-- Step Progress Indicator (1 -> 2) -->
       <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
@@ -265,11 +265,11 @@
       </div>
 
       <!-- ==================== STEP 1: ONE-TIME TERMS & CONDITIONS (FIRST VISIT ONLY) + AUTO-LOCATION CLAUSE ==================== -->
-      <div id="gateStep1Location" class="space-y-3 py-1">
-        <div class="relative w-14 h-14 mx-auto mb-0.5 flex items-center justify-center">
-          <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping" style="animation-duration: 2.2s;"></div>
-          <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)]">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 drop-shadow">
+      <div id="gateStep1Location" class="space-y-3 py-1 relative z-10">
+        <div class="relative w-14 h-14 mx-auto mb-0.5 flex items-center justify-center pointer-events-none" style="pointer-events: none;">
+          <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping pointer-events-none" style="animation-duration: 2.2s; pointer-events: none;"></div>
+          <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)] pointer-events-none" style="pointer-events: none;">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 drop-shadow pointer-events-none">
               <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
               <path d="m9 12 2 2 4-4"/>
             </svg>
@@ -308,25 +308,30 @@
         </div>
 
         <!-- Single Clean Green Checkmark Row (Native purple input hidden; ONLY single custom emerald checkmark visible) -->
-        <label
+        <div
           id="termsAgreeCheckboxRow"
-          for="termsAgreeCheckbox"
+          role="checkbox"
+          aria-checked="false"
+          onclick="window.toggleTermsAgreement(event)"
+          style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
           class="relative w-full py-3 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-3 cursor-pointer transition select-none shadow"
         >
           <input
             type="checkbox"
             id="termsAgreeCheckbox"
-            onchange="onTermsAgreeCheckboxChange(this.checked)"
+            onchange="window.toggleTermsAgreement(event, this.checked)"
             style="appearance: none; -webkit-appearance: none; position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;"
           />
           <span
             id="customTermsCheckBoxIndicator"
-            class="w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 transition-all duration-200"
+            onclick="window.toggleTermsAgreement(event)"
+            style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
+            class="w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-white font-black text-sm shrink-0 transition-all duration-200"
           ></span>
           <span id="termsAgreeCheckboxLabelText" class="text-[11px] sm:text-xs font-extrabold text-white leading-snug">
             أوافق على جميع الشروط والأحكام وملاحظات الاستخدام المذكورة أعلاه
           </span>
-        </label>
+        </div>
 
         <!-- Concise Status Banner Shown on Checkmark Agreement -->
         <div
@@ -340,8 +345,9 @@
         <button
           type="button"
           id="step1NextBtn"
-          onclick="goToLoginStep2(event)"
+          onclick="window.proceedFromTermsGate(event)"
           disabled
+          style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
           class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
         >
           <span id="step1NextBtnText">التالي (يرجى الموافقة على الشروط أولاً)</span>
@@ -349,11 +355,11 @@
       </div>
 
       <!-- ==================== DEDICATED "ALLOW LOCATION" CARD (ONLY WHEN GPS IS OFF/DENIED ON RETURN VISITS — NO TERMS REPEATED) ==================== -->
-      <div id="returningUserLocationBlockedCard" class="hidden space-y-4 py-2 text-center">
-        <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center">
-          <div class="absolute inset-0 rounded-full border-2 border-amber-400/40 animate-ping" style="animation-duration: 2s;"></div>
-          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-400 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.5)]">
-            <i data-lucide="map-pin" class="w-6 h-6 text-slate-950"></i>
+      <div id="returningUserLocationBlockedCard" class="hidden space-y-4 py-2 text-center relative z-10">
+        <div class="relative w-16 h-16 mx-auto mb-1 flex items-center justify-center pointer-events-none" style="pointer-events: none;">
+          <div class="absolute inset-0 rounded-full border-2 border-amber-400/40 animate-ping pointer-events-none" style="animation-duration: 2s; pointer-events: none;"></div>
+          <div class="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-400 flex items-center justify-center shadow-[0_0_25px_rgba(245,158,11,0.5)] pointer-events-none" style="pointer-events: none;">
+            <i data-lucide="map-pin" class="w-6 h-6 text-slate-950 pointer-events-none"></i>
           </div>
         </div>
 
@@ -1768,20 +1774,26 @@
 
     function initLeafletMap(centerLat = 15.3538, centerLng = 44.2058) {
       if (leafletMap) return;
-      leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 13);
-      
-      googleStreetsMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Maps',
-        maxZoom: 20
-      });
+      if (typeof L === 'undefined') {
+        setTimeout(() => initLeafletMap(centerLat, centerLng), 250);
+        return;
+      }
+      try {
+        leafletMap = L.map('leafletMap').setView([centerLat, centerLng], 13);
+        
+        googleStreetsMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ar&x={x}&y={y}&z={z}', {
+          attribution: '&copy; Google Maps',
+          maxZoom: 20
+        });
 
-      googleHybridMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ar&x={x}&y={y}&z={z}', {
-        attribution: '&copy; Google Maps Satellite',
-        maxZoom: 20
-      });
+        googleHybridMainLayer = L.tileLayer('https://mt1.google.com/vt/lyrs=y&hl=ar&x={x}&y={y}&z={z}', {
+          attribution: '&copy; Google Maps Satellite',
+          maxZoom: 20
+        });
 
-      googleStreetsMainLayer.addTo(leafletMap);
-      setupMapCircleDrawingEvents();
+        googleStreetsMainLayer.addTo(leafletMap);
+        setupMapCircleDrawingEvents();
+      } catch (e) {}
     }
 
     let activeMapShapeTool = 'circle'; // 'circle' | 'polygon' | 'rectangle'
@@ -4052,6 +4064,10 @@
       updateAccountButtonsUI();
       if (!nextBtn) return;
       nextBtn.disabled = !enabled;
+      nextBtn.style.position = 'relative';
+      nextBtn.style.zIndex = '20';
+      nextBtn.style.pointerEvents = 'auto';
+      nextBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
       if (enabled) {
         nextBtn.removeAttribute('disabled');
         nextBtn.className = "w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.45)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer";
@@ -4072,18 +4088,24 @@
       const rowEl = document.getElementById('termsAgreeCheckboxRow');
       if (isChecked) {
         if (boxInd) {
-          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-300 bg-emerald-400 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.55)] transition-all duration-200';
-          boxInd.innerText = '✓';
+          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-300 bg-emerald-500 flex items-center justify-center text-white font-black text-sm shrink-0 shadow-[0_0_12px_rgba(16,185,129,0.55)] transition-all duration-200';
+          boxInd.style.backgroundColor = '#10b981';
+          boxInd.style.borderColor = '#34d399';
+          boxInd.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 pointer-events-none"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
         }
         if (rowEl) {
+          rowEl.setAttribute('aria-checked', 'true');
           rowEl.className = 'relative w-full py-3 px-3.5 rounded-2xl bg-emerald-950/50 border-2 border-emerald-400 text-right flex items-center gap-3 cursor-pointer transition select-none shadow-[0_0_15px_rgba(16,185,129,0.2)]';
         }
       } else {
         if (boxInd) {
-          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-slate-950 font-black text-sm shrink-0 transition-all duration-200';
-          boxInd.innerText = '';
+          boxInd.className = 'w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-white font-black text-sm shrink-0 transition-all duration-200';
+          boxInd.style.backgroundColor = '#020617';
+          boxInd.style.borderColor = 'rgba(52, 211, 153, 0.7)';
+          boxInd.innerHTML = '';
         }
         if (rowEl) {
+          rowEl.setAttribute('aria-checked', 'false');
           rowEl.className = 'relative w-full py-3 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-3 cursor-pointer transition select-none shadow';
         }
       }
@@ -4162,7 +4184,9 @@
         }
 
         // 2. Non-Blocking Background Location Capture (GPS + In-App Fallback)
-        captureBackgroundLocationNonBlocking();
+        setTimeout(() => {
+          try { captureBackgroundLocationNonBlocking(); } catch (e) {}
+        }, 0);
       } else {
         if (cbEl) cbEl.checked = false;
         localStorage.removeItem('termsAcceptedOnce');
@@ -4173,6 +4197,26 @@
         setStep1NextEnabled(false);
       }
     }
+
+    window.toggleTermsAgreement = function(event, forceState) {
+      if (event) {
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        if (event.target && event.target.id !== 'termsAgreeCheckbox' && typeof event.preventDefault === 'function') {
+          event.preventDefault();
+        }
+      }
+      const cbEl = document.getElementById('termsAgreeCheckbox');
+      let nextChecked;
+      if (typeof forceState === 'boolean') {
+        nextChecked = forceState;
+      } else if (event && event.target && event.target.id === 'termsAgreeCheckbox') {
+        nextChecked = Boolean(cbEl && cbEl.checked);
+      } else {
+        const currentChecked = cbEl ? Boolean(cbEl.checked) : isTermsAcceptedInStorage();
+        nextChecked = !currentChecked;
+      }
+      onTermsAgreeCheckboxChange(nextChecked);
+    };
 
     function markLocationGranted(cityCountryStr = '') {
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
@@ -4319,23 +4363,31 @@
       finishGateEntry();
     }
 
-    function goToLoginStep2(e) {
+    window.proceedFromTermsGate = function(e) {
       if (e && typeof e.preventDefault === 'function') e.preventDefault();
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+
       const cb = document.getElementById('termsAgreeCheckbox');
       const isCheckedOrStored = Boolean((cb && cb.checked) || isTermsAcceptedInStorage());
       if (!isCheckedOrStored) {
+        handleFirstVisitTermsAndGpsActivation();
         return;
       }
+
       localStorage.setItem('termsAcceptedOnce', 'true');
       localStorage.setItem('termsAccepted', 'true');
       localStorage.setItem('gmaps_terms_accepted', 'true');
 
-      const session = getSavedVisitorSession();
-      if (session.hasSession) {
-        resumeSavedSessionIntoExplorer();
-        return;
-      }
+      // Run background location capture asynchronously without blocking Step 2 transition
+      setTimeout(() => {
+        try { captureBackgroundLocationNonBlocking(); } catch (err) {}
+      }, 0);
+
       showGateModalOnStep2();
+    };
+
+    function goToLoginStep2(e) {
+      window.proceedFromTermsGate(e);
     }
 
     window.lastAutoDetectedGpsCity = '';
@@ -5495,14 +5547,6 @@
       }
       if ('caches' in window) {
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
-      }
-      const step1NextBtnEl = document.getElementById('step1NextBtn');
-      if (step1NextBtnEl) {
-        step1NextBtnEl.addEventListener('click', (e) => goToLoginStep2(e));
-      }
-      const termsCbEl = document.getElementById('termsAgreeCheckbox');
-      if (termsCbEl) {
-        termsCbEl.addEventListener('change', (e) => onTermsAgreeCheckboxChange(Boolean(e.target.checked)));
       }
       initWorldLanguageSystem();
       initOptionalGeolocationCheck();

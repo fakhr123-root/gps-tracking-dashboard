@@ -958,7 +958,8 @@
         <div id="dataQualitySummaryBar" class="hidden bg-slate-900/90 border border-emerald-500/30 rounded-xl px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
           <div class="flex flex-wrap items-center gap-2">
             <span class="font-black text-emerald-300">📊 جودة البيانات المستخرجة:</span>
-            <span class="px-2 py-0.5 rounded bg-slate-950 text-white font-num font-bold">الإجمالي: <strong id="dqTotalCount" class="text-emerald-400">0</strong></span>
+            <span class="px-2 py-0.5 rounded bg-slate-950 text-white font-num font-bold">الإجمالي الصافي (بدون تكرار): <strong id="dqTotalCount" class="text-emerald-400">0</strong></span>
+            <span id="dqQuadtreeCellsStat" class="px-2 py-0.5 rounded bg-slate-950 text-amber-300 font-num font-bold">🔲 خلايا Quadtree: <strong id="dqQuadtreeCellsValue">0 / 0</strong></span>
             <span class="px-2 py-0.5 rounded bg-slate-950 text-cyan-300 font-num font-bold">📞 بهاتف موثق: <strong id="dqPhoneRatio">0%</strong></span>
             <span class="px-2 py-0.5 rounded bg-slate-950 text-teal-300 font-num font-bold">🧭 دقة إحداثيات 6 خانات: <strong>100%</strong></span>
           </div>
@@ -967,13 +968,14 @@
           </button>
         </div>
 
-        <!-- Slim Live Progress Indicator with Percentage & Pause/Resume Controls -->
+        <!-- Slim Live Progress Indicator with Percentage, Quadtree Cell Counter, Deduplicated Total & Pause/Resume Controls -->
         <div id="progressContainer" class="hidden bg-slate-900/95 border border-emerald-500/40 rounded-xl px-2.5 py-1.5 shadow">
           <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
             <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[140px] truncate">جارٍ البحث واستخراج البيانات...</span>
-            <div class="flex items-center gap-1.5 shrink-0">
+            <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+              <span id="quadtreeCellsBadge" class="text-amber-300 font-num font-bold bg-slate-950 border border-amber-500/40 px-2 py-0.5 rounded-full text-[10px]">🔲 الخلايا: 0 / 0</span>
               <span id="progressPercentBadge" class="text-cyan-300 font-num font-black bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">0%</span>
-              <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع</span>
+              <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع فريد</span>
               <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-300 font-bold text-[10px] cursor-pointer">
                 ⏸️ إيقاف مؤقت
               </button>
@@ -1971,6 +1973,10 @@
       clearDrawnCircle(true);
       const qInput = document.getElementById('queryInput');
       if (qInput) qInput.value = '';
+      const locInput = document.getElementById('locationInput');
+      if (locInput && (!window.userManuallyEditedLocation || !locInput.value.trim() || locInput.value.trim() === 'صنعاء')) {
+        locInput.value = 'اليمن';
+      }
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
       document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
@@ -2475,11 +2481,35 @@
 
       currentEventSource.addEventListener('progress', (event) => {
         const data = JSON.parse(event.data);
+        const dedupedCount = typeof data.deduplicatedTotal === 'number' ? data.deduplicatedTotal : (data.current || extractedPlaces.length);
         const percent = data.total > 0 ? Math.min(Math.round((data.current / data.total) * 100), 98) : 85;
         progressBar.style.width = `${percent}%`;
         const pctEl = document.getElementById('progressPercentBadge');
         if (pctEl) pctEl.innerText = `${percent}%`;
-        progressRatio.innerText = `تم استخراج ${data.current} موقع`;
+        progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(dedupedCount).toLocaleString()} موقع`;
+        if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number') {
+          const qtBadge = document.getElementById('quadtreeCellsBadge');
+          const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
+          if (qtBadge) qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${data.totalCells}${subTxt}`;
+          const dqQt = document.getElementById('dqQuadtreeCellsValue');
+          if (dqQt) dqQt.innerText = `${data.scannedCells} / ${data.totalCells}${subTxt}`;
+        }
+      });
+
+      currentEventSource.addEventListener('quadtree_progress', (event) => {
+        const data = JSON.parse(event.data);
+        const qtBadge = document.getElementById('quadtreeCellsBadge');
+        const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
+        if (qtBadge && typeof data.scannedCells === 'number') {
+          qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${data.totalCells || data.scannedCells}${subTxt}`;
+        }
+        const dqQt = document.getElementById('dqQuadtreeCellsValue');
+        if (dqQt && typeof data.scannedCells === 'number') {
+          dqQt.innerText = `${data.scannedCells} / ${data.totalCells || data.scannedCells}${subTxt}`;
+        }
+        if (typeof data.deduplicatedTotal === 'number') {
+          progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(data.deduplicatedTotal).toLocaleString()} موقع`;
+        }
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -2976,7 +3006,7 @@
           timestamp: Date.now(),
           query: document.getElementById('queryInput')?.value || '',
           location: document.getElementById('locationInput')?.value || '',
-          places: extractedPlaces.slice(0, 5000)
+          places: extractedPlaces
         }, 'last_session');
       } catch (e) {}
     }

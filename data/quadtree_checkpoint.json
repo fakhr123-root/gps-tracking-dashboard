@@ -1,0 +1,26 @@
+{
+  "updatedAt": "2026-11-18T19:50:02.558Z",
+  "bbox": {
+    "minLat": 12.1,
+    "maxLat": 19,
+    "minLon": 41.8,
+    "maxLon": 54.6
+  },
+  "totalDatabasePlaces": 93662,
+  "scannedCells": 1475,
+  "subdividedCells": 295,
+  "categoriesCovered": [
+    "amenity",
+    "shop",
+    "healthcare",
+    "office",
+    "craft",
+    "tourism",
+    "leisure",
+    "historic",
+    "place",
+    "industrial",
+    "building"
+  ],
+  "status": "checkpoint_ready"
+}

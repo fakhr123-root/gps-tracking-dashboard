@@ -26,8 +26,9 @@
   <!-- Three.js & OrbitControls -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <!-- Leaflet Map CSS & JS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <!-- Leaflet Map CSS & JS (Non-Blocking Async CSS + Deferred JS) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" media="print" onload="this.media='all'" />
+  <noscript><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /></noscript>
   <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- SheetJS for Instant Excel Export -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -227,8 +228,8 @@
     </div>
   </div>
 
-  <!-- Two-Step Holographic Onboarding Portal: Step 1 (Allow Location) -> Next -> Step 2 (Login Name/Phone) -> Next -> Explorer -->
-  <div id="visitorGateModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+  <!-- Two-Step Holographic Onboarding Portal: Step 1 (Terms & Conditions) -> Next -> Step 2 (Login) -> Next -> Explorer -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none"></div>
@@ -5288,14 +5289,16 @@
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
       initWorldLanguageSystem();
-      detectUserDeviceProfile();
-      initLeafletMap();
-      loadExtractorUserPreferences();
-      updateComprehensiveScopePanelLabels();
       initOptionalGeolocationCheck();
-      initSmartBackAndDoubleTapExit();
-      checkPreviousIdbSessionOnLoad();
+      updateComprehensiveScopePanelLabels();
       if (window.lucide) lucide.createIcons();
+      setTimeout(() => {
+        detectUserDeviceProfile();
+        initLeafletMap();
+        loadExtractorUserPreferences();
+        initSmartBackAndDoubleTapExit();
+        checkPreviousIdbSessionOnLoad();
+      }, 60);
     });
   </script>
 </body>

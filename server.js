@@ -180,6 +180,10 @@ async function loadInitialDatabaseAsync() {
       const parsed = JSON.parse(rawJson);
       if (Array.isArray(parsed)) {
         for (let i = 0; i < parsed.length; i++) {
+          if (i > 0 && i % 4000 === 0) {
+            // Yield to event loop so incoming HTTP requests are served with 0ms latency during background indexing
+            await new Promise(r => setImmediate(r));
+          }
           const rec = parsed[i];
           if (!rec.osm_id && !rec.place_id) {
             rec.place_id = `ye_idx_${i + 1}`;

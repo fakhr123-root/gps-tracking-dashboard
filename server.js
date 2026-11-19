@@ -4829,6 +4829,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         locationSource: item.locationSource || savedAcc.locationSource || 'GPS',
         liveStatus: item.liveStatus || savedAcc.liveStatus || 'live',
         gpsEnabled: item.gpsEnabled !== undefined ? Boolean(item.gpsEnabled) : (savedAcc.gpsEnabled !== undefined ? Boolean(savedAcc.gpsEnabled) : true),
+        gpsClosedAt: item.gpsClosedAt || savedAcc.gpsClosedAt || null,
         lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen,
         isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
@@ -5525,9 +5526,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Live Real-Time GPS Coordinate Stream Endpoint (POST /api/user/update-location)
-  // Updates the user's live GPS position on the Admin Radar immediately and NEVER zeroes out or removes their last known real coordinates when the app closes or GPS turns off!
-  if (pathname === '/api/user/update-location' && req.method === 'POST') {
+  // Live Real-Time GPS Coordinate & Status Telemetry Endpoint (POST /api/user/update-location & POST /api/user/status-telemetry)
+  // Updates the user's live GPS position & status on the Admin Radar immediately and NEVER zeroes out or removes their last known real coordinates when the app closes or GPS turns off!
+  if ((pathname === '/api/user/update-location' || pathname === '/api/user/status-telemetry') && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
     const rawUser = normalizeIgUsername(data.username || data.visitorName || '');
@@ -5547,11 +5548,12 @@ const server = http.createServer(async (req, res) => {
     const inLng = Number(data.lon ?? data.lng);
     const hasValidIncomingCoords = isValidNonZeroCoord(inLat, inLng);
     const now = new Date().toISOString();
-    const isGpsDisabledReport = data.status === 'gps_disabled' || data.gpsEnabled === false;
+    const isGpsDisabledReport = data.status === 'gps_off' || data.status === 'gps_disabled' || data.gpsEnabled === false || data.event === 'gps_closed';
     const incomingLiveStatus = isGpsDisabledReport
-      ? 'gps_disabled'
+      ? 'gps_off'
       : (data.status === 'background_live' ? 'background_live' : 'live');
     const incomingGpsEnabled = !isGpsDisabledReport;
+    const incomingGpsClosedAt = isGpsDisabledReport ? (data.timestamp || now) : null;
 
     const realClientIp = (!isLoopbackIp(data.publicIp))
       ? String(data.publicIp).trim()
@@ -5614,6 +5616,7 @@ const server = http.createServer(async (req, res) => {
       logs.savedAccounts[rawUser].locationSource = 'GPS';
       logs.savedAccounts[rawUser].liveStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
+      logs.savedAccounts[rawUser].gpsClosedAt = isGpsDisabledReport ? (logs.savedAccounts[rawUser].gpsClosedAt || incomingGpsClosedAt) : null;
       logs.savedAccounts[rawUser].lastHeartbeatAt = now;
       if (!isLoopbackIp(realClientIp)) logs.savedAccounts[rawUser].ip = realClientIp;
       if (cleanDevice) logs.savedAccounts[rawUser].device = cleanDevice;
@@ -5633,6 +5636,7 @@ const server = http.createServer(async (req, res) => {
       v.locationSource = 'GPS';
       v.liveStatus = incomingLiveStatus;
       v.gpsEnabled = incomingGpsEnabled;
+      v.gpsClosedAt = isGpsDisabledReport ? (v.gpsClosedAt || incomingGpsClosedAt) : null;
       v.lastHeartbeatAt = now;
       v.lastSeen = now;
       if (!isLoopbackIp(realClientIp)) v.ip = realClientIp;
@@ -5661,6 +5665,7 @@ const server = http.createServer(async (req, res) => {
         locationSource: 'GPS',
         liveStatus: incomingLiveStatus,
         gpsEnabled: incomingGpsEnabled,
+        gpsClosedAt: incomingGpsClosedAt,
         lastHeartbeatAt: now,
         device: cleanDevice,
         firstSeen: now,
@@ -5686,6 +5691,7 @@ const server = http.createServer(async (req, res) => {
       locationSource: 'GPS',
       liveStatus: v.liveStatus,
       gpsEnabled: v.gpsEnabled,
+      gpsClosedAt: v.gpsClosedAt || null,
       lastHeartbeatAt: v.lastHeartbeatAt
     }));
     return;

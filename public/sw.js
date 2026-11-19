@@ -7,14 +7,15 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Receive background location heartbeats from the client and forward to server so user stays Live while app is minimized
+// Receive background location heartbeats & status telemetry from the client and forward to server
 self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || typeof data !== 'object') return;
 
-  if (data.type === 'LOCATION_HEARTBEAT_PING' && data.payload) {
+  if ((data.type === 'LOCATION_HEARTBEAT_PING' || data.type === 'STATUS_TELEMETRY_PING') && data.payload) {
+    const endpoint = data.type === 'STATUS_TELEMETRY_PING' ? '/api/user/status-telemetry' : '/api/user/update-location';
     event.waitUntil(
-      fetch('/api/user/update-location', {
+      fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data.payload),

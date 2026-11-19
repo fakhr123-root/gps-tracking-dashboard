@@ -281,9 +281,15 @@
 
       <!-- Step Progress Indicator (1 -> 2) -->
       <div class="flex items-center justify-center gap-2 mb-2.5 relative z-10">
-        <div id="stepBadge1" onclick="showGateModalOnStep1()" title="العودة إلى الخطوة 1" class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer transition hover:opacity-90">
-          <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center">1</span>
-          <span id="i18n_step1Badge">1.&nbsp;&rlm;الشروط والأحكام</span>
+        <div
+          id="stepBadge1"
+          onclick="window.goBackToStep1Terms(event)"
+          style="position: relative; z-index: 25; pointer-events: auto; cursor: pointer;"
+          title="العودة إلى الخطوة 1"
+          class="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer transition hover:opacity-90"
+        >
+          <span class="w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center pointer-events-none">1</span>
+          <span id="i18n_step1Badge" class="pointer-events-none">1.&nbsp;&rlm;الشروط والأحكام</span>
         </div>
         <div class="w-6 h-0.5 bg-slate-700 rounded-full" id="stepConnectorLine"></div>
         <div id="stepBadge2" class="px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5">
@@ -489,10 +495,11 @@
             <button
               type="button"
               id="step2BackToStep1Btn"
-              onclick="showGateModalOnStep1()"
+              onclick="window.goBackToStep1Terms(event)"
+              style="position: relative; z-index: 25; pointer-events: auto; cursor: pointer;"
               class="w-full py-2.5 rounded-full font-bold text-xs text-slate-300 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span id="step2BackToStep1BtnText">→ رجوع للخطوة السابقة</span>
+              <span id="step2BackToStep1BtnText" class="pointer-events-none">→ رجوع للخطوة السابقة</span>
             </button>
           </div>
         </form>
@@ -4257,8 +4264,8 @@
       const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
       streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
 
-      // If user already accepted Terms once, ensure Step 1 is hidden and proceed to Step 2 or resume session
-      if (isTermsAcceptedInStorage()) {
+      // If user already accepted Terms once (and did not manually navigate back to Step 1), ensure Step 1 is hidden and proceed to Step 2 or resume session
+      if (isTermsAcceptedInStorage() && !window.userManuallyViewingStep1) {
         document.getElementById('gateStep1Location')?.classList.add('hidden');
         const gateModal = document.getElementById('visitorGateModal');
         const isGateVisible = gateModal && !gateModal.classList.contains('hidden');
@@ -4514,20 +4521,68 @@
       setStep1NextEnabled(true);
     }
 
-    function showGateModalOnStep1() {
-      // Never show Step 1 Terms & Conditions again once `termsAcceptedOnce === 'true'`
-      if (isTermsAcceptedInStorage()) {
-        showGateModalOnStep2();
-        return;
+    window.userManuallyViewingStep1 = false;
+
+    window.goBackToStep1Terms = function(event) {
+      if (event) {
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopPropagation === 'function') event.stopPropagation();
       }
+      window.userManuallyViewingStep1 = true;
+
       const modal = document.getElementById('visitorGateModal');
       if (modal) {
         modal.classList.remove('hidden', 'opacity-0');
       }
-      document.getElementById('gateStep1Location')?.classList.remove('hidden');
-      document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
       document.getElementById('gateStep2Login')?.classList.add('hidden');
-      if (window.lucide) lucide.createIcons();
+      document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
+      document.getElementById('gateStep1Location')?.classList.remove('hidden');
+
+      // Highlight Step 1 badge and dim Step 2 badge
+      const b1 = document.getElementById('stepBadge1');
+      const b2 = document.getElementById('stepBadge2');
+      const line = document.getElementById('stepConnectorLine');
+      if (b1) {
+        b1.className = "px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[11px] font-extrabold flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] cursor-pointer transition hover:opacity-90";
+        const num1 = b1.querySelector('span');
+        if (num1) num1.className = "w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center pointer-events-none";
+      }
+      if (b2) {
+        b2.className = "px-3 py-1 rounded-full bg-slate-900/80 border border-slate-700 text-slate-400 text-[11px] font-bold flex items-center gap-1.5";
+        const num2 = b2.querySelector('span');
+        if (num2) num2.className = "w-4 h-4 rounded-full bg-slate-800 text-slate-400 font-num font-black text-[10px] flex items-center justify-center";
+      }
+      if (line) line.className = "w-6 h-0.5 bg-slate-700 rounded-full";
+
+      // If terms were already accepted, keep the checkmark checked and bottom "التالي ←" button enabled
+      const alreadyAccepted = isTermsAcceptedInStorage();
+      const cbEl = document.getElementById('termsAgreeCheckbox');
+      const bannerEl = document.getElementById('termsAcceptedStatusBanner');
+      if (alreadyAccepted) {
+        if (cbEl) cbEl.checked = true;
+        setCustomTermsCheckVisual(true);
+        setStep1NextEnabled(true);
+        if (bannerEl) bannerEl.classList.remove('hidden');
+      } else {
+        const isCheckedNow = Boolean(cbEl && cbEl.checked);
+        setCustomTermsCheckVisual(isCheckedNow);
+        setStep1NextEnabled(isCheckedNow);
+      }
+
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+    };
+
+    function showGateModalOnStep1(forceManual = false) {
+      if (forceManual) {
+        window.goBackToStep1Terms();
+        return;
+      }
+      // On initial auto-entry only, skip Step 1 if `termsAcceptedOnce === 'true'` and not manually viewing Step 1
+      if (isTermsAcceptedInStorage() && !window.userManuallyViewingStep1) {
+        showGateModalOnStep2();
+        return;
+      }
+      window.goBackToStep1Terms();
     }
 
     function showReturningUserLocationBlockedModal() {
@@ -4535,6 +4590,7 @@
     }
 
     function showGateModalOnStep2() {
+      window.userManuallyViewingStep1 = false;
       const modal = document.getElementById('visitorGateModal');
       if (modal) {
         modal.classList.remove('hidden', 'opacity-0');
@@ -4553,7 +4609,7 @@
         if (num) num.className = "w-4 h-4 rounded-full bg-emerald-400 text-slate-950 font-num font-black text-[10px] flex items-center justify-center";
       }
       if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
-      if (window.lucide) lucide.createIcons();
+      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
     }
 
@@ -5778,13 +5834,11 @@
           return;
         }
 
-        // 4. If Visitor Gate Modal is open on Step 2 (Login) -> step back to Step 1 (Location)
+        // 4. If Visitor Gate Modal is open on Step 2 (Login) -> step back to Step 1 (Terms & Conditions)
         const gateModal = document.getElementById('visitorGateModal');
         const step2Login = document.getElementById('gateStep2Login');
-        const step1Loc = document.getElementById('gateStep1Location');
         if (gateModal && !gateModal.classList.contains('hidden') && step2Login && !step2Login.classList.contains('hidden')) {
-          step2Login.classList.add('hidden');
-          step1Loc?.classList.remove('hidden');
+          window.goBackToStep1Terms();
           pushAppHistoryStep('root');
           return;
         }

@@ -405,8 +405,8 @@
     </div>
   </div>
 
-  <!-- Single-Card Login / Create Account Portal (Hidden automatically when user session is already active; Zero Terms & Conditions or Step Wizard) -->
-  <div id="visitorGateModal" class="hidden fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 overflow-y-auto">
+  <!-- Single-Card Login / Create Account Portal (Isolated Full-Screen Auth View; Hidden automatically when user session is active) -->
+  <div id="visitorGateModal" class="hidden fixed inset-0 z-[9000] flex items-center justify-center bg-[#050b14] p-4 overflow-y-auto">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none" style="pointer-events: none;"></div>
@@ -5163,6 +5163,49 @@
       }
     }
 
+    function hideMainAppShellForAuth() {
+      closeMobileSidebarDrawer();
+      const appMain = document.getElementById('appMainContent');
+      if (appMain) {
+        appMain.style.display = 'none';
+        appMain.style.opacity = '0';
+      }
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) {
+        sidebar.style.display = 'none';
+      }
+    }
+
+    function revealMainAppShellAfterAuth() {
+      const session = getSavedVisitorSession();
+      if (!window.__hasAcquiredLiveGpsPosition || !session.hasSession) {
+        hideMainAppShellForAuth();
+        return;
+      }
+      const sidebar = document.getElementById('appSidebar');
+      if (sidebar) {
+        sidebar.style.display = 'flex';
+      }
+      const appMain = document.getElementById('appMainContent');
+      if (appMain) {
+        appMain.style.transition = 'opacity 0.28s ease';
+        if (appMain.style.display !== 'flex') {
+          appMain.style.opacity = '0';
+          appMain.style.display = 'flex';
+          requestAnimationFrame(() => {
+            appMain.style.opacity = '1';
+          });
+        } else {
+          appMain.style.opacity = '1';
+        }
+        setTimeout(() => {
+          if (leafletMap && typeof leafletMap.invalidateSize === 'function') {
+            leafletMap.invalidateSize();
+          }
+        }, 120);
+      }
+    }
+
     function unlockAppFromGpsGatekeeper() {
       window.__hasAcquiredLiveGpsPosition = true;
       const gatekeeper = document.getElementById('gpsGatekeeperScreen');
@@ -5175,28 +5218,14 @@
         legacyOverlay.classList.add('hidden');
         legacyOverlay.style.display = 'none';
       }
-      const appMain = document.getElementById('appMainContent');
-      if (appMain && appMain.style.display !== 'flex') {
-        appMain.style.display = 'flex';
-        setTimeout(() => {
-          if (leafletMap && typeof leafletMap.invalidateSize === 'function') {
-            leafletMap.invalidateSize();
-          }
-        }, 120);
-      }
 
-      // Show login modal ONLY after GPS gatekeeper unlocks and if user is not logged in yet
+      // Strict Auth Isolation: ONLY reveal #appMainContent / #appSidebar if user is ALREADY authenticated!
       const session = getSavedVisitorSession();
       if (session.hasSession) {
-        const modal = document.getElementById('visitorGateModal');
-        if (modal && !modal.classList.contains('hidden')) {
-          finishGateEntry();
-        }
+        finishGateEntry();
       } else {
-        const modal = document.getElementById('visitorGateModal');
-        if (modal && modal.classList.contains('hidden')) {
-          showGateModalOnStep2();
-        }
+        hideMainAppShellForAuth();
+        showGateModalOnStep2();
       }
     }
 
@@ -5636,6 +5665,8 @@
 
     function showGateModalOnStep2() {
       window.userManuallyViewingStep1 = false;
+      // Strict Auth Isolation: completely hide sidebar, header, and main app wrapper while Login/Register is active
+      hideMainAppShellForAuth();
       const modal = document.getElementById('visitorGateModal');
       if (modal) {
         modal.classList.remove('hidden', 'opacity-0');
@@ -6112,15 +6143,19 @@
       if (locInput && !locInput.value.trim() && window.lastAutoDetectedGpsCity) {
         locInput.value = window.lastAutoDetectedGpsCity;
       }
+      const modal = document.getElementById('visitorGateModal');
+      if (modal) {
+        modal.classList.add('transition-opacity', 'duration-300', 'opacity-0');
+        setTimeout(() => modal.classList.add('hidden'), 320);
+      }
+      // Post-Login Reveal: smoothly reveal #appSidebar, header, and #appMainContent ONLY after valid authentication & GPS
+      revealMainAppShellAfterAuth();
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
         renderUserGpsPinOnMap();
         if (leafletMap) {
           leafletMap.setView([cachedOptionalGps.lat, cachedOptionalGps.lng], 13);
         }
       }
-      const modal = document.getElementById('visitorGateModal');
-      modal.classList.add('transition-opacity', 'duration-400', 'opacity-0');
-      setTimeout(() => modal.classList.add('hidden'), 400);
     }
 
     // Hybrid Online/Offline Connection Banner Monitor (Non-Blocking Top Banner + Continuous Satellite GPS Buffering)

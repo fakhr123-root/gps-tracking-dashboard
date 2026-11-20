@@ -4721,20 +4721,22 @@ setInterval(() => {
 
 function computeEffectiveConnectionStatus(v) {
   if (!v) return 'exited';
-  const raw = String(v.connectionStatus || v.liveStatus || '').trim();
+  const raw = String(v.status || v.connectionStatus || v.liveStatus || '').trim().toLowerCase();
   if (raw === 'gps_off' || raw === 'gps_disabled' || v.gpsEnabled === false) {
     return 'gps_off';
   }
-  const lastHbMs = new Date(v.lastHeartbeatAt || v.lastSeen || v.firstSeen || 0).getTime() || 0;
-  const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
-  // Only mark a user as 'Offline' ('exited' 🔴/🟡) if no heartbeat is received for more than 45 seconds
-  if (raw === 'exited' || ageSec > 45) {
-    return 'exited';
+  const tsList = [
+    typeof v.lastSeen === 'number' ? v.lastSeen : (v.lastSeen ? new Date(v.lastSeen).getTime() : 0),
+    typeof v.lastSeenMs === 'number' ? v.lastSeenMs : 0,
+    v.lastHeartbeatAt ? new Date(v.lastHeartbeatAt).getTime() : 0
+  ].filter(n => Number.isFinite(n) && n > 0);
+  const lastHbMs = tsList.length > 0 ? Math.max(...tsList) : 0;
+  const isOnline = lastHbMs > 0 && (Date.now() - lastHbMs) < 45000;
+  // Strictly mark online if a heartbeat/location update arrived within the last 45 seconds
+  if (isOnline) {
+    return raw === 'background_live' ? 'background_live' : 'online';
   }
-  if (raw === 'background_live') {
-    return 'background_live';
-  }
-  return 'live';
+  return 'exited';
 }
 
 function haversineMetersBetween(lat1, lng1, lat2, lng2) {
@@ -6178,7 +6180,8 @@ const server = http.createServer(async (req, res) => {
     const isExitedReport = data.status === 'exited' || data.connectionStatus === 'exited' || data.event === 'app_exited';
     const incomingLiveStatus = isGpsDisabledReport
       ? 'gps_off'
-      : (isExitedReport ? 'exited' : (data.status === 'background_live' ? 'background_live' : 'live'));
+      : (isExitedReport ? 'exited' : (data.status === 'background_live' ? 'background_live' : 'online'));
+    const nowMs = Date.now();
     const incomingGpsEnabled = !isGpsDisabledReport;
     const incomingGpsClosedAt = isGpsDisabledReport ? (data.timestamp || now) : null;
 
@@ -6231,7 +6234,7 @@ const server = http.createServer(async (req, res) => {
       alertType = 'gps_disabled';
     } else if (!isGpsDisabledReport && prevStatus === 'gps_off') {
       alertType = 'gps_restored';
-    } else if ((isNewEntry || prevStatus === 'exited') && (incomingLiveStatus === 'live' || incomingLiveStatus === 'background_live')) {
+    } else if ((isNewEntry || prevStatus === 'exited') && (incomingLiveStatus === 'online' || incomingLiveStatus === 'live' || incomingLiveStatus === 'background_live')) {
       alertType = 'user_online';
     }
 
@@ -6265,11 +6268,14 @@ const server = http.createServer(async (req, res) => {
         });
       }
       logs.savedAccounts[rawUser].locationSource = 'GPS';
+      logs.savedAccounts[rawUser].status = isGpsDisabledReport ? 'gps_off' : 'online';
       logs.savedAccounts[rawUser].connectionStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].liveStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
       logs.savedAccounts[rawUser].gpsClosedAt = isGpsDisabledReport ? (logs.savedAccounts[rawUser].gpsClosedAt || incomingGpsClosedAt) : null;
       logs.savedAccounts[rawUser].lastHeartbeatAt = now;
+      logs.savedAccounts[rawUser].lastSeen = nowMs;
+      logs.savedAccounts[rawUser].lastSeenMs = nowMs;
       if (typeof data.batteryLevel === 'number' && data.batteryLevel >= 0 && data.batteryLevel <= 100) {
         logs.savedAccounts[rawUser].batteryLevel = Math.round(data.batteryLevel);
       }
@@ -6311,12 +6317,14 @@ const server = http.createServer(async (req, res) => {
       }
       v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
       v.locationSource = 'GPS';
+      v.status = isGpsDisabledReport ? 'gps_off' : 'online';
       v.connectionStatus = incomingLiveStatus;
       v.liveStatus = incomingLiveStatus;
       v.gpsEnabled = incomingGpsEnabled;
       v.gpsClosedAt = isGpsDisabledReport ? (v.gpsClosedAt || incomingGpsClosedAt) : null;
       v.lastHeartbeatAt = now;
-      v.lastSeen = now;
+      v.lastSeen = nowMs;
+      v.lastSeenMs = nowMs;
       if (typeof data.batteryLevel === 'number' && data.batteryLevel >= 0 && data.batteryLevel <= 100) {
         v.batteryLevel = Math.round(data.batteryLevel);
       }
@@ -6351,6 +6359,7 @@ const server = http.createServer(async (req, res) => {
         lng: effLng,
         accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
         locationSource: 'GPS',
+        status: isGpsDisabledReport ? 'gps_off' : 'online',
         connectionStatus: incomingLiveStatus,
         liveStatus: incomingLiveStatus,
         gpsEnabled: incomingGpsEnabled,
@@ -6361,7 +6370,8 @@ const server = http.createServer(async (req, res) => {
         networkType: data.networkType ? String(data.networkType).trim() : '',
         device: cleanDevice,
         firstSeen: now,
-        lastSeen: now,
+        lastSeen: nowMs,
+        lastSeenMs: nowMs,
         pageViews: 1,
         loginCount: 1,
         searchesCount: 0,
@@ -6850,7 +6860,12 @@ const server = http.createServer(async (req, res) => {
     const totalSearches = logs.searches.length;
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const todayVisitors = logs.visitors.filter(v => (v.lastSeen || '').startsWith(todayStr)).length;
+    const todayVisitors = logs.visitors.filter(v => {
+      if (!v || !v.lastSeen) return false;
+      try {
+        return (typeof v.lastSeen === 'number' ? new Date(v.lastSeen).toISOString() : String(v.lastSeen)).startsWith(todayStr);
+      } catch (e) { return false; }
+    }).length;
     const todaySearches = logs.searches.filter(s => (s.timestamp || '').startsWith(todayStr)).length;
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });

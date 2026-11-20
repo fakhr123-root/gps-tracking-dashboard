@@ -1231,12 +1231,21 @@
       }
     }
 
+    function getVisitorLastSeenTimestampMs(v) {
+      if (!v) return 0;
+      const candidates = [
+        typeof v.lastSeen === 'number' ? v.lastSeen : (v.lastSeen ? new Date(v.lastSeen).getTime() : 0),
+        typeof v.lastSeenMs === 'number' ? v.lastSeenMs : 0,
+        v.lastHeartbeatAt ? new Date(v.lastHeartbeatAt).getTime() : 0
+      ].filter(n => Number.isFinite(n) && n > 0);
+      return candidates.length > 0 ? Math.max(...candidates) : 0;
+    }
+
     function getVisitorLiveStatusMeta(v) {
       const cleanU = String((v && (v.username || v.visitorName)) || '').trim().replace(/^@+/, '');
       const userHandle = (cleanU && !(v && v.isDeviceIpAutoAuth) && !cleanU.includes('•')) ? `@${cleanU}` : ((v && v.visitorName) || 'زائر');
-      const lastHbMs = new Date((v && (v.lastHeartbeatAt || v.lastSeen || v.firstSeen)) || 0).getTime() || 0;
-      const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
-      const rawConn = String((v && (v.connectionStatus || v.liveStatus)) || '').trim();
+      const lastSeenTs = getVisitorLastSeenTimestampMs(v);
+      const rawConn = String((v && (v.status || v.connectionStatus || v.liveStatus)) || '').trim().toLowerCase();
       const isGpsOff = Boolean(v && (rawConn === 'gps_off' || rawConn === 'gps_disabled' || v.gpsEnabled === false));
 
       if (isGpsOff) {
@@ -1258,19 +1267,21 @@
         };
       }
 
-      if (ageSec <= 45 && rawConn !== 'exited') {
+      // Strict 45-second real-time check: if heartbeat arrived within 45s, ALWAYS display "نشط داخل التطبيق" with Green dot (🟢)
+      const isOnline = lastSeenTs > 0 && (Date.now() - lastSeenTs) < 45000;
+      if (isOnline) {
         const isBg = Boolean(rawConn === 'background_live');
-        const subText = isBg ? 'في الخلفية — GPS شغال' : 'في الواجهة';
+        const subText = isBg ? 'في الخلفية — GPS شغال' : 'متصل الآن — GPS مباشر';
         return {
-          state: isBg ? 'background_live' : 'live',
-          connectionStatus: isBg ? 'background_live' : 'live',
+          state: isBg ? 'background_live' : 'online',
+          connectionStatus: isBg ? 'background_live' : 'online',
           isLive: true,
-          mainLabel: `🟢 متصل ${userHandle}`,
+          mainLabel: `🟢 نشط داخل التطبيق`,
           subLabel: subText,
-          markerTag: isBg ? '🟢 متصل (في الخلفية)' : '🟢 متصل (Live)',
-          markerFullLabel: `🟢 متصل ${userHandle}`,
+          markerTag: '🟢 نشط داخل التطبيق',
+          markerFullLabel: `🟢 نشط داخل التطبيق ${userHandle}`,
           markerColor: '#10b981',
-          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.25)]"><span>🟢 متصل (Live)</span><span class="px-1.5 py-0.2 rounded bg-emerald-950/90 border border-emerald-400/40 text-emerald-200 text-[9px] font-bold">${subText}</span></span>`
+          badgeHtml: `<span class="inline-flex flex-wrap items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 text-[10px] font-extrabold shadow-[0_0_10px_rgba(16,185,129,0.25)]"><span>🟢 نشط داخل التطبيق</span><span class="px-1.5 py-0.2 rounded bg-emerald-950/90 border border-emerald-400/40 text-emerald-200 text-[9px] font-bold">${subText}</span></span>`
         };
       }
 
@@ -1278,26 +1289,29 @@
         state: 'exited',
         connectionStatus: 'exited',
         isLive: false,
-        mainLabel: `🟡 خارج التطبيق ${userHandle}`,
-        subLabel: 'لم يصل نبض منذ +45 ثانية',
-        markerTag: '🟡 خارج التطبيق',
-        markerFullLabel: `🟡 خارج التطبيق ${userHandle}`,
+        mainLabel: `🟠 خارج التطبيق`,
+        subLabel: 'لم يصل نبض منذ أكثر من 45 ثانية',
+        markerTag: '🟠 خارج التطبيق',
+        markerFullLabel: `🟠 خارج التطبيق ${userHandle}`,
         markerColor: '#f59e0b',
-        badgeHtml: `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/50 text-amber-300 text-[10px] font-extrabold">🟡 خارج التطبيق</span>`
+        badgeHtml: `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-400/50 text-amber-300 text-[10px] font-extrabold">🟠 خارج التطبيق</span>`
       };
     }
 
+    let currentInspectedVisitorId = '';
+
     // Populate Floating Visitor Inspector & Fly Map to Visitor
-    function inspectVisitor(idx) {
+    function inspectVisitor(idx, shouldFlyMap = true) {
       const v = currentAdminData.visitors[idx];
       if (!v) return;
+      currentInspectedVisitorId = v.id || '';
 
-      if (currentAdminTab !== 'radar') {
+      if (shouldFlyMap && currentAdminTab !== 'radar') {
         switchAdminTab('radar');
       }
 
       const drawer = document.getElementById('visitorInspectorDrawer');
-      if (drawer) drawer.classList.remove('hidden');
+      if (drawer && shouldFlyMap) drawer.classList.remove('hidden');
 
       const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
       const displayUser = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
@@ -1307,15 +1321,26 @@
       const liveMeta = getVisitorLiveStatusMeta(v);
       const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
       const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
-      document.getElementById('inspVisitorName').innerText = displayUser;
-      document.getElementById('inspVisitorSub').innerText = `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`;
-      document.getElementById('inspDevice').innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
-      document.getElementById('inspCoords').innerText = `${lat6}, ${lng6}`;
-      document.getElementById('inspIp').innerText = v.ip || '0.0.0.0';
-      document.getElementById('inspCityBadge').innerText = `${v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
-      document.getElementById('inspGmapsLink').href = `https://www.google.com/maps?q=${lat6},${lng6}`;
+      const nameEl = document.getElementById('inspVisitorName');
+      const subEl = document.getElementById('inspVisitorSub');
+      const devEl = document.getElementById('inspDevice');
+      const coordEl = document.getElementById('inspCoords');
+      const ipEl = document.getElementById('inspIp');
+      const cityEl = document.getElementById('inspCityBadge');
+      const linkEl = document.getElementById('inspGmapsLink');
 
-      if (adminMap && v.lat && v.lng) {
+      if (nameEl) nameEl.innerText = displayUser;
+      if (subEl) {
+        subEl.innerText = `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`;
+        subEl.style.color = liveMeta.isLive ? '#34d399' : liveMeta.markerColor;
+      }
+      if (devEl) devEl.innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
+      if (coordEl) coordEl.innerText = `${lat6}, ${lng6}`;
+      if (ipEl) ipEl.innerText = v.ip || '0.0.0.0';
+      if (cityEl) cityEl.innerText = `${v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
+      if (linkEl) linkEl.href = `https://www.google.com/maps?q=${lat6},${lng6}`;
+
+      if (shouldFlyMap && adminMap && v.lat && v.lng) {
         setTimeout(() => {
           adminMap.invalidateSize();
           adminMap.flyTo([v.lat, v.lng], 16, { duration: 1.0 });
@@ -1736,12 +1761,14 @@
             primary.isBanned = isBannedFlag;
             primary.suspended = isBannedFlag;
             if (typeof cleanedItem.searchQuota === 'number') primary.searchQuota = cleanedItem.searchQuota;
+            if (cleanedItem.status) primary.status = cleanedItem.status;
             if (cleanedItem.connectionStatus) primary.connectionStatus = cleanedItem.connectionStatus;
             if (cleanedItem.liveStatus) primary.liveStatus = cleanedItem.liveStatus;
             if (cleanedItem.gpsEnabled !== undefined) primary.gpsEnabled = cleanedItem.gpsEnabled;
             if (cleanedItem.gpsClosedAt !== undefined) primary.gpsClosedAt = cleanedItem.gpsClosedAt;
             if (cleanedItem.lastHeartbeatAt) primary.lastHeartbeatAt = cleanedItem.lastHeartbeatAt;
             if (cleanedItem.lastSeen) primary.lastSeen = cleanedItem.lastSeen;
+            if (cleanedItem.lastSeenMs) primary.lastSeenMs = cleanedItem.lastSeenMs;
             if (typeof cleanedItem.batteryLevel === 'number') primary.batteryLevel = cleanedItem.batteryLevel;
             if (typeof cleanedItem.batteryCharging === 'boolean') primary.batteryCharging = cleanedItem.batteryCharging;
             if (cleanedItem.networkType) primary.networkType = cleanedItem.networkType;
@@ -1980,8 +2007,17 @@
         </div>
       `).join('');
 
-      if (visitors.length > 0 && document.getElementById('inspVisitorName')?.innerText === 'Visitor') {
-        inspectVisitor(0);
+      if (visitors.length > 0) {
+        if (currentInspectedVisitorId) {
+          const activeIdx = visitors.findIndex(v => v && v.id === currentInspectedVisitorId);
+          if (activeIdx !== -1) {
+            inspectVisitor(activeIdx, false);
+          } else {
+            inspectVisitor(0, false);
+          }
+        } else if (document.getElementById('inspVisitorName')?.innerText === 'Visitor') {
+          inspectVisitor(0, false);
+        }
       }
     }
 

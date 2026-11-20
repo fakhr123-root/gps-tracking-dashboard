@@ -4944,7 +4944,7 @@
       const effectiveStatus = statusOverride || (
         !isGpsEnabled
           ? 'gps_disabled'
-          : (document.visibilityState === 'hidden' ? 'background_live' : 'live')
+          : (document.visibilityState === 'hidden' ? 'background_live' : 'online')
       );
 
       const hasCoords = isValidNonZeroClientCoord(lat, lng);
@@ -5421,8 +5421,8 @@
           const hbLat = lastCoord ? lastCoord.lat : null;
           const hbLng = lastCoord ? lastCoord.lng : null;
           const hbAcc = lastCoord ? (lastCoord.accuracy || 15) : 15;
-          const hbStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
-          streamLiveGpsToServer(hbLat, hbLng, hbAcc, hbStatus, true);
+          // Explicitly send { status: 'online' } along with coordinates every 10 seconds
+          streamLiveGpsToServer(hbLat, hbLng, hbAcc, 'online', true);
         }, 10000);
       }
     }

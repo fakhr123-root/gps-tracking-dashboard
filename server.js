@@ -2981,9 +2981,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               }
             });
 
-            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504 || !gRes.ok) {
+            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
               await sleep(3000);
               continue;
+            }
+            if (!gRes.ok) {
+              return { count: 0, failed: false };
             }
 
             let gText = await gRes.text();
@@ -3061,8 +3064,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
         let cellOsmCount = 0;
         let osmSucceeded = false;
+        let osmRateLimited = false;
 
-        // Run BOTH Engine 1 (Overpass OSM with 5 retries + 3000ms sleep) AND Engine 2 (Live Google Maps with 5 retries + 3000ms sleep) in parallel!
+        // Parallel Source Fetching: fetch OSM API and Google Maps API at the EXACT same time via Promise.all([osmTask, gmapsTask])
         const osmTask = (async () => {
           for (let mAttempt = 1; mAttempt <= 5; mAttempt++) {
             if (isAborted()) break;
@@ -3071,7 +3075,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               const res = await fetchWithTimeout(
                 `${mirror}?data=${encodeURIComponent(overpassQuery)}`,
                 {
-                  timeout: 18000,
+                  timeout: 15000,
                   headers: {
                     'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
                     'Accept': 'application/json'
@@ -3079,18 +3083,27 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
                 }
               );
 
-              if (res.status === 504 || res.status === 429 || res.status === 502 || res.status === 503 || !res.ok) {
-                sendEvent('status', {
-                  message: `⏳ تهدئة ضغط واجهة الخرائط (3 ثوانٍ) وإعادة محاولة الخلية [${cell.label}] (${mAttempt}/5)...`
-                });
+              if (res.status === 429 || res.status === 504 || res.status === 502 || res.status === 503) {
+                osmRateLimited = true;
                 await sleep(3000);
                 continue;
+              }
+
+              if (!res.ok) {
+                // Non-rate-limit empty/400 response -> fast-fail without sleeping
+                osmSucceeded = true;
+                cellOsmCount = 0;
+                break;
               }
 
               const data = await res.json();
               const elements = Array.isArray(data.elements) ? data.elements : [];
               cellOsmCount = elements.length;
               osmSucceeded = true;
+              osmRateLimited = false;
+
+              // Fast-Fail for Empty Cells: if 0 elements returned, exit immediately without extra work
+              if (cellOsmCount === 0) break;
 
               for (const el of elements) {
                 if (isAborted()) break;
@@ -3114,6 +3127,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               }
               break;
             } catch (err) {
+              osmRateLimited = true;
               await sleep(3000);
             }
           }
@@ -3125,16 +3139,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const gmapsFailed = Boolean(gmapsRes?.failed);
 
         if (!isAborted()) {
-          // If the cell still failed after 5 retries on both engines, push it to the BACK of the QuadTree queue to be processed at the end of the scan (Zero cells left behind!)
-          if (!osmSucceeded && gmapsFailed) {
+          // 1. Defer ONLY cells that genuinely hit API rate limits on both engines after 5 retries
+          if (!osmSucceeded && osmRateLimited && gmapsFailed) {
             const deferredPasses = (cell.deferredPasses || 0) + 1;
-            if (deferredPasses <= 6) {
+            if (deferredPasses <= 5) {
               quadtreeQueue.push({
                 ...cell,
                 deferredPasses
-              });
-              sendEvent('status', {
-                message: `🔄 تم ترحيل الخلية [${cell.label}] إلى نهاية طابور QuadTree لإعادة مسحها بالكامل دون ترك أي خلية...`
               });
               return;
             }
@@ -3144,40 +3155,44 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           quadtreeScannedCells++;
           quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
 
-          // Deep QuadTree Subdivision (Bypass 60-Result API Limits):
-          // If a QuadTree cell returns >= 60 results (the API pagination limit), automatically subdivide into 4 smaller sub-cells until every cell returns < 60!
-          if (cellOsmCount >= QUADTREE_SPLIT_THRESHOLD || cellGoogleCount >= QUADTREE_SPLIT_THRESHOLD || (!osmSucceeded && cell.depth < 6)) {
+          // 2. Fast-Fail for Empty Cells: if a cell returns 0 results from all sources (and wasn't rate-limited), NEVER subdivide it!
+          // Subdivide into 4 sub-cells ONLY when a source hits the max threshold (>= 60 results) or hit saturation!
+          const isEmptyCell = cellOsmCount === 0 && cellGoogleCount === 0 && !osmRateLimited && !gmapsFailed;
+          if (!isEmptyCell && (cellOsmCount >= QUADTREE_SPLIT_THRESHOLD || cellGoogleCount >= QUADTREE_SPLIT_THRESHOLD)) {
             subdivideQuadtreeCell(cell);
           }
 
-          sendEvent('quadtree_progress', {
-            scopeKey,
-            scopeMode,
-            activeScopeLabel,
-            scannedCells: quadtreeScannedCells,
-            totalCells: quadtreeTotalCells,
-            subdividedCells: quadtreeSubdividedCells,
-            quadtreeDepth: cell.depth,
-            activeCellLabel: cell.label,
-            googleCount: googleExtractedCount,
-            osmCount: osmExtractedCount,
-            deduplicatedTotal: fetchedCount
-          });
+          // Throttle SSE progress events slightly on high-concurrency bursts (every 3 cells or at completion)
+          if (quadtreeScannedCells % 3 === 0 || quadtreeQueue.length === 0) {
+            sendEvent('quadtree_progress', {
+              scopeKey,
+              scopeMode,
+              activeScopeLabel,
+              scannedCells: quadtreeScannedCells,
+              totalCells: quadtreeTotalCells,
+              subdividedCells: quadtreeSubdividedCells,
+              quadtreeDepth: cell.depth,
+              activeCellLabel: cell.label,
+              googleCount: googleExtractedCount,
+              osmCount: osmExtractedCount,
+              deduplicatedTotal: fetchedCount
+            });
 
-          sendEvent('progress', {
-            current: fetchedCount,
-            total: Math.max(fetchedCount + quadtreeQueue.length * 25, fetchedCount),
-            deduplicatedTotal: fetchedCount,
-            googleCount: googleExtractedCount,
-            osmCount: osmExtractedCount,
-            scannedCells: quadtreeScannedCells,
-            totalCells: quadtreeTotalCells,
-            subdividedCells: quadtreeSubdividedCells,
-            activeScopeLabel,
-            scopeKey
-          });
+            sendEvent('progress', {
+              current: fetchedCount,
+              total: Math.max(fetchedCount + quadtreeQueue.length * 25, fetchedCount),
+              deduplicatedTotal: fetchedCount,
+              googleCount: googleExtractedCount,
+              osmCount: osmExtractedCount,
+              scannedCells: quadtreeScannedCells,
+              totalCells: quadtreeTotalCells,
+              subdividedCells: quadtreeSubdividedCells,
+              activeScopeLabel,
+              scopeKey
+            });
+          }
 
-          if (quadtreeScannedCells % 4 === 0 || quadtreeQueue.length === 0) {
+          if (quadtreeScannedCells % 12 === 0 || quadtreeQueue.length === 0) {
             saveQuadtreeCheckpoint({
               scopeKey,
               scopeMode,
@@ -3200,8 +3215,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       };
 
-      // Controlled Concurrency Worker Pool (5 parallel QuadTree fetch operations) for ultra-fast city/country scanning while respecting external API rate limits
-      const QUADTREE_CONCURRENCY = 5;
+      // High-Concurrency Promise Pool (12 QuadTree cells processed SIMULTANEOUSLY for maximum extraction speed)
+      const QUADTREE_CONCURRENCY = 12;
       const runQuadtreeWorker = async () => {
         while (quadtreeQueue.length > 0 && !isAborted()) {
           const nextCell = quadtreeQueue.shift();
@@ -3779,9 +3794,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               }
             });
 
-            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504 || !gRes.ok) {
+            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
               await sleep(3000);
               continue;
+            }
+            if (!gRes.ok) {
+              return;
             }
             gText = await gRes.text();
             reqSucceeded = true;
@@ -3904,14 +3922,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 10;
-    // Process ALL tasks and dynamically added QuadTree subdivisions until the queue is 100% exhausted (Zero auto-abort, zero artificial wave limits!)
+    const BATCH_CONCURRENCY = 14;
+    // Process ALL tasks and dynamically added QuadTree subdivisions via 14-way parallel Promise pool (Zero auto-abort, zero artificial wave limits!)
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
       await Promise.all(batch.map(executeSingleMapTask));
       if (i + BATCH_CONCURRENCY < queryTasks.length) {
-        await sleep(30);
+        await sleep(15);
       }
     }
 

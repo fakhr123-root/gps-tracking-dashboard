@@ -3479,39 +3479,60 @@
         }
       }
 
-      currentEventSource.addEventListener('progress', (event) => {
-        const data = JSON.parse(event.data);
+      // UI Progress Throttling: refresh progress bar & telemetry counters at most once every 500ms so high-speed parallel fetches never freeze the UI
+      let pendingProgressData = null;
+      let lastProgressUiPaintMs = 0;
+      let progressUiPaintTimer = null;
+
+      function flushThrottledProgressUi() {
+        if (!pendingProgressData) return;
+        const data = pendingProgressData;
+        pendingProgressData = null;
+        lastProgressUiPaintMs = Date.now();
+
         const dedupedCount = typeof data.deduplicatedTotal === 'number' ? data.deduplicatedTotal : (data.current || extractedPlaces.length);
-        const percent = data.total > 0 ? Math.min(Math.round((data.current / data.total) * 100), 98) : 85;
-        progressBar.style.width = `${percent}%`;
-        const pctEl = document.getElementById('progressPercentBadge');
-        if (pctEl) pctEl.innerText = `${percent}%`;
+        if (typeof data.total === 'number' && data.total > 0) {
+          const percent = Math.min(Math.round(((data.current || dedupedCount) / data.total) * 100), 98);
+          progressBar.style.width = `${percent}%`;
+          const pctEl = document.getElementById('progressPercentBadge');
+          if (pctEl) pctEl.innerText = `${percent}%`;
+        }
         progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(dedupedCount).toLocaleString()} موقع`;
-        if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number') {
+        if (typeof data.scannedCells === 'number') {
           const qtBadge = document.getElementById('quadtreeCellsBadge');
           const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
-          if (qtBadge) qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${data.totalCells}${subTxt}`;
+          const totalC = data.totalCells || data.scannedCells;
+          if (qtBadge) qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${totalC}${subTxt}`;
           const dqQt = document.getElementById('dqQuadtreeCellsValue');
-          if (dqQt) dqQt.innerText = `${data.scannedCells} / ${data.totalCells}${subTxt}`;
+          if (dqQt) dqQt.innerText = `${data.scannedCells} / ${totalC}${subTxt}`;
         }
         updateDualEngineScanTelemetry(data);
+      }
+
+      function scheduleThrottledProgressUi(data) {
+        pendingProgressData = Object.assign({}, pendingProgressData || {}, data);
+        const now = Date.now();
+        const elapsed = now - lastProgressUiPaintMs;
+        if (elapsed >= 500) {
+          if (progressUiPaintTimer) {
+            clearTimeout(progressUiPaintTimer);
+            progressUiPaintTimer = null;
+          }
+          flushThrottledProgressUi();
+        } else if (!progressUiPaintTimer) {
+          progressUiPaintTimer = setTimeout(() => {
+            progressUiPaintTimer = null;
+            flushThrottledProgressUi();
+          }, 500 - elapsed);
+        }
+      }
+
+      currentEventSource.addEventListener('progress', (event) => {
+        scheduleThrottledProgressUi(JSON.parse(event.data));
       });
 
       currentEventSource.addEventListener('quadtree_progress', (event) => {
-        const data = JSON.parse(event.data);
-        const qtBadge = document.getElementById('quadtreeCellsBadge');
-        const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
-        if (qtBadge && typeof data.scannedCells === 'number') {
-          qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${data.totalCells || data.scannedCells}${subTxt}`;
-        }
-        const dqQt = document.getElementById('dqQuadtreeCellsValue');
-        if (dqQt && typeof data.scannedCells === 'number') {
-          dqQt.innerText = `${data.scannedCells} / ${data.totalCells || data.scannedCells}${subTxt}`;
-        }
-        if (typeof data.deduplicatedTotal === 'number') {
-          progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(data.deduplicatedTotal).toLocaleString()} موقع`;
-        }
-        updateDualEngineScanTelemetry(data);
+        scheduleThrottledProgressUi(JSON.parse(event.data));
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -3553,6 +3574,11 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
+        if (progressUiPaintTimer) {
+          clearTimeout(progressUiPaintTimer);
+          progressUiPaintTimer = null;
+        }
+        flushThrottledProgressUi();
         if (streamThrottleTimeout) {
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
@@ -3605,6 +3631,11 @@
       });
 
       currentEventSource.addEventListener('error', () => {
+        if (progressUiPaintTimer) {
+          clearTimeout(progressUiPaintTimer);
+          progressUiPaintTimer = null;
+        }
+        flushThrottledProgressUi();
         if (streamThrottleTimeout) {
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
@@ -3824,15 +3855,17 @@
           updateStats();
           updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
           if (!sentinelObserver) initInfiniteScrollObserver();
-        }, 200);
+        }, 500);
       }
 
       if (backgroundChunkQueue.length > 0) {
         setTimeout(processNextBackgroundPlacesSlice, 12);
       } else {
         isProcessingBackgroundChunks = false;
-        updateStats();
-        updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+        if (!batchUiThrottleTimer) {
+          updateStats();
+          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+        }
       }
     }
 
@@ -3842,8 +3875,15 @@
       if (!added) return;
       const idx = extractedPlaces.length;
 
-      if (idx <= INITIAL_PAGE_SIZE || idx % 60 === 0) {
+      // UI Throttling: refresh counters at most every 50 locations or once every 500ms
+      if (idx === 1 || idx % 50 === 0) {
         updateStats();
+      } else if (!batchUiThrottleTimer) {
+        batchUiThrottleTimer = setTimeout(() => {
+          batchUiThrottleTimer = null;
+          updateStats();
+          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+        }, 500);
       }
 
       if (idx === 1 && leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {

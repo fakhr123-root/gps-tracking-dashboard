@@ -270,6 +270,9 @@
       const loginTime = (v.lastSeen || v.firstSeen)
         ? new Date(v.lastSeen || v.firstSeen).toLocaleString('ar-SA', { hour12: true })
         : '—';
+      const trailPointsCount = Array.isArray(v.movementHistory) && v.movementHistory.length > 0
+        ? v.movementHistory.length
+        : (Array.isArray(v.previousLogs) ? v.previousLogs.length + 1 : 1);
 
       return {
         'م': idx + 1,
@@ -280,12 +283,107 @@
         'رابط خرائط جوجل': gmapsUrl,
         'IP': String(v.ip || '—'),
         'الشبكة والجهاز': netAndDevice,
+        'عدد نقاط المسار': Number(trailPointsCount),
         'عدد عمليات البحث': Number(userSearchesCount || 0),
         'الرصيد المتبقي': Number(remainingQuota),
         'حالة الحساب': statusLabel,
         'وقت الدخول': loginTime
       };
     });
+  }
+
+  /**
+   * Builds standardized RTL rows for User Movement Trail / Route History Export (Single User or All Users)
+   */
+  function formatMovementTrailRowsForAdminExcel(visitorsArray) {
+    const list = Array.isArray(visitorsArray) ? visitorsArray : [];
+    const rows = [];
+    let counter = 1;
+
+    for (const v of list) {
+      if (!v) continue;
+      const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+      const userLabel = (cleanU && !v.isDeviceIpAutoAuth && !cleanU.includes('•')) ? `@${cleanU}` : (v.visitorName || 'زائر');
+      const deviceLabel = [v.isp || 'يمن نت', v.device || 'هاتف ذكي'].filter(Boolean).join(' | ');
+      const ipStr = String(v.ip || '—');
+
+      const points = [];
+      if (Array.isArray(v.movementHistory) && v.movementHistory.length > 0) {
+        v.movementHistory.forEach(pt => {
+          if (pt && pt.lat && pt.lng) {
+            points.push({
+              lat: Number(pt.lat),
+              lng: Number(pt.lng),
+              city: pt.city || v.city || 'صنعاء',
+              region: pt.region || v.region || '',
+              status: pt.status || v.connectionStatus || 'live',
+              distanceMeters: Number(pt.distanceMeters || 0),
+              speedKmh: Number(pt.speedKmh || 0),
+              timestamp: pt.timestamp || v.lastSeen || v.firstSeen
+            });
+          }
+        });
+      } else {
+        if (Array.isArray(v.previousLogs)) {
+          [...v.previousLogs].reverse().forEach(snap => {
+            if (snap && snap.lat && snap.lng) {
+              points.push({
+                lat: Number(snap.lat),
+                lng: Number(snap.lng),
+                city: snap.city || v.city || 'صنعاء',
+                region: snap.region || '',
+                status: 'archived',
+                distanceMeters: 0,
+                speedKmh: 0,
+                timestamp: snap.previousLastSeen || snap.archivedAt
+              });
+            }
+          });
+        }
+        if (v.lat && v.lng) {
+          points.push({
+            lat: Number(v.lat),
+            lng: Number(v.lng),
+            city: v.city || 'صنعاء',
+            region: v.region || '',
+            status: v.connectionStatus || 'live',
+            distanceMeters: 0,
+            speedKmh: 0,
+            timestamp: v.lastHeartbeatAt || v.lastSeen || v.firstSeen
+          });
+        }
+      }
+
+      points.forEach((pt, idx) => {
+        const latNum = Number(Number(pt.lat || 0).toFixed(6));
+        const lonNum = Number(Number(pt.lng || 0).toFixed(6));
+        const gmapsUrl = `https://www.google.com/maps?q=${latNum.toFixed(6)},${lonNum.toFixed(6)}`;
+        const timeStr = pt.timestamp
+          ? new Date(pt.timestamp).toLocaleString('ar-SA', { hour12: true })
+          : '—';
+        const statusAr = pt.status === 'gps_off'
+          ? '🔴 أقفل الموقع'
+          : (pt.status === 'background_live' ? '🟢 متصل (في الخلفية)' : (pt.status === 'exited' ? '🟡 خارج التطبيق' : '🟢 متصل (Live)'));
+
+        rows.push({
+          'م': counter++,
+          'اليوزر': userLabel,
+          'رقم النقطة في المسار': `#${idx + 1}`,
+          'المدينة / المنطقة': [pt.city || 'صنعاء', pt.region || ''].filter(Boolean).join(' - '),
+          'خط العرض (Latitude)': latNum,
+          'خط الطول (Longitude)': lonNum,
+          'المسافة المقطوعة (متر)': Number(pt.distanceMeters || 0),
+          'السرعة التقديرية (كم/س)': Number(pt.speedKmh || 0),
+          'حالة الاتصال': statusAr,
+          'وقت النقطة': timeStr,
+          'IP': ipStr,
+          'الشبكة والجهاز': deviceLabel,
+          'رابط خرائط جوجل': gmapsUrl
+        });
+      });
+    }
+
+    return rows;
   }
 
   /**
@@ -444,6 +542,7 @@
   global.extractPlusCodeAndCleanCityDistrict = extractPlusCodeAndCleanCityDistrict;
   global.formatPlaceRowsForExcel = formatPlaceRowsForExcel;
   global.formatVisitorRowsForAdminExcel = formatVisitorRowsForAdminExcel;
+  global.formatMovementTrailRowsForAdminExcel = formatMovementTrailRowsForAdminExcel;
   global.formatSearchLogRowsForAdminExcel = formatSearchLogRowsForAdminExcel;
   global.exportFormattedExcelSheet = exportFormattedExcelSheet;
   global.exportPlacesArrayToExcel = exportPlacesArrayToExcel;

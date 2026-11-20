@@ -4478,6 +4478,109 @@ function computeEffectiveConnectionStatus(v) {
   return 'live';
 }
 
+function haversineMetersBetween(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(Number(lat2) - Number(lat1));
+  const dLng = toRad(Number(lng2) - Number(lng1));
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(Number(lat1))) * Math.cos(toRad(Number(lat2))) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function appendMovementHistoryPoint(targetObj, point) {
+  if (!targetObj || !point || !isValidNonZeroCoord(point.lat, point.lng)) return false;
+  if (!Array.isArray(targetObj.movementHistory)) {
+    targetObj.movementHistory = [];
+  }
+  const newLat = Number(Number(point.lat).toFixed(6));
+  const newLng = Number(Number(point.lng).toFixed(6));
+  const newTs = point.timestamp || new Date().toISOString();
+  const newMs = new Date(newTs).getTime() || Date.now();
+  const lastPt = targetObj.movementHistory[targetObj.movementHistory.length - 1];
+
+  if (lastPt && isValidNonZeroCoord(lastPt.lat, lastPt.lng)) {
+    const distM = haversineMetersBetween(lastPt.lat, lastPt.lng, newLat, newLng);
+    const lastMs = new Date(lastPt.timestamp || 0).getTime() || 0;
+    const elapsedSec = Math.max(0, (newMs - lastMs) / 1000);
+    // Record a new trail waypoint if moved >= 12 meters OR if >= 300 seconds elapsed while status changed
+    const statusChanged = point.status && lastPt.status && point.status !== lastPt.status;
+    if (distM < 12 && !statusChanged && elapsedSec < 300) {
+      lastPt.lastConfirmedAt = newTs;
+      if (point.status) lastPt.status = point.status;
+      return false;
+    }
+    const speedKmh = (distM >= 12 && elapsedSec > 1)
+      ? Number(Math.min(220, (distM / elapsedSec) * 3.6).toFixed(1))
+      : 0;
+    targetObj.movementHistory.push({
+      lat: newLat,
+      lng: newLng,
+      city: point.city || lastPt.city || 'صنعاء',
+      region: point.region || lastPt.region || '',
+      accuracy: point.accuracy || null,
+      status: point.status || 'live',
+      distanceMeters: Math.round(distM),
+      speedKmh,
+      timestamp: newTs
+    });
+  } else {
+    targetObj.movementHistory.push({
+      lat: newLat,
+      lng: newLng,
+      city: point.city || 'صنعاء',
+      region: point.region || '',
+      accuracy: point.accuracy || null,
+      status: point.status || 'live',
+      distanceMeters: 0,
+      speedKmh: 0,
+      timestamp: newTs
+    });
+  }
+
+  if (targetObj.movementHistory.length > 250) {
+    targetObj.movementHistory = targetObj.movementHistory.slice(-250);
+  }
+  return true;
+}
+
+function mergeMovementHistoryArrays(primaryArr = [], secondaryArr = [], fallbackLogs = []) {
+  const combined = [];
+  const pushValid = (pt) => {
+    if (!pt || !isValidNonZeroCoord(pt.lat, pt.lng)) return;
+    const ts = pt.timestamp || pt.previousLastSeen || pt.archivedAt || new Date().toISOString();
+    combined.push({
+      lat: Number(Number(pt.lat).toFixed(6)),
+      lng: Number(Number(pt.lng).toFixed(6)),
+      city: pt.city || 'صنعاء',
+      region: pt.region || pt.locationName || '',
+      accuracy: pt.accuracy || null,
+      status: pt.status || 'live',
+      distanceMeters: Number(pt.distanceMeters || 0),
+      speedKmh: Number(pt.speedKmh || 0),
+      timestamp: ts
+    });
+  };
+  if (Array.isArray(primaryArr)) primaryArr.forEach(pushValid);
+  if (Array.isArray(secondaryArr)) secondaryArr.forEach(pushValid);
+  if (combined.length === 0 && Array.isArray(fallbackLogs)) {
+    fallbackLogs.forEach(pushValid);
+  }
+  combined.sort((a, b) => (new Date(a.timestamp || 0).getTime() || 0) - (new Date(b.timestamp || 0).getTime() || 0));
+  const deduped = [];
+  for (const pt of combined) {
+    const prev = deduped[deduped.length - 1];
+    if (prev) {
+      const dist = haversineMetersBetween(prev.lat, prev.lng, pt.lat, pt.lng);
+      const dt = Math.abs((new Date(pt.timestamp).getTime() || 0) - (new Date(prev.timestamp).getTime() || 0));
+      if (dist < 5 && dt < 15000) continue;
+    }
+    deduped.push(pt);
+  }
+  return deduped.slice(-250);
+}
+
 function extractShortDeviceTitle(deviceStr = '') {
   const d = String(deviceStr || '').trim();
   if (!d) return 'هاتف ذكي';
@@ -4689,6 +4792,13 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
         logs.savedAccounts[u].lat = null;
         logs.savedAccounts[u].lng = null;
       }
+      if (Array.isArray(v.movementHistory) && v.movementHistory.length > 0) {
+        logs.savedAccounts[u].movementHistory = mergeMovementHistoryArrays(
+          logs.savedAccounts[u].movementHistory || [],
+          v.movementHistory,
+          v.previousLogs || []
+        );
+      }
       if (!logs.savedAccounts[u].ip || isLoopbackIp(logs.savedAccounts[u].ip)) {
         if (!isLoopbackIp(v.ip)) logs.savedAccounts[u].ip = v.ip;
       }
@@ -4765,6 +4875,7 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
         resultsCount: s.resultsCount || 0,
         timestamp: s.timestamp || lastSeenIso
       })),
+      movementHistory: Array.isArray(acc?.movementHistory) ? [...acc.movementHistory] : [],
       previousLogs: []
     });
     existingUsersInVisitors.add(cleanU);
@@ -4799,6 +4910,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
       if (!mapByKey.has(autoKey)) {
         const shortDev = extractShortDeviceTitle(normalizeRealDeviceName(item.device, item.userAgent));
         const guestEffStatus = computeEffectiveConnectionStatus(item);
+        const guestHistory = mergeMovementHistoryArrays(item.movementHistory || [], [], item.previousLogs || []);
         mapByKey.set(autoKey, {
           ...item,
           visitorName: rawVName || (shortDev + ' • ' + (resolvedAutoIp || 'IP')),
@@ -4817,8 +4929,12 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
           device: normalizeRealDeviceName(item.device, item.userAgent),
           loginCount: item.loginCount || 1,
           sessionSearches: Array.isArray(item.sessionSearches) ? [...item.sessionSearches] : [],
+          movementHistory: guestHistory,
           previousLogs: Array.isArray(item.previousLogs) ? [...item.previousLogs] : []
         });
+      } else {
+        const pGuest = mapByKey.get(autoKey);
+        pGuest.movementHistory = mergeMovementHistoryArrays(pGuest.movementHistory || [], item.movementHistory || [], item.previousLogs || []);
       }
       continue;
     }
@@ -4879,6 +4995,21 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         gpsEnabled: item.gpsEnabled !== undefined ? item.gpsEnabled : savedAcc.gpsEnabled,
         lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen
       });
+      const mergedUserHistory = mergeMovementHistoryArrays(
+        item.movementHistory || [],
+        savedAcc.movementHistory || [],
+        item.previousLogs || []
+      );
+      if (isValidNonZeroCoord(resolvedLat, resolvedLng)) {
+        appendMovementHistoryPoint({ movementHistory: mergedUserHistory }, {
+          lat: resolvedLat,
+          lng: resolvedLng,
+          city: item.city || savedAcc.city || 'صنعاء',
+          region: item.region || '',
+          status: effConnStatus,
+          timestamp: item.lastHeartbeatAt || item.lastSeen || item.firstSeen
+        });
+      }
       mapByKey.set(key, {
         ...item,
         id: canonicalUserId,
@@ -4906,6 +5037,7 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         loginCount: item.loginCount || 1,
         searchesCount: Math.max(item.searchesCount || 0, baseSessionSearches.length),
         sessionSearches: baseSessionSearches,
+        movementHistory: mergedUserHistory,
         previousLogs: Array.isArray(item.previousLogs)
           ? item.previousLogs.map(snap => {
               const snapIp = !isLoopbackIp(snap.ip) ? snap.ip : resolvedIp;
@@ -4983,6 +5115,11 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         }
       }
       primary.searchesCount = Math.max(primary.searchesCount || 0, primary.sessionSearches.length);
+      primary.movementHistory = mergeMovementHistoryArrays(
+        primary.movementHistory || [],
+        item.movementHistory || [],
+        primary.previousLogs || []
+      );
     }
   }
 
@@ -5255,7 +5392,25 @@ async function recordVisitor(info) {
         logs.savedAccounts[normInputName].city = v.city;
         logs.savedAccounts[normInputName].country = v.country;
         logs.savedAccounts[normInputName].locationSource = v.locationSource;
+        appendMovementHistoryPoint(logs.savedAccounts[normInputName], {
+          lat: v.lat,
+          lng: v.lng,
+          city: v.city,
+          region: v.region,
+          accuracy: v.accuracy,
+          status: 'live',
+          timestamp: now
+        });
       }
+      appendMovementHistoryPoint(v, {
+        lat: v.lat,
+        lng: v.lng,
+        city: v.city,
+        region: v.region,
+        accuracy: v.accuracy,
+        status: 'live',
+        timestamp: now
+      });
     } else if (!isValidNonZeroCoord(v.lat, v.lng)) {
       const savedLat = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lat : null;
       const savedLng = !isAutoDeviceOnly && normInputName ? logs.savedAccounts[normInputName]?.lng : null;
@@ -5331,8 +5486,33 @@ async function recordVisitor(info) {
       loginCount: 1,
       searchesCount: 0,
       sessionSearches: [],
+      movementHistory: (!isAutoDeviceOnly && normInputName && Array.isArray(logs.savedAccounts?.[normInputName]?.movementHistory))
+        ? [...logs.savedAccounts[normInputName].movementHistory]
+        : [],
       previousLogs: []
     };
+    if (isValidNonZeroCoord(initialLat, initialLng)) {
+      appendMovementHistoryPoint(v, {
+        lat: initialLat,
+        lng: initialLng,
+        city: finalCity,
+        region: finalRegion,
+        accuracy: info.accuracy || null,
+        status: 'live',
+        timestamp: freshIso
+      });
+      if (!isAutoDeviceOnly && normInputName && logs.savedAccounts[normInputName]) {
+        appendMovementHistoryPoint(logs.savedAccounts[normInputName], {
+          lat: initialLat,
+          lng: initialLng,
+          city: finalCity,
+          region: finalRegion,
+          accuracy: info.accuracy || null,
+          status: 'live',
+          timestamp: freshIso
+        });
+      }
+    }
     logs.visitors.unshift(v);
   }
   if (logs.deletedVisitorKeys && v) {
@@ -5346,7 +5526,12 @@ async function recordVisitor(info) {
   }
   reconcileAllUsersAndVisitors(logs, incomingRealIp);
   saveAdminLogs(logs);
-  broadcastAdminRadarUpdate({ type: 'visitor_update', visitor: v, timestamp: now });
+  broadcastAdminRadarUpdate({
+    type: 'visitor_login',
+    alertType: authMode === 'register' ? 'new_register' : 'user_login',
+    visitor: v,
+    timestamp: now
+  });
   return v;
 }
 
@@ -5691,6 +5876,19 @@ const server = http.createServer(async (req, res) => {
     const finalLocationName = `${finalCity} - ${finalRegion}`;
     const cleanIsp = normalizeRealIspName(data.isp || (v && v.isp) || '', finalCountry, realClientIp);
 
+    const prevStatus = v
+      ? computeEffectiveConnectionStatus(v)
+      : (isReg && logs.savedAccounts?.[rawUser] ? computeEffectiveConnectionStatus(logs.savedAccounts[rawUser]) : 'exited');
+    const isNewEntry = !v;
+    let alertType = '';
+    if (isGpsDisabledReport && prevStatus !== 'gps_off') {
+      alertType = 'gps_disabled';
+    } else if (!isGpsDisabledReport && prevStatus === 'gps_off') {
+      alertType = 'gps_restored';
+    } else if ((isNewEntry || prevStatus === 'exited') && (incomingLiveStatus === 'live' || incomingLiveStatus === 'background_live')) {
+      alertType = 'user_online';
+    }
+
     if (isReg) {
       if (!logs.savedAccounts) logs.savedAccounts = {};
       if (!logs.savedAccounts[rawUser]) {
@@ -5710,6 +5908,15 @@ const server = http.createServer(async (req, res) => {
         logs.savedAccounts[rawUser].city = finalCity;
         logs.savedAccounts[rawUser].country = finalCountry;
         logs.savedAccounts[rawUser].region = finalRegion;
+        appendMovementHistoryPoint(logs.savedAccounts[rawUser], {
+          lat: effLat,
+          lng: effLng,
+          city: finalCity,
+          region: finalRegion,
+          accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
+          status: incomingLiveStatus,
+          timestamp: now
+        });
       }
       logs.savedAccounts[rawUser].locationSource = 'GPS';
       logs.savedAccounts[rawUser].connectionStatus = incomingLiveStatus;
@@ -5737,6 +5944,15 @@ const server = http.createServer(async (req, res) => {
         v.country = finalCountry;
         v.region = finalRegion;
         v.locationName = finalLocationName;
+        appendMovementHistoryPoint(v, {
+          lat: effLat,
+          lng: effLng,
+          city: finalCity,
+          region: finalRegion,
+          accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15),
+          status: incomingLiveStatus,
+          timestamp: now
+        });
       }
       v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
       v.locationSource = 'GPS';
@@ -5783,13 +5999,32 @@ const server = http.createServer(async (req, res) => {
         loginCount: 1,
         searchesCount: 0,
         sessionSearches: [],
+        movementHistory: (isReg && Array.isArray(logs.savedAccounts?.[rawUser]?.movementHistory))
+          ? [...logs.savedAccounts[rawUser].movementHistory]
+          : [],
         previousLogs: []
       };
+      if (effLat !== null && effLng !== null) {
+        appendMovementHistoryPoint(v, {
+          lat: effLat,
+          lng: effLng,
+          city: finalCity,
+          region: finalRegion,
+          accuracy: v.accuracy,
+          status: incomingLiveStatus,
+          timestamp: now
+        });
+      }
       logs.visitors.unshift(v);
     }
 
     saveAdminLogs(logs);
-    broadcastAdminRadarUpdate({ type: 'visitor_update', visitor: v, timestamp: now });
+    broadcastAdminRadarUpdate({
+      type: 'visitor_update',
+      alertType,
+      visitor: v,
+      timestamp: now
+    });
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'ok',
@@ -5805,7 +6040,8 @@ const server = http.createServer(async (req, res) => {
       liveStatus: v.liveStatus,
       gpsEnabled: v.gpsEnabled,
       gpsClosedAt: v.gpsClosedAt || null,
-      lastHeartbeatAt: v.lastHeartbeatAt
+      lastHeartbeatAt: v.lastHeartbeatAt,
+      movementHistoryCount: Array.isArray(v.movementHistory) ? v.movementHistory.length : 0
     }));
     return;
   }
@@ -6168,14 +6404,46 @@ const server = http.createServer(async (req, res) => {
 
     // Merge incoming visitors keyed by canonical user key (`user:<username>`) rather than raw `id` so accounts sharing a device ID are never dropped!
     if (Array.isArray(data.visitors)) {
-      const existingCanonKeys = new Set(logs.visitors.map(v => getVisitorCanonicalKey(v)));
+      const existingCanonMap = new Map(logs.visitors.map(v => [getVisitorCanonicalKey(v), v]));
       for (const item of data.visitors) {
         if (!item) continue;
         const cKey = getVisitorCanonicalKey(item);
-        if (cKey && !existingCanonKeys.has(cKey) && !isVisitorTombstoned(item, logs)) {
+        if (!cKey || isVisitorTombstoned(item, logs)) continue;
+        if (!existingCanonMap.has(cKey)) {
           logs.visitors.push(item);
-          existingCanonKeys.add(cKey);
+          existingCanonMap.set(cKey, item);
           changed = true;
+        } else if (Array.isArray(item.movementHistory) && item.movementHistory.length > 0) {
+          const existingV = existingCanonMap.get(cKey);
+          existingV.movementHistory = mergeMovementHistoryArrays(
+            existingV.movementHistory || [],
+            item.movementHistory,
+            existingV.previousLogs || []
+          );
+          changed = true;
+        }
+      }
+    }
+
+    if (data.savedAccounts && typeof data.savedAccounts === 'object') {
+      if (!logs.savedAccounts || typeof logs.savedAccounts !== 'object') logs.savedAccounts = {};
+      for (const [rawK, incAcc] of Object.entries(data.savedAccounts)) {
+        const cleanU = normalizeIgUsername(rawK || incAcc?.username || '');
+        if (!cleanU || !VALID_IG_USERNAME_REGEX.test(cleanU)) continue;
+        if (!logs.savedAccounts[cleanU]) {
+          logs.savedAccounts[cleanU] = { ...incAcc, username: `@${cleanU}` };
+          changed = true;
+        } else {
+          if (!logs.savedAccounts[cleanU].passwordHash && incAcc?.passwordHash) {
+            logs.savedAccounts[cleanU].passwordHash = incAcc.passwordHash;
+          }
+          if (Array.isArray(incAcc?.movementHistory) && incAcc.movementHistory.length > 0) {
+            logs.savedAccounts[cleanU].movementHistory = mergeMovementHistoryArrays(
+              logs.savedAccounts[cleanU].movementHistory || [],
+              incAcc.movementHistory,
+              []
+            );
+          }
         }
       }
     }
@@ -6193,6 +6461,86 @@ const server = http.createServer(async (req, res) => {
       deletedSearchIds: logs.deletedSearchIds,
       clearedAllVisitorsAt: logs.clearedAllVisitorsAt,
       clearedAllSearchesAt: logs.clearedAllSearchesAt
+    }));
+    return;
+  }
+
+  // Admin Full Cloud/Local Backup Export & Restore Endpoint (GET /api/admin/backup & POST /api/admin/restore-backup)
+  if (pathname === '/api/admin/backup' && req.method === 'GET') {
+    const logs = loadAdminLogs();
+    logs.visitors = consolidateVisitorsList(logs.visitors || [], '', logs);
+    saveAdminLogs(logs);
+    const backupPayload = {
+      backupVersion: 'GeoRadar_Admin_Backup_v3',
+      exportedAt: new Date().toISOString(),
+      visitors: logs.visitors || [],
+      savedAccounts: logs.savedAccounts || {},
+      searches: logs.searches || [],
+      adminSettings: logs.adminSettings || {},
+      deletedVisitorKeys: logs.deletedVisitorKeys || {},
+      deletedSearchIds: logs.deletedSearchIds || [],
+      clearedAllVisitorsAt: logs.clearedAllVisitorsAt || 0,
+      clearedAllSearchesAt: logs.clearedAllSearchesAt || 0
+    };
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Disposition': `attachment; filename="GeoRadar_Full_Admin_Backup_${new Date().toISOString().slice(0, 10)}.json"`
+    });
+    res.end(JSON.stringify(backupPayload, null, 2));
+    return;
+  }
+
+  if (pathname === '/api/admin/restore-backup' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    if (!data || typeof data !== 'object' || (!Array.isArray(data.visitors) && !data.savedAccounts && !Array.isArray(data.searches))) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ success: false, message: 'ملف النسخة الاحتياطية غير صالح!' }));
+      return;
+    }
+
+    if (data.savedAccounts && typeof data.savedAccounts === 'object') {
+      if (!logs.savedAccounts) logs.savedAccounts = {};
+      for (const [k, acc] of Object.entries(data.savedAccounts)) {
+        const cleanU = normalizeIgUsername(k || acc?.username || '');
+        if (!cleanU) continue;
+        const prev = logs.savedAccounts[cleanU] || {};
+        logs.savedAccounts[cleanU] = {
+          ...prev,
+          ...acc,
+          username: `@${cleanU}`,
+          passwordHash: acc.passwordHash || prev.passwordHash || '',
+          movementHistory: mergeMovementHistoryArrays(prev.movementHistory || [], acc.movementHistory || [], [])
+        };
+      }
+    }
+
+    if (Array.isArray(data.visitors)) {
+      logs.visitors = [...data.visitors, ...(logs.visitors || [])];
+    }
+
+    if (Array.isArray(data.searches)) {
+      const existingIds = new Set((logs.searches || []).map(s => s && s.id));
+      for (const s of data.searches) {
+        if (s && s.id && !existingIds.has(s.id)) {
+          logs.searches.push(s);
+          existingIds.add(s.id);
+        }
+      }
+      logs.searches.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+    }
+
+    logs.visitors = consolidateVisitorsList(logs.visitors || [], '', logs);
+    saveAdminLogs(logs);
+    broadcastAdminRadarUpdate({ type: 'backup_restored', timestamp: new Date().toISOString() });
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      message: `تم استرجاع النسخة الاحتياطية بنجاح (${logs.visitors.length} مستخدم/زائر، ${logs.searches.length} عملية بحث)!`,
+      visitors: logs.visitors,
+      savedAccounts: logs.savedAccounts,
+      searches: logs.searches
     }));
     return;
   }

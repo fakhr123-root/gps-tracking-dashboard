@@ -957,17 +957,55 @@
       }, 6500);
     }
 
+    let adminSseReconnectTimer = null;
+
+    async function syncLatestAdminUsersAndSearchesOnReconnect() {
+      try {
+        const [usersRes, searchesRes] = await Promise.all([
+          fetch('/api/admin/users', { cache: 'no-store' }).catch(() => null),
+          fetch('/api/admin/searches', { cache: 'no-store' }).catch(() => null)
+        ]);
+        // Regardless of individual endpoint result, run full fetchAdminData() to reconcile and re-render all tables & map pins immediately
+        if ((usersRes && usersRes.ok) || (searchesRes && searchesRes.ok)) {
+          await fetchAdminData();
+        } else {
+          await fetchAdminData();
+        }
+      } catch (e) {
+        fetchAdminData();
+      }
+    }
+
     function initAdminRealtimeSseStream() {
+      if (adminSseReconnectTimer) {
+        clearTimeout(adminSseReconnectTimer);
+        adminSseReconnectTimer = null;
+      }
       if (adminSseConnection) {
         try { adminSseConnection.close(); } catch (e) {}
+        adminSseConnection = null;
       }
       try {
         adminSseConnection = new EventSource('/api/admin/stream');
+
+        adminSseConnection.onopen = () => {
+          if (adminSseReconnectTimer) {
+            clearTimeout(adminSseReconnectTimer);
+            adminSseReconnectTimer = null;
+          }
+          // Upon successful connection/reconnection, automatically fetch latest Users & Search History to replace any stale data
+          syncLatestAdminUsersAndSearchesOnReconnect();
+        };
+
         adminSseConnection.onmessage = (ev) => {
           if (!ev || !ev.data) return;
           try {
             const payload = JSON.parse(ev.data);
-            if (!payload || payload.type === 'connected') return;
+            if (!payload) return;
+            if (payload.type === 'connected') {
+              syncLatestAdminUsersAndSearchesOnReconnect();
+              return;
+            }
             if (payload.visitor) {
               const v = payload.visitor;
               const vKey = normVisitorKey(v) || v.id;
@@ -990,7 +1028,30 @@
             fetchAdminData();
           } catch (e) {}
         };
-      } catch (e) {}
+
+        adminSseConnection.onerror = () => {
+          try {
+            if (adminSseConnection) {
+              adminSseConnection.close();
+              adminSseConnection = null;
+            }
+          } catch (e) {}
+          // Automatically attempt to reconnect every 3.5 seconds (within 3-5s window)
+          if (!adminSseReconnectTimer) {
+            adminSseReconnectTimer = setTimeout(() => {
+              adminSseReconnectTimer = null;
+              initAdminRealtimeSseStream();
+            }, 3500);
+          }
+        };
+      } catch (e) {
+        if (!adminSseReconnectTimer) {
+          adminSseReconnectTimer = setTimeout(() => {
+            adminSseReconnectTimer = null;
+            initAdminRealtimeSseStream();
+          }, 4000);
+        }
+      }
     }
 
     let adminHealthKeepAliveTimer = null;
@@ -1197,7 +1258,7 @@
         };
       }
 
-      if (ageSec <= 90 && rawConn !== 'exited') {
+      if (ageSec <= 45 && rawConn !== 'exited') {
         const isBg = Boolean(rawConn === 'background_live');
         const subText = isBg ? 'في الخلفية — GPS شغال' : 'في الواجهة';
         return {
@@ -1218,7 +1279,7 @@
         connectionStatus: 'exited',
         isLive: false,
         mainLabel: `🟡 خارج التطبيق ${userHandle}`,
-        subLabel: 'لم يصل نبض منذ +90 ثانية',
+        subLabel: 'لم يصل نبض منذ +45 ثانية',
         markerTag: '🟡 خارج التطبيق',
         markerFullLabel: `🟡 خارج التطبيق ${userHandle}`,
         markerColor: '#f59e0b',
@@ -1553,9 +1614,14 @@
         seenInputUsers.add(cleanSU);
       }
 
-      const sorted = [...reconciledInput].sort(
-        (a, b) => new Date(b.lastSeen || b.firstSeen || 0) - new Date(a.lastSeen || a.firstSeen || 0)
-      );
+      const sorted = [...reconciledInput].sort((a, b) => {
+        if (Boolean(b?._fromServer) !== Boolean(a?._fromServer)) {
+          return b?._fromServer ? 1 : -1;
+        }
+        const bTs = Math.max(new Date(b?.lastHeartbeatAt || 0).getTime() || 0, new Date(b?.lastSeen || b?.firstSeen || 0).getTime() || 0);
+        const aTs = Math.max(new Date(a?.lastHeartbeatAt || 0).getTime() || 0, new Date(a?.lastSeen || a?.firstSeen || 0).getTime() || 0);
+        return bTs - aTs;
+      });
       for (const item of sorted) {
         if (!item) continue;
         const rawVName = String(item.visitorName || '').trim();
@@ -1732,7 +1798,7 @@
       if (refreshIcon) refreshIcon.classList.add('animate-spin');
 
       try {
-        const res = await fetch('/api/admin/data');
+        const res = await fetch('/api/admin/data', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           const localArch = loadLocalArchive();

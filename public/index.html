@@ -3301,8 +3301,36 @@
 
       let visitorId = localStorage.getItem('gmaps_visitor_id') || '';
       let visitorName = localStorage.getItem('gmaps_visitor_name') || '';
+      const activeIdentity = getDynamicUserIdentity();
+      if (!visitorName && activeIdentity.username) visitorName = activeIdentity.username;
+      if (!visitorId) visitorId = activeIdentity.userId || activeIdentity.deviceId || getOrCreateDeviceVisitorId();
+
+      // Explicitly log the search initiation to the server's search history endpoint immediately so it logs in real time on the Admin Dashboard
+      const activeSearchSessionId = `srch_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+      window.__currentActiveSearchLogId = activeSearchSessionId;
+      fetch('/api/user/log-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          searchId: activeSearchSessionId,
+          visitorId,
+          visitorName,
+          username: activeIdentity.username || visitorName,
+          visitorLocation: location ? `${location} ${neighborhood}`.trim() : 'صنعاء، اليمن',
+          query: query || 'مسح شامل لجميع الأنشطة',
+          location: location || 'صنعاء',
+          neighborhood: drawnPolygonCoords && drawnPolygonCoords.length >= 3
+            ? `مضلع مرسوم (${drawnPolygonCoords.length} نقاط)`
+            : (drawnCircleState ? `دائرة مرسومة (${drawnCircleState.lat.toFixed(6)}, ${drawnCircleState.lng.toFixed(6)})` : (neighborhood || 'كامل المدينة')),
+          radiusKm: drawnCircleState ? Number(drawnCircleState.radiusKm.toFixed(2)) : selectedRadius,
+          resultsCount: 0,
+          status: 'started'
+        }),
+        keepalive: true
+      }).catch(() => {});
 
       const params = new URLSearchParams({
+        searchId: activeSearchSessionId,
         query: query,
         location: location,
         neighborhood: neighborhood,
@@ -3482,6 +3510,38 @@
         }
         updateStats();
         autoSaveIdbSessionSnapshot();
+        fetch('/api/user/log-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            searchId: activeSearchSessionId,
+            visitorId,
+            visitorName,
+            username: activeIdentity.username || visitorName,
+            visitorLocation: location ? `${location} ${neighborhood}`.trim() : 'صنعاء، اليمن',
+            query: query || 'مسح شامل لجميع الأنشطة',
+            location: location || 'صنعاء',
+            neighborhood: drawnPolygonCoords && drawnPolygonCoords.length >= 3
+              ? `مضلع مرسوم (${drawnPolygonCoords.length} نقاط)`
+              : (drawnCircleState ? `دائرة مرسومة (${drawnCircleState.lat.toFixed(6)}, ${drawnCircleState.lng.toFixed(6)})` : (neighborhood || 'كامل المدينة')),
+            radiusKm: drawnCircleState ? Number(drawnCircleState.radiusKm.toFixed(2)) : selectedRadius,
+            resultsCount: extractedPlaces.length,
+            cachedResults: extractedPlaces.slice(0, 250).map((p, idx) => ({
+              index: idx + 1,
+              name: p.name,
+              city: p.city,
+              district: p.district,
+              address: p.address,
+              lat: Number(p.lat || 0).toFixed(6),
+              lng: Number(p.lng || 0).toFixed(6),
+              coords: `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
+              phone: p.phone || '',
+              rating: p.rating || '4.6'
+            })),
+            status: 'completed'
+          }),
+          keepalive: true
+        }).catch(() => {});
         progressBar.style.width = '100%';
         const pctEl = document.getElementById('progressPercentBadge');
         if (pctEl) pctEl.innerText = '100%';
@@ -4661,7 +4721,6 @@
 
       const hasCoords = isValidNonZeroClientCoord(lat, lng);
       const fallbackHasCoords = cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng);
-      if (!hasCoords && !fallbackHasCoords && effectiveStatus !== 'gps_disabled' && effectiveStatus !== 'gps_off') return;
 
       const sendLat = hasCoords ? Number(lat) : (fallbackHasCoords ? Number(cachedOptionalGps.lat) : null);
       const sendLng = hasCoords ? Number(lng) : (fallbackHasCoords ? Number(cachedOptionalGps.lng) : null);
@@ -5063,17 +5122,21 @@
         } catch (e) {}
       }
 
-      // 2. Continuous 10-second background heartbeat (never paused when hidden)
+      // 2. Continuous 10-second persistent heartbeat to POST /api/user/update-location as long as the app is open (even if coordinates haven't changed)
       if (!liveGpsHeartbeatTimer) {
         liveGpsHeartbeatTimer = setInterval(() => {
           if (window.isPhoneGpsCurrentlyEnabled === false) {
             reportGpsClosedStatusTelemetry(1);
             return;
           }
-          if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-            const hbStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
-            streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, hbStatus, true);
-          }
+          const lastCoord = (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng))
+            ? cachedOptionalGps
+            : getLastSavedValidGpsCoords();
+          const hbLat = lastCoord ? lastCoord.lat : null;
+          const hbLng = lastCoord ? lastCoord.lng : null;
+          const hbAcc = lastCoord ? (lastCoord.accuracy || 15) : 15;
+          const hbStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+          streamLiveGpsToServer(hbLat, hbLng, hbAcc, hbStatus, true);
         }, 10000);
       }
     }
@@ -5575,12 +5638,15 @@
       attachReturningUserGpsLifecycleListeners();
       attachGpsPermissionAutoUnlockListener();
 
-      // Immediately deliver last known valid coordinates on app open (if any) and start permission-checked GPS tracking
+      // Immediately deliver last known valid coordinates or initial live heartbeat on app open and start persistent 10-second heartbeat + GPS tracking
       const lastKnown = getLastSavedValidGpsCoords();
       if (lastKnown) {
         cachedOptionalGps = lastKnown;
         streamLiveGpsToServer(lastKnown.lat, lastKnown.lng, lastKnown.accuracy || 15, 'live', true);
+      } else {
+        streamLiveGpsToServer(null, null, 15, 'live', true);
       }
+      startLiveGpsLocationWatcher();
       window.verifyAndStreamDeviceLocation(false);
 
       // If user has a saved login session, enter app directly with zero intermediate screens!

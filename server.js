@@ -4461,6 +4461,18 @@ function broadcastAdminRadarUpdate(payload) {
   }
 }
 
+// Keep Admin SSE streams alive across reverse proxies & Render load balancers
+setInterval(() => {
+  if (ADMIN_SSE_CLIENTS.size === 0) return;
+  for (const clientRes of ADMIN_SSE_CLIENTS) {
+    try {
+      clientRes.write(`: keepalive ${Date.now()}\n\n`);
+    } catch (e) {
+      ADMIN_SSE_CLIENTS.delete(clientRes);
+    }
+  }
+}, 15000);
+
 function computeEffectiveConnectionStatus(v) {
   if (!v) return 'exited';
   const raw = String(v.connectionStatus || v.liveStatus || '').trim();
@@ -4469,7 +4481,8 @@ function computeEffectiveConnectionStatus(v) {
   }
   const lastHbMs = new Date(v.lastHeartbeatAt || v.lastSeen || v.firstSeen || 0).getTime() || 0;
   const ageSec = lastHbMs > 0 ? Math.max(0, (Date.now() - lastHbMs) / 1000) : 999999;
-  if (raw === 'exited' || ageSec > 90) {
+  // Only mark a user as 'Offline' ('exited' 🔴/🟡) if no heartbeat is received for more than 45 seconds
+  if (raw === 'exited' || ageSec > 45) {
     return 'exited';
   }
   if (raw === 'background_live') {
@@ -4808,6 +4821,17 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
       if (!logs.savedAccounts[u].city && v.city) {
         logs.savedAccounts[u].city = v.city;
       }
+      if (v.lastHeartbeatAt || v.lastSeen) {
+        const vHbTime = new Date(v.lastHeartbeatAt || v.lastSeen || 0).getTime() || 0;
+        const accHbTime = new Date(logs.savedAccounts[u].lastHeartbeatAt || logs.savedAccounts[u].updatedAt || 0).getTime() || 0;
+        if (vHbTime >= accHbTime) {
+          logs.savedAccounts[u].lastHeartbeatAt = v.lastHeartbeatAt || v.lastSeen;
+          logs.savedAccounts[u].updatedAt = v.lastSeen || v.lastHeartbeatAt;
+          if (v.connectionStatus) logs.savedAccounts[u].connectionStatus = v.connectionStatus;
+          if (v.liveStatus) logs.savedAccounts[u].liveStatus = v.liveStatus;
+          if (v.gpsEnabled !== undefined) logs.savedAccounts[u].gpsEnabled = v.gpsEnabled;
+        }
+      }
     }
     if (v.accountPassword) v.accountPassword = '';
   }
@@ -4836,7 +4860,12 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
     const resolvedCity = acc?.city || (latestSearch?.targetLocation ? String(latestSearch.targetLocation).split(/[،,-]/)[0].trim() : 'صنعاء') || 'صنعاء';
     const resolvedCountry = acc?.country || 'اليمن';
     const firstSeenIso = acc?.createdAt || earliestSearch?.timestamp || nowIso;
-    const lastSeenIso = latestSearch?.timestamp || acc?.updatedAt || firstSeenIso;
+    const latestTsMs = Math.max(
+      new Date(acc?.lastHeartbeatAt || 0).getTime() || 0,
+      new Date(acc?.updatedAt || 0).getTime() || 0,
+      new Date(latestSearch?.timestamp || 0).getTime() || 0
+    );
+    const lastSeenIso = latestTsMs > 0 ? new Date(latestTsMs).toISOString() : firstSeenIso;
     const isBannedFlag = cleanU === '1' ? false : Boolean(acc?.isBanned ?? acc?.suspended);
 
     logs.visitors.push({
@@ -4860,6 +4889,10 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
       lat: isValidNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lat) : null,
       lng: isValidNonZeroCoord(acc?.lat, acc?.lng) ? Number(acc.lng) : null,
       locationSource: acc?.locationSource || 'GPS',
+      connectionStatus: acc?.connectionStatus || acc?.liveStatus || 'exited',
+      liveStatus: acc?.liveStatus || acc?.connectionStatus || 'exited',
+      gpsEnabled: acc?.gpsEnabled !== undefined ? Boolean(acc.gpsEnabled) : true,
+      lastHeartbeatAt: acc?.lastHeartbeatAt || lastSeenIso,
       accuracy: null,
       device: normalizeRealDeviceName(acc?.device || 'هاتف ذكي / متصفح ويب مباشر', ''),
       firstSeen: firstSeenIso,
@@ -4987,13 +5020,22 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng)
             ? Number(savedAcc.lng)
             : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : null));
+      const latestHeartbeatMs = Math.max(
+        new Date(item.lastHeartbeatAt || 0).getTime() || 0,
+        new Date(savedAcc.lastHeartbeatAt || 0).getTime() || 0,
+        new Date(item.lastSeen || 0).getTime() || 0,
+        new Date(savedAcc.updatedAt || 0).getTime() || 0,
+        new Date(item.firstSeen || 0).getTime() || 0
+      );
+      const effectiveLastHbIso = latestHeartbeatMs > 0 ? new Date(latestHeartbeatMs).toISOString() : new Date().toISOString();
       const effConnStatus = computeEffectiveConnectionStatus({
         ...savedAcc,
         ...item,
         liveStatus: item.liveStatus || savedAcc.liveStatus,
         connectionStatus: item.connectionStatus || item.liveStatus || savedAcc.connectionStatus || savedAcc.liveStatus,
         gpsEnabled: item.gpsEnabled !== undefined ? item.gpsEnabled : savedAcc.gpsEnabled,
-        lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen
+        lastHeartbeatAt: effectiveLastHbIso,
+        lastSeen: effectiveLastHbIso
       });
       const mergedUserHistory = mergeMovementHistoryArrays(
         item.movementHistory || [],
@@ -5031,7 +5073,8 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         liveStatus: effConnStatus,
         gpsEnabled: item.gpsEnabled !== undefined ? Boolean(item.gpsEnabled) : (savedAcc.gpsEnabled !== undefined ? Boolean(savedAcc.gpsEnabled) : true),
         gpsClosedAt: item.gpsClosedAt || savedAcc.gpsClosedAt || null,
-        lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen,
+        lastHeartbeatAt: effectiveLastHbIso,
+        lastSeen: effectiveLastHbIso,
         batteryLevel: typeof item.batteryLevel === 'number' ? item.batteryLevel : (typeof savedAcc.batteryLevel === 'number' ? savedAcc.batteryLevel : null),
         batteryCharging: typeof item.batteryCharging === 'boolean' ? item.batteryCharging : (typeof savedAcc.batteryCharging === 'boolean' ? savedAcc.batteryCharging : null),
         networkType: item.networkType || savedAcc.networkType || '',
@@ -5625,41 +5668,95 @@ function recordSearch(searchInfo) {
     }
   }
 
-  const record = {
-    id: `srch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-    visitorId: isRegisteredSearchUser ? `user_${cleanSearchUser}` : (v ? v.id : (searchInfo.visitorId || 'guest')),
-    visitorName: isRegisteredSearchUser ? `@${cleanSearchUser}` : (v ? v.visitorName : (rawSearchName || 'زائر')),
-    username: isRegisteredSearchUser ? `@${cleanSearchUser}` : '',
-    ip: (v && !isLoopbackIp(v.ip)) ? v.ip : (searchInfo.ip || '127.0.0.1'),
-    visitorLocation: v ? v.locationName : (searchInfo.visitorLocation || 'اليمن'),
-    query: searchInfo.query || 'غير محدد (جميع الأنشطة)',
-    targetLocation: searchInfo.location || 'صنعاء',
-    targetNeighborhood: searchInfo.neighborhood || 'الكل',
-    radius: searchInfo.radiusKm || 10,
-    resultsCount: searchInfo.resultsCount || 0,
-    cachedResults: Array.isArray(searchInfo.cachedResults) ? searchInfo.cachedResults.slice(0, 1500) : [],
-    timestamp: now
-  };
-  logs.searches.unshift(record);
+  const requestedSearchId = String(searchInfo.searchId || '').trim();
+  let record = requestedSearchId
+    ? (logs.searches || []).find(s => s && s.id === requestedSearchId)
+    : null;
+
+  if (record) {
+    record.visitorId = isRegisteredSearchUser ? `user_${cleanSearchUser}` : (v ? v.id : (searchInfo.visitorId || record.visitorId || 'guest'));
+    record.visitorName = isRegisteredSearchUser ? `@${cleanSearchUser}` : (v ? v.visitorName : (rawSearchName || record.visitorName || 'زائر'));
+    record.username = isRegisteredSearchUser ? `@${cleanSearchUser}` : (record.username || '');
+    record.ip = (v && !isLoopbackIp(v.ip)) ? v.ip : (searchInfo.ip || record.ip || '127.0.0.1');
+    record.visitorLocation = v ? v.locationName : (searchInfo.visitorLocation || record.visitorLocation || 'اليمن');
+    if (searchInfo.query) record.query = searchInfo.query;
+    if (searchInfo.location) record.targetLocation = searchInfo.location;
+    if (searchInfo.neighborhood) record.targetNeighborhood = searchInfo.neighborhood;
+    if (searchInfo.radiusKm) record.radius = searchInfo.radiusKm;
+    if (typeof searchInfo.resultsCount === 'number' && searchInfo.resultsCount >= (record.resultsCount || 0)) {
+      record.resultsCount = searchInfo.resultsCount;
+    }
+    if (Array.isArray(searchInfo.cachedResults) && searchInfo.cachedResults.length > 0) {
+      record.cachedResults = searchInfo.cachedResults.slice(0, 1500);
+    }
+    record.timestamp = now;
+  } else {
+    record = {
+      id: requestedSearchId || `srch_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      visitorId: isRegisteredSearchUser ? `user_${cleanSearchUser}` : (v ? v.id : (searchInfo.visitorId || 'guest')),
+      visitorName: isRegisteredSearchUser ? `@${cleanSearchUser}` : (v ? v.visitorName : (rawSearchName || 'زائر')),
+      username: isRegisteredSearchUser ? `@${cleanSearchUser}` : '',
+      ip: (v && !isLoopbackIp(v.ip)) ? v.ip : (searchInfo.ip || '127.0.0.1'),
+      visitorLocation: v ? v.locationName : (searchInfo.visitorLocation || 'اليمن'),
+      query: searchInfo.query || 'غير محدد (جميع الأنشطة)',
+      targetLocation: searchInfo.location || 'صنعاء',
+      targetNeighborhood: searchInfo.neighborhood || 'الكل',
+      radius: searchInfo.radiusKm || 10,
+      resultsCount: searchInfo.resultsCount || 0,
+      cachedResults: Array.isArray(searchInfo.cachedResults) ? searchInfo.cachedResults.slice(0, 1500) : [],
+      timestamp: now
+    };
+    logs.searches.unshift(record);
+  }
 
   if (v) {
-    // Update visitor session searches count & attach search to session history permanently
-    v.searchesCount = (v.searchesCount || 0) + 1;
+    // Update visitor session searches count & attach search to session history permanently (and mark visitor active/online now)
     v.lastSeen = now;
+    v.lastHeartbeatAt = now;
+    if (v.connectionStatus !== 'gps_off') {
+      v.connectionStatus = 'live';
+      v.liveStatus = 'live';
+    }
+    if (isRegisteredSearchUser && logs.savedAccounts && logs.savedAccounts[cleanSearchUser]) {
+      logs.savedAccounts[cleanSearchUser].lastHeartbeatAt = now;
+      logs.savedAccounts[cleanSearchUser].updatedAt = now;
+      if (logs.savedAccounts[cleanSearchUser].connectionStatus !== 'gps_off') {
+        logs.savedAccounts[cleanSearchUser].connectionStatus = 'live';
+        logs.savedAccounts[cleanSearchUser].liveStatus = 'live';
+      }
+    }
     if (!Array.isArray(v.sessionSearches)) {
       v.sessionSearches = [];
     }
-    v.sessionSearches.unshift({
-      query: record.query,
-      targetLocation: record.targetLocation,
-      targetNeighborhood: record.targetNeighborhood,
-      resultsCount: record.resultsCount,
-      timestamp: now
-    });
+    const existingSessSearch = v.sessionSearches.find(s => s && s.id === record.id);
+    if (existingSessSearch) {
+      existingSessSearch.query = record.query;
+      existingSessSearch.targetLocation = record.targetLocation;
+      existingSessSearch.targetNeighborhood = record.targetNeighborhood;
+      existingSessSearch.resultsCount = record.resultsCount;
+      existingSessSearch.timestamp = now;
+    } else {
+      v.sessionSearches.unshift({
+        id: record.id,
+        query: record.query,
+        targetLocation: record.targetLocation,
+        targetNeighborhood: record.targetNeighborhood,
+        resultsCount: record.resultsCount,
+        timestamp: now
+      });
+      v.searchesCount = Math.max((v.searchesCount || 0) + 1, v.sessionSearches.length);
+    }
   }
 
   // Never truncate or delete historical logs - keep all sessions permanently
   saveAdminLogs(logs);
+  broadcastAdminRadarUpdate({
+    type: 'search_logged',
+    search: record,
+    visitor: v || null,
+    timestamp: now
+  });
+  return record;
 }
 
 // HTTP Server with Automatic GZIP Compression (reduces HTML, CSS, JS, and JSON transfer size by ~70%)
@@ -5669,7 +5766,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   const acceptEncoding = String(req.headers['accept-encoding'] || '');
-  const isSseRequest = req.url && req.url.startsWith('/api/search');
+  const isSseRequest = req.url && (req.url.startsWith('/api/search') || req.url.startsWith('/api/admin/stream'));
   if (acceptEncoding.includes('gzip') && !isSseRequest) {
     const origWriteHead = res.writeHead.bind(res);
     const origEnd = res.end.bind(res);
@@ -6405,6 +6502,70 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Explicit Search / Scan Logging Endpoint (POST /api/user/log-search & POST /api/admin/searches)
+  if ((pathname === '/api/user/log-search' || pathname === '/api/admin/searches') && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const realClientIp = (!isLoopbackIp(data.publicIp))
+      ? String(data.publicIp).trim()
+      : (!isLoopbackIp(clientIp) ? clientIp : '127.0.0.1');
+    const savedRecord = recordSearch({
+      searchId: data.searchId || data.id || '',
+      visitorId: data.visitorId || data.userId || '',
+      visitorName: data.visitorName || data.username || '',
+      username: data.username || data.visitorName || '',
+      ip: realClientIp,
+      visitorLocation: data.visitorLocation || data.location || 'صنعاء، اليمن',
+      query: data.query || 'مسح شامل لجميع الأنشطة',
+      location: data.location || 'صنعاء',
+      neighborhood: data.neighborhood || 'كامل المدينة',
+      radiusKm: Number(data.radiusKm) || 35,
+      resultsCount: Number(data.resultsCount) || 0,
+      cachedResults: Array.isArray(data.cachedResults) ? data.cachedResults : []
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ status: 'ok', success: true, search: savedRecord }));
+    return;
+  }
+
+  // Dedicated Admin Users & Admin Searches GET Endpoints (/api/admin/users, /api/admin/searches) alongside /api/admin/data
+  if (pathname === '/api/admin/users' && req.method === 'GET') {
+    const logs = loadAdminLogs();
+    const fallbackIp = !isLoopbackIp(clientIp) ? clientIp : '';
+    const knownRealIp = fallbackIp || ((logs.visitors || []).find(v => v && !isLoopbackIp(v.ip))?.ip) || '';
+    logs.visitors = consolidateVisitorsList(logs.visitors || [], knownRealIp, logs);
+    saveAdminLogs(logs);
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      visitors: logs.visitors,
+      savedAccounts: logs.savedAccounts || {},
+      deletedVisitorKeys: logs.deletedVisitorKeys || {},
+      clearedAllVisitorsAt: logs.clearedAllVisitorsAt || 0,
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+
+  if (pathname === '/api/admin/searches' && req.method === 'GET') {
+    const logs = loadAdminLogs();
+    const deletedSearchSet = new Set(Array.isArray(logs.deletedSearchIds) ? logs.deletedSearchIds : []);
+    const clearedSearchesAt = Number(logs.clearedAllSearchesAt) || 0;
+    const activeSearches = (logs.searches || []).filter(s => {
+      if (!s || !s.id || deletedSearchSet.has(s.id)) return false;
+      const sTime = new Date(s.timestamp || 0).getTime() || 0;
+      return clearedSearchesAt === 0 || sTime > clearedSearchesAt;
+    });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      searches: activeSearches,
+      deletedSearchIds: logs.deletedSearchIds || [],
+      clearedAllSearchesAt: logs.clearedAllSearchesAt || 0,
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+
   // Admin Data Dashboard Endpoint (returns ALL non-deleted sessions, registered accounts, and search-log users permanently, keyed strictly by username)
   if (pathname === '/api/admin/data') {
     const logs = loadAdminLogs();
@@ -6977,6 +7138,7 @@ const server = http.createServer(async (req, res) => {
     const radiusKm = parseFloat(parsedUrl.query.radius) || 35;
     const radiusMeters = Math.round(radiusKm * 1000);
     const apiKey = (parsedUrl.query.apiKey || '').trim();
+    const searchIdParam = String(parsedUrl.query.searchId || '').trim();
     const visitorId = (parsedUrl.query.visitorId || '').trim();
     const visitorName = (parsedUrl.query.visitorName || '').trim();
     const visitorLocation = (parsedUrl.query.visitorLocation || '').trim();
@@ -7086,34 +7248,33 @@ const server = http.createServer(async (req, res) => {
       sendEvent('error', { message: e.message || 'حدث خطأ غير متوقع' });
     } finally {
       clearInterval(keepAliveTimer);
-      // Only record search in Admin Logs if the visitor has logged in (has visitorId or visitorName)
-      if (visitorId || visitorName) {
-        recordSearch({
-          visitorId,
-          visitorName,
-          ip: clientIp,
-          visitorLocation: visitorLocation || location || 'اليمن',
-          query,
-          location,
-          neighborhood: polygonFilter
-            ? `مضلع مرسوم (${polygonFilter.length} نقاط)`
-            : (circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(6)}, ${circleFilter.lng.toFixed(6)})` : (neighborhood || 'كامل المدينة')),
-          radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
-          resultsCount: resultCount,
-          cachedResults: searchSampleCache.slice(0, 250).map((p, idx) => ({
-            index: idx + 1,
-            name: p.name,
-            city: p.city,
-            district: p.district,
-            address: p.address,
-            lat: Number(p.lat || 0).toFixed(6),
-            lng: Number(p.lng || 0).toFixed(6),
-            coords: `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
-            phone: p.phone || '',
-            rating: p.rating || '4.6'
-          }))
-        });
-      }
+      // Record search in Admin Logs for every user or visitor
+      recordSearch({
+        searchId: searchIdParam,
+        visitorId: visitorId || `anon_${clientIp}`,
+        visitorName: visitorName || 'زائر مباشر',
+        ip: clientIp,
+        visitorLocation: visitorLocation || location || 'اليمن',
+        query,
+        location,
+        neighborhood: polygonFilter
+          ? `مضلع مرسوم (${polygonFilter.length} نقاط)`
+          : (circleFilter ? `دائرة مرسومة (${circleFilter.lat.toFixed(6)}, ${circleFilter.lng.toFixed(6)})` : (neighborhood || 'كامل المدينة')),
+        radiusKm: circleFilter ? Number(circleFilter.radiusKm.toFixed(2)) : radiusKm,
+        resultsCount: resultCount,
+        cachedResults: searchSampleCache.slice(0, 250).map((p, idx) => ({
+          index: idx + 1,
+          name: p.name,
+          city: p.city,
+          district: p.district,
+          address: p.address,
+          lat: Number(p.lat || 0).toFixed(6),
+          lng: Number(p.lng || 0).toFixed(6),
+          coords: `${Number(p.lat || 0).toFixed(6)}, ${Number(p.lng || 0).toFixed(6)}`,
+          phone: p.phone || '',
+          rating: p.rating || '4.6'
+        }))
+      });
       res.end();
     }
     return;

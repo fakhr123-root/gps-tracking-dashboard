@@ -1812,13 +1812,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const q = normAr(rawQ);
     const terms = new Set([rawQ]);
 
-    if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان')) {
+    if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان') || q.includes('grocery') || q.includes('supermarket') || q.includes('convenience')) {
       [
-        'بقالة', 'تموينات', 'سوبر ماركت', 'مواد غذائية',
-        'تاجر مواد غذائية', 'جملة مواد غذائية', 'ميني ماركت', 'هايبر ماركت',
+        'بقالة', 'تموينات', 'سوبر ماركت', 'مواد غذائية', 'supermarket', 'grocery',
+        'ميني ماركت', 'هايبر ماركت', 'دكان', 'تاجر مواد غذائية', 'جملة مواد غذائية',
         'مؤسسة مواد غذائية', 'شركة مواد غذائية', 'مركز تموينات', 'محل مواد غذائية',
         'بهارات وعطارة', 'بوفية وبقالة', 'سوق وتموينات', 'ارزاق ومواد غذائية',
-        'بقاله', 'سوبرماركت', 'بقالات', 'ماركت', 'دكان', 'كشك وبقالة',
+        'بقاله', 'سوبرماركت', 'بقالات', 'ماركت', 'كشك وبقالة',
         'بقالة الخير', 'بقالة البركة', 'بقالة السعيد', 'بقالة التوفيق',
         'بقالة النور', 'بقالة الأمل', 'بقالة الصفا', 'بقالة المدينة',
         'بقالة السلام', 'بقالة التعاون', 'بقالة الحمد', 'بقالة الرضا',
@@ -2742,10 +2742,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       let mirrorCursor = 0;
       let gmapsCellCursor = 0;
 
-      const QUADTREE_SPLIT_THRESHOLD = 60;
+      const QUADTREE_SPLIT_THRESHOLD = 20; // Lowered from 60 -> 20 to force deep street-level subdivision in dense neighborhoods
       const OVERPASS_CELL_CAP = 500;
-      const MIN_CELL_SPAN_DEG = 0.00018; // ~18m micro-building resolution so recursive subdivision never stops prematurely
-      const MAX_QUADTREE_DEPTH = 18; // Deep recursive subdivision to bypass 60-result API limits in dense urban centers
+      const MIN_CELL_SPAN_DEG = 0.0012; // ~135m-150m street/block resolution so dense areas subdivide thoroughly
+      const MAX_QUADTREE_DEPTH = 20; // Deep recursive subdivision down to street/block level in dense urban centers
 
       const scopeMode = targetScope.scopeMode || (isCountrySearch ? 'country' : 'city');
       const countryCode = (center.countryCode || 'YE').toUpperCase();
@@ -2954,102 +2954,113 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         return true;
       };
 
-      // Engine 2 Helper: Live Google Maps Extraction for the active Quadtree cell (Relentless 5-Retry with 3000ms sleep cooldown)
+      // Engine 2 Helper: Live Google Maps Extraction for the active Quadtree cell with Multi-Keyword Query Expansion
       const queryGoogleMapsForQuadtreeCell = async (cell) => {
         if (isAborted()) return { count: 0, failed: false };
         const midLat = Number(((cell.minLat + cell.maxLat) / 2).toFixed(6));
         const midLon = Number(((cell.minLon + cell.maxLon) / 2).toFixed(6));
         const diagKm = Math.max(calcDistanceKm(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon), 0.15);
-        const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 120), 25000);
-        const term = isFullAreaScan
-          ? GMAPS_CELL_TERMS[(gmapsCellCursor) % GMAPS_CELL_TERMS.length]
-          : (stdQuery || 'نشاط تجاري');
+        const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 150), 25000);
+        const cellTerms = isFullAreaScan
+          ? [GMAPS_CELL_TERMS[(gmapsCellCursor) % GMAPS_CELL_TERMS.length]]
+          : expandSpecificActivitySynonyms(stdQuery || 'نشاط تجاري').slice(0, 6);
         const glCode = (center.countryCode || 'YE').toLowerCase();
         const pb = `!4m12!1m3!1d${spanMeters}!2d${midLon}!3d${midLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!8i0!10b1`;
 
-        for (let gAttempt = 1; gAttempt <= 5; gAttempt++) {
-          if (isAborted()) return { count: 0, failed: false };
-          const gDomain = GMAPS_CELL_DOMAINS[(gmapsCellCursor++) % GMAPS_CELL_DOMAINS.length];
-          const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${glCode}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(term)}`;
-          try {
-            const gRes = await fetchWithTimeout(gUrl, {
-              timeout: 8000,
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-                'Accept-Language': 'ar,en;q=0.9',
-                'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
-              }
-            });
-
-            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
-              await sleep(3000);
-              continue;
-            }
-            if (!gRes.ok) {
-              return { count: 0, failed: false };
-            }
-
-            let gText = await gRes.text();
-            if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
-            const gData = JSON.parse(gText);
-            const entries = gData?.[0]?.[1] || [];
-            if (!Array.isArray(entries) || entries.length === 0) return { count: 0, failed: false };
-
-            for (const entry of entries) {
-              if (isAborted()) break;
-              const p = entry?.[14];
-              if (!Array.isArray(p) || !p[11]) continue;
-              const cleanName = String(p[11]).trim();
-              const pLat = parseFloat(p[9]?.[2]);
-              const pLng = parseFloat(p[9]?.[3]);
-              if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
-
-              // Keep within target scope bounding box
-              if (pLat < rootMinLat - 0.02 || pLat > rootMaxLat + 0.02 || pLng < rootMinLon - 0.02 || pLng > rootMaxLon + 0.02) {
-                continue;
-              }
-              const placeCategories = Array.isArray(p[13]) ? p[13] : [];
-              if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
-                continue;
-              }
-              const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-              const phData = extractGoogleMapsPlacePhones(p);
-              const gMeta = {
-                phone: phData.phone,
-                phones: phData.phones,
-                website: p[7]?.[0] || '',
-                rating: p[4]?.[7] || 0,
-                reviewsCount: p[4]?.[8] || 0,
-                categories: placeCategories,
-                address: String(p[39] || p[18] || '').trim()
-              };
-              if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', gMeta)) continue;
-
-              emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
-              const hMatch = resolveLocalNeighborhood(pLat, pLng);
-              const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
-                ? resolveTrueYemenCity(pLat, pLng, center.city)
-                : (hMatch?.city || center.city);
-              upsertPlaceIntoPersistentDb({
-                place_id: placeIdKey || undefined,
-                n: cleanName,
-                la: Number(pLat.toFixed(6)),
-                ln: Number(pLng.toFixed(6)),
-                ci: resolvedCity,
-                co: center.country || 'اليمن',
-                d: cleanNeighborhood || hMatch?.shortHood || center.district,
-                a: String(p[39] || p[18] || `${resolvedCity} - ${hMatch?.shortHood || center.district}`).trim(),
-                ph: phData.phones[0] || '',
-                c: placeCategories.length > 0 ? placeCategories : [term],
-                r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.5'
+        const fetchSingleTermForCell = async (term) => {
+          for (let gAttempt = 1; gAttempt <= 4; gAttempt++) {
+            if (isAborted()) return { count: 0, failed: false };
+            const gDomain = GMAPS_CELL_DOMAINS[(gmapsCellCursor++) % GMAPS_CELL_DOMAINS.length];
+            const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${glCode}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(term)}`;
+            try {
+              const gRes = await fetchWithTimeout(gUrl, {
+                timeout: 8000,
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                  'Accept-Language': 'ar,en;q=0.9',
+                  'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+                }
               });
+
+              if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
+                await sleep(3000);
+                continue;
+              }
+              if (!gRes.ok) {
+                return { count: 0, failed: false };
+              }
+
+              let gText = await gRes.text();
+              if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
+              const gData = JSON.parse(gText);
+              const entries = gData?.[0]?.[1] || [];
+              if (!Array.isArray(entries) || entries.length === 0) return { count: 0, failed: false };
+
+              for (const entry of entries) {
+                if (isAborted()) break;
+                const p = entry?.[14];
+                if (!Array.isArray(p) || !p[11]) continue;
+                const cleanName = String(p[11]).trim();
+                const pLat = parseFloat(p[9]?.[2]);
+                const pLng = parseFloat(p[9]?.[3]);
+                if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
+
+                // Keep within target scope bounding box
+                if (pLat < rootMinLat - 0.02 || pLat > rootMaxLat + 0.02 || pLng < rootMinLon - 0.02 || pLng > rootMaxLon + 0.02) {
+                  continue;
+                }
+                const placeCategories = Array.isArray(p[13]) ? p[13] : [];
+                if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
+                  continue;
+                }
+                const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
+                const phData = extractGoogleMapsPlacePhones(p);
+                const gMeta = {
+                  phone: phData.phone,
+                  phones: phData.phones,
+                  website: p[7]?.[0] || '',
+                  rating: p[4]?.[7] || 0,
+                  reviewsCount: p[4]?.[8] || 0,
+                  categories: placeCategories,
+                  address: String(p[39] || p[18] || '').trim()
+                };
+                if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', gMeta)) continue;
+
+                emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
+                const hMatch = resolveLocalNeighborhood(pLat, pLng);
+                const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
+                  ? resolveTrueYemenCity(pLat, pLng, center.city)
+                  : (hMatch?.city || center.city);
+                upsertPlaceIntoPersistentDb({
+                  place_id: placeIdKey || undefined,
+                  n: cleanName,
+                  la: Number(pLat.toFixed(6)),
+                  ln: Number(pLng.toFixed(6)),
+                  ci: resolvedCity,
+                  co: center.country || 'اليمن',
+                  d: cleanNeighborhood || hMatch?.shortHood || center.district,
+                  a: String(p[39] || p[18] || `${resolvedCity} - ${hMatch?.shortHood || center.district}`).trim(),
+                  ph: phData.phones[0] || '',
+                  c: placeCategories.length > 0 ? placeCategories : [term],
+                  r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.5'
+                });
+              }
+              return { count: entries.length, failed: false };
+            } catch (e) {
+              await sleep(3000);
             }
-            return { count: entries.length, failed: false };
-          } catch (e) {
-            await sleep(3000);
           }
+          return { count: 0, failed: true };
+        };
+
+        const termResults = await Promise.all(cellTerms.map(t => fetchSingleTermForCell(t)));
+        let maxTermCount = 0;
+        let allFailed = true;
+        for (const r of termResults) {
+          if (r.count > maxTermCount) maxTermCount = r.count;
+          if (!r.failed) allFailed = false;
         }
-        return { count: 0, failed: true };
+        return { count: maxTermCount, failed: allFailed };
       };
 
       const processSingleQuadtreeCell = async (cell) => {
@@ -3827,12 +3838,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const entries = gData?.[0]?.[1] || [];
         if (!Array.isArray(entries) || entries.length === 0) return;
 
-        // Deep QuadTree Subdivision (Bypass 60-Result API Limits):
-        // If this cell returned >= 60 results, subdivide into 4 smaller sub-cells and push to queue until every cell returns < 60!
+        // Deep QuadTree Subdivision for Dense Areas (Street/Block Level ~150m radius):
+        // Whenever a cell returns >= 20 results (or hits the 60-result API cap), FORCE subdivision into 4 smaller sub-quadrants!
         const qtDepth = task.qtDepth || 0;
-        if (entries.length >= 60 && (task.span || 1500) >= 60 && qtDepth < 16) {
-          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 40);
-          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.00025);
+        if (entries.length >= 20 && (task.span || 1500) >= 150 && qtDepth < 20) {
+          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 140);
+          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.0009);
           const quadrants = [
             [dDeg, dDeg],
             [dDeg, -dDeg],

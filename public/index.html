@@ -390,7 +390,24 @@
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
   <div id="google_translate_element" class="hidden"></div>
 
-  <!-- Slim Non-Blocking Hybrid Offline Connection Banner (Shown ONLY when internet drops; allows full access to cached results, Excel export & offline satellite GPS buffering) -->
+  <!-- Prominent Non-Blocking Network Status Banner (Shown ONLY when internet drops or weakens; NEVER triggers GPS Gatekeeper) -->
+  <div id="networkStatusBanner" style="z-index: 100001;" class="hidden fixed top-0 inset-x-0 px-3 py-2.5 bg-amber-950/95 backdrop-blur-md border-b-2 border-amber-400/75 shadow-[0_8px_30px_rgba(0,0,0,0.75)] pointer-events-auto">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-100 text-xs sm:text-sm font-black">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
+        <span id="networkStatusBannerText" class="truncate">⚠️ الإنترنت ضعيف أو مقطوع حالياً — يتم حفظ البيانات محلياً لحين عودة الاتصال</span>
+      </div>
+      <span id="networkStatusBannerBadge" class="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[10px] font-bold shrink-0">حفظ محلي نشط</span>
+    </div>
+  </div>
+
+  <!-- Subtle Non-Blocking Weak-Network Geolocation Toast -->
+  <div id="weakNetworkGeoToast" style="z-index: 100000;" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-400/55 text-amber-200 text-xs font-extrabold shadow-[0_12px_35px_rgba(0,0,0,0.75)] backdrop-blur-md flex items-center gap-2 max-w-[92vw]">
+    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
+    <span id="weakNetworkGeoToastText">⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...</span>
+  </div>
+
+  <!-- Legacy Slim Non-Blocking Hybrid Offline Connection Banner (kept for compatibility) -->
   <div id="nativeOfflineOverlay" class="hidden fixed top-0 inset-x-0 z-[200] px-3 py-2 bg-amber-950/95 backdrop-blur-md border-b border-amber-400/60 shadow-[0_6px_25px_rgba(0,0,0,0.65)] pointer-events-auto">
     <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-200 text-[11px] sm:text-xs font-extrabold">
       <div class="flex items-center gap-2 min-w-0">
@@ -5155,6 +5172,7 @@
           }).catch(() => null)
         ]);
         if (resLoc && resLoc.ok) {
+          if (typeof showNetworkStatusBanner === 'function') showNetworkStatusBanner(false);
           flushOfflineGpsQueueToServer();
         } else if (resLoc && resLoc.status === 403) {
           const data = await resLoc.json();
@@ -5162,9 +5180,11 @@
             handleBannedAccountKickout(data.error || data.message || 'تم إيقاف حسابك.');
           }
         } else if (!resLoc && sendLat !== null && sendLng !== null) {
+          if (typeof showNetworkStatusBanner === 'function') showNetworkStatusBanner(true);
           enqueueOfflineGpsPoint(payload);
         }
       } catch (e) {
+        if (typeof showNetworkStatusBanner === 'function') showNetworkStatusBanner(true);
         if (sendLat !== null && sendLng !== null) {
           enqueueOfflineGpsPoint({
             username: identity.username,
@@ -5172,7 +5192,8 @@
             deviceId: identity.deviceId,
             lat: sendLat,
             lon: sendLng,
-            accuracy: Math.round(Number(accuracy || 15)),
+            accuracy: validAccuracy,
+            source: 'native_geolocation',
             timestamp: nowIso
           });
         }
@@ -5510,10 +5531,53 @@
       streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
     }
 
+    let weakNetworkGeoToastTimer = null;
+
+    function showNetworkStatusBanner(isOfflineOrWeak, customText = '') {
+      const banner = document.getElementById('networkStatusBanner');
+      const txtEl = document.getElementById('networkStatusBannerText');
+      if (!banner) return;
+      if (isOfflineOrWeak) {
+        if (txtEl) {
+          txtEl.innerText = customText || '⚠️ الإنترنت ضعيف أو مقطوع حالياً — يتم حفظ البيانات محلياً لحين عودة الاتصال';
+        }
+        banner.classList.remove('hidden');
+        // Never trigger GPS Gatekeeper due to network outage
+        clearGpsSignalDropGraceTimer();
+      } else {
+        banner.classList.add('hidden');
+      }
+    }
+
+    function showWeakNetworkGeoToast(message = '⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...') {
+      const toast = document.getElementById('weakNetworkGeoToast');
+      const txt = document.getElementById('weakNetworkGeoToastText');
+      if (!toast) return;
+      if (txt) txt.innerText = message;
+      toast.classList.remove('hidden');
+      if (weakNetworkGeoToastTimer) clearTimeout(weakNetworkGeoToastTimer);
+      weakNetworkGeoToastTimer = setTimeout(() => {
+        weakNetworkGeoToastTimer = null;
+        toast.classList.add('hidden');
+      }, 4500);
+    }
+
     function onDeviceGpsError(err, fromWatchPosition = false) {
       const code = (err && typeof err.code === 'number') ? err.code : 2;
 
-      // 1. Explicit Permission Revocation (Error Code 1): kick out immediately
+      // 0. Check navigator.onLine FIRST: if offline, suppress GPS Gatekeeper completely and show the non-blocking network warning banner
+      if (navigator.onLine === false) {
+        clearGpsSignalDropGraceTimer();
+        clearGatekeeperSafetyWatchdog();
+        isSingleGpsRequestInFlight = false;
+        showNetworkStatusBanner(true);
+        if (!window.__hasAcquiredLiveGpsPosition) {
+          resetGatekeeperButtonToRetry('⚠️ الإنترنت مقطوع حالياً — تأكد من عودة الاتصال ثم اضغط إعادة المحاولة');
+        }
+        return;
+      }
+
+      // 1. Online & Explicit Permission Revocation (Error Code 1 = PERMISSION_DENIED): immediately lock with GPS Gatekeeper
       if (code === 1) {
         clearGpsSignalDropGraceTimer();
         clearGatekeeperSafetyWatchdog();
@@ -5529,30 +5593,27 @@
         return;
       }
 
-      // 2. If user is STILL on the Gatekeeper screen (not unlocked yet): NEVER fall back to IP; keep Gatekeeper active & prompt user to enable Location/Wi-Fi
-      if (!window.__hasAcquiredLiveGpsPosition) {
-        lockAppWithGpsGatekeeper(code === 2 ? 'unavailable' : 'prompt', code === 3 ? 2 : code);
-        resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الموقع الدقيق — يرجى تفعيل خدمات الموقع (GPS في الهاتف أو Location / Wi-Fi في اللابتوب) ثم الضغط على إعادة المحاولة');
+      // 2. Online & POSITION_UNAVAILABLE (2) or TIMEOUT (3):
+      // If user is ALREADY inside the app, do NOT kick them out — show subtle weak-network toast instead,
+      // and only lock if browser permissions confirm GPS permission was revoked.
+      if (window.__hasAcquiredLiveGpsPosition) {
+        showWeakNetworkGeoToast('⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...');
+        if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+          navigator.permissions.query({ name: 'geolocation' }).then((pStatus) => {
+            if (pStatus && pStatus.state === 'denied') {
+              onDeviceGpsError({ code: 1 }, false);
+            }
+          }).catch(() => {});
+        }
         return;
       }
 
-      // 3. Smart 15-Second Grace Period for transient signal drops (Error Code 2 or Timeout Error Code 3) while user is actively using the app
-      if (fromWatchPosition || code === 2 || code === 3) {
-        if (!gpsSignalDropGraceTimer) {
-          gpsSignalDropGraceTimer = setTimeout(() => {
-            gpsSignalDropGraceTimer = null;
-            // 15 seconds expired without any valid GPS fix -> lock the app now
-            window.isPhoneGpsCurrentlyEnabled = false;
-            if (liveGpsWatchId !== null && navigator.geolocation) {
-              try { navigator.geolocation.clearWatch(liveGpsWatchId); } catch (e) {}
-              liveGpsWatchId = null;
-            }
-            lockAppWithGpsGatekeeper('unavailable', 2);
-            resetGatekeeperButtonToRetry('⚠️ انقطعت إشارة الموقع (GPS/Wi-Fi) لأكثر من 15 ثانية — تأكد من تفعيل خدمات الموقع في الجهاز والمحاولة مجدداً');
-            reportGpsClosedStatusTelemetry(2);
-          }, 15000);
-        }
+      // 3. If user is STILL on the Gatekeeper screen (not unlocked yet): keep Gatekeeper active & reset button to Retry
+      lockAppWithGpsGatekeeper(code === 2 ? 'unavailable' : 'prompt', code === 3 ? 2 : code);
+      if (code === 3) {
+        showWeakNetworkGeoToast('⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...');
       }
+      resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الموقع الدقيق — يرجى تفعيل خدمات الموقع (GPS في الهاتف أو Location / Wi-Fi في اللابتوب) ثم الضغط على إعادة المحاولة');
     }
 
     function attachGpsPermissionAutoUnlockListener() {
@@ -6450,10 +6511,17 @@
       return false;
     }
 
-    window.addEventListener('offline', () => updateOfflineOverlayState(true));
+    window.addEventListener('offline', () => {
+      showNetworkStatusBanner(true);
+      updateOfflineOverlayState(true);
+    });
     window.addEventListener('online', () => {
+      showNetworkStatusBanner(false);
       updateOfflineOverlayState(false);
     });
+    if (navigator.onLine === false) {
+      showNetworkStatusBanner(true);
+    }
 
     function openUserSettingsModal() {
       updateAccountButtonsUI();

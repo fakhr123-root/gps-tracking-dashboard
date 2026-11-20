@@ -3574,6 +3574,10 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
+        // 1. Drain any remaining buffered background batches synchronously so extractedPlaces has 100% of results
+        if (typeof drainAllBackgroundPlacesSynchronously === 'function') {
+          drainAllBackgroundPlacesSynchronously();
+        }
         if (progressUiPaintTimer) {
           clearTimeout(progressUiPaintTimer);
           progressUiPaintTimer = null;
@@ -3583,13 +3587,22 @@
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
         }
-        if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
-          refreshVisibleResultsView(true);
+        // 2. Force final synchronized render of header counters, category filters (full dataset), and paginated grid
+        if (typeof flushBufferedUiSync === 'function') {
+          flushBufferedUiSync(true);
         } else {
-          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
-          initInfiniteScrollObserver();
+          if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
+            refreshVisibleResultsView(true);
+          } else {
+            updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+            initInfiniteScrollObserver();
+          }
+          updateStats();
         }
-        updateStats();
+        // 3. Synchronize final progress badges with exact extractedPlaces.length
+        progressRatio.innerText = `✅ صافي بدون تكرار: ${extractedPlaces.length.toLocaleString()} موقع`;
+        const netBadgeFinal = document.getElementById('telemetryNetDedupBadge');
+        if (netBadgeFinal) netBadgeFinal.innerText = `✅ الإجمالي الصافي: ${extractedPlaces.length.toLocaleString()}`;
         autoSaveIdbSessionSnapshot();
         fetch('/api/user/log-search', {
           method: 'POST',
@@ -3631,6 +3644,9 @@
       });
 
       currentEventSource.addEventListener('error', () => {
+        if (typeof drainAllBackgroundPlacesSynchronously === 'function') {
+          drainAllBackgroundPlacesSynchronously();
+        }
         if (progressUiPaintTimer) {
           clearTimeout(progressUiPaintTimer);
           progressUiPaintTimer = null;
@@ -3640,13 +3656,17 @@
           clearTimeout(streamThrottleTimeout);
           streamThrottleTimeout = null;
         }
-        if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
-          refreshVisibleResultsView(true);
+        if (typeof flushBufferedUiSync === 'function') {
+          flushBufferedUiSync(true);
         } else {
-          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
-          initInfiniteScrollObserver();
+          if (visibleRenderCount === 0 && extractedPlaces.length > 0) {
+            refreshVisibleResultsView(true);
+          } else {
+            updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+            initInfiniteScrollObserver();
+          }
+          updateStats();
         }
-        updateStats();
         finishSearch();
       });
     }
@@ -3714,6 +3734,20 @@
       return (2.0 * intersection) / (bgA.total + bgB.total);
     }
 
+    function calcHaversineKm(lat1, lon1, lat2, lon2) {
+      if (typeof getDistanceKm === 'function') {
+        return getDistanceKm(lat1, lon1, lat2, lon2);
+      }
+      const R = 6371;
+      const toRad = (deg) => (deg * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
     function isClientGhostOrSpamPlace(place) {
       if (!place || typeof place !== 'object') return true;
       const pLat = Number(place.lat);
@@ -3730,11 +3764,13 @@
       const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
         (place.phone && place.phone !== 'غير متوفر' && String(place.phone).trim().length >= 5);
       const hasWebsite = Boolean(place.website && place.website !== 'غير متوفر' && String(place.website).trim().length > 4);
-      const hasReviewsOrRating = Number(place.reviews || 0) > 0 || (Number(place.rating || 0) > 0 && place.rating !== 'غير متوفر');
+      const parsedRating = parseFloat(String(place.rating || '').replace(/[^\d.]/g, ''));
+      const hasReviewsOrRating = Number(place.reviews || place.reviewsCount || 0) > 0 || (Number.isFinite(parsedRating) && parsedRating > 0);
       const hasMeaningfulCategory = Boolean(place.category && place.category !== 'غير مصنف' && place.category !== 'أخرى');
-      const hasMeaningfulAddress = Boolean(place.address && place.address !== 'غير متوفر' && String(place.address).trim().length > 4);
+      const hasMeaningfulAddress = Boolean(place.address && place.address !== 'غير متوفر' && String(place.address).trim().length > 3);
+      const hasLocationMeta = Boolean((place.city && String(place.city).trim().length > 1) || (place.district && String(place.district).trim().length > 1));
 
-      if (!hasPhone && !hasWebsite && !hasReviewsOrRating && !hasMeaningfulCategory && !hasMeaningfulAddress) {
+      if (!hasPhone && !hasWebsite && !hasReviewsOrRating && !hasMeaningfulCategory && !hasMeaningfulAddress && !hasLocationMeta) {
         return true;
       }
       return false;
@@ -3743,12 +3779,10 @@
     function upsertOrMergeDeduplicatedPlace(place) {
       if (isClientGhostOrSpamPlace(place)) return null;
 
-      if (place.placeId) {
-        if (clientSeenPlaceIds.has(place.placeId)) return null;
-      }
-      if (place.osmId) {
-        if (clientSeenOsmIds.has(place.osmId)) return null;
-      }
+      const pid = place.placeId || place.place_id || '';
+      const oid = place.osmId || place.osm_id || '';
+      if (pid && clientSeenPlaceIds.has(pid)) return null;
+      if (oid && clientSeenOsmIds.has(oid)) return null;
 
       const pLat = Number(place.lat);
       const pLng = Number(place.lng);
@@ -3788,8 +3822,8 @@
               if ((!existing.website || existing.website === 'غير متوفر') && place.website && place.website !== 'غير متوفر') {
                 existing.website = place.website;
               }
-              if ((!existing.reviews || Number(existing.reviews) === 0) && Number(place.reviews) > 0) {
-                existing.reviews = place.reviews;
+              if ((!existing.reviews || Number(existing.reviews) === 0) && Number(place.reviews || place.reviewsCount) > 0) {
+                existing.reviews = place.reviews || place.reviewsCount;
                 existing.rating = place.rating || existing.rating;
               }
               return null;
@@ -3805,14 +3839,85 @@
         clientSpatialHashBuckets.set(mainKey, mainBucket);
       }
       mainBucket.push(place);
-      if (place.placeId) clientSeenPlaceIds.add(place.placeId);
-      if (place.osmId) clientSeenOsmIds.add(place.osmId);
+      if (pid) clientSeenPlaceIds.add(pid);
+      if (oid) clientSeenOsmIds.add(oid);
 
       extractedPlaces.push(place);
       const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
         (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
       if (hasPhone) liveExtractedPhonesTotal++;
       return place;
+    }
+
+    let pendingUiRefreshNeeded = false;
+
+    function flushBufferedUiSync(forceFinalRender = false) {
+      if (batchUiThrottleTimer) {
+        clearTimeout(batchUiThrottleTimer);
+        batchUiThrottleTimer = null;
+      }
+      pendingUiRefreshNeeded = false;
+
+      const filtered = getActiveFilteredPlaces();
+
+      // Ensure the initial page of cards is always populated from the true extractedPlaces array
+      if (forceFinalRender) {
+        if (filtered.length > 0 && visibleRenderCount < Math.min(INITIAL_PAGE_SIZE, filtered.length)) {
+          refreshVisibleResultsView(true);
+        } else {
+          updateSentinelVisibility(visibleRenderCount < filtered.length || currentPageStartIndex > 0);
+          if (!sentinelObserver) initInfiniteScrollObserver();
+        }
+      } else if (visibleRenderCount < INITIAL_PAGE_SIZE && filtered.length > visibleRenderCount) {
+        const need = INITIAL_PAGE_SIZE - visibleRenderCount;
+        const domSlice = filtered.slice(visibleRenderCount, visibleRenderCount + need);
+        if (domSlice.length > 0) {
+          renderBatchToDom(domSlice, visibleRenderCount, visibleRenderCount > 0);
+          visibleRenderCount += domSlice.length;
+        }
+        updateSentinelVisibility(visibleRenderCount < filtered.length || currentPageStartIndex > 0);
+        if (!sentinelObserver) initInfiniteScrollObserver();
+      } else {
+        updateSentinelVisibility(visibleRenderCount < filtered.length || currentPageStartIndex > 0);
+        if (!sentinelObserver && filtered.length > visibleRenderCount) initInfiniteScrollObserver();
+      }
+
+      // Always flush the true extractedPlaces.length to header counters & category filter chips
+      updateStats();
+    }
+
+    function scheduleBufferedUiSync(immediate = false) {
+      pendingUiRefreshNeeded = true;
+      if (immediate) {
+        flushBufferedUiSync(false);
+        return;
+      }
+      if (!batchUiThrottleTimer) {
+        batchUiThrottleTimer = setTimeout(() => {
+          batchUiThrottleTimer = null;
+          if (pendingUiRefreshNeeded) {
+            flushBufferedUiSync(false);
+          }
+        }, 350);
+      }
+    }
+
+    function drainAllBackgroundPlacesSynchronously() {
+      if (backgroundChunkQueue.length === 0) {
+        isProcessingBackgroundChunks = false;
+        return;
+      }
+      const remaining = backgroundChunkQueue.splice(0, backgroundChunkQueue.length);
+      for (let i = 0; i < remaining.length; i++) {
+        try {
+          const p = remaining[i];
+          if (typeof p.distanceKm !== 'number') resolvePlaceDistanceFromUser(p);
+          upsertOrMergeDeduplicatedPlace(p);
+        } catch (err) {
+          console.warn('Skipped malformed place during final drain:', err);
+        }
+      }
+      isProcessingBackgroundChunks = false;
     }
 
     function enqueueBackgroundPlacesChunk(batchArray) {
@@ -3829,73 +3934,54 @@
     function processNextBackgroundPlacesSlice() {
       if (isScanPaused || backgroundChunkQueue.length === 0) {
         isProcessingBackgroundChunks = false;
+        if (pendingUiRefreshNeeded) scheduleBufferedUiSync(false);
         return;
       }
-      const CHUNK_SLICE_SIZE = 250;
+      const CHUNK_SLICE_SIZE = 300;
       const slice = backgroundChunkQueue.splice(0, CHUNK_SLICE_SIZE);
       let addedCount = 0;
 
-      for (let i = 0; i < slice.length; i++) {
-        const p = slice[i];
-        if (typeof p.distanceKm !== 'number') resolvePlaceDistanceFromUser(p);
-        const added = upsertOrMergeDeduplicatedPlace(p);
-        if (added) addedCount++;
-      }
-
-      if (visibleRenderCount < INITIAL_PAGE_SIZE && addedCount > 0) {
-        const need = INITIAL_PAGE_SIZE - visibleRenderCount;
-        const domSlice = extractedPlaces.slice(visibleRenderCount, visibleRenderCount + need);
-        renderBatchToDom(domSlice, visibleRenderCount, true);
-        visibleRenderCount += domSlice.length;
-      }
-
-      if (!batchUiThrottleTimer) {
-        batchUiThrottleTimer = setTimeout(() => {
-          batchUiThrottleTimer = null;
-          updateStats();
-          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
-          if (!sentinelObserver) initInfiniteScrollObserver();
-        }, 500);
-      }
-
-      if (backgroundChunkQueue.length > 0) {
-        setTimeout(processNextBackgroundPlacesSlice, 12);
-      } else {
-        isProcessingBackgroundChunks = false;
-        if (!batchUiThrottleTimer) {
-          updateStats();
-          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
+      try {
+        for (let i = 0; i < slice.length; i++) {
+          try {
+            const p = slice[i];
+            if (typeof p.distanceKm !== 'number') resolvePlaceDistanceFromUser(p);
+            const added = upsertOrMergeDeduplicatedPlace(p);
+            if (added) addedCount++;
+          } catch (itemErr) {
+            console.warn('Error ingesting place item:', itemErr);
+          }
+        }
+      } finally {
+        if (addedCount > 0) {
+          scheduleBufferedUiSync(visibleRenderCount < INITIAL_PAGE_SIZE);
+        }
+        if (backgroundChunkQueue.length > 0 && !isScanPaused) {
+          setTimeout(processNextBackgroundPlacesSlice, 10);
+        } else {
+          isProcessingBackgroundChunks = false;
+          if (pendingUiRefreshNeeded) {
+            scheduleBufferedUiSync(false);
+          }
         }
       }
     }
 
     function ingestIncomingStreamPlace(place) {
-      if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
-      const added = upsertOrMergeDeduplicatedPlace(place);
-      if (!added) return;
-      const idx = extractedPlaces.length;
+      try {
+        if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
+        const added = upsertOrMergeDeduplicatedPlace(place);
+        if (!added) return;
+        const idx = extractedPlaces.length;
 
-      // UI Throttling: refresh counters at most every 50 locations or once every 500ms
-      if (idx === 1 || idx % 50 === 0) {
-        updateStats();
-      } else if (!batchUiThrottleTimer) {
-        batchUiThrottleTimer = setTimeout(() => {
-          batchUiThrottleTimer = null;
-          updateStats();
-          updateSentinelVisibility(visibleRenderCount < getActiveFilteredPlaces().length);
-        }, 500);
-      }
+        if (idx === 1 && leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
+          leafletMap.setView([place.lat, place.lng], 12);
+        }
 
-      if (idx === 1 && leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
-        leafletMap.setView([place.lat, place.lng], 12);
-      }
-
-      if (visibleRenderCount < INITIAL_PAGE_SIZE) {
-        renderBatchToDom([place], visibleRenderCount, true);
-        visibleRenderCount++;
-      } else if (idx === INITIAL_PAGE_SIZE + 1) {
-        updateSentinelVisibility(true);
-        initInfiniteScrollObserver();
+        // Buffer UI updates: flush immediately on first item, every 50 items, or within 350ms
+        scheduleBufferedUiSync(idx === 1 || idx <= INITIAL_PAGE_SIZE && idx % 10 === 0 || idx % 50 === 0);
+      } catch (err) {
+        console.warn('Error in ingestIncomingStreamPlace:', err);
       }
     }
 
@@ -3912,9 +3998,12 @@
         if (pausedBufferedPlaces.length > 0) {
           const buf = [...pausedBufferedPlaces];
           pausedBufferedPlaces = [];
-          buf.forEach(p => ingestIncomingStreamPlace(p));
-          updateStats();
+          enqueueBackgroundPlacesChunk(buf);
+        } else if (backgroundChunkQueue.length > 0 && !isProcessingBackgroundChunks) {
+          isProcessingBackgroundChunks = true;
+          processNextBackgroundPlacesSlice();
         }
+        if (typeof flushBufferedUiSync === 'function') flushBufferedUiSync(false);
       }
     }
 
@@ -4590,6 +4679,11 @@
     }
 
     function clearAllResults(resetArray = true) {
+      if (batchUiThrottleTimer) {
+        clearTimeout(batchUiThrottleTimer);
+        batchUiThrottleTimer = null;
+      }
+      pendingUiRefreshNeeded = false;
       if (resetArray) {
         extractedPlaces = [];
         liveExtractedPhonesTotal = 0;

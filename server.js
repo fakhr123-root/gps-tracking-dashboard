@@ -6073,11 +6073,11 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Offline GPS Batch Auto-Sync Endpoint (POST /api/user/sync-offline-batch)
-  // Receives up to 200 buffered offline GPS points in chronological order when the device reconnects
+  // Receives up to 300 buffered offline GPS points in chronological order when the device reconnects
   if (pathname === '/api/user/sync-offline-batch' && req.method === 'POST') {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
-    const points = Array.isArray(data.points) ? data.points.slice(0, 200) : [];
+    const points = Array.isArray(data.points) ? data.points.slice(0, 300) : [];
     const rawUserFromId = String(data.userId || data.visitorId || '').trim().toLowerCase().startsWith('user_')
       ? String(data.userId || data.visitorId || '').trim().slice(5)
       : '';
@@ -7451,29 +7451,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Self-cleaning Service Worker endpoint so phones that cached an older version immediately purge their cache and reload the latest UI
-  if (pathname === '/sw.js') {
-    res.writeHead(200, {
-      'Content-Type': 'text/javascript; charset=utf-8',
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-    res.end(`
-      self.addEventListener('install', () => self.skipWaiting());
-      self.addEventListener('activate', (event) => {
-        event.waitUntil(
-          caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
-            .then(() => self.registration.unregister())
-            .then(() => self.clients.matchAll({ type: 'window' }))
-            .then((clients) => clients.forEach((client) => client.navigate(client.url)))
-        );
-      });
-    `);
-    return;
-  }
-
-  // Static file serving
+  // Static file serving (serves /sw.js directly from public/sw.js with no-cache headers)
   let reqPath = pathname === '/' ? '/index.html' : pathname;
   let filePath = path.join(PUBLIC_DIR, reqPath);
 

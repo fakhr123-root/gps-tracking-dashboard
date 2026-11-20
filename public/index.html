@@ -205,26 +205,14 @@
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
   <div id="google_translate_element" class="hidden"></div>
 
-  <!-- Native App Offline Screen Overlay (Replaces any browser error when internet drops) -->
-  <div id="nativeOfflineOverlay" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-[#070d17]/95 backdrop-blur-xl p-5">
-    <div class="portal-modal-card max-w-md w-full p-7 rounded-[28px] text-center space-y-4 border border-amber-500/40">
-      <div class="relative w-20 h-20 mx-auto flex items-center justify-center">
-        <div class="absolute inset-0 rounded-full border-2 border-amber-400/40 animate-ping" style="animation-duration: 2s;"></div>
-        <div class="w-14 h-14 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-400 flex items-center justify-center shadow-[0_0_30px_rgba(245,158,11,0.5)]">
-          <i data-lucide="wifi-off" class="w-7 h-7 text-slate-950"></i>
-        </div>
+  <!-- Slim Non-Blocking Hybrid Offline Connection Banner (Shown ONLY when internet drops; allows full access to cached results, Excel export & offline satellite GPS buffering) -->
+  <div id="nativeOfflineOverlay" class="hidden fixed top-0 inset-x-0 z-[200] px-3 py-2 bg-amber-950/95 backdrop-blur-md border-b border-amber-400/60 shadow-[0_6px_25px_rgba(0,0,0,0.65)] pointer-events-auto">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-200 text-[11px] sm:text-xs font-extrabold">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0"></span>
+        <span id="offlineBannerText" class="truncate">📡 انقطع الإنترنت — يتم حفظ تحركاتك محلياً وستُرسل تلقائياً فور عودة الشبكة</span>
       </div>
-      <div class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-400/40 text-amber-300 text-xs font-extrabold">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-        <span>انقطاع الاتصال بالشبكة</span>
-      </div>
-      <h2 class="text-xl font-black text-white">يرجى الاتصال بالإنترنت</h2>
-      <p class="text-xs text-slate-300 leading-relaxed">
-        تطبيق <strong class="text-emerald-300">GeoRadar 3D Studio</strong> يعمل عبر الاتصال المباشر بالإنترنت لجلب بيانات الخرائط والرادار الحي. يرجى التحقق من اتصال الشبكة لديك.
-      </p>
-      <button type="button" onclick="checkLiveInternetConnection()" class="w-full py-3.5 rounded-2xl font-black text-sm text-slate-950 bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 shadow-[0_0_25px_rgba(16,185,129,0.4)] cursor-pointer">
-        إعادة المحاولة الآن
-      </button>
+      <span id="offlineQueuedPointsBadge" class="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-num shrink-0">GPS محلي نشط</span>
     </div>
   </div>
 
@@ -3455,6 +3443,13 @@
               btn.classList.remove('hidden');
               btn.innerText = `🔄 استعادة الجلسة السابقة (${data.places.length} موقع)`;
             }
+            // If app opens offline and no results are currently loaded, automatically restore last cached results so user can view & export offline immediately
+            if (navigator.onLine === false && (!extractedPlaces || extractedPlaces.length === 0)) {
+              extractedPlaces = data.places;
+              liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+              updateStats();
+              refreshVisibleResultsView(true);
+            }
           }
         };
       } catch (e) {}
@@ -4015,6 +4010,19 @@
       return navigator.onLine === false ? 'Offline' : '4G / Online';
     }
 
+    function updateOfflineQueuedPointsBadge() {
+      const badge = document.getElementById('offlineQueuedPointsBadge');
+      if (!badge) return;
+      try {
+        const raw = localStorage.getItem(OFFLINE_GPS_QUEUE_KEY);
+        const queue = raw ? JSON.parse(raw) : [];
+        const count = Array.isArray(queue) ? queue.length : 0;
+        badge.innerText = count > 0 ? `محفوظ محلياً: ${count} نقطة` : 'GPS محلي نشط';
+      } catch (e) {
+        badge.innerText = 'GPS محلي نشط';
+      }
+    }
+
     function enqueueOfflineGpsPoint(pointObj) {
       if (!pointObj || !isValidNonZeroClientCoord(pointObj.lat, pointObj.lon ?? pointObj.lng)) return;
       try {
@@ -4036,11 +4044,12 @@
           city: pointObj.city || window.lastAutoDetectedGpsCity || '',
           timestamp: pointObj.timestamp || new Date().toISOString()
         });
-        // Cap at 200 most recent chronological points
-        if (queue.length > 200) {
-          queue = queue.slice(-200);
+        // Cap at 300 most recent chronological points
+        if (queue.length > 300) {
+          queue = queue.slice(-300);
         }
         localStorage.setItem(OFFLINE_GPS_QUEUE_KEY, JSON.stringify(queue));
+        updateOfflineQueuedPointsBadge();
       } catch (e) {}
     }
 
@@ -4075,6 +4084,7 @@
         });
         if (res && res.ok) {
           localStorage.removeItem(OFFLINE_GPS_QUEUE_KEY);
+          updateOfflineQueuedPointsBadge();
         }
       } catch (e) {
         // Keep queue intact for next online event
@@ -5236,15 +5246,18 @@
       setTimeout(() => modal.classList.add('hidden'), 400);
     }
 
-    // Native App Offline Connection Monitor & Anti-Pull-to-Refresh Guard
+    // Hybrid Online/Offline Connection Banner Monitor (Non-Blocking Top Banner + Continuous Satellite GPS Buffering)
     function updateOfflineOverlayState(isOffline) {
       const overlay = document.getElementById('nativeOfflineOverlay');
       if (!overlay) return;
       if (isOffline) {
+        updateOfflineQueuedPointsBadge();
         overlay.classList.remove('hidden');
-        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+        // Keep satellite GPS watchPosition running continuously while offline
+        startLiveGpsLocationWatcher();
       } else {
         overlay.classList.add('hidden');
+        flushOfflineGpsQueueToServer();
       }
     }
 
@@ -6068,9 +6081,7 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
       }
-      if ('caches' in window) {
-        caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
-      }
+      updateOfflineOverlayState(navigator.onLine === false);
       initWorldLanguageSystem();
       initDeviceBatteryAndNetworkTelemetry();
       startClientHealthKeepAlivePing();

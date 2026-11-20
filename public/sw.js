@@ -1,10 +1,39 @@
-// GeoRadar 3D Studio - Persistent Background GPS Keep-Alive Service Worker
+// GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
+const CACHE_NAME = 'georadar-hybrid-shell-v4';
+const APP_SHELL_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/js/excel-export-helper.js',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
+];
+
 self.addEventListener('install', (event) => {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return Promise.allSettled(
+        APP_SHELL_ASSETS.map((url) =>
+          fetch(url, { cache: 'reload' }).then((res) => {
+            if (res && res.ok) return cache.put(url, res);
+          }).catch(() => {})
+        )
+      );
+    }).catch(() => {})
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(
+        keys.map((k) => {
+          if (k !== CACHE_NAME) return caches.delete(k);
+        })
+      )
+    ).then(() => self.clients.claim())
+  );
 });
 
 // Receive background location heartbeats & status telemetry from the client and forward to server
@@ -25,10 +54,32 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Network-first fetch handler (never serves stale HTML or API responses)
+// Network-first with instant offline cache fallback for core UI shell, icons, styles, and scripts
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const req = event.request;
+  if (req.method !== 'GET') return;
+
+  const url = new URL(req.url);
+  // Never cache live API or SSE endpoints
+  if (url.pathname.startsWith('/api/')) return;
+
   event.respondWith(
-    fetch(event.request).catch(() => caches.match(event.request))
+    fetch(req)
+      .then((networkRes) => {
+        if (networkRes && networkRes.ok && (url.origin === self.location.origin || /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname))) {
+          const resClone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone)).catch(() => {});
+        }
+        return networkRes;
+      })
+      .catch(() => {
+        return caches.match(req).then((cachedRes) => {
+          if (cachedRes) return cachedRes;
+          if (req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+            return caches.match('/index.html').then((idxRes) => idxRes || caches.match('/'));
+          }
+          return new Response('', { status: 503, statusText: 'Offline' });
+        });
+      })
   );
 });

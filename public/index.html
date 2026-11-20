@@ -5271,12 +5271,49 @@
       return false;
     }
 
+    let gpsSignalDropGraceTimer = null;
+    let isSingleGpsRequestInFlight = false;
+    let gatekeeperSafetyWatchdogTimer = null;
+
+    function clearGpsSignalDropGraceTimer() {
+      if (gpsSignalDropGraceTimer) {
+        clearTimeout(gpsSignalDropGraceTimer);
+        gpsSignalDropGraceTimer = null;
+      }
+    }
+
+    function clearGatekeeperSafetyWatchdog() {
+      if (gatekeeperSafetyWatchdogTimer) {
+        clearTimeout(gatekeeperSafetyWatchdogTimer);
+        gatekeeperSafetyWatchdogTimer = null;
+      }
+    }
+
+    function resetGatekeeperButtonToRetry(errorMsg = '⚠️ تعذر التقاط الإشارة، تأكد من تشغيل الـ GPS والمحاولة مجدداً') {
+      isSingleGpsRequestInFlight = false;
+      clearGatekeeperSafetyWatchdog();
+      const btn = document.getElementById('btnGpsRequiredRetry');
+      const btnTxt = document.getElementById('btnGpsRequiredRetryText');
+      const msgEl = document.getElementById('gpsRequiredLiveStatusMsg');
+      if (btn) btn.disabled = false;
+      if (btnTxt) btnTxt.innerText = 'إعادة المحاولة';
+      if (msgEl) {
+        msgEl.className = 'py-2 px-3 rounded-xl bg-amber-500/15 border border-amber-400/50 text-amber-300 text-xs font-extrabold text-center';
+        msgEl.innerText = errorMsg;
+      }
+    }
+
     function onValidDeviceGpsPositionAcquired(pos) {
       if (!pos || !pos.coords) return;
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const acc = Math.round(pos.coords.accuracy || 15);
       if (!isValidNonZeroClientCoord(lat, lng)) return;
+
+      // Valid position acquired: cancel any pending 15-second signal-drop grace period timer & safety watchdog
+      clearGpsSignalDropGraceTimer();
+      clearGatekeeperSafetyWatchdog();
+      isSingleGpsRequestInFlight = false;
 
       window.isPhoneGpsCurrentlyEnabled = true;
       window.__hasAcquiredLiveGpsPosition = true;
@@ -5286,7 +5323,7 @@
       if (isIndoorGpsDriftOrImpossibleSpike(lat, lng, acc, nowMs)) {
         // Keep previous smooth accurate coordinates and only send a clean status heartbeat
         if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-          const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+          const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'online';
           streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, currentStatus, true);
         }
         return;
@@ -5300,21 +5337,52 @@
 
       renderUserGpsPinOnMap();
       syncLocationInputWithUserGps(lat, lng, false);
-      const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+      const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'online';
       streamLiveGpsToServer(lat, lng, acc, currentStatus, true);
     }
 
-    function onDeviceGpsError(err) {
-      const code = (err && typeof err.code === 'number') ? err.code : 1;
-      // Real-Time Revocation Kick-Out: if permission denied (1), position unavailable / GPS turned off (2), or timeout before initial lock
-      if (code === 1 || code === 2 || !window.__hasAcquiredLiveGpsPosition) {
+    function onDeviceGpsError(err, fromWatchPosition = false) {
+      const code = (err && typeof err.code === 'number') ? err.code : 2;
+
+      // 1. Explicit Permission Revocation (Error Code 1): kick out immediately
+      if (code === 1) {
+        clearGpsSignalDropGraceTimer();
+        clearGatekeeperSafetyWatchdog();
+        isSingleGpsRequestInFlight = false;
         window.isPhoneGpsCurrentlyEnabled = false;
         if (liveGpsWatchId !== null && navigator.geolocation) {
           try { navigator.geolocation.clearWatch(liveGpsWatchId); } catch (e) {}
           liveGpsWatchId = null;
         }
-        lockAppWithGpsGatekeeper(code === 1 ? 'denied' : 'unavailable', code === 3 ? 2 : code);
-        reportGpsClosedStatusTelemetry(code === 3 ? 2 : code);
+        lockAppWithGpsGatekeeper('denied', 1);
+        resetGatekeeperButtonToRetry('🔴 تم رفض صلاحية الموقع — يرجى السماح بها ثم الضغط على إعادة المحاولة');
+        reportGpsClosedStatusTelemetry(1);
+        return;
+      }
+
+      // 2. If user is STILL on the Gatekeeper screen (not unlocked yet): never hang, reset button to Retry
+      if (!window.__hasAcquiredLiveGpsPosition) {
+        lockAppWithGpsGatekeeper(code === 2 ? 'unavailable' : 'prompt', code === 3 ? 2 : code);
+        resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الإشارة، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
+        return;
+      }
+
+      // 3. Smart 15-Second Grace Period for transient signal drops (Error Code 2 or Timeout Error Code 3) while user is actively using the app
+      if (fromWatchPosition || code === 2 || code === 3) {
+        if (!gpsSignalDropGraceTimer) {
+          gpsSignalDropGraceTimer = setTimeout(() => {
+            gpsSignalDropGraceTimer = null;
+            // 15 seconds expired without any valid GPS fix -> lock the app now
+            window.isPhoneGpsCurrentlyEnabled = false;
+            if (liveGpsWatchId !== null && navigator.geolocation) {
+              try { navigator.geolocation.clearWatch(liveGpsWatchId); } catch (e) {}
+              liveGpsWatchId = null;
+            }
+            lockAppWithGpsGatekeeper('unavailable', 2);
+            resetGatekeeperButtonToRetry('⚠️ انقطعت إشارة الموقع (GPS) لأكثر من 15 ثانية، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
+            reportGpsClosedStatusTelemetry(2);
+          }, 15000);
+        }
       }
     }
 
@@ -5336,51 +5404,97 @@
           }
           permissionStatus.onchange = () => {
             if (permissionStatus.state === 'granted') {
+              clearGpsSignalDropGraceTimer();
               startLiveGpsLocationWatcher();
               window.verifyAndStreamDeviceLocation(true);
             } else {
-              onDeviceGpsError({ code: 1 });
+              onDeviceGpsError({ code: 1 }, false);
             }
           };
         }).catch(() => {});
       } catch (e) {}
     }
 
-    let isSingleGpsRequestInFlight = false;
-
     window.verifyAndStreamDeviceLocation = function(isUserAction = false) {
       attachGpsPermissionAutoUnlockListener();
       if (!navigator.geolocation) {
-        onDeviceGpsError({ code: 2 });
+        onDeviceGpsError({ code: 2 }, false);
         return;
       }
 
       if (isUserAction) {
         const btn = document.getElementById('btnGpsRequiredRetry');
         const btnTxt = document.getElementById('btnGpsRequiredRetryText');
+        const msgEl = document.getElementById('gpsRequiredLiveStatusMsg');
         if (btn) btn.disabled = true;
         if (btnTxt) btnTxt.innerText = '⏳ جاري تفعيل الموقع...';
+        if (msgEl) {
+          msgEl.className = 'py-2 px-3 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-xs font-extrabold text-center';
+          msgEl.innerText = '📡 جارٍ التقاط إشارة الموقع الجغرافي (GPS)...';
+        }
       }
 
       const runSingleGetCurrentPosition = () => {
         if (isSingleGpsRequestInFlight) return;
         isSingleGpsRequestInFlight = true;
+        clearGatekeeperSafetyWatchdog();
+
+        // Hard safety watchdog so the Gatekeeper button can NEVER remain stuck in loading state
+        gatekeeperSafetyWatchdogTimer = setTimeout(() => {
+          if (isSingleGpsRequestInFlight && !window.__hasAcquiredLiveGpsPosition) {
+            resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الإشارة، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
+          }
+        }, 16000);
+
+        const requestLowAccuracyFallback = () => {
+          try {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                isSingleGpsRequestInFlight = false;
+                clearGatekeeperSafetyWatchdog();
+                onValidDeviceGpsPositionAcquired(pos);
+                // Keep continuous watchPosition on high accuracy in the background
+                startLiveGpsLocationWatcher();
+              },
+              (fallbackErr) => {
+                isSingleGpsRequestInFlight = false;
+                clearGatekeeperSafetyWatchdog();
+                onDeviceGpsError(fallbackErr, false);
+              },
+              { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+            );
+          } catch (e) {
+            isSingleGpsRequestInFlight = false;
+            clearGatekeeperSafetyWatchdog();
+            onDeviceGpsError({ code: 2 }, false);
+          }
+        };
+
+        // Stage 1: Try High Accuracy first with a 5-second timeout; if it fails/times out on Desktop or weak indoor signal, automatically fall back to enableHighAccuracy: false (timeout: 10000, maximumAge: 60000)
         try {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
               isSingleGpsRequestInFlight = false;
+              clearGatekeeperSafetyWatchdog();
               onValidDeviceGpsPositionAcquired(pos);
               startLiveGpsLocationWatcher();
             },
             (err) => {
-              isSingleGpsRequestInFlight = false;
-              onDeviceGpsError(err);
+              const code = (err && typeof err.code === 'number') ? err.code : 2;
+              if (code === 1) {
+                // Permission explicitly denied -> do not fallback, reset immediately
+                isSingleGpsRequestInFlight = false;
+                clearGatekeeperSafetyWatchdog();
+                onDeviceGpsError(err, false);
+                return;
+              }
+              // Weak indoor signal / Desktop GPS timeout after 5s -> automatically fallback to lower accuracy to unlock
+              requestLowAccuracyFallback();
             },
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
           );
         } catch (e) {
-          isSingleGpsRequestInFlight = false;
-          onDeviceGpsError({ code: 1 });
+          requestLowAccuracyFallback();
         }
       };
 
@@ -5414,13 +5528,15 @@
 
     window.retryEnableDeviceGpsNow = function(event) {
       if (event && typeof event.preventDefault === 'function') event.preventDefault();
+      isSingleGpsRequestInFlight = false;
+      clearGpsSignalDropGraceTimer();
       enableBackgroundGpsKeepAlive();
       window.verifyAndStreamDeviceLocation(true);
     };
 
     function startLiveGpsLocationWatcher() {
       attachGpsPermissionAutoUnlockListener();
-      // 1. Continuous watchPosition (immediately kicks user out to #gpsGatekeeperScreen on Error Code 1 or 2)
+      // 1. Continuous watchPosition on High Accuracy with 15-second Grace Period for transient signal drops/timeouts
       if (navigator.geolocation && liveGpsWatchId === null) {
         try {
           liveGpsWatchId = navigator.geolocation.watchPosition(
@@ -5428,11 +5544,11 @@
               onValidDeviceGpsPositionAcquired(pos);
             },
             (err) => {
-              if (err && (err.code === 1 || err.code === 2)) {
-                onDeviceGpsError(err);
+              if (err && (err.code === 1 || err.code === 2 || err.code === 3)) {
+                onDeviceGpsError(err, true);
               }
             },
-            { enableHighAccuracy: true, maximumAge: 0, timeout: 12000 }
+            { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
           );
         } catch (e) {}
       }

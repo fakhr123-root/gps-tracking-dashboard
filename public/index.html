@@ -3041,8 +3041,20 @@
         indicator.innerText = `المعروض: ${activeMeta.label} (${activeCount.toLocaleString()})`;
       }
 
+      const activeStrictProfile = typeof resolveStrictQueryCategoryProfile === 'function'
+        ? resolveStrictQueryCategoryProfile(typeof getActiveSearchQueryForRelevance === 'function' ? getActiveSearchQueryForRelevance() : '')
+        : null;
+
       container.innerHTML = groups
-        .filter(g => g.key === 'all' || (counts[g.key] || 0) > 0)
+        .filter(g => {
+          if (g.key === 'all') return true;
+          if ((counts[g.key] || 0) <= 0) return false;
+          // When a specific category keyword search is active (e.g. "بقالة"), hide unrelated industry pills
+          if (activeStrictProfile && activeStrictProfile.groupKey && g.key !== activeStrictProfile.groupKey) {
+            return false;
+          }
+          return true;
+        })
         .map(g => {
           const c = counts[g.key] || 0;
           const isActive = g.key === activeCategorySummaryFilter;
@@ -3740,8 +3752,188 @@
       return false;
     }
 
+    function normalizeRelevanceText(str) {
+      return String(str || '')
+        .toLowerCase()
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/ؤ/g, 'و')
+        .replace(/ئ/g, 'ي')
+        .replace(/[_\-/|,،.;:()[\]{}]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    const STRICT_CATEGORY_RELEVANCE_PROFILES = [
+      {
+        id: 'groceries',
+        groupKey: 'groceries',
+        queryTriggers: ['بقاله', 'بقالات', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'مواد غذائيه', 'غذائيه', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'ماركت', 'دكان', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience store', 'minimarket', 'mini market', 'hypermarket'],
+        acceptKeywords: ['بقاله', 'بقالات', 'بقال', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'مواد غذائيه', 'غذائيه', 'الغذائيه', 'استهلاكيه', 'ماركت', 'دكان', 'مؤسسه غذائيه', 'مركز غذائي', 'تجزئه غذائيه', 'grocery', 'groceries', 'supermarket', 'convenience', 'minimarket', 'mini market', 'hypermarket', 'food store', 'general store', 'kiosk', 'market']
+      },
+      {
+        id: 'pharmacies',
+        groupKey: 'pharmacies',
+        queryTriggers: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'pharmacy', 'pharmacies', 'drugstore', 'chemist'],
+        acceptKeywords: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'مستودع ادويه', 'مستلزمات طبيه', 'pharmacy', 'drugstore', 'chemist', 'pharma']
+      },
+      {
+        id: 'hospitals',
+        groupKey: 'hospitals',
+        queryTriggers: ['مستشفي', 'مستشفيات', 'عياده', 'عيادات', 'مستوصف', 'مركز طبي', 'مختبر', 'اسنان', 'طبيب', 'دكتور', 'hospital', 'clinic', 'medical', 'dentist', 'doctor'],
+        acceptKeywords: ['مستشفي', 'مستشفيات', 'عياده', 'عيادات', 'مستوصف', 'مركز طبي', 'طبي', 'مجمع طبي', 'مختبر', 'اشعه', 'اسنان', 'دكتور', 'طبيب', 'طوارئ', 'hospital', 'clinic', 'medical', 'dentist', 'doctor', 'health', 'laboratory', 'polyclinic']
+      },
+      {
+        id: 'restaurants',
+        groupKey: 'restaurants',
+        queryTriggers: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'حلويات', 'شاورما', 'برجر', 'بيتزا', 'فروج', 'مندي', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'food'],
+        acceptKeywords: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'مخابز', 'حلويات', 'برجر', 'بيتزا', 'شاورما', 'فروج', 'مندي', 'مظبي', 'مشويات', 'عصائر', 'ايسكريم', 'وجبات', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'pizza', 'burger', 'grill', 'sweets', 'pastry', 'diner', 'eatery', 'bistro']
+      },
+      {
+        id: 'banks',
+        groupKey: 'banks',
+        queryTriggers: ['بنك', 'بنوك', 'مصرف', 'صرافه', 'صراف', 'شركات الصرافه', 'تحويلات', 'bank', 'atm', 'exchange'],
+        acceptKeywords: ['بنك', 'بنوك', 'مصرف', 'مصارف', 'صرافه', 'صراف', 'تحويلات', 'مالي', 'كريمي', 'امتياز', 'سويد', 'النجم', 'القطيبي', 'بن دول', 'الحزمي', 'bank', 'atm', 'exchange', 'finance', 'money transfer', 'remittance']
+      },
+      {
+        id: 'hotels',
+        groupKey: 'hotels',
+        queryTriggers: ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'منتجع', 'استراحه', 'لوكنده', 'hotel', 'motel', 'resort', 'apartments'],
+        acceptKeywords: ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'منتجع', 'استراحه', 'لوكنده', 'نزل', 'hotel', 'motel', 'apartments', 'resort', 'lodging', 'hostel', 'inn', 'suites']
+      },
+      {
+        id: 'malls',
+        groupKey: 'malls',
+        queryTriggers: ['مول', 'مولات', 'مركز تجاري', 'متجر', 'ملابس', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'جوالات', 'هواتف', 'الكترونيات', 'ذهب', 'مجوهرات', 'mall', 'shopping', 'electronics', 'clothing'],
+        acceptKeywords: ['مول', 'مولات', 'مركز تجاري', 'سوق', 'متجر', 'معرض', 'ملابس', 'ازياء', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'جوالات', 'هواتف', 'الكترونيات', 'كمبيوتر', 'ذهب', 'مجوهرات', 'ساعات', 'نظارات', 'mall', 'shopping', 'department store', 'clothing', 'electronics', 'jewelry', 'furniture', 'boutique']
+      },
+      {
+        id: 'companies',
+        groupKey: 'companies',
+        queryTriggers: ['شركه', 'شركات', 'مؤسسه', 'مكتب', 'وكاله', 'مقاولات', 'مصنع', 'عقارات', 'محاماه', 'سفريات', 'شحن', 'company', 'office', 'agency', 'factory'],
+        acceptKeywords: ['شركه', 'شركات', 'مؤسسه', 'مكتب', 'وكاله', 'تجاره', 'استيراد', 'تصدير', 'مقاولات', 'مصنع', 'عقارات', 'محاماه', 'سفريات', 'سياحه', 'شحن', 'توصيل', 'لوجستي', 'office', 'company', 'agency', 'factory', 'real estate', 'travel', 'cargo', 'logistics']
+      },
+      {
+        id: 'government',
+        groupKey: 'government',
+        queryTriggers: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'مرور', 'جوازات', 'حكومي', 'جهات حكوميه', 'سفاره', 'government', 'police', 'ministry', 'courthouse'],
+        acceptKeywords: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'قسم شرطه', 'مرور', 'جوازات', 'احوال مدنيه', 'حكوم', 'سفاره', 'قنصليه', 'جمارك', 'منفذ', 'courthouse', 'government', 'ministry', 'police', 'embassy', 'city hall', 'municipality']
+      },
+      {
+        id: 'automotive',
+        groupKey: 'other',
+        queryTriggers: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'اطارات', 'mechanic', 'car repair', 'auto parts', 'car wash'],
+        acceptKeywords: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'سمكره', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'تغيير زيت', 'اطارات', 'كفرات', 'كهربائي سيارات', 'car repair', 'mechanic', 'auto parts', 'car wash', 'car dealer', 'tire', 'garage']
+      },
+      {
+        id: 'fuel',
+        groupKey: 'other',
+        queryTriggers: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'بترول', 'بنزين', 'gas station', 'fuel', 'petrol'],
+        acceptKeywords: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'محطه غاز', 'بترول', 'بنزين', 'ديزل', 'وقود', 'gas station', 'fuel', 'petrol']
+      },
+      {
+        id: 'schools',
+        groupKey: 'other',
+        queryTriggers: ['مدرسه', 'مدارس', 'جامعه', 'كليه', 'معهد', 'روضه', 'اكاديميه', 'school', 'university', 'college', 'academy'],
+        acceptKeywords: ['مدرسه', 'مدارس', 'جامعه', 'كليه', 'معهد', 'روضه', 'اكاديميه', 'مركز تدريب', 'تعليم', 'school', 'university', 'college', 'academy', 'institute', 'kindergarten']
+      },
+      {
+        id: 'salons',
+        groupKey: 'other',
+        queryTriggers: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'barber', 'salon', 'beauty salon', 'spa'],
+        acceptKeywords: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'مكياج', 'barber', 'beauty salon', 'hair', 'spa', 'salon']
+      }
+    ];
+
+    function getActiveSearchQueryForRelevance() {
+      const qFromVar = (typeof lastActiveQuery === 'string' && lastActiveQuery && lastActiveQuery !== '__EMPTY__') ? lastActiveQuery : '';
+      const qFromInput = (document.getElementById('queryInput')?.value || '').trim();
+      const raw = (qFromVar || qFromInput).trim();
+      if (!raw || raw === '__EMPTY__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(raw)) {
+        return '';
+      }
+      return raw;
+    }
+
+    function resolveStrictQueryCategoryProfile(rawQuery) {
+      const qNorm = normalizeRelevanceText(rawQuery);
+      if (!qNorm) return null;
+      for (let i = 0; i < STRICT_CATEGORY_RELEVANCE_PROFILES.length; i++) {
+        const prof = STRICT_CATEGORY_RELEVANCE_PROFILES[i];
+        for (let j = 0; j < prof.queryTriggers.length; j++) {
+          const trig = prof.queryTriggers[j];
+          if (qNorm === trig || qNorm.includes(trig) || (qNorm.length >= 3 && trig.includes(qNorm))) {
+            return prof;
+          }
+        }
+      }
+      return null;
+    }
+
+    function isPlaceStrictlyRelevantToActiveQuery(place) {
+      const activeQ = getActiveSearchQueryForRelevance();
+      // Blank / comprehensive all-places scan -> allow all valid businesses
+      if (!activeQ) return true;
+
+      const qNorm = normalizeRelevanceText(activeQ);
+      if (!qNorm) return true;
+
+      const typesArr = Array.isArray(place.types) ? place.types.join(' ') : String(place.types || '');
+      const nameNorm = normalizeRelevanceText(place.name || '');
+      const catNorm = normalizeRelevanceText(`${place.category || ''} ${place.categoryAr || ''} ${place.type || ''} ${typesArr}`);
+      const combined = `${nameNorm} ${catNorm}`.trim();
+      if (!combined) return false;
+
+      const targetProfile = resolveStrictQueryCategoryProfile(activeQ);
+      if (targetProfile) {
+        // 1. Direct match against target industry synonyms (name, types, or category)
+        let matchedTarget = false;
+        for (let i = 0; i < targetProfile.acceptKeywords.length; i++) {
+          if (combined.includes(targetProfile.acceptKeywords[i])) {
+            matchedTarget = true;
+            break;
+          }
+        }
+        if (!matchedTarget) {
+          return false;
+        }
+
+        // 2. Even if a loose word matched (e.g. "ماركت"), strictly exclude if the place's primary name/category clearly belongs to an unrelated industry
+        let hasStrongNameMatch = false;
+        for (let i = 0; i < targetProfile.queryTriggers.length; i++) {
+          if (nameNorm.includes(targetProfile.queryTriggers[i])) {
+            hasStrongNameMatch = true;
+            break;
+          }
+        }
+        if (!hasStrongNameMatch) {
+          for (let p = 0; p < STRICT_CATEGORY_RELEVANCE_PROFILES.length; p++) {
+            const other = STRICT_CATEGORY_RELEVANCE_PROFILES[p];
+            if (other.id === targetProfile.id) continue;
+            for (let k = 0; k < other.queryTriggers.length; k++) {
+              const badTerm = other.queryTriggers[k];
+              if (badTerm.length >= 3 && (nameNorm.includes(badTerm) || catNorm.includes(badTerm))) {
+                return false;
+              }
+            }
+          }
+        }
+        return true;
+      }
+
+      // Custom keyword search outside predefined profiles: require at least one meaningful query token in name/category/types
+      const stopWords = new Set(['في', 'من', 'علي', 'الي', 'عن', 'مع', 'كل', 'جميع', 'قريب', 'افضل', 'احسن', 'near', 'best', 'the', 'and', 'in']);
+      const tokens = qNorm.split(' ').filter(t => t.length >= 2 && !stopWords.has(t));
+      if (tokens.length === 0) return true;
+      return tokens.some(tok => combined.includes(tok));
+    }
+
     function upsertOrMergeDeduplicatedPlace(place) {
       if (isClientGhostOrSpamPlace(place)) return null;
+      // Strict Pre-Insertion Category & Keyword Relevance Filter (discards unrelated industries when a specific search is active)
+      if (!isPlaceStrictlyRelevantToActiveQuery(place)) return null;
 
       const pid = place.placeId || place.place_id || '';
       const oid = place.osmId || place.osm_id || '';

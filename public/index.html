@@ -23,6 +23,8 @@
   <noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Orbitron:wght@500;700;900&display=swap" rel="stylesheet"></noscript>
   <!-- Lucide Icons -->
   <script defer src="https://unpkg.com/lucide@latest"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
   <!-- Three.js & OrbitControls -->
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -97,53 +99,24 @@
       box-shadow: 0 18px 38px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.14);
     }
 
-    /* Minimalist Category Chips (Transparent, breathable SaaS styling) */
+    /* Category Pills */
     .cat-pill {
-      background: transparent;
-      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(20, 29, 43, 0.9);
+      border: 1px solid rgba(71, 85, 105, 0.5);
       color: #cbd5e1;
-      transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
-      white-space: nowrap;
-      flex-shrink: 0;
+      transition: all 0.2s ease;
     }
-    .cat-pill:hover {
-      background: rgba(16, 185, 129, 0.1);
-      border-color: rgba(16, 185, 129, 0.45);
-      color: #ffffff;
-    }
-    .cat-pill.active {
-      background: rgba(16, 185, 129, 0.2);
+    .cat-pill:hover, .cat-pill.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(6, 182, 212, 0.25));
       border-color: #10b981;
       color: #ffffff;
-      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.22);
-    }
-
-    /* Minimalist Search Centerpiece Shell */
-    .minimal-search-box {
-      background: rgba(15, 23, 42, 0.62);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border: 1px solid rgba(148, 163, 184, 0.2);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      transition: border-color 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
-    }
-    .minimal-search-box:focus-within {
-      background: rgba(15, 23, 42, 0.85);
-      border-color: rgba(16, 185, 129, 0.65);
-      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48), 0 0 0 4px rgba(16, 185, 129, 0.12);
-    }
-
-    .ultra-thin-sticky-header {
-      background: rgba(7, 13, 23, 0.78);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
     }
 
     /* Smart Filter Pills */
     .smart-pill {
-      background: rgba(15, 23, 42, 0.55);
-      border: 1px solid rgba(148, 163, 184, 0.2);
+      background: rgba(20, 29, 43, 0.9);
+      border: 1px solid rgba(71, 85, 105, 0.5);
       color: #cbd5e1;
       transition: all 0.2s ease;
     }
@@ -152,7 +125,7 @@
       border-color: #34d399;
       color: #022c22;
       font-weight: 900;
-      box-shadow: 0 0 18px rgba(16, 185, 129, 0.4);
+      box-shadow: 0 0 22px rgba(16, 185, 129, 0.55);
     }
 
     /* 3D Globe Outer Radar Halo */
@@ -925,286 +898,323 @@
     </aside>
 
     <!-- Main Workspace Area -->
-    <main class="app-main-content max-w-[1480px] mx-auto w-full flex-1 flex flex-col">
+    <main class="app-main-content max-w-[1480px] mx-auto w-full px-2 sm:px-4 py-2 flex-1 flex flex-col gap-2.5">
 
-      <!-- SINGLE ULTRA-THIN STICKY HEADER (Unified Navigation, Live Counters & GPS Status) -->
-      <header class="ultra-thin-sticky-header sticky top-0 z-40 w-full px-3 sm:px-6 h-12 flex items-center justify-between gap-3">
-        <!-- Right: Hamburger (Mobile < 900px) + Minimal Brand -->
-        <div class="flex items-center gap-2.5 min-w-0">
+      <!-- CLEAN TOP APP BAR (With FontAwesome Sidebar Toggle Icon on Mobile < 900px) -->
+      <header class="studio-card rounded-xl px-2.5 py-2 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
+        <!-- Right: Sidebar Toggle Button (Mobile < 900px) + Brand & Active View Title -->
+        <div class="flex items-center gap-2">
           <button
             type="button"
             id="mobileSidebarToggleBtn"
             onclick="toggleMobileSidebarDrawer()"
             aria-label="فتح القائمة الجانبية"
-            class="mobile-hamburger-btn w-8 h-8 rounded-lg bg-slate-900/70 hover:bg-emerald-500/20 text-emerald-300 items-center justify-center text-base font-black cursor-pointer transition shrink-0"
+            title="القائمة الجانبية وأدوات الخريطة"
+            class="mobile-hamburger-btn w-9 h-9 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 items-center justify-center text-base font-black cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.3)] transition"
           >
-            ☰
+            <i class="fas fa-bars"></i>
           </button>
-          <span class="text-sm font-black tracking-tight text-white flex items-center gap-1.5 shrink-0">
-            <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]"></span>
-            <span>GeoRadar</span>
-          </span>
-          <span id="activeViewHeaderSubtitle" class="hidden md:inline text-[11px] text-slate-400 font-semibold truncate"></span>
+          <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 p-0.5 shadow-[0_0_12px_rgba(16,185,129,0.45)] flex items-center justify-center shrink-0">
+            <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
+              <i class="fas fa-map-marked-alt text-xs text-emerald-400"></i>
+            </div>
+          </div>
+          <div>
+            <h1 class="text-xs sm:text-sm font-black tracking-tight text-white flex items-center gap-1.5">
+              <span>مستخرج خرائط جوجل</span>
+              <span class="text-emerald-400 font-num text-[10px] sm:text-xs">GeoRadar</span>
+            </h1>
+            <p id="activeViewHeaderSubtitle" class="text-[10px] text-emerald-300/90 font-bold">🔍 البحث والمسح الشامل</p>
+          </div>
         </div>
 
-        <!-- Center / Left: Compact Unified Status & Quick Actions -->
-        <div class="flex items-center gap-2 sm:gap-3">
-          <button type="button" onclick="switchAppView('view-results')" class="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-emerald-300 transition cursor-pointer" title="عرض النتائج">
-            <span class="text-emerald-400 font-num font-black" id="statTotal">0</span>
-            <span class="hidden sm:inline text-slate-400">موقع</span>
+        <!-- Center: Compact Live Stats Pills (Clicking Switches to Results View) -->
+        <div class="flex items-center gap-1 px-2 py-1 rounded-xl bg-slate-900/90 border border-emerald-500/35">
+          <div onclick="switchAppView('view-results')" class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 cursor-pointer transition" title="اضغط لعرض النتائج والجدول">
+            <i data-lucide="map-pin" class="w-3 h-3 text-emerald-400"></i>
+            <span class="text-[10px] font-bold text-slate-300">المواقع:</span>
+            <strong id="statTotal" class="text-emerald-400 font-num font-black text-[11px] sm:text-xs">0</strong>
+          </div>
+
+          <div onclick="copyAllPhones()" class="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 cursor-pointer transition" title="اضغط لنسخ جميع الأرقام">
+            <i data-lucide="phone-call" class="w-3 h-3 text-cyan-400"></i>
+            <span class="text-[10px] font-bold text-slate-300">الأرقام:</span>
+            <strong id="statPhones" class="text-cyan-300 font-num font-black text-[11px] sm:text-xs">0</strong>
+          </div>
+        </div>
+
+        <!-- Left: Quick Settings + Refresh + GPS -->
+        <div class="flex items-center gap-1">
+          <button type="button" onclick="openUserSettingsModal()" title="إعدادات الحساب وكلمة السر والمستخرج" class="px-2 sm:px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/45 text-emerald-200 hover:text-white text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 transition cursor-pointer shadow-sm">
+            <i data-lucide="settings" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-400"></i>
+            <span id="topBarAccountLabel">الإعدادات</span>
           </button>
-          <span class="text-slate-700 text-xs">•</span>
-          <button type="button" onclick="copyAllPhones()" class="flex items-center gap-1.5 text-[11px] text-slate-300 hover:text-cyan-300 transition cursor-pointer" title="نسخ الأرقام">
-            <span class="text-cyan-300 font-num font-black" id="statPhones">0</span>
-            <span class="hidden sm:inline text-slate-400">رقم</span>
+          <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" class="px-2 py-1 rounded-lg bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700 text-slate-300 hover:text-white text-[10px] sm:text-[11px] font-bold flex items-center gap-1 transition cursor-pointer">
+            <i data-lucide="refresh-cw" class="w-3 h-3 text-emerald-400"></i>
+            <span class="hidden sm:inline">تحديث</span>
           </button>
-          <span class="text-slate-700 text-xs">•</span>
-          <button type="button" onclick="centerMapOnUserGps()" title="موقعي GPS" class="text-[11px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer transition">
+          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" class="w-7 h-7 rounded-lg bg-slate-900/90 hover:bg-emerald-500/20 border border-slate-700 text-emerald-400 flex items-center justify-center transition cursor-pointer">
             <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
-            <span class="hidden sm:inline font-bold">GPS</span>
-          </button>
-          <button type="button" onclick="openUserSettingsModal()" title="الإعدادات والحساب" class="px-2.5 py-1 rounded-lg bg-slate-900/60 hover:bg-slate-800/80 text-slate-200 hover:text-white text-[11px] font-bold flex items-center gap-1.5 transition cursor-pointer">
-            <i data-lucide="settings" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span id="topBarAccountLabel" class="hidden sm:inline">الإعدادات</span>
           </button>
         </div>
       </header>
 
-      <div class="w-full flex-1 flex flex-col px-3 sm:px-6 py-3 sm:py-4">
-      <!-- ==================== VIEW 1: MINIMALIST SEARCH CENTERPIECE (#view-search) ==================== -->
-      <section id="view-search" class="app-view-panel active-view w-full flex-1">
-        <div class="min-h-[calc(100vh-110px)] w-full flex flex-col items-center justify-center py-10 sm:py-16">
-          <form id="searchForm" onsubmit="handleSearch(event)" class="w-full max-w-2xl mx-auto flex flex-col items-center gap-6">
+      <!-- Global Live Progress Indicator (Visible across views whenever an active scan is running) -->
+      <div id="progressContainer" class="hidden bg-slate-900/95 border border-emerald-500/40 rounded-xl px-3 py-2 shadow">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
+          <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[140px] truncate">جارٍ البحث واستخراج البيانات...</span>
+          <div class="flex flex-wrap items-center gap-1.5 shrink-0">
+            <span id="quadtreeCellsBadge" class="text-amber-300 font-num font-bold bg-slate-950 border border-amber-500/40 px-2 py-0.5 rounded-full text-[10px]">🔲 الخلايا: 0 / 0</span>
+            <span id="progressDualEngineBadge" class="text-cyan-300 font-num font-bold bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">🌐 Google: 0 | 🗺️ OSM: 0</span>
+            <span id="progressPercentBadge" class="text-cyan-300 font-num font-black bg-slate-950 border border-cyan-500/40 px-2 py-0.5 rounded-full text-[10px]">0%</span>
+            <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px]">0 موقع فريد</span>
+            <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-300 font-bold text-[10px] cursor-pointer">
+              ⏸️ إيقاف مؤقت
+            </button>
+            <button type="button" onclick="switchAppView('view-results')" class="px-2.5 py-0.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] cursor-pointer">
+              📊 عرض النتائج ⬅️
+            </button>
+          </div>
+        </div>
+        <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden mt-1.5">
+          <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
+        </div>
+      </div>
 
-            <!-- Subtle Minimal Brand Mark -->
-            <div class="text-center space-y-1.5 mb-1">
-              <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-400 mb-1 shadow-[0_8px_30px_rgba(16,185,129,0.18)]">
-                <i data-lucide="radar" class="w-6 h-6"></i>
-              </div>
-              <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-white">GeoRadar</h1>
+      <!-- ==================== VIEW 1: SEARCH & SCAN (#view-search - Full Direct Scan Controls) ==================== -->
+      <section id="view-search" class="app-view-panel active-view w-full space-y-3">
+        <div class="w-full studio-card rounded-2xl p-3 sm:p-4 border border-emerald-500/35 shadow-lg space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800/80">
+            <div>
+              <h2 class="text-xs sm:text-sm font-black text-white flex items-center gap-1.5">
+                <span>🔍 البحث والمسح الشامل</span>
+              </h2>
+              <p class="text-[10px] sm:text-[11px] text-slate-400">اختر النشاط أو الفئة، وحدد نطاق المسح (المدينة / الدولة)، ثم اضغط بدء المسح الشامل</p>
             </div>
+            <button type="button" id="btnRestorePreviousSession" onclick="restorePreviousIdbSession()" class="hidden px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-[10px] sm:text-[11px] font-bold text-amber-300 cursor-pointer">
+              🔄 استعادة الجلسة السابقة
+            </button>
+          </div>
 
-            <!-- 1. Large Centered Primary Search Input -->
-            <div class="minimal-search-box w-full rounded-full px-5 py-3.5 sm:px-6 sm:py-4 flex items-center gap-3">
-              <i data-lucide="search" class="w-5 h-5 text-emerald-400 shrink-0"></i>
-              <input
-                type="text"
-                id="queryInput"
-                autocomplete="off"
-                spellcheck="false"
-                oninput="onQueryInputChange(this.value)"
-                placeholder="ابحث عن أي نشاط تجاري أو اتركه فارغاً للمسح الشامل..."
-                class="w-full bg-transparent text-sm sm:text-base text-white placeholder-slate-400 focus:outline-none font-semibold"
-              />
-              <button
-                type="button"
-                onclick="clearCategoryAndFilters()"
-                title="مسح النص"
-                class="text-slate-500 hover:text-slate-200 text-sm px-1.5 cursor-pointer transition shrink-0"
-              >
-                ✕
-              </button>
-            </div>
-
-            <!-- 2. Clean Scrollable Row of Transparent Category Chips -->
-            <div class="w-full overflow-x-auto no-scrollbar py-1">
-              <div class="flex items-center justify-start sm:justify-center gap-2 min-w-max px-1">
-                <button type="button" onclick="triggerCategorySearch('بقالة', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🛒 بقالات</button>
-                <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">💊 صيدليات</button>
-                <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🍽️ مطاعم</button>
-                <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏥 مستشفيات</button>
-                <button type="button" onclick="triggerCategorySearch('بنوك وصرافة', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏦 بنوك وصرافة</button>
-                <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏨 فنادق</button>
-                <button type="button" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏬 مولات</button>
-                <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏢 شركات</button>
-                <button type="button" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">📱 تلفونات</button>
-                <button type="button" onclick="triggerCategorySearch('وزارات وجهات حكومية', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏛️ جهات حكومية</button>
-                <button type="button" onclick="triggerCategorySearch('محاكم ونيابات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">⚖️ محاكم</button>
-                <button type="button" onclick="triggerCategorySearch('صالات وقاعات', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🎉 صالات</button>
-                <button type="button" onclick="triggerCategorySearch('منافذ وفرز وجمارك', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🚧 منافذ وفرز</button>
-                <button type="button" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-3.5 py-1.5 rounded-full text-xs font-semibold cursor-pointer">🏊 مسابح</button>
-              </div>
-            </div>
-
-            <!-- 3. Single Prominent Primary Action Button -->
-            <div class="w-full flex flex-col items-center gap-4 pt-1">
-              <button
-                type="submit"
-                id="searchBtn"
-                class="w-full sm:w-auto min-w-[240px] justify-center px-8 py-3.5 rounded-full bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-sm flex items-center gap-2 transition cursor-pointer shadow-[0_12px_35px_rgba(16,185,129,0.35)] active:scale-[0.99]"
-              >
-                <i data-lucide="search" class="w-4 h-4"></i>
-                <span>بدء البحث/المسح</span>
-              </button>
-
-              <!-- Progressive Disclosure Trigger: Collapsible Advanced Scan Settings -->
-              <button
-                type="button"
-                id="btnToggleAdvancedScanSettings"
-                onclick="toggleAdvancedScanSettingsAccordion()"
-                aria-expanded="false"
-                class="text-xs font-bold text-slate-400 hover:text-emerald-300 flex items-center gap-1.5 py-1.5 px-3 rounded-full hover:bg-slate-900/50 transition cursor-pointer"
-              >
-                <span>⚙️ إعدادات المسح المتقدمة</span>
-                <span id="advancedScanSettingsChevron" class="text-[10px] transition-transform duration-200">▾</span>
-              </button>
-            </div>
-
-            <!-- Collapsible Accordion: ALL Secondary Controls Hidden by Default -->
-            <div id="advancedScanSettingsAccordion" class="hidden w-full rounded-2xl bg-slate-950/75 backdrop-blur-xl p-4 sm:p-5 shadow-[0_18px_50px_rgba(0,0,0,0.45)] space-y-4 text-right">
-
-              <!-- City & Neighborhood Inputs -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div class="bg-slate-900/70 rounded-xl px-3.5 py-2.5 flex items-center gap-2">
-                  <i data-lucide="map-pin" class="w-4 h-4 text-cyan-400 shrink-0"></i>
-                  <input
-                    type="text"
-                    id="locationInput"
-                    autocomplete="off"
-                    spellcheck="false"
-                    value=""
-                    oninput="window.userManuallyEditedLocation = this.value.trim().length > 0 && this.value.trim() !== window.lastAutoDetectedGpsCity;"
-                    placeholder="المدينة أو الدولة (تلقائي)"
-                    class="w-full bg-transparent text-xs font-bold text-white placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
-                <div class="bg-slate-900/70 rounded-xl px-3.5 py-2.5 flex items-center gap-2">
-                  <i data-lucide="navigation" class="w-4 h-4 text-teal-400 shrink-0"></i>
-                  <input
-                    type="text"
-                    id="neighborhoodInput"
-                    autocomplete="off"
-                    spellcheck="false"
-                    placeholder="الحي / الشارع (اختياري)"
-                    class="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
-                  />
-                </div>
+          <form id="searchForm" onsubmit="handleSearch(event)" class="space-y-3">
+            <!-- Main Search Inputs Row -->
+            <div class="grid grid-cols-12 gap-2 items-center">
+              <!-- Activity Input -->
+              <div class="col-span-12 sm:col-span-5 lg:col-span-4 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-xl px-3 py-2 flex items-center gap-2 transition">
+                <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                <input
+                  type="text"
+                  id="queryInput"
+                  autocomplete="off"
+                  spellcheck="false"
+                  oninput="onQueryInputChange(this.value)"
+                  placeholder="ابحث عن أي نشاط (بقالة، صيدلية، مطعم، شركة...)"
+                  class="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none font-bold"
+                />
               </div>
 
-              <!-- Auto-Detected Scope & City Dropdown + Refresh GPS -->
-              <div id="comprehensiveScanPanel" class="space-y-3">
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/60 rounded-xl px-3 py-2">
-                  <div class="flex flex-wrap items-center gap-2 text-[11px] font-bold text-emerald-300">
-                    <span id="autoDetectedLocationBannerText">📍 موقعك المكتشف تلقائياً: صنعاء — اليمن</span>
-                    <select
-                      id="inAppCityQuickSelect"
-                      onchange="onInAppCityQuickSelectChange(this.value)"
-                      title="اختيار أو تغيير المدينة"
-                      class="bg-slate-950/90 text-emerald-300 rounded-lg px-2.5 py-1 text-[11px] font-bold focus:outline-none cursor-pointer"
-                    >
-                      <option value="auto">📍 تلقائي (حسب موقعك)</option>
-                      <option value="صنعاء">صنعاء</option>
-                      <option value="عدن">عدن</option>
-                      <option value="تعز">تعز</option>
-                      <option value="الحديدة">الحديدة</option>
-                      <option value="إب">إب</option>
-                      <option value="المكلا">المكلا (حضرموت)</option>
-                      <option value="مأرب">مأرب</option>
-                      <option value="ذمار">ذمار</option>
-                      <option value="عمران">عمران</option>
-                      <option value="صعدة">صعدة</option>
-                      <option value="البيضاء">البيضاء</option>
-                      <option value="حجة">حجة</option>
-                      <option value="لحج">لحج</option>
-                      <option value="الضالع">الضالع</option>
-                      <option value="شبوة">شبوة</option>
-                      <option value="المهرة">المهرة</option>
-                      <option value="سقطرى">سقطرى</option>
-                      <option value="الرياض">الرياض</option>
-                      <option value="جدة">جدة</option>
-                      <option value="القاهرة">القاهرة</option>
-                    </select>
-                  </div>
-                  <button type="button" onclick="refreshAutoDetectedUserScope(true)" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[11px] font-bold cursor-pointer transition">
-                    🔄 تحديث موقعي
+              <!-- City / Country Input -->
+              <div class="col-span-6 sm:col-span-4 lg:col-span-2 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-xl px-2.5 py-2 flex items-center gap-1.5 transition">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
+                <input
+                  type="text"
+                  id="locationInput"
+                  autocomplete="off"
+                  spellcheck="false"
+                  value=""
+                  oninput="window.userManuallyEditedLocation = this.value.trim().length > 0 && this.value.trim() !== window.lastAutoDetectedGpsCity;"
+                  placeholder="المدينة (تلقائي)"
+                  class="w-full bg-transparent text-xs font-bold text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
+
+              <!-- Neighborhood / Street Input -->
+              <div class="col-span-6 sm:col-span-3 lg:col-span-2 bg-slate-950/90 border border-slate-700/80 focus-within:border-emerald-400 rounded-xl px-2.5 py-2 flex items-center gap-1.5 transition">
+                <i data-lucide="navigation" class="w-3.5 h-3.5 text-teal-400 shrink-0"></i>
+                <input
+                  type="text"
+                  id="neighborhoodInput"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="الحي / الشارع (اختياري)"
+                  class="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+                />
+              </div>
+
+              <!-- Primary Action Buttons -->
+              <div class="col-span-12 lg:col-span-4 flex items-center gap-1.5">
+                <button
+                  type="submit"
+                  id="searchBtn"
+                  class="flex-1 justify-center px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 font-black text-xs flex items-center gap-1.5 transition cursor-pointer shadow-[0_0_15px_rgba(16,185,129,0.35)]"
+                >
+                  <i data-lucide="search" class="w-4 h-4"></i>
+                  <span>بحث سريع</span>
+                </button>
+                <button
+                  type="button"
+                  onclick="scanEntireCityAllActivities()"
+                  class="px-3 py-2 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-extrabold text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
+                  title="مسح شامل لجميع الأنشطة في كافة الحارات والشوارع"
+                >
+                  <span>📡 مسح شامل</span>
+                </button>
+                <button
+                  type="button"
+                  onclick="clearCategoryAndFilters()"
+                  title="تفريغ وإعادة ضبط"
+                  class="px-2.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-emerald-300 text-xs font-bold cursor-pointer transition shrink-0"
+                >
+                  ↺
+                </button>
+              </div>
+            </div>
+
+            <!-- Category Chips & Quick Filters -->
+            <div class="space-y-2 pt-2 border-t border-slate-800/70">
+              <div class="flex flex-wrap items-center justify-between gap-1.5">
+                <span class="text-[11px] font-extrabold text-emerald-300">🏷️ الفئات السريعة:</span>
+                <div class="flex flex-wrap items-center gap-1">
+                  <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill active px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition">
+                    <span>🌐 مسح شامل للمدينة</span>
+                  </button>
+                  <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-extrabold flex items-center gap-1 cursor-pointer transition border-cyan-400/50 text-cyan-200">
+                    <span>✏️ بحث بالرسم على الخريطة</span>
+                  </button>
+                  <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <span>📞 بهاتف</span>
+                  </button>
+                  <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-bold flex items-center gap-1 cursor-pointer">
+                    <span>🕒 مفتوح</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap items-center gap-1.5">
+                <button type="button" onclick="triggerCategorySearch('بقالة', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🛒 بقالات</button>
+                <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">💊 صيدليات</button>
+                <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🍽️ مطاعم</button>
+                <button type="button" onclick="triggerCategorySearch('صالات وقاعات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🎉 صالات</button>
+                <button type="button" onclick="triggerCategorySearch('محاكم ونيابات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">⚖️ محاكم</button>
+                <button type="button" onclick="triggerCategorySearch('منافذ وفرز وجمارك', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🚧 منافذ وفرز</button>
+                <button type="button" onclick="triggerCategorySearch('وزارات وجهات حكومية', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏛️ جهات حكومية</button>
+                <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏥 مستشفيات</button>
+                <button type="button" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏬 مولات</button>
+                <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏨 فنادق</button>
+                <button type="button" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">📱 تلفونات</button>
+                <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏢 شركات</button>
+                <button type="button" onclick="triggerCategorySearch('بنوك وصرافة', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏦 بنوك وصرافة</button>
+                <button type="button" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-2 py-1 rounded-lg text-[11px] font-bold cursor-pointer">🏊 مسابح</button>
+              </div>
+            </div>
+
+            <!-- Scan Scope Selector (City / Country) & Primary "بدء المسح الشامل" Action -->
+            <div id="comprehensiveScanPanel" class="pt-2.5 border-t border-cyan-500/30 bg-slate-950/80 rounded-xl p-3 space-y-2.5">
+              <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-900/90 border border-emerald-500/30 rounded-lg px-2.5 py-1.5">
+                <div class="flex flex-wrap items-center gap-2 text-[11px] sm:text-xs font-extrabold text-emerald-300">
+                  <span id="autoDetectedLocationBannerText">📍 موقعك المكتشف تلقائياً: صنعاء — اليمن</span>
+                  <select
+                    id="inAppCityQuickSelect"
+                    onchange="onInAppCityQuickSelectChange(this.value)"
+                    title="اختيار أو تغيير المدينة من داخل التطبيق"
+                    class="bg-slate-950 text-emerald-300 border border-emerald-500/45 rounded-md px-2 py-0.5 text-[10px] sm:text-[11px] font-bold focus:outline-none focus:border-emerald-400 cursor-pointer"
+                  >
+                    <option value="auto">📍 تلقائي (حسب موقعك)</option>
+                    <option value="صنعاء">صنعاء</option>
+                    <option value="عدن">عدن</option>
+                    <option value="تعز">تعز</option>
+                    <option value="الحديدة">الحديدة</option>
+                    <option value="إب">إب</option>
+                    <option value="المكلا">المكلا (حضرموت)</option>
+                    <option value="مأرب">مأرب</option>
+                    <option value="ذمار">ذمار</option>
+                    <option value="عمران">عمران</option>
+                    <option value="صعدة">صعدة</option>
+                    <option value="البيضاء">البيضاء</option>
+                    <option value="حجة">حجة</option>
+                    <option value="لحج">لحج</option>
+                    <option value="الضالع">الضالع</option>
+                    <option value="شبوة">شبوة</option>
+                    <option value="المهرة">المهرة</option>
+                    <option value="سقطرى">سقطرى</option>
+                    <option value="الرياض">الرياض</option>
+                    <option value="جدة">جدة</option>
+                    <option value="القاهرة">القاهرة</option>
+                  </select>
+                </div>
+                <button type="button" onclick="refreshAutoDetectedUserScope(true)" class="px-2.5 py-1 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-200 text-[10px] font-bold cursor-pointer flex items-center gap-1 transition">
+                  <span>🔄 تحديث موقعي</span>
+                </button>
+              </div>
+
+              <!-- Scan Scope Buttons (City / Country / Map Viewport) -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  id="scopeModeBtn_city"
+                  onclick="selectComprehensiveScopeMode('city')"
+                  class="px-3 py-2 rounded-xl bg-emerald-500/25 border-2 border-emerald-400 text-emerald-200 font-black text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition shadow"
+                >
+                  <span id="scopeModeCityLabel">🏙️ مسح مدينتي الحالية بالكامل (صنعاء)</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950 font-black shrink-0">المدينة</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="scopeModeBtn_country"
+                  onclick="selectComprehensiveScopeMode('country')"
+                  class="px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-extrabold text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition"
+                >
+                  <span id="scopeModeCountryLabel">🌍 مسح دولتي الحالية بالكامل (اليمن)</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold shrink-0">الدولة</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="scopeModeBtn_viewport"
+                  onclick="selectComprehensiveScopeMode('viewport')"
+                  class="px-3 py-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 font-extrabold text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition"
+                >
+                  <span id="scopeModeViewportLabel">🗺️ مسح المنطقة المعروضة على الخريطة</span>
+                  <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-bold shrink-0">الخريطة</span>
+                </button>
+              </div>
+
+              <!-- Primary Start Comprehensive Scan Action Bar -->
+              <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    id="btnStartComprehensiveScan"
+                    onclick="startLocationAwareComprehensiveScan(false)"
+                    class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 hover:from-emerald-300 hover:to-cyan-300 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.4)] transition"
+                  >
+                    <span>▶️ بدء المسح الشامل</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="btnPauseComprehensiveScan"
+                    onclick="pauseLocationAwareComprehensiveScan()"
+                    class="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-extrabold text-[11px] flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <span>⏸️ إيقاف مؤقت</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="btnResumeComprehensiveScan"
+                    onclick="startLocationAwareComprehensiveScan(true)"
+                    class="px-2.5 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/50 text-cyan-200 font-extrabold text-[11px] flex items-center gap-1 cursor-pointer transition"
+                    title="استئناف المسح من آخر نقطة حفظ تلقائية (Checkpoint)"
+                  >
+                    <span>⏯️ استئناف</span>
                   </button>
                 </div>
 
-                <!-- Scope Mode Selection: City / Country / Viewport -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    id="scopeModeBtn_city"
-                    onclick="selectComprehensiveScopeMode('city')"
-                    class="px-3 py-2.5 rounded-xl bg-emerald-500/20 text-emerald-200 font-bold text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition"
-                  >
-                    <span id="scopeModeCityLabel">🏙️ مسح مدينتي الحالية (صنعاء)</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950 font-black shrink-0">المدينة</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="scopeModeBtn_country"
-                    onclick="selectComprehensiveScopeMode('country')"
-                    class="px-3 py-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 text-slate-300 font-bold text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition"
-                  >
-                    <span id="scopeModeCountryLabel">🌍 مسح دولتي الحالية (اليمن)</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-cyan-300 font-bold shrink-0">الدولة</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    id="scopeModeBtn_viewport"
-                    onclick="selectComprehensiveScopeMode('viewport')"
-                    class="px-3 py-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 text-slate-300 font-bold text-xs text-right flex items-center justify-between gap-1 cursor-pointer transition"
-                  >
-                    <span id="scopeModeViewportLabel">🗺️ نطاق الخريطة الحالي</span>
-                    <span class="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-bold shrink-0">الخريطة</span>
-                  </button>
-                </div>
-
-                <!-- Filters & Drawing Toggles -->
-                <div class="flex flex-wrap items-center gap-2 pt-1">
-                  <button type="button" id="btnFullCityMode" onclick="activateFullCitySearch()" class="smart-pill active px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition">
-                    🌐 مسح شامل للمدينة
-                  </button>
-                  <button type="button" id="btnDrawCircleMode" onclick="startDrawCircleOnMap()" class="smart-pill px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer transition text-cyan-200">
-                    ✏️ بحث بالرسم على الخريطة
-                  </button>
-                  <button type="button" id="pill_phone" onclick="toggleOptionalFilter('phone')" class="smart-pill px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer">
-                    📞 بهاتف فقط
-                  </button>
-                  <button type="button" id="pill_open" onclick="toggleOptionalFilter('open')" class="smart-pill px-3 py-1.5 rounded-full text-[11px] font-bold cursor-pointer">
-                    🕒 مفتوح الآن
-                  </button>
-                </div>
-
-                <!-- Deep Scan Actions (Comprehensive Start / Pause / Resume / Restore) -->
-                <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      id="btnStartComprehensiveScan"
-                      onclick="startLocationAwareComprehensiveScan(false)"
-                      class="px-4 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 font-black text-xs cursor-pointer transition"
-                    >
-                      📡 بدء المسح الشامل للنطاق
-                    </button>
-                    <button
-                      type="button"
-                      id="btnPauseComprehensiveScan"
-                      onclick="pauseLocationAwareComprehensiveScan()"
-                      class="px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs cursor-pointer transition"
-                    >
-                      ⏸️ إيقاف مؤقت
-                    </button>
-                    <button
-                      type="button"
-                      id="btnResumeComprehensiveScan"
-                      onclick="startLocationAwareComprehensiveScan(true)"
-                      class="px-3 py-2 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 font-bold text-xs cursor-pointer transition"
-                    >
-                      ⏯️ استئناف
-                    </button>
-                    <button
-                      type="button"
-                      id="btnRestorePreviousSession"
-                      onclick="restorePreviousIdbSession()"
-                      class="hidden px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 font-bold text-xs cursor-pointer transition"
-                    >
-                      🔄 استعادة الجلسة السابقة
-                    </button>
-                  </div>
+                <!-- Live Dual-Engine Telemetry Badges -->
+                <div class="flex flex-wrap items-center gap-1 text-[10px] font-num">
+                  <span id="telemetryActiveScopeBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-emerald-500/40 text-emerald-300 font-bold">🎯 النطاق: صنعاء</span>
+                  <span id="telemetryDualEngineBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-cyan-500/40 text-cyan-300 font-bold">🌐 Google: 0 | 🗺️ OSM: 0</span>
+                  <span id="telemetryNetDedupBadge" class="px-2 py-0.5 rounded bg-slate-900 border border-amber-500/40 text-amber-300 font-bold">✅ الإجمالي الصافي: 0</span>
                 </div>
               </div>
             </div>
@@ -1287,28 +1297,6 @@
       <!-- ==================== VIEW 3: RESULTS & TABLE (#view-results) ==================== -->
       <section id="view-results" class="app-view-panel w-full space-y-2.5">
         <div id="resultsSectionAnchor" class="w-full space-y-2.5">
-          <!-- Live Scan Progress & Dual-Engine Telemetry (Contained inside Results View) -->
-          <div id="progressContainer" class="hidden bg-slate-900/90 backdrop-blur-md border border-emerald-500/30 rounded-xl px-3.5 py-2.5 shadow-lg space-y-1.5">
-            <div class="flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-[11px]">
-              <span id="statusMessage" class="text-emerald-300 font-bold flex-1 min-w-[140px] truncate">جارٍ البحث واستخراج البيانات...</span>
-              <div class="flex flex-wrap items-center gap-1.5 shrink-0">
-                <span id="telemetryActiveScopeBadge" class="px-2 py-0.5 rounded-full bg-slate-950/90 text-emerald-300 font-bold text-[10px]">🎯 النطاق: صنعاء</span>
-                <span id="quadtreeCellsBadge" class="text-amber-300 font-num font-bold bg-slate-950/90 px-2 py-0.5 rounded-full text-[10px]">🔲 الخلايا: 0 / 0</span>
-                <span id="progressDualEngineBadge" class="text-cyan-300 font-num font-bold bg-slate-950/90 px-2 py-0.5 rounded-full text-[10px]">🌐 Google: 0 | 🗺️ OSM: 0</span>
-                <span id="telemetryDualEngineBadge" class="hidden">🌐 Google: 0 | 🗺️ OSM: 0</span>
-                <span id="telemetryNetDedupBadge" class="hidden">✅ الإجمالي الصافي: 0</span>
-                <span id="progressPercentBadge" class="text-cyan-300 font-num font-black bg-slate-950/90 px-2 py-0.5 rounded-full text-[10px]">0%</span>
-                <span id="progressRatio" class="text-white font-num font-bold bg-emerald-500/20 px-2 py-0.5 rounded-full text-[10px]">0 موقع فريد</span>
-                <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2.5 py-0.5 rounded-full bg-amber-500/20 hover:bg-amber-500/35 text-amber-300 font-bold text-[10px] cursor-pointer transition">
-                  ⏸️ إيقاف مؤقت
-                </button>
-              </div>
-            </div>
-            <div class="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden">
-              <div id="progressBar" class="bg-gradient-to-r from-emerald-400 to-cyan-400 h-full w-0 transition-all duration-300 rounded-full"></div>
-            </div>
-          </div>
-
           <!-- Results View Toolbar -->
           <div class="studio-card rounded-xl px-3 py-2 border border-slate-800 flex flex-wrap items-center justify-between gap-2">
             <div class="flex flex-wrap items-center gap-1.5">
@@ -1493,7 +1481,7 @@
           </div>
         </div>
       </section>
-      </div>
+
     </main>
   </div>
 
@@ -1583,10 +1571,10 @@
 
     const APP_VIEW_IDS = ['view-search', 'view-map', 'view-results', 'view-export'];
     const APP_VIEW_SUBTITLES = {
-      'view-search': '',
-      'view-map': 'الخريطة التفاعلية',
-      'view-results': 'النتائج والجدول',
-      'view-export': 'التصدير والملفات'
+      'view-search': '🔍 البحث والمسح الشامل',
+      'view-map': '🗺️ الخريطة التفاعلية وتحديد النطاق',
+      'view-results': '📊 النتائج والجدول وفلترة الفئات',
+      'view-export': '📥 التصدير والملفات والمشاريع المحفوظة'
     };
 
     function openMobileSidebarDrawer() {
@@ -1601,16 +1589,6 @@
       const bd = document.getElementById('appSidebarBackdrop');
       if (sb) sb.classList.remove('open');
       if (bd) bd.classList.remove('open');
-    }
-
-    function toggleAdvancedScanSettingsAccordion() {
-      const panel = document.getElementById('advancedScanSettingsAccordion');
-      const btn = document.getElementById('btnToggleAdvancedScanSettings');
-      const chevron = document.getElementById('advancedScanSettingsChevron');
-      if (!panel) return;
-      const isNowHidden = panel.classList.toggle('hidden');
-      if (btn) btn.setAttribute('aria-expanded', String(!isNowHidden));
-      if (chevron) chevron.style.transform = isNowHidden ? 'rotate(0deg)' : 'rotate(180deg)';
     }
 
     function toggleMobileSidebarDrawer() {

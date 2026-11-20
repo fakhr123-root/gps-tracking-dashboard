@@ -130,6 +130,94 @@
   }
 
   /**
+   * Standardized 11-Group Live Scan Category Definitions & Classifier
+   * Used by #categorySummaryFilterBar in public/index.html and Excel/VCF exports.
+   */
+  const SCAN_CATEGORY_GROUPS = [
+    { key: 'all', label: 'الكل', shortFileTag: 'الكل' },
+    { key: 'groceries', label: '🛒 بقالات وسوبرماركت', shortFileTag: 'بقالات_وسوبرماركت' },
+    { key: 'hospitals', label: '🏥 مستشفيات ومراكز طبية', shortFileTag: 'مستشفيات_ومراكز_طبية' },
+    { key: 'pharmacies', label: '💊 صيدليات', shortFileTag: 'صيدليات' },
+    { key: 'restaurants', label: '🍽️ مطاعم وكافيهات', shortFileTag: 'مطاعم_وكافيهات' },
+    { key: 'banks', label: '🏦 بنوك وصرافة', shortFileTag: 'بنوك_وصرافة' },
+    { key: 'hotels', label: '🏨 فنادق وشقق مفروشة', shortFileTag: 'فنادق_وشقق_مفروشة' },
+    { key: 'malls', label: '🛍️ مولات ومتاجر', shortFileTag: 'مولات_ومتاجر' },
+    { key: 'companies', label: '🏢 شركات ومؤسسات', shortFileTag: 'شركات_ومؤسسات' },
+    { key: 'government', label: '🏛️ جهات حكومية ومحاكم', shortFileTag: 'جهات_حكومية_ومحاكم' },
+    { key: 'other', label: '📍 أخرى', shortFileTag: 'أخرى' }
+  ];
+
+  function classifyPlaceIntoSummaryGroup(place) {
+    if (!place || typeof place !== 'object') return 'other';
+    if (place._summaryCatKey) return place._summaryCatKey;
+
+    const rawTags = [];
+    if (place.categoryAr) rawTags.push(place.categoryAr);
+    if (place.category) rawTags.push(place.category);
+    if (place.type) rawTags.push(place.type);
+    if (Array.isArray(place.c)) rawTags.push(...place.c);
+    if (Array.isArray(place.categories)) rawTags.push(...place.categories);
+    if (place.tags && typeof place.tags === 'object') {
+      const t = place.tags;
+      [
+        t.amenity, t.shop, t.healthcare, t.office, t.craft,
+        t.tourism, t.leisure, t.historic, t.industrial, t.building, t.place
+      ].forEach(v => { if (v) rawTags.push(v); });
+    }
+
+    const combined = normArText(`${place.name || place.n || ''} ${rawTags.join(' ')}`);
+
+    // 1. Pharmacies (💊 صيدليات)
+    if (/(صيدليه|صيدليات|فارما|دواء|ادويه|مستلزمات طبيه|pharmacy|chemist|drugstore)/i.test(combined)) {
+      place._summaryCatKey = 'pharmacies';
+      return 'pharmacies';
+    }
+    // 2. Hospitals & Clinics (🏥 مستشفيات ومراكز طبية)
+    if (/(مستشفي|مستشفيات|طوارئ|مجمع طبي|مدينه طبيه|عياده|عيادات|مستوصف|مركز طبي|اسنان|مختبر|تحاليل|اشعه|دكتور|طبيب|علاج طبيعي|hospital|medical_center|clinic|doctors|dentist|healthcare|laboratory)/i.test(combined)) {
+      place._summaryCatKey = 'hospitals';
+      return 'hospitals';
+    }
+    // 3. Groceries & Supermarkets (🛒 بقالات وسوبرماركت)
+    if (/(بقاله|بقالات|سوبرماركت|سوبر ماركت|تموينات|ميني ماركت|هايبر|ماركت|بهارات|خضار|فواكه|ملحمه|لحوم|دواجن|عسل|supermarket|convenience|grocery|greengrocer|butcher)/i.test(combined)) {
+      place._summaryCatKey = 'groceries';
+      return 'groceries';
+    }
+    // 4. Restaurants & Cafes (🍽️ مطاعم وكافيهات)
+    if (/(مطعم|مطاعم|مطبخ|مطابخ|مندي|بروست|شوايه|مشويات|شاورما|فطائر|بيتزا|برجر|بوفيه|كافتيريا|فوال|كافيه|مقهي|قهوه|مرطبات|عصائر|مخبز|مخابز|فرن|افران|حلويات|restaurant|fast_food|cafe|coffee|bakery|confectionery|food)/i.test(combined)) {
+      place._summaryCatKey = 'restaurants';
+      return 'restaurants';
+    }
+    // 5. Banks & Exchange (🏦 بنوك وصرافة)
+    if (/(بنك|بنوك|مصرف|صرافه|صراف الي|تحويلات|كريمي|امتياز|سويد|النجم|تضامن|كاك|سبا|يمن والكويت|النقد|bank|atm|bureau_de_change|exchange|finance)/i.test(combined)) {
+      place._summaryCatKey = 'banks';
+      return 'banks';
+    }
+    // 6. Hotels & Furnished Apartments (🏨 فنادق وشقق مفروشة)
+    if (/(فندق|فنادق|اجنحه|شقق مفروشه|شقق فندقيه|لوكنده|لوكاندة|منتجع|استراحه|دار ضيافه|نزل|hotel|motel|guest_house|hostel|apartments|resort)/i.test(combined)) {
+      place._summaryCatKey = 'hotels';
+      return 'hotels';
+    }
+    // 7. Government & Courts (🏛️ جهات حكومية ومحاكم)
+    if (/(محكمه|محاكم|نيابه|قضاء|وزاره|هيئه|مؤسسه عامه|مصلحه|بلديه|امانه|شرطه|امن|مرور|دفاع مدني|جوازات|احوال مدنيه|ضرائب|اوقاف|سفاره|قنصليه|منفذ|جمرك|جمارك|courthouse|government|ministry|police|townhall|embassy|public_building|customs)/i.test(combined)) {
+      place._summaryCatKey = 'government';
+      return 'government';
+    }
+    // 8. Malls & Shops (🛍️ مولات ومتاجر)
+    if (/(مول|مركز تجاري|مجمع تجاري|سيتي مارت|سوق|معرض|متجر|محل|بوتيك|ملابس|ازياء|عبايات|احذيه|عطور|مفروشات|اثاث|تلفون|تلفونات|جوال|جوالات|هواتف|موبايل|الكترونيات|كمبيوتر|لابتوب|ذهب|مجوهرات|قرطاسيه|مكتبه|mall|department_store|marketplace|clothes|shoes|furniture|jewelry|shop|store|mobile_phone|electronics|computer)/i.test(combined)) {
+      place._summaryCatKey = 'malls';
+      return 'malls';
+    }
+    // 9. Companies & Offices (🏢 شركات ومؤسسات)
+    if (/(شركه|شركات|مؤسسه|مكتب|وكاله|مجموعه|استيراد|تصدير|تجاره|خدمات|عقارات|محاماه|استشارات|هندسيه|تقنيه|مقاولات|مصنع|مصانع|سفريات|سياحه|شحن|تامين|office|company|agency|lawyer|accountant|estate_agent|industrial|factory|insurance|travel_agency)/i.test(combined)) {
+      place._summaryCatKey = 'companies';
+      return 'companies';
+    }
+
+    place._summaryCatKey = 'other';
+    return 'other';
+  }
+
+  /**
    * Extracts Plus Code (e.g. "8GP6+2R", "7HG5+9X") if present in address/district/city,
    * and returns a clean city/district label without raw Plus Codes prepended.
    */
@@ -538,6 +626,8 @@
     });
   }
 
+  global.SCAN_CATEGORY_GROUPS = SCAN_CATEGORY_GROUPS;
+  global.classifyPlaceIntoSummaryGroup = classifyPlaceIntoSummaryGroup;
   global.resolveArabicPlaceCategory = resolveArabicPlaceCategory;
   global.extractPlusCodeAndCleanCityDistrict = extractPlusCodeAndCleanCityDistrict;
   global.formatPlaceRowsForExcel = formatPlaceRowsForExcel;

@@ -1078,6 +1078,17 @@
           </div>
         </div>
 
+        <!-- Live Category Breakdown & Interactive Filter Bar (#categorySummaryFilterBar) -->
+        <div id="categorySummaryFilterBar" class="hidden bg-slate-900/95 border border-emerald-500/35 rounded-xl px-2.5 py-2 shadow space-y-1.5">
+          <div class="flex items-center justify-between gap-2 text-[10px] sm:text-[11px]">
+            <span class="font-black text-emerald-300 flex items-center gap-1">
+              <span>🏷️ تصنيف النتائج المستخرجة (اضغط للفلترة الفورية والتصدير):</span>
+            </span>
+            <span id="activeCategoryFilterIndicator" class="text-[10px] font-bold text-cyan-300">المعروض: الكل</span>
+          </div>
+          <div id="categorySummaryPillsContainer" class="flex flex-wrap items-center gap-1.5"></div>
+        </div>
+
         <!-- Compact Bento Cards Grid: 2 Columns on Mobile Phone, up to 5 Columns on Computer! -->
         <div id="bentoCardsWrapper" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-2">
           <div class="col-span-full studio-card p-3 sm:p-4 rounded-xl text-center space-y-1 border border-emerald-500/25">
@@ -1548,6 +1559,7 @@
       document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
       filterOnlyPhone = false;
       filterOnlyOpen = false;
+      activeCategorySummaryFilter = 'all';
       document.getElementById('pill_phone')?.classList.remove('active');
       document.getElementById('pill_open')?.classList.remove('active');
       document.getElementById('btnFullCityMode')?.classList.remove('active');
@@ -1558,6 +1570,7 @@
       const h = document.getElementById('neighborhoodInput');
       if (h) h.value = '';
       clearDrawnCircle(false);
+      renderCategorySummaryFilterBar();
       applyResultsFilter();
     }
 
@@ -2562,12 +2575,128 @@
 
     let isScrollBatchLocked = false;
     let batchUiThrottleTimer = null;
+    let activeCategorySummaryFilter = 'all';
+
+    const FALLBACK_SCAN_CATEGORY_GROUPS = [
+      { key: 'all', label: 'الكل', shortFileTag: 'الكل' },
+      { key: 'groceries', label: '🛒 بقالات وسوبرماركت', shortFileTag: 'بقالات_وسوبرماركت' },
+      { key: 'hospitals', label: '🏥 مستشفيات ومراكز طبية', shortFileTag: 'مستشفيات_ومراكز_طبية' },
+      { key: 'pharmacies', label: '💊 صيدليات', shortFileTag: 'صيدليات' },
+      { key: 'restaurants', label: '🍽️ مطاعم وكافيهات', shortFileTag: 'مطاعم_وكافيهات' },
+      { key: 'banks', label: '🏦 بنوك وصرافة', shortFileTag: 'بنوك_وصرافة' },
+      { key: 'hotels', label: '🏨 فنادق وشقق مفروشة', shortFileTag: 'فنادق_وشقق_مفروشة' },
+      { key: 'malls', label: '🛍️ مولات ومتاجر', shortFileTag: 'مولات_ومتاجر' },
+      { key: 'companies', label: '🏢 شركات ومؤسسات', shortFileTag: 'شركات_ومؤسسات' },
+      { key: 'government', label: '🏛️ جهات حكومية ومحاكم', shortFileTag: 'جهات_حكومية_ومحاكم' },
+      { key: 'other', label: '📍 أخرى', shortFileTag: 'أخرى' }
+    ];
+
+    function getScanCategoryGroupsList() {
+      return Array.isArray(window.SCAN_CATEGORY_GROUPS) && window.SCAN_CATEGORY_GROUPS.length > 0
+        ? window.SCAN_CATEGORY_GROUPS
+        : FALLBACK_SCAN_CATEGORY_GROUPS;
+    }
+
+    function classifyExtractedPlaceCategoryKey(place) {
+      if (!place || typeof place !== 'object') return 'other';
+      if (place._summaryCatKey) return place._summaryCatKey;
+      if (typeof window.classifyPlaceIntoSummaryGroup === 'function') {
+        return window.classifyPlaceIntoSummaryGroup(place);
+      }
+      const raw = String(`${place.name || ''} ${place.categoryAr || ''} ${place.category || ''} ${place.type || ''}`)
+        .toLowerCase()
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي');
+      if (/(صيدليه|صيدليات|فارما|دواء|pharmacy|drugstore)/i.test(raw)) return (place._summaryCatKey = 'pharmacies');
+      if (/(مستشفي|مستشفيات|عياده|عيادات|مستوصف|مركز طبي|مختبر|اشعه|اسنان|دكتور|طبيب|hospital|clinic|dentist|medical)/i.test(raw)) return (place._summaryCatKey = 'hospitals');
+      if (/(بقاله|بقالات|سوبرماركت|سوبر ماركت|تموينات|ميني ماركت|هايبر|ماركت|supermarket|grocery|convenience)/i.test(raw)) return (place._summaryCatKey = 'groceries');
+      if (/(مطعم|مطاعم|مطبخ|كافيه|مقهي|قهوه|كافتيريا|بوفيه|مخبز|حلويات|restaurant|cafe|coffee|bakery|fast_food)/i.test(raw)) return (place._summaryCatKey = 'restaurants');
+      if (/(بنك|بنوك|مصرف|صرافه|تحويلات|كريمي|امتياز|سويد|النجم|bank|atm|exchange)/i.test(raw)) return (place._summaryCatKey = 'banks');
+      if (/(فندق|فنادق|اجنحه|شقق مفروشه|منتجع|استراحه|لوكنده|hotel|motel|apartments|resort)/i.test(raw)) return (place._summaryCatKey = 'hotels');
+      if (/(محكمه|محاكم|نيابه|وزاره|هيئه|مصلحه|بلديه|امانه|شرطه|مرور|جوازات|حكوم|سفاره|منفذ|جمارك|courthouse|government|ministry|police)/i.test(raw)) return (place._summaryCatKey = 'government');
+      if (/(مول|مركز تجاري|سوق|معرض|متجر|محل|ملابس|احذيه|عطور|مفروشات|اثاث|جوالات|هواتف|الكترونيات|mall|shop|store|electronics)/i.test(raw)) return (place._summaryCatKey = 'malls');
+      if (/(شركه|شركات|مؤسسه|مكتب|وكاله|تجاره|مقاولات|مصنع|عقارات|محاماه|سفريات|office|company|agency|factory)/i.test(raw)) return (place._summaryCatKey = 'companies');
+      return (place._summaryCatKey = 'other');
+    }
+
+    function getActiveCategoryFilterMeta() {
+      const groups = getScanCategoryGroupsList();
+      return groups.find(g => g.key === activeCategorySummaryFilter) || groups[0];
+    }
+
+    function renderCategorySummaryFilterBar() {
+      const bar = document.getElementById('categorySummaryFilterBar');
+      const container = document.getElementById('categorySummaryPillsContainer');
+      const indicator = document.getElementById('activeCategoryFilterIndicator');
+      if (!bar || !container) return;
+
+      const allResults = Array.isArray(extractedPlaces) ? extractedPlaces : [];
+      if (allResults.length === 0) {
+        bar.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+      }
+
+      const counts = { all: allResults.length };
+      const groups = getScanCategoryGroupsList();
+      groups.forEach(g => {
+        if (g.key !== 'all') counts[g.key] = 0;
+      });
+
+      for (let i = 0; i < allResults.length; i++) {
+        const k = classifyExtractedPlaceCategoryKey(allResults[i]);
+        counts[k] = (counts[k] || 0) + 1;
+      }
+
+      // If currently selected category has 0 items in a new scan, reset to 'all'
+      if (activeCategorySummaryFilter !== 'all' && !counts[activeCategorySummaryFilter]) {
+        activeCategorySummaryFilter = 'all';
+      }
+
+      bar.classList.remove('hidden');
+      const activeMeta = getActiveCategoryFilterMeta();
+      if (indicator) {
+        const activeCount = counts[activeMeta.key] || 0;
+        indicator.innerText = `المعروض: ${activeMeta.label} (${activeCount.toLocaleString()})`;
+      }
+
+      container.innerHTML = groups
+        .filter(g => g.key === 'all' || (counts[g.key] || 0) > 0)
+        .map(g => {
+          const c = counts[g.key] || 0;
+          const isActive = g.key === activeCategorySummaryFilter;
+          const btnClass = isActive
+            ? 'px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-[10px] sm:text-[11px] shadow-[0_0_14px_rgba(16,185,129,0.45)] cursor-pointer transition flex items-center gap-1'
+            : 'px-2.5 py-1 rounded-xl bg-slate-950/90 hover:bg-emerald-500/20 border border-emerald-500/35 text-slate-200 font-bold text-[10px] sm:text-[11px] cursor-pointer transition flex items-center gap-1';
+          const badgeClass = isActive
+            ? 'px-1.5 py-0.2 rounded-full bg-slate-950/25 text-slate-950 font-num font-black text-[10px]'
+            : 'px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-300 font-num font-bold text-[10px]';
+          return `
+            <button type="button" onclick="selectCategorySummaryFilter('${g.key}')" class="${btnClass}">
+              <span>${g.label}</span>
+              <span class="${badgeClass}">(${c.toLocaleString()})</span>
+            </button>
+          `;
+        })
+        .join('');
+    }
+
+    function selectCategorySummaryFilter(categoryKey = 'all') {
+      activeCategorySummaryFilter = categoryKey || 'all';
+      renderCategorySummaryFilterBar();
+      refreshVisibleResultsView(true);
+    }
 
     function getActiveFilteredPlaces() {
-      if (!filterOnlyPhone && !filterOnlyOpen) {
+      const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all';
+      if (!filterOnlyPhone && !filterOnlyOpen && !hasCatFilter) {
         return extractedPlaces;
       }
       return extractedPlaces.filter(p => {
+        if (hasCatFilter && classifyExtractedPlaceCategoryKey(p) !== activeCategorySummaryFilter) {
+          return false;
+        }
         if (filterOnlyPhone) {
           const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
           if (!hasPhone) return false;
@@ -2726,6 +2855,10 @@
 
     function refreshVisibleResultsView(resetToPageOne = true) {
       const filtered = getActiveFilteredPlaces();
+      if (resetToPageOne && leafletMap) {
+        mapMarkers.forEach(m => leafletMap.removeLayer(m.marker));
+        mapMarkers = [];
+      }
       if (filtered.length === 0) {
         const bento = document.getElementById('bentoCardsWrapper');
         const tbody = document.getElementById('resultsTableBody');
@@ -3121,6 +3254,9 @@
         : '';
 
       let matchesFilter = true;
+      if (activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all' && classifyExtractedPlaceCategoryKey(place) !== activeCategorySummaryFilter) {
+        matchesFilter = false;
+      }
       if (filterOnlyPhone && !hasPhone) matchesFilter = false;
       if (filterOnlyOpen && !isOpen) matchesFilter = false;
 
@@ -3239,6 +3375,7 @@
           dqBar.classList.add('hidden');
         }
       }
+      renderCategorySummaryFilterBar();
     }
 
     function copySingleCoords(lat, lng, name) {
@@ -3248,15 +3385,17 @@
     }
 
     function copyAllCoordinates() {
-      if (extractedPlaces.length === 0) return alert('لا توجد نتائج لنسخ إحداثياتها!');
-      const lines = extractedPlaces.map((p, i) => `${i + 1}. ${p.name} | الموقع: ${p.address || (p.city + ' - ' + p.district)} | خط العرض (Lat): ${Number(p.lat || 0).toFixed(6)} | خط الطول (Lng): ${Number(p.lng || 0).toFixed(6)}`);
+      const activeList = typeof getActiveFilteredPlaces === 'function' ? getActiveFilteredPlaces() : extractedPlaces;
+      if (!activeList || activeList.length === 0) return alert('لا توجد نتائج لنسخ إحداثياتها!');
+      const lines = activeList.map((p, i) => `${i + 1}. ${p.name} | الموقع: ${p.address || (p.city + ' - ' + p.district)} | خط العرض (Lat): ${Number(p.lat || 0).toFixed(6)} | خط الطول (Lng): ${Number(p.lng || 0).toFixed(6)}`);
       navigator.clipboard.writeText(lines.join('\n'));
-      alert(`تم نسخ مواقع وإحداثيات ${extractedPlaces.length} منشأة بنجاح!`);
+      alert(`تم نسخ مواقع وإحداثيات ${activeList.length} منشأة بنجاح!`);
     }
 
     function copyAllPhones() {
+      const activeList = typeof getActiveFilteredPlaces === 'function' ? getActiveFilteredPlaces() : extractedPlaces;
       const phones = [];
-      for (const p of extractedPlaces) {
+      for (const p of activeList) {
         if (Array.isArray(p.phones) && p.phones.length > 0) phones.push(...p.phones);
         else if (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '') phones.push(p.phone.trim());
       }
@@ -3274,17 +3413,24 @@
     }
 
     function exportToExcel() {
-      const activeList = (typeof getActiveFilteredPlaces === 'function' && (filterOnlyPhone || filterOnlyOpen))
+      const activeList = typeof getActiveFilteredPlaces === 'function'
         ? getActiveFilteredPlaces()
         : extractedPlaces;
       if (!activeList || activeList.length === 0) return alert('لا توجد بيانات لتصديرها!');
 
       const locLabel = (document.getElementById('locationInput')?.value || window.lastAutoDetectedGpsCity || 'صنعاء').trim();
-      const queryLabel = (document.getElementById('queryInput')?.value || 'المسح_الشامل').trim();
+      const catMeta = typeof getActiveCategoryFilterMeta === 'function' ? getActiveCategoryFilterMeta() : null;
+      const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all' && catMeta;
+      const queryLabel = hasCatFilter
+        ? (catMeta.shortFileTag || 'فئة_محددة')
+        : (document.getElementById('queryInput')?.value || 'المسح_الشامل').trim();
+      const sheetTitle = hasCatFilter
+        ? `${catMeta.label.replace(/^[^\u0600-\u06FFa-zA-Z0-9]+\s*/, '')} (${activeList.length})`
+        : 'نتائج ومواقع خرائط جوجل';
       const safeFile = `GeoRadar_${locLabel}_${queryLabel}_${Date.now()}.xlsx`.replace(/\s+/g, '_');
 
       if (typeof window.exportPlacesArrayToExcel === 'function') {
-        window.exportPlacesArrayToExcel(activeList, safeFile, 'نتائج ومواقع خرائط جوجل');
+        window.exportPlacesArrayToExcel(activeList, safeFile, sheetTitle);
         return;
       }
 
@@ -3293,13 +3439,20 @@
         : activeList;
       const ws = XLSX.utils.json_to_sheet(rows);
       const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "نتائج ومواقع خرائط جوجل");
+      XLSX.utils.book_append_sheet(wb, ws, sheetTitle.slice(0, 31));
       XLSX.writeFile(wb, safeFile);
     }
 
     function exportToVcf() {
-      const withPhone = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== ''));
+      const activeList = typeof getActiveFilteredPlaces === 'function'
+        ? getActiveFilteredPlaces()
+        : extractedPlaces;
+      const withPhone = activeList.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== ''));
       if (withPhone.length === 0) return alert('لا توجد أرقام هواتف في النتائج الحالية لتصديرها كجهات اتصال VCF!');
+      const locLabel = (document.getElementById('locationInput')?.value || window.lastAutoDetectedGpsCity || 'صنعاء').trim();
+      const catMeta = typeof getActiveCategoryFilterMeta === 'function' ? getActiveCategoryFilterMeta() : null;
+      const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all' && catMeta;
+      const catSuffix = hasCatFilter ? `_${catMeta.shortFileTag || 'Filtered'}` : '';
       const vcards = withPhone.map(p => {
         const ph = (Array.isArray(p.phones) && p.phones[0]) ? p.phones[0] : p.phone;
         const cleanName = String(p.name || 'منشأة').replace(/[\r\n;]/g, ' ').trim();
@@ -3321,14 +3474,17 @@
       const blob = new Blob([vcards], { type: 'text/vcard;charset=utf-8;' });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
-      link.download = `GeoRadar_Contacts_${Date.now()}.vcf`;
+      link.download = `GeoRadar_Contacts_${locLabel}${catSuffix}_${Date.now()}.vcf`.replace(/\s+/g, '_');
       link.click();
     }
 
     function exportToKml() {
-      if (extractedPlaces.length === 0) return alert('لا توجد نتائج لتصديرها إلى KML!');
+      const activeList = typeof getActiveFilteredPlaces === 'function'
+        ? getActiveFilteredPlaces()
+        : extractedPlaces;
+      if (!activeList || activeList.length === 0) return alert('لا توجد نتائج لتصديرها إلى KML!');
       const escXml = (s) => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-      const placemarks = extractedPlaces.map(p => {
+      const placemarks = activeList.map(p => {
         const lat6 = Number(p.lat || 0).toFixed(6);
         const lng6 = Number(p.lng || 0).toFixed(6);
         const ph = (Array.isArray(p.phones) && p.phones[0]) ? p.phones[0] : (p.phone || 'غير متوفر');
@@ -3722,6 +3878,7 @@
         extractedPlaces = [];
         liveExtractedPhonesTotal = 0;
         pendingPlacesBatch = [];
+        activeCategorySummaryFilter = 'all';
       }
       visibleRenderCount = 0;
       const tbody = document.getElementById('resultsTableBody');

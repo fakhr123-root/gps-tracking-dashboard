@@ -8,11 +8,54 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function() {});
-      });
-    }
+    (function() {
+      // Force Service Worker update check & clear legacy cached shell/flags on version upgrade
+      var CURRENT_APP_VER = 'v6_gatekeeper_compat';
+      try {
+        var prevVer = localStorage.getItem('georadar_app_schema_ver');
+        if (prevVer !== CURRENT_APP_VER) {
+          localStorage.setItem('georadar_app_schema_ver', CURRENT_APP_VER);
+          // Clear outdated legacy location/terms flags that could interfere with the new GPS Gatekeeper
+          ['termsAccepted', 'termsAcceptedOnce', 'gmaps_terms_accepted', 'gpsLockBypass', 'locationPromptSkipped', 'geo_permission_cached'].forEach(function(k) {
+            try { localStorage.removeItem(k); } catch (e) {}
+            try { sessionStorage.removeItem(k); } catch (e) {}
+          });
+          // Purge any invalid/hardcoded cached GPS coordinates from old versions
+          try {
+            var rawGps = localStorage.getItem('gmaps_last_valid_gps');
+            if (rawGps) {
+              var parsed = JSON.parse(rawGps);
+              var la = Number(parsed && parsed.lat);
+              var ln = Number(parsed && parsed.lng);
+              if (!isFinite(la) || !isFinite(ln) || (Math.abs(la) < 0.0001 && Math.abs(ln) < 0.0001) || (Math.abs(la - 15.3538) < 0.0001 && Math.abs(ln - 44.2058) < 0.0001) || (Math.abs(la - 15.3694) < 0.0001 && Math.abs(ln - 44.1910) < 0.0001)) {
+                localStorage.removeItem('gmaps_last_valid_gps');
+              }
+            }
+          } catch (e) {
+            try { localStorage.removeItem('gmaps_last_valid_gps'); } catch (e2) {}
+          }
+          if ('caches' in window) {
+            caches.keys().then(function(keys) {
+              keys.forEach(function(k) {
+                if (k !== 'georadar-hybrid-shell-v6') caches.delete(k).catch(function() {});
+              });
+            }).catch(function() {});
+          }
+        }
+      } catch (e) {}
+
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js?v=6', { scope: '/' })
+            .then(function(reg) {
+              if (reg && typeof reg.update === 'function') {
+                reg.update().catch(function() {});
+              }
+            })
+            .catch(function() {});
+        });
+      }
+    })();
   </script>
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -5124,8 +5167,21 @@
 
       const guideEl = document.getElementById('gpsDeniedSettingsGuide');
       const msgEl = document.getElementById('gpsRequiredLiveStatusMsg');
+      const descEl = document.getElementById('gpsRequiredOverlayDesc');
       const btn = document.getElementById('btnGpsRequiredRetry');
       const btnTxt = document.getElementById('btnGpsRequiredRetryText');
+
+      // Friendly returning-user greeting without triggering auth race conditions
+      if (descEl) {
+        try {
+          const savedSess = typeof getSavedVisitorSession === 'function' ? getSavedVisitorSession() : null;
+          if (savedSess && savedSess.hasSession && savedSess.visitorName) {
+            descEl.innerText = `👋 مرحباً بعودتك (@${savedSess.visitorName})، يرجى التحقق من تفعيل الموقع الجغرافي (GPS) للمتابعة.`;
+          } else {
+            descEl.innerText = '📍 لا يمكن استخدام التطبيق بدون تفعيل الموقع (GPS). يرجى السماح بصلاحية الموقع للمتابعة.';
+          }
+        } catch (e) {}
+      }
 
       if (btn) btn.disabled = false;
       if (btnTxt) btnTxt.innerText = 'تفعيل الموقع';
@@ -5206,6 +5262,8 @@
       }
     }
 
+    window.__hasResumedSavedSessionOnce = false;
+
     function unlockAppFromGpsGatekeeper() {
       window.__hasAcquiredLiveGpsPosition = true;
       const gatekeeper = document.getElementById('gpsGatekeeperScreen');
@@ -5219,10 +5277,17 @@
         legacyOverlay.style.display = 'none';
       }
 
-      // Strict Auth Isolation: ONLY reveal #appMainContent / #appSidebar if user is ALREADY authenticated!
+      // Strict Auth Isolation + Decoupled Returning User Resume:
+      // ONLY reveal #appMainContent / #appSidebar if user is authenticated, and resume old session safely AFTER GPS unlocks!
       const session = getSavedVisitorSession();
       if (session.hasSession) {
         finishGateEntry();
+        if (!window.__hasResumedSavedSessionOnce) {
+          window.__hasResumedSavedSessionOnce = true;
+          setTimeout(() => {
+            resumeSavedSessionIntoExplorer().catch(() => {});
+          }, 0);
+        }
       } else {
         hideMainAppShellForAuth();
         showGateModalOnStep2();
@@ -5873,11 +5938,12 @@
         return;
       }
 
-      finishGateEntry();
-      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-        streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'live', true);
+      if (window.__hasAcquiredLiveGpsPosition) {
+        finishGateEntry();
+        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, 'online', true);
+        }
       }
-      window.verifyAndStreamDeviceLocation(false);
     }
 
     window.proceedFromTermsGate = function(e) {
@@ -6105,10 +6171,8 @@
         lockAppWithGpsGatekeeper('prompt', 0);
       }
 
-      // If user has a saved login session, resume session metadata in the background (UI remains locked until GPS position is read)
-      if (session.hasSession) {
-        resumeSavedSessionIntoExplorer();
-      }
+      // Decoupled Auth & GPS: do NOT call resumeSavedSessionIntoExplorer() before GPS unlocks!
+      // Returning users with saved sessions will be greeted on #gpsGatekeeperScreen and resumed automatically right after GPS acquires a valid fix.
     }
 
     // Entry Gate Handler (Step 2: Clean Instagram-Style Username + Password -> Login or Register)

@@ -1,5 +1,5 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v4';
+const CACHE_NAME = 'georadar-hybrid-shell-v6';
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -63,8 +63,12 @@ self.addEventListener('fetch', (event) => {
   // Never cache live API or SSE endpoints
   if (url.pathname.startsWith('/api/')) return;
 
+  // Always bypass HTTP cache for HTML navigation so returning users never load stale Gatekeeper/Auth UI
+  const isNavHtml = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/admin.html';
+  const fetchReq = isNavHtml ? new Request(req, { cache: 'no-store' }) : req;
+
   event.respondWith(
-    fetch(req)
+    fetch(fetchReq)
       .then((networkRes) => {
         if (networkRes && networkRes.ok && (url.origin === self.location.origin || /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname))) {
           const resClone = networkRes.clone();

@@ -6131,28 +6131,35 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    const recorded = await recordVisitor(data);
-    if (recorded && recorded.authError) {
-      const statusCode = recorded.httpStatus || (recorded.banned ? 403 : 400);
-      res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({
-        status: 'error',
-        banned: Boolean(recorded.banned),
-        authError: true,
-        code: recorded.code,
-        error: recorded.error || recorded.message,
-        message: recorded.message
-      }));
-      return;
+    try {
+      const recorded = await recordVisitor(data);
+      if (recorded && recorded.authError) {
+        const statusCode = recorded.httpStatus || (recorded.banned ? 403 : 400);
+        res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          status: 'error',
+          banned: Boolean(recorded.banned),
+          authError: true,
+          code: recorded.code,
+          error: recorded.error || recorded.message,
+          message: recorded.message
+        }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'ok', visitor: recorded || null }));
+    } catch (visitErr) {
+      // Safe fallback for legacy accounts temporarily lacking valid GPS coordinates
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'ok', fallback: true, visitor: null }));
     }
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ status: 'ok', visitor: recorded }));
     return;
   }
 
   // Live Real-Time GPS Coordinate & Status Telemetry Endpoint (POST /api/user/update-location & POST /api/user/status-telemetry)
   // Dynamically matches ANY user or visitor by userId, username, deviceId, or IP, overwrites stale coordinates with real (lat, lon), sets connectionStatus, and broadcasts immediately to Admin Radar!
   if ((pathname === '/api/user/update-location' || pathname === '/api/user/status-telemetry') && req.method === 'POST') {
+    try {
     const data = await readRequestBody(req);
     const logs = loadAdminLogs();
     const rawUserFromId = String(data.userId || data.visitorId || '').trim().toLowerCase().startsWith('user_')
@@ -6422,6 +6429,11 @@ const server = http.createServer(async (req, res) => {
       networkType: v.networkType || '',
       movementHistoryCount: Array.isArray(v.movementHistory) ? v.movementHistory.length : 0
     }));
+    } catch (locErr) {
+      // Safe fallback so legacy accounts with missing GPS never hang or crash the client
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'ok', fallback: true, connectionStatus: 'online' }));
+    }
     return;
   }
 

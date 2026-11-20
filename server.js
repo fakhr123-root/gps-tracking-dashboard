@@ -71,6 +71,111 @@ function isPointStrictlyInsidePolygon(lat, lng, polygonGeoJson) {
   }
 }
 
+// Fast QuadTree Cell vs. MultiPolygon / Polygon Boundary Intersection Verifier
+// Skips empty oceans, unpopulated deserts, or out-of-border areas outside the requested city/country boundary!
+function doesCellIntersectPolygonBoundary(minLat, minLon, maxLat, maxLon, polygonGeoJson) {
+  if (!polygonGeoJson || (!polygonGeoJson.coordinates && !polygonGeoJson.geometry)) return true;
+  const geom = polygonGeoJson.geometry || polygonGeoJson;
+  if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) return true;
+
+  // 1. Check if cell center or any of the 4 cell corners or edge midpoints is inside the polygon
+  const midLat = (minLat + maxLat) / 2;
+  const midLon = (minLon + maxLon) / 2;
+  const samplePoints = [
+    [midLat, midLon],
+    [minLat, minLon],
+    [minLat, maxLon],
+    [maxLat, minLon],
+    [maxLat, maxLon],
+    [midLat, minLon],
+    [midLat, maxLon],
+    [minLat, midLon],
+    [maxLat, midLon]
+  ];
+  for (const [la, ln] of samplePoints) {
+    if (isPointStrictlyInsidePolygon(la, ln, geom)) return true;
+  }
+
+  // 2. Check if any vertex of the Polygon / MultiPolygon falls inside the cell's bounding box (handles small islands or narrow borders inside large cells)
+  const checkRingVerticesInCell = (ring) => {
+    if (!Array.isArray(ring)) return false;
+    const step = Math.max(1, Math.floor(ring.length / 80));
+    for (let i = 0; i < ring.length; i += step) {
+      const pt = ring[i];
+      if (Array.isArray(pt) && pt.length >= 2) {
+        const vLon = Number(pt[0]);
+        const vLat = Number(pt[1]);
+        if (vLat >= minLat && vLat <= maxLat && vLon >= minLon && vLon <= maxLon) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  if (geom.type === 'Polygon' && Array.isArray(geom.coordinates)) {
+    for (const ring of geom.coordinates) {
+      if (checkRingVerticesInCell(ring)) return true;
+    }
+  } else if (geom.type === 'MultiPolygon' && Array.isArray(geom.coordinates)) {
+    for (const poly of geom.coordinates) {
+      if (Array.isArray(poly)) {
+        for (const ring of poly) {
+          if (checkRingVerticesInCell(ring)) return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+const GLOBAL_BOUNDARY_POLYGON_CACHE = new Map();
+
+// Dynamically fetch precise MultiPolygon / Polygon boundaries and exact BBox for ANY requested country or city globally via Nominatim API
+async function fetchDynamicGlobalBoundaryPolygon(targetQuery = '', scopeType = 'city') {
+  const cleanQ = String(targetQuery || '').trim();
+  if (!cleanQ) return null;
+  const cacheKey = `${scopeType}:${normAr(cleanQ)}`;
+  if (GLOBAL_BOUNDARY_POLYGON_CACHE.has(cacheKey)) {
+    return GLOBAL_BOUNDARY_POLYGON_CACHE.get(cacheKey);
+  }
+  try {
+    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=3&accept-language=ar,en&q=${encodeURIComponent(cleanQ)}`;
+    const res = await fetchWithTimeout(nomUrl, {
+      timeout: 5500,
+      headers: {
+        'User-Agent': 'GeoRadar3DStudio/5.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
+        'Accept': 'application/json'
+      }
+    });
+    if (res.ok) {
+      const arr = await res.json();
+      if (Array.isArray(arr) && arr.length > 0) {
+        // Prefer candidate that has a Polygon or MultiPolygon geojson
+        const best = arr.find(item => item?.geojson && (item.geojson.type === 'Polygon' || item.geojson.type === 'MultiPolygon')) || arr[0];
+        let bbox = null;
+        if (Array.isArray(best?.boundingbox) && best.boundingbox.length === 4) {
+          const b = best.boundingbox.map(Number); // [south, north, west, east]
+          bbox = [
+            Number(Math.min(b[0], b[1]).toFixed(4)),
+            Number(Math.min(b[2], b[3]).toFixed(4)),
+            Number(Math.max(b[0], b[1]).toFixed(4)),
+            Number(Math.max(b[2], b[3]).toFixed(4))
+          ];
+        }
+        const geojson = (best?.geojson && (best.geojson.type === 'Polygon' || best.geojson.type === 'MultiPolygon'))
+          ? best.geojson
+          : null;
+        const result = { bbox, geojson, displayName: best?.display_name || cleanQ };
+        GLOBAL_BOUNDARY_POLYGON_CACHE.set(cacheKey, result);
+        return result;
+      }
+    }
+  } catch (e) {}
+  return null;
+}
+
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
 
@@ -1000,7 +1105,45 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
   let activeScopeKey = String(scanOptions.scopeKey || '').trim();
   let activeScopeLabel = '';
 
-  const isDuplicatePlace = (cleanName, pLat, pLng, placeId = '', osmId = '') => {
+  // Anti-Spam & Ghost POI Filter: Strictly drop "Ghost" or fake locations lacking meaningful metadata
+  // Requires a valid non-generic name AND at least one of: valid phone number, official website/URL, actual user ratings/reviews, or verified commercial/institutional category/address metadata
+  const isSpamOrGhostPoi = (cleanName = '', meta = {}) => {
+    const title = String(cleanName || '').trim();
+    if (!title || title.length < 2 || title.length > 140) return true;
+    const nTitle = normAr(title);
+
+    // 1. Reject pure coordinates, numbers, single symbols, or placeholder/ghost labels
+    if (/^[\d\s.,+\-_/\\()#@*!?]+$/.test(title)) return true;
+    if (/^(بدون اسم|غير معروف|موقع|نقطه|نقطة|منزل|بيت|عماره|عمارة|شقه|شقة|غرفه|أرض|ارض|حوش|مجهول|يرجى|اختبار|تجربه|test|unknown|unnamed|null|undefined|poi|point|location|home|house|building|yes)$/i.test(nTitle)) {
+      return true;
+    }
+
+    // 2. Verify meaningful metadata presence (Valid Phone, Website, Actual Ratings/Reviews, or Verified Category/Street Address)
+    const hasValidPhone = Boolean(
+      (Array.isArray(meta.phones) && meta.phones.length > 0) ||
+      (meta.phone && String(meta.phone).trim().length >= 6 && !isFakeOrPlaceholderPhone(meta.phone))
+    );
+    const hasWebsite = Boolean(meta.website && /^https?:\/\//i.test(String(meta.website).trim()));
+    const hasRealRatingOrReviews = Boolean(
+      (typeof meta.rating === 'number' && meta.rating > 0) ||
+      (typeof meta.rating === 'string' && parseFloat(meta.rating) > 0) ||
+      (typeof meta.reviewsCount === 'number' && meta.reviewsCount > 0)
+    );
+    const hasVerifiedCategoryOrAddress = Boolean(
+      (Array.isArray(meta.categories) && meta.categories.some(c => c && String(c).trim().length >= 2 && String(c).toLowerCase() !== 'yes')) ||
+      (meta.address && String(meta.address).trim().length >= 4)
+    );
+
+    if (!hasValidPhone && !hasWebsite && !hasRealRatingOrReviews && !hasVerifiedCategoryOrAddress) {
+      return true;
+    }
+    return false;
+  };
+
+  // Advanced Global Deduplication Engine (Haversine distance < 15m + String Similarity across Google & OSM)
+  const isDuplicatePlace = (cleanName, pLat, pLng, placeId = '', osmId = '', meta = {}) => {
+    if (isSpamOrGhostPoi(cleanName, meta)) return true;
+
     const uniqueKey = osmId ? `osm:${osmId}` : (placeId ? `pid:${placeId}` : '');
     if (uniqueKey && seenNames.has(uniqueKey)) return true;
 
@@ -1017,18 +1160,29 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const cell = seenSpatialBuckets.get(`${bLat + dLa}_${bLng + dLn}`);
         if (!cell) continue;
         for (const prev of cell) {
-          // If both records have distinct explicit osm_id or place_id, only treat as duplicate if exact same name within 8m
-          if (uniqueKey && prev.uniqueKey && uniqueKey !== prev.uniqueKey) {
-            if (prev.fullNorm === fullNorm && calcDistanceKm(prev.lat, prev.lng, pLat, pLng) <= 0.008) {
+          const distMeters = calcDistanceKm(prev.lat, prev.lng, pLat, pLng) * 1000;
+          const fullSim = calcNameSimilarity(prev.fullNorm, fullNorm);
+          const coreSim = (coreNorm.length >= 3 && prev.coreNorm && prev.coreNorm.length >= 3)
+            ? calcNameSimilarity(prev.coreNorm, coreNorm)
+            : 0;
+
+          // 1. Cross-source or same-source Haversine < 15m + String Similarity merge (merges Google vs OSM duplicates!)
+          if (distMeters < 15) {
+            if (prev.fullNorm === fullNorm || fullSim >= 0.62 || coreSim >= 0.72 || prev.fullNorm.includes(fullNorm) || fullNorm.includes(prev.fullNorm)) {
+              if (uniqueKey) seenNames.add(uniqueKey);
               return true;
             }
-            continue;
           }
-          const dKm = calcDistanceKm(prev.lat, prev.lng, pLat, pLng);
-          if (prev.fullNorm === fullNorm && dKm <= 0.025) return true;
-          if (!isFullAreaScan) {
-            if (coreNorm.length >= 3 && prev.coreNorm === coreNorm && dKm <= 0.040) return true;
-            if (dKm <= 0.018 && calcNameSimilarity(prev.fullNorm, fullNorm) >= 0.85) return true;
+
+          // 2. Slightly wider proximity (< 25m) for identical normalized names or very high similarity (>= 0.85)
+          if (distMeters <= 25 && (prev.fullNorm === fullNorm || fullSim >= 0.85)) {
+            if (uniqueKey) seenNames.add(uniqueKey);
+            return true;
+          }
+
+          if (!isFullAreaScan && distMeters <= 38 && coreNorm.length >= 3 && prev.coreNorm === coreNorm) {
+            if (uniqueKey) seenNames.add(uniqueKey);
+            return true;
           }
         }
       }
@@ -2307,7 +2461,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (dKm > circleFilter.radiusKm * 1.05) return false;
     }
 
-    if (isDuplicatePlace(cleanName, pLat, pLng, '', osmId)) return false;
+    const realPhoneData = await extractRealPhones(tags, '', center.city, pLat, pLng);
+
+    const osmExplicitWebsite = tags['website'] || tags['contact:website'] || tags['url'] || '';
+    const osmAddressHint = tags['addr:street:ar'] || tags['addr:street'] || tags['addr:suburb:ar'] || tags['addr:suburb'] || tags['addr:full'] || '';
+    const osmValidCategories = osmCatHints.filter(c => c && c !== 'yes' && c !== 'building');
+
+    if (isDuplicatePlace(cleanName, pLat, pLng, '', osmId, {
+      phone: realPhoneData.phone,
+      phones: realPhoneData.phones,
+      website: osmExplicitWebsite,
+      categories: osmValidCategories,
+      address: osmAddressHint
+    })) return false;
 
     const hoodMatch = resolveLocalNeighborhood(pLat, pLng);
     const rawSuburb = tags['addr:suburb:ar'] || tags['addr:suburb'] || tags['addr:district'] || tags['addr:neighbourhood'] || '';
@@ -2324,12 +2490,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       (isArabicStreet ? rawStreet : null) ||
       (hoodMatch && hoodMatch.distanceKm <= 8 ? hoodMatch.neighborhood : (rawStreet || actualDistrict));
 
-    const realPhoneData = await extractRealPhones(tags, '', center.city, pLat, pLng);
-
     const website =
-      tags['website'] ||
-      tags['contact:website'] ||
-      tags['url'] ||
+      osmExplicitWebsite ||
       `https://www.google.com/maps/search/${encodeURIComponent(cleanName + ' ' + center.city)}`;
 
     const ratingVal = (4.1 + ((fetchedCount * 7) % 9) * 0.1).toFixed(1);
@@ -2579,10 +2741,26 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const MIN_CELL_SPAN_DEG = 0.0045; // ~450m street level
       const MAX_QUADTREE_DEPTH = 7;
 
-      // Determine active scope mode & bounding box [south, west, north, east]
       const scopeMode = targetScope.scopeMode || (isCountrySearch ? 'country' : 'city');
       const countryCode = (center.countryCode || 'YE').toUpperCase();
       let bboxArr = Array.isArray(targetScope.bbox) && targetScope.bbox.length === 4 ? targetScope.bbox : null;
+      let boundaryPolygonGeoJson = activePolygonGeoJson || center.adminPolygon || null;
+
+      // Dynamically fetch precise MultiPolygon boundary & exact BBox for ANY requested country or city globally via Nominatim API
+      if (!activePolygonGeoJson && scopeMode !== 'viewport') {
+        const dynamicBoundaryQuery = scopeMode === 'country'
+          ? (center.country || resolvedLocationInput || 'اليمن')
+          : `${center.city || resolvedLocationInput} ${center.country || ''}`.trim();
+        const dynamicBoundary = await fetchDynamicGlobalBoundaryPolygon(dynamicBoundaryQuery, scopeMode);
+        if (dynamicBoundary) {
+          if (dynamicBoundary.geojson && !boundaryPolygonGeoJson) {
+            boundaryPolygonGeoJson = dynamicBoundary.geojson;
+          }
+          if (!bboxArr && Array.isArray(dynamicBoundary.bbox) && dynamicBoundary.bbox.length === 4) {
+            bboxArr = dynamicBoundary.bbox;
+          }
+        }
+      }
 
       if (!bboxArr) {
         if (scopeMode === 'viewport' && customViewportBbox) {
@@ -2637,6 +2815,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const enqueueCell = (minLat, minLon, maxLat, maxLon, depth, label, priority = false) => {
         const key = getCellKey(minLat, minLon, maxLat, maxLon);
         if (visitedCellKeys.has(key) || completedCellKeys.has(key)) return;
+        // Skip empty ocean / desert cells that lie completely outside the requested city/country MultiPolygon boundary
+        if (boundaryPolygonGeoJson && !doesCellIntersectPolygonBoundary(minLat, minLon, maxLat, maxLon, boundaryPolygonGeoJson)) {
+          visitedCellKeys.add(key);
+          return;
+        }
         visitedCellKeys.add(key);
         const cell = { minLat, minLon, maxLat, maxLon, depth, label, key };
         if (priority) {
@@ -2815,10 +2998,19 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               continue;
             }
             const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-            if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey)) continue;
+            const phData = extractGoogleMapsPlacePhones(p);
+            const gMeta = {
+              phone: phData.phone,
+              phones: phData.phones,
+              website: p[7]?.[0] || '',
+              rating: p[4]?.[7] || 0,
+              reviewsCount: p[4]?.[8] || 0,
+              categories: placeCategories,
+              address: String(p[39] || p[18] || '').trim()
+            };
+            if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', gMeta)) continue;
 
             emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
-            const phData = extractGoogleMapsPlacePhones(p);
             const hMatch = resolveLocalNeighborhood(pLat, pLng);
             const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
               ? resolveTrueYemenCity(pLat, pLng, center.city)
@@ -2976,11 +3168,21 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       };
 
-      const QUADTREE_CONCURRENCY = 3;
-      while (quadtreeQueue.length > 0 && !isAborted()) {
-        const batch = quadtreeQueue.splice(0, QUADTREE_CONCURRENCY);
-        await Promise.all(batch.map(processSingleQuadtreeCell));
+      // Controlled Concurrency Worker Pool (5 parallel QuadTree fetch operations) for ultra-fast city/country scanning while respecting external API rate limits
+      const QUADTREE_CONCURRENCY = 5;
+      const runQuadtreeWorker = async () => {
+        while (quadtreeQueue.length > 0 && !isAborted()) {
+          const nextCell = quadtreeQueue.shift();
+          if (!nextCell) break;
+          await processSingleQuadtreeCell(nextCell);
+        }
+      };
+      const workerCount = Math.min(QUADTREE_CONCURRENCY, Math.max(1, quadtreeQueue.length));
+      const workers = [];
+      for (let w = 0; w < workerCount; w++) {
+        workers.push(runQuadtreeWorker());
       }
+      await Promise.all(workers);
 
       // Save final checkpoint state (paused if client aborted mid-queue, completed if queue finished)
       saveQuadtreeCheckpoint({
@@ -3286,7 +3488,15 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     for (let sIdx = 0; sIdx < matchedSeedPlaces.length; sIdx++) {
       if (isAborted()) break;
       const m = matchedSeedPlaces[sIdx];
-      if (isDuplicatePlace(m.cleanName, m.pLat, m.pLng, m.entry.place_id || '', m.entry.osm_id || '')) continue;
+      if (isDuplicatePlace(m.cleanName, m.pLat, m.pLng, m.entry.place_id || '', m.entry.osm_id || '', {
+        phone: m.entry.ph || m.entry.phone || '',
+        phones: m.entry.phones || (m.entry.ph ? [m.entry.ph] : []),
+        website: m.entry.website || '',
+        rating: m.entry.r || m.entry.rating || 4.5,
+        reviewsCount: m.entry.reviews || 15,
+        categories: m.placeCategories,
+        address: m.entryAddress
+      })) continue;
 
       const hoodMatch = resolveLocalNeighborhood(m.pLat, m.pLng);
       const actualCity = m.trueCity || m.entry.ci || m.entry.city || (hoodMatch && hoodMatch.distanceKm <= 35 ? hoodMatch.city : (isCountrySearch ? 'صنعاء' : center.city));
@@ -3592,7 +3802,16 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           if (!hasDrawnCircle && !cleanNeighborhood && distFromOrigin > effectiveMaxOriginKm) continue;
 
           const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-          if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey)) continue;
+          const phPreview = extractGoogleMapsPlacePhones(p);
+          if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', {
+            phone: phPreview.phone,
+            phones: phPreview.phones,
+            website: p[7]?.[0] || '',
+            rating: p[4]?.[7] || 0,
+            reviewsCount: p[4]?.[8] || 0,
+            categories: placeCategories,
+            address: String(p[39] || p[18] || '').trim()
+          })) continue;
 
           const distFromUser = calcDistanceKm(refLat, refLng, pLat, pLng);
           pagePlaces.push({ p, cleanName, pLat, pLng, distFromUser, cat: task.cat, placeCategories, placeIdKey });
@@ -4192,19 +4411,9 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
 
   if (!cityBbox) {
     try {
-      const qCityUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ar,en&q=${encodeURIComponent(city + ' ' + country)}`;
-      const cRes = await fetchWithTimeout(qCityUrl, { timeout: 4000 });
-      if (cRes.ok) {
-        const cArr = await cRes.json();
-        if (Array.isArray(cArr) && cArr[0]?.boundingbox?.length === 4) {
-          const b = cArr[0].boundingbox.map(Number);
-          cityBbox = [
-            Number(Math.min(b[0], b[1]).toFixed(4)),
-            Number(Math.min(b[2], b[3]).toFixed(4)),
-            Number(Math.max(b[0], b[1]).toFixed(4)),
-            Number(Math.max(b[2], b[3]).toFixed(4))
-          ];
-        }
+      const dynCityBoundary = await fetchDynamicGlobalBoundaryPolygon(`${city} ${country}`.trim(), 'city');
+      if (dynCityBoundary && Array.isArray(dynCityBoundary.bbox) && dynCityBoundary.bbox.length === 4) {
+        cityBbox = dynCityBoundary.bbox;
       }
     } catch (e) {}
   }
@@ -4218,24 +4427,14 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
     ];
   }
 
-  // 4. Look up Official Country Bounding Box [south, west, north, east] from Atlas or Nominatim Country Search
+  // 4. Look up Official Country Bounding Box [south, west, north, east] from Atlas or Dynamic Global MultiPolygon
   if (OFFICIAL_COUNTRY_BBOX_ATLAS[countryCode]) {
     countryBbox = OFFICIAL_COUNTRY_BBOX_ATLAS[countryCode].bbox;
   } else {
     try {
-      const qCountryUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ar,en&country=${encodeURIComponent(country)}`;
-      const coRes = await fetchWithTimeout(qCountryUrl, { timeout: 4000 });
-      if (coRes.ok) {
-        const coArr = await coRes.json();
-        if (Array.isArray(coArr) && coArr[0]?.boundingbox?.length === 4) {
-          const b = coArr[0].boundingbox.map(Number);
-          countryBbox = [
-            Number(Math.min(b[0], b[1]).toFixed(4)),
-            Number(Math.min(b[2], b[3]).toFixed(4)),
-            Number(Math.max(b[0], b[1]).toFixed(4)),
-            Number(Math.max(b[2], b[3]).toFixed(4))
-          ];
-        }
+      const dynCountryBoundary = await fetchDynamicGlobalBoundaryPolygon(country, 'country');
+      if (dynCountryBoundary && Array.isArray(dynCountryBoundary.bbox) && dynCountryBoundary.bbox.length === 4) {
+        countryBbox = dynCountryBoundary.bbox;
       }
     } catch (e) {}
   }

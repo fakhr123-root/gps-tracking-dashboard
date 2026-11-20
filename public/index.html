@@ -2502,9 +2502,18 @@
     function getActiveComprehensiveScopeConfig() {
       const mode = window.selectedComprehensiveScopeMode || 'city';
       const geo = window.detectedUserGeoScope || {};
-      const city = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
-      const country = geo.country || 'اليمن';
+      const autoCity = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
+      const autoCountry = geo.country || 'اليمن';
       const countryCode = geo.countryCode || 'ye';
+
+      const locInputVal = (document.getElementById('locationInput')?.value || '').trim();
+      const isCustomLocationTyped = locInputVal &&
+        locInputVal !== autoCity &&
+        locInputVal !== autoCountry &&
+        !locInputVal.startsWith(autoCity);
+
+      const city = isCustomLocationTyped && mode !== 'country' ? locInputVal : autoCity;
+      const country = isCustomLocationTyped && mode === 'country' ? locInputVal : autoCountry;
 
       if (mode === 'country') {
         return {
@@ -2512,8 +2521,8 @@
           targetLocation: country,
           city,
           country,
-          bbox: Array.isArray(geo.countryBbox) && geo.countryBbox.length === 4 ? geo.countryBbox : [12.10, 41.80, 19.00, 54.60],
-          scopeKey: geo.countryScopeKey || `${countryCode}_${country}`
+          bbox: !isCustomLocationTyped && Array.isArray(geo.countryBbox) && geo.countryBbox.length === 4 ? geo.countryBbox : null,
+          scopeKey: isCustomLocationTyped ? `global_country_${country.replace(/\s+/g, '_')}` : (geo.countryScopeKey || `${countryCode}_${country}`)
         };
       }
       if (mode === 'viewport') {
@@ -2543,9 +2552,9 @@
         scopeMode: 'city',
         targetLocation: city,
         city,
-        country,
-        bbox: Array.isArray(geo.cityBbox) && geo.cityBbox.length === 4 ? geo.cityBbox : [15.20, 44.08, 15.55, 44.36],
-        scopeKey: geo.cityScopeKey || `${countryCode}_${city}`
+        country: isCustomLocationTyped ? '' : country,
+        bbox: !isCustomLocationTyped && Array.isArray(geo.cityBbox) && geo.cityBbox.length === 4 ? geo.cityBbox : null,
+        scopeKey: isCustomLocationTyped ? `global_city_${city.replace(/\s+/g, '_')}` : (geo.cityScopeKey || `${countryCode}_${city}`)
       };
     }
 
@@ -3463,14 +3472,17 @@
           pausedBufferedPlaces.push(...batch);
           return;
         }
+        const newlyAddedSlice = [];
+        const prevLen = extractedPlaces.length;
         for (let i = 0; i < batch.length; i++) {
           const p = batch[i];
-          extractedPlaces.push(p);
-          if ((Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')) {
-            liveExtractedPhonesTotal++;
+          if (typeof p.distanceKm !== 'number') resolvePlaceDistanceFromUser(p);
+          const addedPlace = upsertOrMergeDeduplicatedPlace(p);
+          if (addedPlace) {
+            newlyAddedSlice.push(addedPlace);
           }
         }
-        if (visibleRenderCount < INITIAL_PAGE_SIZE) {
+        if (visibleRenderCount < INITIAL_PAGE_SIZE && newlyAddedSlice.length > 0) {
           const need = INITIAL_PAGE_SIZE - visibleRenderCount;
           const slice = extractedPlaces.slice(visibleRenderCount, visibleRenderCount + need);
           renderBatchToDom(slice, visibleRenderCount, true);
@@ -3565,14 +3577,137 @@
       });
     }
 
-    function ingestIncomingStreamPlace(place) {
-      if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
-      extractedPlaces.push(place);
-      const idx = extractedPlaces.length;
+    // =========================================================================
+    // CLIENT-SIDE HAVERSINE (<15m) + STRING SIMILARITY DEDUPLICATION & ANTI-SPAM
+    // =========================================================================
+    function normalizeClientPoiName(name) {
+      return String(name || '')
+        .toLowerCase()
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
 
+    function calcClientNameSimilarity(nameA, nameB) {
+      const a = normalizeClientPoiName(nameA);
+      const b = normalizeClientPoiName(nameB);
+      if (!a || !b) return 0;
+      if (a === b) return 1.0;
+      if (a.includes(b) || b.includes(a)) {
+        const minLen = Math.min(a.length, b.length);
+        const maxLen = Math.max(a.length, b.length);
+        return Math.max(0.76, minLen / maxLen);
+      }
+      const getBigrams = (str) => {
+        const s = str.replace(/\s+/g, '');
+        const bg = new Map();
+        for (let i = 0; i < s.length - 1; i++) {
+          const pair = s.slice(i, i + 2);
+          bg.set(pair, (bg.get(pair) || 0) + 1);
+        }
+        return { bg, total: Math.max(0, s.length - 1) };
+      };
+      const bgA = getBigrams(a);
+      const bgB = getBigrams(b);
+      if (bgA.total === 0 || bgB.total === 0) return 0;
+      let intersection = 0;
+      for (const [pair, countA] of bgA.bg.entries()) {
+        const countB = bgB.bg.get(pair) || 0;
+        if (countB > 0) intersection += Math.min(countA, countB);
+      }
+      return (2.0 * intersection) / (bgA.total + bgB.total);
+    }
+
+    function isClientGhostOrSpamPlace(place) {
+      if (!place || typeof place !== 'object') return true;
+      const pLat = Number(place.lat);
+      const pLng = Number(place.lng);
+      if (!Number.isFinite(pLat) || !Number.isFinite(pLng) || (pLat === 0 && pLng === 0)) return true;
+
+      const cleanName = String(place.name || '').trim();
+      const norm = normalizeClientPoiName(cleanName);
+      if (!norm || norm.length < 2) return true;
+      if (/^(unknown|unnamed|null|undefined|test|fake|ghost|بدون اسم|غير معروف|موقع غير مسمى|\d+)$/i.test(norm)) {
+        return true;
+      }
+
+      const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
+        (place.phone && place.phone !== 'غير متوفر' && String(place.phone).trim().length >= 5);
+      const hasWebsite = Boolean(place.website && place.website !== 'غير متوفر' && String(place.website).trim().length > 4);
+      const hasReviewsOrRating = Number(place.reviews || 0) > 0 || (Number(place.rating || 0) > 0 && place.rating !== 'غير متوفر');
+      const hasMeaningfulCategory = Boolean(place.category && place.category !== 'غير مصنف' && place.category !== 'أخرى');
+      const hasMeaningfulAddress = Boolean(place.address && place.address !== 'غير متوفر' && String(place.address).trim().length > 4);
+
+      if (!hasPhone && !hasWebsite && !hasReviewsOrRating && !hasMeaningfulCategory && !hasMeaningfulAddress) {
+        return true;
+      }
+      return false;
+    }
+
+    function upsertOrMergeDeduplicatedPlace(place) {
+      if (isClientGhostOrSpamPlace(place)) return null;
+
+      const pLat = Number(place.lat);
+      const pLng = Number(place.lng);
+      const normName = normalizeClientPoiName(place.name);
+
+      // Search existing places for Haversine < 15m (0.015 km) + String Similarity (or < 45m with >= 0.72 similarity)
+      for (let i = extractedPlaces.length - 1; i >= 0; i--) {
+        const existing = extractedPlaces[i];
+        if (place.placeId && existing.placeId && place.placeId === existing.placeId) return null;
+        if (place.osmId && existing.osmId && place.osmId === existing.osmId) return null;
+
+        const eLat = Number(existing.lat);
+        const eLng = Number(existing.lng);
+        if (Math.abs(pLat - eLat) > 0.0012 || Math.abs(pLng - eLng) > 0.0012) continue;
+
+        const distMeters = calcHaversineKm(pLat, pLng, eLat, eLng) * 1000;
+        if (distMeters > 45) continue;
+
+        const sim = calcClientNameSimilarity(place.name, existing.name);
+        const isDuplicate =
+          (distMeters < 15 && (sim >= 0.45 || normName === normalizeClientPoiName(existing.name))) ||
+          (distMeters < 45 && sim >= 0.75);
+
+        if (isDuplicate) {
+          // Merge richer metadata (phone, website, rating) from Google/OSM into existing record
+          const existingHadPhone = (Array.isArray(existing.phones) && existing.phones.length > 0) ||
+            (existing.phone && existing.phone !== 'غير متوفر' && existing.phone.trim() !== '');
+          const incomingHasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
+            (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
+
+          if (!existingHadPhone && incomingHasPhone) {
+            existing.phone = place.phone;
+            existing.phones = place.phones;
+            if (place.whatsappNumber) existing.whatsappNumber = place.whatsappNumber;
+            liveExtractedPhonesTotal++;
+          }
+          if ((!existing.website || existing.website === 'غير متوفر') && place.website && place.website !== 'غير متوفر') {
+            existing.website = place.website;
+          }
+          if ((!existing.reviews || Number(existing.reviews) === 0) && Number(place.reviews) > 0) {
+            existing.reviews = place.reviews;
+            existing.rating = place.rating || existing.rating;
+          }
+          return null;
+        }
+      }
+
+      extractedPlaces.push(place);
       const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
         (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
       if (hasPhone) liveExtractedPhonesTotal++;
+      return place;
+    }
+
+    function ingestIncomingStreamPlace(place) {
+      if (typeof place.distanceKm !== 'number') resolvePlaceDistanceFromUser(place);
+      const added = upsertOrMergeDeduplicatedPlace(place);
+      if (!added) return;
+      const idx = extractedPlaces.length;
 
       if (idx <= INITIAL_PAGE_SIZE || idx % 40 === 0) {
         updateStats();

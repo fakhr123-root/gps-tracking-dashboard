@@ -2703,93 +2703,37 @@
       document.body.removeChild(a);
     }
 
+    // Strict Native Geolocation Only — IP-based approximate fallback (/api/in-app-location) is permanently banned
     async function fetchInAppLocationSilent(manualCityOverride = '') {
       const pickedCity = manualCityOverride || (document.getElementById('inAppCityQuickSelect')?.value !== 'auto' ? document.getElementById('inAppCityQuickSelect')?.value : '') || '';
-      const identity = getDynamicUserIdentity();
-      const params = new URLSearchParams();
-      if (pickedCity && pickedCity !== 'auto') params.set('city', pickedCity);
-      if (identity.userId) params.set('userId', identity.userId);
-      if (identity.visitorId) params.set('visitorId', identity.visitorId);
-      if (identity.deviceId) params.set('deviceId', identity.deviceId);
-      if (identity.username) params.set('username', identity.username);
-      const q = params.toString() ? `?${params.toString()}` : '';
-      try {
-        const res = await fetch(`/api/in-app-location${q}`);
-        if (res.ok) {
-          const data = await res.json();
-          const hasGenuineCoords = isValidNonZeroClientCoord(data.lat, data.lon ?? data.lng);
-          const lat = hasGenuineCoords ? Number(data.lat) : (cachedOptionalGps?.lat || null);
-          const lng = hasGenuineCoords ? Number(data.lon ?? data.lng) : (cachedOptionalGps?.lng || null);
-          const detectedCity = String(data.city || pickedCity || 'صنعاء').trim();
-          const detectedCountry = String(data.country || 'اليمن').trim();
-          const countryCode = String(data.countryCode || 'ye').toLowerCase();
-          if (isValidNonZeroClientCoord(lat, lng)) {
-            cachedOptionalGps = {
-              lat,
-              lng,
-              accuracy: cachedOptionalGps?.accuracy || 25
-            };
-          }
-          window.detectedUserGeoScope = {
-            city: detectedCity,
-            country: detectedCountry,
-            countryCode,
-            neighborhood: '',
-            cityBbox: Array.isArray(data.cityBbox || data.boundingBox) && (data.cityBbox || data.boundingBox).length === 4
-              ? (data.cityBbox || data.boundingBox)
-              : [15.20, 44.08, 15.55, 44.36],
-            countryBbox: Array.isArray(data.countryBbox) && data.countryBbox.length === 4
-              ? data.countryBbox
-              : [12.10, 41.80, 19.00, 54.60],
-            cityScopeKey: data.cityScopeKey || `${countryCode}_${detectedCity}`,
-            countryScopeKey: data.countryScopeKey || `${countryCode}_${detectedCountry}`
-          };
-          const prevAutoCity = window.lastAutoDetectedGpsCity;
-          window.lastAutoDetectedGpsCity = detectedCity;
-          updateComprehensiveScopePanelLabels();
-          if (isValidNonZeroClientCoord(lat, lng)) {
-            renderUserGpsPinOnMap();
-            if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
-              leafletMap.setView([lat, lng], 13);
-            }
-          }
-          const locInput = document.getElementById('locationInput');
-          if (locInput) {
-            const currentVal = locInput.value.trim();
-            const targetLoc = window.selectedComprehensiveScopeMode === 'country' ? detectedCountry : detectedCity;
-            if (manualCityOverride || !currentVal || !window.userManuallyEditedLocation || currentVal === prevAutoCity) {
-              locInput.value = targetLoc;
-              window.userManuallyEditedLocation = false;
-            }
-          }
-          if (isTermsAcceptedInStorage()) {
-            markLocationGranted(detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity);
-          }
-          if (isValidNonZeroClientCoord(lat, lng)) {
-            streamLiveGpsToServer(lat, lng, cachedOptionalGps?.accuracy || 25, 'live', true);
-          }
-          return data;
+      if (pickedCity && pickedCity !== 'auto') {
+        window.lastAutoDetectedGpsCity = pickedCity;
+        const locInput = document.getElementById('locationInput');
+        if (locInput) {
+          locInput.value = pickedCity;
+          window.userManuallyEditedLocation = true;
         }
-      } catch (e) {}
+      }
       updateComprehensiveScopePanelLabels();
       return {
-        city: window.lastAutoDetectedGpsCity || 'صنعاء',
-        country: 'اليمن',
-        lat: cachedOptionalGps?.lat || null,
-        lon: cachedOptionalGps?.lng || null,
-        boundingBox: [15.20, 44.08, 15.55, 44.36]
+        city: window.lastAutoDetectedGpsCity || pickedCity || '',
+        country: window.detectedUserGeoScope?.country || '',
+        lat: (cachedOptionalGps && cachedOptionalGps.source === 'native_geolocation') ? cachedOptionalGps.lat : null,
+        lon: (cachedOptionalGps && cachedOptionalGps.source === 'native_geolocation') ? cachedOptionalGps.lng : null,
+        source: (cachedOptionalGps && cachedOptionalGps.source === 'native_geolocation') ? 'native_geolocation' : 'none'
       };
     }
 
     async function onInAppCityQuickSelectChange(cityVal) {
       const targetCity = cityVal && cityVal !== 'auto' ? cityVal : '';
-      const data = await fetchInAppLocationSilent(targetCity);
-      const locInput = document.getElementById('locationInput');
-      if (locInput && data && data.city) {
-        locInput.value = data.city;
-      }
-      if (isTermsAcceptedInStorage()) {
-        markLocationGranted(`${data.city || 'صنعاء'}, ${data.country || 'اليمن'}`);
+      if (targetCity) {
+        window.lastAutoDetectedGpsCity = targetCity;
+        const locInput = document.getElementById('locationInput');
+        if (locInput) {
+          locInput.value = targetCity;
+          window.userManuallyEditedLocation = true;
+        }
+        updateComprehensiveScopePanelLabels();
       }
     }
 
@@ -2854,7 +2798,10 @@
 
     async function centerMapOnUserGps() {
       if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) {
-        await fetchInAppLocationSilent('');
+        if (typeof window.syncUserLiveLocation === 'function') {
+          window.syncUserLiveLocation(true);
+        }
+        return;
       }
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
         showMobileMapPanel();
@@ -5129,17 +5076,28 @@
 
       const sendLat = hasCoords ? Number(lat) : (fallbackHasCoords ? Number(cachedOptionalGps.lat) : null);
       const sendLng = hasCoords ? Number(lng) : (fallbackHasCoords ? Number(cachedOptionalGps.lng) : null);
+      const parsedAcc = Number(accuracy);
+      const validAccuracy = (Number.isFinite(parsedAcc) && parsedAcc > 0)
+        ? Math.round(parsedAcc)
+        : (cachedOptionalGps && Number.isFinite(Number(cachedOptionalGps.accuracy)) && Number(cachedOptionalGps.accuracy) > 0
+          ? Math.round(Number(cachedOptionalGps.accuracy))
+          : null);
+      // Reject sending coordinates if accuracy is missing/invalid (except pure gps_disabled / exited status telemetry)
+      if (isGpsEnabled && (sendLat === null || sendLng === null || validAccuracy === null)) {
+        return;
+      }
       const nowIso = new Date().toISOString();
       const identity = getDynamicUserIdentity();
 
-      if (navigator.onLine === false && sendLat !== null && sendLng !== null) {
+      if (navigator.onLine === false && sendLat !== null && sendLng !== null && validAccuracy !== null) {
         enqueueOfflineGpsPoint({
           username: identity.username,
           userId: identity.userId,
           deviceId: identity.deviceId,
           lat: sendLat,
           lon: sendLng,
-          accuracy: Math.round(Number(accuracy || 15)),
+          accuracy: validAccuracy,
+          source: 'native_geolocation',
           timestamp: nowIso
         });
         return;
@@ -5161,10 +5119,11 @@
           lon: sendLng,
           lng: sendLng,
           timestamp: nowIso,
-          accuracy: Math.round(Number(accuracy || 15)),
+          accuracy: validAccuracy,
           batteryLevel: cachedBatteryLevel,
           batteryCharging: cachedBatteryCharging,
           networkType: getClientNetworkEffectiveType(),
+          source: 'native_geolocation',
           locationSource: 'GPS',
           city: window.lastAutoDetectedGpsCity || '',
           device: devProfile.deviceLabel || ''
@@ -5502,14 +5461,25 @@
       }
     }
 
+    const STRICT_HIGH_ACCURACY_GPS_OPTIONS = {
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0
+    };
+
     function onValidDeviceGpsPositionAcquired(pos) {
       if (!pos || !pos.coords) return;
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const acc = Math.round(pos.coords.accuracy || 15);
-      if (!isValidNonZeroClientCoord(lat, lng)) return;
+      const lat = Number(pos.coords.latitude);
+      const lng = Number(pos.coords.longitude);
+      const rawAcc = Number(pos.coords.accuracy);
+      // Strict coordinate & accuracy validation: reject missing/invalid coordinates or missing/invalid accuracy
+      if (!isValidNonZeroClientCoord(lat, lng) || !Number.isFinite(rawAcc) || rawAcc <= 0) {
+        onDeviceGpsError({ code: 2 }, false);
+        return;
+      }
+      const acc = Math.round(rawAcc);
 
-      // Valid position acquired: cancel any pending 15-second signal-drop grace period timer & safety watchdog
+      // Valid native position acquired: cancel any pending 15-second signal-drop grace period timer & safety watchdog
       clearGpsSignalDropGraceTimer();
       clearGatekeeperSafetyWatchdog();
       isSingleGpsRequestInFlight = false;
@@ -5521,15 +5491,15 @@
       const nowMs = Date.now();
       if (isIndoorGpsDriftOrImpossibleSpike(lat, lng, acc, nowMs)) {
         // Keep previous smooth accurate coordinates and only send a clean status heartbeat
-        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng) && Number(cachedOptionalGps.accuracy) > 0) {
           const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'online';
-          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, currentStatus, true);
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy, currentStatus, true);
         }
         return;
       }
 
       lastAcceptedAccurateGpsFix = { lat, lng, accuracy: acc, ts: nowMs };
-      cachedOptionalGps = { lat, lng, accuracy: acc };
+      cachedOptionalGps = { lat, lng, accuracy: acc, source: 'native_geolocation' };
       try {
         localStorage.setItem('gmaps_last_valid_gps', JSON.stringify(cachedOptionalGps));
       } catch (e) {}
@@ -5554,15 +5524,15 @@
           liveGpsWatchId = null;
         }
         lockAppWithGpsGatekeeper('denied', 1);
-        resetGatekeeperButtonToRetry('🔴 تم رفض صلاحية الموقع — يرجى السماح بها ثم الضغط على إعادة المحاولة');
+        resetGatekeeperButtonToRetry('🔴 تم رفض صلاحية الموقع — يرجى السماح بصلاحية الموقع وتفعيل GPS/Wi-Fi ثم الضغط على إعادة المحاولة');
         reportGpsClosedStatusTelemetry(1);
         return;
       }
 
-      // 2. If user is STILL on the Gatekeeper screen (not unlocked yet): never hang, reset button to Retry
+      // 2. If user is STILL on the Gatekeeper screen (not unlocked yet): NEVER fall back to IP; keep Gatekeeper active & prompt user to enable Location/Wi-Fi
       if (!window.__hasAcquiredLiveGpsPosition) {
         lockAppWithGpsGatekeeper(code === 2 ? 'unavailable' : 'prompt', code === 3 ? 2 : code);
-        resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الإشارة، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
+        resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الموقع الدقيق — يرجى تفعيل خدمات الموقع (GPS في الهاتف أو Location / Wi-Fi في اللابتوب) ثم الضغط على إعادة المحاولة');
         return;
       }
 
@@ -5578,7 +5548,7 @@
               liveGpsWatchId = null;
             }
             lockAppWithGpsGatekeeper('unavailable', 2);
-            resetGatekeeperButtonToRetry('⚠️ انقطعت إشارة الموقع (GPS) لأكثر من 15 ثانية، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
+            resetGatekeeperButtonToRetry('⚠️ انقطعت إشارة الموقع (GPS/Wi-Fi) لأكثر من 15 ثانية — تأكد من تفعيل خدمات الموقع في الجهاز والمحاولة مجدداً');
             reportGpsClosedStatusTelemetry(2);
           }, 15000);
         }
@@ -5626,10 +5596,10 @@
         const btnTxt = document.getElementById('btnGpsRequiredRetryText');
         const msgEl = document.getElementById('gpsRequiredLiveStatusMsg');
         if (btn) btn.disabled = true;
-        if (btnTxt) btnTxt.innerText = '⏳ جاري تفعيل الموقع...';
+        if (btnTxt) btnTxt.innerText = '⏳ جاري تفعيل الموقع الدقيق...';
         if (msgEl) {
           msgEl.className = 'py-2 px-3 rounded-xl bg-cyan-500/15 border border-cyan-400/40 text-cyan-300 text-xs font-extrabold text-center';
-          msgEl.innerText = '📡 جارٍ التقاط إشارة الموقع الجغرافي (GPS)...';
+          msgEl.innerText = '📡 جارٍ التقاط الموقع الجغرافي الدقيق من الجهاز (GPS / Wi-Fi)...';
         }
       }
 
@@ -5638,38 +5608,15 @@
         isSingleGpsRequestInFlight = true;
         clearGatekeeperSafetyWatchdog();
 
-        // Hard safety watchdog so the Gatekeeper button can NEVER remain stuck in loading state
+        // Safety watchdog slightly above the 20-second strict high-accuracy timeout so UI can never hang
         gatekeeperSafetyWatchdogTimer = setTimeout(() => {
           if (isSingleGpsRequestInFlight && !window.__hasAcquiredLiveGpsPosition) {
-            resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الإشارة، تأكد من تشغيل الـ GPS والمحاولة مجدداً');
-          }
-        }, 16000);
-
-        const requestLowAccuracyFallback = () => {
-          try {
-            navigator.geolocation.getCurrentPosition(
-              (pos) => {
-                isSingleGpsRequestInFlight = false;
-                clearGatekeeperSafetyWatchdog();
-                onValidDeviceGpsPositionAcquired(pos);
-                // Keep continuous watchPosition on high accuracy in the background
-                startLiveGpsLocationWatcher();
-              },
-              (fallbackErr) => {
-                isSingleGpsRequestInFlight = false;
-                clearGatekeeperSafetyWatchdog();
-                onDeviceGpsError(fallbackErr, false);
-              },
-              { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-            );
-          } catch (e) {
             isSingleGpsRequestInFlight = false;
-            clearGatekeeperSafetyWatchdog();
-            onDeviceGpsError({ code: 2 }, false);
+            resetGatekeeperButtonToRetry('⚠️ تعذر التقاط الموقع الدقيق خلال 20 ثانية — تأكد من تفعيل خدمات الموقع (GPS / Windows Location و Wi-Fi) ثم المحاولة مجدداً');
           }
-        };
+        }, 22500);
 
-        // Stage 1: Try High Accuracy first with a 5-second timeout; if it fails/times out on Desktop or weak indoor signal, automatically fall back to enableHighAccuracy: false (timeout: 10000, maximumAge: 60000)
+        // Strictly enforce native high-accuracy geolocation (NO low-accuracy fallback, NO IP fallback)
         try {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -5679,21 +5626,16 @@
               startLiveGpsLocationWatcher();
             },
             (err) => {
-              const code = (err && typeof err.code === 'number') ? err.code : 2;
-              if (code === 1) {
-                // Permission explicitly denied -> do not fallback, reset immediately
-                isSingleGpsRequestInFlight = false;
-                clearGatekeeperSafetyWatchdog();
-                onDeviceGpsError(err, false);
-                return;
-              }
-              // Weak indoor signal / Desktop GPS timeout after 5s -> automatically fallback to lower accuracy to unlock
-              requestLowAccuracyFallback();
+              isSingleGpsRequestInFlight = false;
+              clearGatekeeperSafetyWatchdog();
+              onDeviceGpsError(err, false);
             },
-            { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+            STRICT_HIGH_ACCURACY_GPS_OPTIONS
           );
         } catch (e) {
-          requestLowAccuracyFallback();
+          isSingleGpsRequestInFlight = false;
+          clearGatekeeperSafetyWatchdog();
+          onDeviceGpsError({ code: 2 }, false);
         }
       };
 
@@ -5725,17 +5667,22 @@
       }
     };
 
+    // Canonical alias for strict native high-accuracy device geolocation sync (Phone GPS & Laptop Wi-Fi Positioning only)
+    window.syncUserLiveLocation = function(isUserAction = false) {
+      return window.verifyAndStreamDeviceLocation(isUserAction);
+    };
+
     window.retryEnableDeviceGpsNow = function(event) {
       if (event && typeof event.preventDefault === 'function') event.preventDefault();
       isSingleGpsRequestInFlight = false;
       clearGpsSignalDropGraceTimer();
       enableBackgroundGpsKeepAlive();
-      window.verifyAndStreamDeviceLocation(true);
+      window.syncUserLiveLocation(true);
     };
 
     function startLiveGpsLocationWatcher() {
       attachGpsPermissionAutoUnlockListener();
-      // 1. Continuous watchPosition on High Accuracy with 15-second Grace Period for transient signal drops/timeouts
+      // 1. Continuous watchPosition strictly on Universal High-Accuracy config ({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })
       if (navigator.geolocation && liveGpsWatchId === null) {
         try {
           liveGpsWatchId = navigator.geolocation.watchPosition(
@@ -5747,7 +5694,7 @@
                 onDeviceGpsError(err, true);
               }
             },
-            { enableHighAccuracy: true, maximumAge: 60000, timeout: 10000 }
+            STRICT_HIGH_ACCURACY_GPS_OPTIONS
           );
         } catch (e) {}
       }

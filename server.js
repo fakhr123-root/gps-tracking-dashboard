@@ -6199,10 +6199,29 @@ const server = http.createServer(async (req, res) => {
 
     const inLat = Number(data.lat);
     const inLng = Number(data.lon ?? data.lng);
-    const hasValidIncomingCoords = isValidNonZeroCoord(inLat, inLng);
-    const now = new Date().toISOString();
+    const rawSource = String(data.source || data.locationSource || '').trim().toLowerCase();
+    const isIpBasedSource = rawSource === 'ip' || rawSource === 'ip_fallback' || rawSource === 'in_app_ip' || rawSource === 'ip_geolocation';
+    const rawAccuracy = Number(data.accuracy);
+    const hasValidAccuracy = Number.isFinite(rawAccuracy) && rawAccuracy > 0 && rawAccuracy <= 50000;
     const isGpsDisabledReport = data.status === 'gps_off' || data.status === 'gps_disabled' || data.connectionStatus === 'gps_off' || data.gpsEnabled === false || data.event === 'gps_closed';
     const isExitedReport = data.status === 'exited' || data.connectionStatus === 'exited' || data.event === 'app_exited';
+
+    // Strictly reject IP-based locations or missing/invalid accuracy on live location updates
+    if (!isGpsDisabledReport && !isExitedReport) {
+      if (isIpBasedSource) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, rejected: true, error: 'IP-based approximate locations are strictly prohibited. Native device geolocation is required.' }));
+        return;
+      }
+      if (isValidNonZeroCoord(inLat, inLng) && !hasValidAccuracy) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ ok: false, rejected: true, error: 'Invalid or missing geolocation accuracy. Native device geolocation is required.' }));
+        return;
+      }
+    }
+
+    const hasValidIncomingCoords = !isIpBasedSource && hasValidAccuracy && isValidNonZeroCoord(inLat, inLng);
+    const now = new Date().toISOString();
     const incomingLiveStatus = isGpsDisabledReport
       ? 'gps_off'
       : (isExitedReport ? 'exited' : (data.status === 'background_live' ? 'background_live' : 'online'));

@@ -261,7 +261,7 @@
       flex-direction: column;
       justify-content: space-between;
       z-index: 150;
-      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1), min-width 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
     .app-main-content {
@@ -269,6 +269,17 @@
       min-width: 0;
       display: flex;
       flex-direction: column;
+      transition: max-width 0.28s cubic-bezier(0.22, 1, 0.36, 1), width 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .desktop-sidebar-toggle-btn {
+      display: none;
+    }
+    #sidebarToggleBtn #sidebarToggleIcon {
+      transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    #sidebarToggleBtn.is-collapsed #sidebarToggleIcon {
+      transform: rotate(180deg);
     }
 
     .sidebar-nav-btn {
@@ -320,7 +331,7 @@
       display: none;
     }
 
-    /* Desktop (>= 900px): Persistent RTL sidebar on the right */
+    /* Desktop (>= 900px): Persistent RTL sidebar on the right with smooth Collapse/Expand */
     @media (min-width: 900px) {
       #appSidebar {
         position: sticky;
@@ -328,11 +339,30 @@
         height: 100vh;
         transform: translateX(0) !important;
       }
+      #appSidebar.collapsed {
+        width: 0 !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border-width: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
+        opacity: 0;
+        pointer-events: none;
+      }
+      #appMainContent.collapsed .app-main-content,
+      body.sidebar-collapsed .app-main-content {
+        max-width: 100% !important;
+        width: 100% !important;
+      }
       #appSidebarBackdrop {
         display: none !important;
       }
       .mobile-hamburger-btn {
         display: none !important;
+      }
+      .desktop-sidebar-toggle-btn {
+        display: inline-flex !important;
       }
     }
 
@@ -969,10 +999,21 @@
             id="mobileSidebarToggleBtn"
             onclick="toggleMobileSidebarDrawer()"
             aria-label="فتح القائمة الجانبية"
-            title="القائمة الجانبية وأدوات الخريطة"
+            title="تصغير / فتح القائمة الجانبية"
             class="mobile-hamburger-btn w-9 h-9 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 items-center justify-center text-base font-black cursor-pointer shadow-[0_0_12px_rgba(16,185,129,0.3)] transition"
           >
             <i class="fas fa-bars"></i>
+          </button>
+          <button
+            type="button"
+            id="sidebarToggleBtn"
+            onclick="toggleDesktopSidebarCollapse()"
+            aria-label="تصغير أو فتح القائمة الجانبية"
+            aria-expanded="true"
+            title="تصغير / فتح القائمة الجانبية"
+            class="desktop-sidebar-toggle-btn w-9 h-9 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/50 text-emerald-300 hover:text-white items-center justify-center text-sm font-black cursor-pointer shadow-[0_0_14px_rgba(16,185,129,0.28)] backdrop-blur-md transition shrink-0"
+          >
+            <i id="sidebarToggleIcon" class="fas fa-chevron-right"></i>
           </button>
           <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-400 p-0.5 shadow-[0_0_12px_rgba(16,185,129,0.45)] flex items-center justify-center shrink-0">
             <div class="w-full h-full rounded-full bg-slate-950 flex items-center justify-center">
@@ -1658,7 +1699,59 @@
       } else {
         openMobileSidebarDrawer();
       }
+      if (typeof leafletMap !== 'undefined' && leafletMap) {
+        setTimeout(() => { try { leafletMap.invalidateSize(); } catch (e) {} }, 310);
+      }
     }
+
+    function applySidebarCollapsedState(isCollapsed, persist = true) {
+      const sb = document.getElementById('appSidebar');
+      const mainContainer = document.getElementById('appMainContent');
+      const btn = document.getElementById('sidebarToggleBtn');
+      const collapsed = Boolean(isCollapsed);
+
+      if (sb) sb.classList.toggle('collapsed', collapsed);
+      if (mainContainer) mainContainer.classList.toggle('collapsed', collapsed);
+      document.body.classList.toggle('sidebar-collapsed', collapsed);
+
+      if (btn) {
+        btn.classList.toggle('is-collapsed', collapsed);
+        btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      }
+
+      if (persist) {
+        try {
+          localStorage.setItem('sidebarCollapsed', collapsed ? 'true' : 'false');
+        } catch (e) {}
+      }
+
+      // Smoothly resize any active Leaflet map after CSS width transition finishes so there are zero gray gaps
+      const triggerMapResize = () => {
+        try {
+          if (typeof leafletMap !== 'undefined' && leafletMap && typeof leafletMap.invalidateSize === 'function') {
+            leafletMap.invalidateSize({ animate: true });
+          }
+          window.dispatchEvent(new Event('resize'));
+        } catch (e) {}
+      };
+      triggerMapResize();
+      setTimeout(triggerMapResize, 310);
+    }
+
+    function toggleDesktopSidebarCollapse() {
+      const sb = document.getElementById('appSidebar');
+      const nextState = sb ? !sb.classList.contains('collapsed') : false;
+      applySidebarCollapsedState(nextState, true);
+    }
+
+    // Restore persisted sidebar collapse preference on load
+    (function restorePersistedSidebarState() {
+      try {
+        if (localStorage.getItem('sidebarCollapsed') === 'true') {
+          applySidebarCollapsedState(true, false);
+        }
+      } catch (e) {}
+    })();
 
     function switchAppView(targetViewId) {
       if (!APP_VIEW_IDS.includes(targetViewId)) targetViewId = 'view-search';

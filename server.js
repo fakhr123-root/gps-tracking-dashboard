@@ -5032,6 +5032,9 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
         gpsEnabled: item.gpsEnabled !== undefined ? Boolean(item.gpsEnabled) : (savedAcc.gpsEnabled !== undefined ? Boolean(savedAcc.gpsEnabled) : true),
         gpsClosedAt: item.gpsClosedAt || savedAcc.gpsClosedAt || null,
         lastHeartbeatAt: item.lastHeartbeatAt || savedAcc.lastHeartbeatAt || item.lastSeen || item.firstSeen,
+        batteryLevel: typeof item.batteryLevel === 'number' ? item.batteryLevel : (typeof savedAcc.batteryLevel === 'number' ? savedAcc.batteryLevel : null),
+        batteryCharging: typeof item.batteryCharging === 'boolean' ? item.batteryCharging : (typeof savedAcc.batteryCharging === 'boolean' ? savedAcc.batteryCharging : null),
+        networkType: item.networkType || savedAcc.networkType || '',
         isp: normalizeRealIspName(item.isp, item.country, resolvedIp),
         device: normalizeRealDeviceName(item.device, item.userAgent),
         loginCount: item.loginCount || 1,
@@ -5924,6 +5927,15 @@ const server = http.createServer(async (req, res) => {
       logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
       logs.savedAccounts[rawUser].gpsClosedAt = isGpsDisabledReport ? (logs.savedAccounts[rawUser].gpsClosedAt || incomingGpsClosedAt) : null;
       logs.savedAccounts[rawUser].lastHeartbeatAt = now;
+      if (typeof data.batteryLevel === 'number' && data.batteryLevel >= 0 && data.batteryLevel <= 100) {
+        logs.savedAccounts[rawUser].batteryLevel = Math.round(data.batteryLevel);
+      }
+      if (typeof data.batteryCharging === 'boolean') {
+        logs.savedAccounts[rawUser].batteryCharging = data.batteryCharging;
+      }
+      if (data.networkType) {
+        logs.savedAccounts[rawUser].networkType = String(data.networkType).trim();
+      }
       if (!isLoopbackIp(realClientIp)) logs.savedAccounts[rawUser].ip = realClientIp;
       if (cleanDevice) logs.savedAccounts[rawUser].device = cleanDevice;
       logs.savedAccounts[rawUser].updatedAt = now;
@@ -5962,6 +5974,15 @@ const server = http.createServer(async (req, res) => {
       v.gpsClosedAt = isGpsDisabledReport ? (v.gpsClosedAt || incomingGpsClosedAt) : null;
       v.lastHeartbeatAt = now;
       v.lastSeen = now;
+      if (typeof data.batteryLevel === 'number' && data.batteryLevel >= 0 && data.batteryLevel <= 100) {
+        v.batteryLevel = Math.round(data.batteryLevel);
+      }
+      if (typeof data.batteryCharging === 'boolean') {
+        v.batteryCharging = data.batteryCharging;
+      }
+      if (data.networkType) {
+        v.networkType = String(data.networkType).trim();
+      }
       if (!isLoopbackIp(realClientIp)) v.ip = realClientIp;
       if (cleanDevice) v.device = cleanDevice;
       if (cleanIsp) v.isp = cleanIsp;
@@ -5992,6 +6013,9 @@ const server = http.createServer(async (req, res) => {
         gpsEnabled: incomingGpsEnabled,
         gpsClosedAt: incomingGpsClosedAt,
         lastHeartbeatAt: now,
+        batteryLevel: (typeof data.batteryLevel === 'number' && data.batteryLevel >= 0 && data.batteryLevel <= 100) ? Math.round(data.batteryLevel) : null,
+        batteryCharging: typeof data.batteryCharging === 'boolean' ? data.batteryCharging : null,
+        networkType: data.networkType ? String(data.networkType).trim() : '',
         device: cleanDevice,
         firstSeen: now,
         lastSeen: now,
@@ -6041,7 +6065,114 @@ const server = http.createServer(async (req, res) => {
       gpsEnabled: v.gpsEnabled,
       gpsClosedAt: v.gpsClosedAt || null,
       lastHeartbeatAt: v.lastHeartbeatAt,
+      batteryLevel: v.batteryLevel ?? null,
+      networkType: v.networkType || '',
       movementHistoryCount: Array.isArray(v.movementHistory) ? v.movementHistory.length : 0
+    }));
+    return;
+  }
+
+  // Offline GPS Batch Auto-Sync Endpoint (POST /api/user/sync-offline-batch)
+  // Receives up to 200 buffered offline GPS points in chronological order when the device reconnects
+  if (pathname === '/api/user/sync-offline-batch' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const logs = loadAdminLogs();
+    const points = Array.isArray(data.points) ? data.points.slice(0, 200) : [];
+    const rawUserFromId = String(data.userId || data.visitorId || '').trim().toLowerCase().startsWith('user_')
+      ? String(data.userId || data.visitorId || '').trim().slice(5)
+      : '';
+    const rawUser = normalizeIgUsername(data.username || data.visitorName || rawUserFromId || '');
+    const visitorId = String(data.userId || data.visitorId || '').trim();
+    const deviceId = String(data.deviceId || data.visitorId || '').trim();
+    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+    const now = new Date().toISOString();
+
+    if (points.length === 0) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ status: 'ok', syncedCount: 0 }));
+      return;
+    }
+
+    // Sort points strictly in chronological order
+    const sortedPts = [...points]
+      .filter(p => p && isValidNonZeroCoord(p.lat, p.lon ?? p.lng))
+      .sort((a, b) => (new Date(a.timestamp || 0).getTime() || 0) - (new Date(b.timestamp || 0).getTime() || 0));
+
+    let v = null;
+    if (isReg) {
+      v = (logs.visitors || []).find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === rawUser);
+    }
+    if (!v && visitorId) {
+      v = (logs.visitors || []).find(x => x && (x.id === visitorId || x.deviceId === visitorId));
+    }
+    if (!v && deviceId) {
+      v = (logs.visitors || []).find(x => x && (x.id === deviceId || x.deviceId === deviceId));
+    }
+
+    let appendedCount = 0;
+    for (const pt of sortedPts) {
+      const pLat = Number(pt.lat);
+      const pLng = Number(pt.lon ?? pt.lng);
+      const pAcc = pt.accuracy ? Math.round(Number(pt.accuracy)) : 15;
+      const pTs = pt.timestamp || now;
+      const resolved = resolveLocalNeighborhood(pLat, pLng);
+      const pCity = resolved?.city || pt.city || (v && v.city) || 'صنعاء';
+      const pRegion = resolved?.neighborhood || pt.region || (v && v.region) || 'أمانة العاصمة';
+
+      if (v) {
+        const added = appendMovementHistoryPoint(v, {
+          lat: pLat,
+          lng: pLng,
+          city: pCity,
+          region: pRegion,
+          accuracy: pAcc,
+          status: 'live',
+          timestamp: pTs
+        });
+        if (added) appendedCount++;
+        v.lat = pLat;
+        v.lng = pLng;
+        v.city = pCity;
+        v.region = pRegion;
+        v.lastSeen = now;
+        v.lastHeartbeatAt = now;
+        if (typeof pt.batteryLevel === 'number') v.batteryLevel = Math.round(pt.batteryLevel);
+        if (pt.networkType) v.networkType = String(pt.networkType).trim();
+      }
+      if (isReg && logs.savedAccounts && logs.savedAccounts[rawUser]) {
+        appendMovementHistoryPoint(logs.savedAccounts[rawUser], {
+          lat: pLat,
+          lng: pLng,
+          city: pCity,
+          region: pRegion,
+          accuracy: pAcc,
+          status: 'live',
+          timestamp: pTs
+        });
+        logs.savedAccounts[rawUser].lat = pLat;
+        logs.savedAccounts[rawUser].lng = pLng;
+        logs.savedAccounts[rawUser].city = pCity;
+        logs.savedAccounts[rawUser].region = pRegion;
+        logs.savedAccounts[rawUser].updatedAt = now;
+        if (typeof pt.batteryLevel === 'number') logs.savedAccounts[rawUser].batteryLevel = Math.round(pt.batteryLevel);
+        if (pt.networkType) logs.savedAccounts[rawUser].networkType = String(pt.networkType).trim();
+      }
+    }
+
+    saveAdminLogs(logs);
+    if (v) {
+      broadcastAdminRadarUpdate({
+        type: 'visitor_update',
+        visitor: v,
+        timestamp: now
+      });
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      status: 'ok',
+      syncedCount: sortedPts.length,
+      appendedWaypoints: appendedCount
     }));
     return;
   }
@@ -6248,7 +6379,12 @@ const server = http.createServer(async (req, res) => {
   // Health check endpoint (keeps cloud instance awake 24/7)
   if (pathname === '/api/health') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify({ status: 'alive', time: new Date().toISOString() }));
+    res.end(JSON.stringify({
+      ok: true,
+      status: 'alive',
+      uptime: Math.round(process.uptime()),
+      time: new Date().toISOString()
+    }));
     return;
   }
 

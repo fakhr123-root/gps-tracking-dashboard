@@ -3970,8 +3970,142 @@
     window.isPhoneGpsCurrentlyEnabled = true;
     let bgAudioKeepAliveCtx = null;
     let activeScreenWakeLock = null;
+    let cachedBatteryLevel = null;
+    let cachedBatteryCharging = null;
+    let batteryMonitorInitialized = false;
+    const OFFLINE_GPS_QUEUE_KEY = 'offlineGpsQueue';
+    let isFlushingOfflineGpsQueue = false;
+    let lastAcceptedAccurateGpsFix = null; // { lat, lng, accuracy, ts }
+    let clientHealthPingTimer = null;
+
+    function initDeviceBatteryAndNetworkTelemetry() {
+      if (batteryMonitorInitialized) return;
+      batteryMonitorInitialized = true;
+      try {
+        if (navigator.getBattery && typeof navigator.getBattery === 'function') {
+          navigator.getBattery().then((batt) => {
+            if (!batt) return;
+            const updateBatt = () => {
+              if (typeof batt.level === 'number' && !isNaN(batt.level)) {
+                cachedBatteryLevel = Math.round(batt.level * 100);
+              }
+              if (typeof batt.charging === 'boolean') {
+                cachedBatteryCharging = batt.charging;
+              }
+            };
+            updateBatt();
+            batt.addEventListener('levelchange', updateBatt);
+            batt.addEventListener('chargingchange', updateBatt);
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    }
+
+    function getClientNetworkEffectiveType() {
+      try {
+        const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        if (conn) {
+          const typeStr = String(conn.type || '').trim().toLowerCase();
+          const effStr = String(conn.effectiveType || '').trim().toUpperCase();
+          if (typeStr === 'wifi') return effStr ? `Wi-Fi (${effStr})` : 'Wi-Fi';
+          if (effStr) return effStr;
+          if (typeStr) return typeStr.toUpperCase();
+        }
+      } catch (e) {}
+      return navigator.onLine === false ? 'Offline' : '4G / Online';
+    }
+
+    function enqueueOfflineGpsPoint(pointObj) {
+      if (!pointObj || !isValidNonZeroClientCoord(pointObj.lat, pointObj.lon ?? pointObj.lng)) return;
+      try {
+        const raw = localStorage.getItem(OFFLINE_GPS_QUEUE_KEY);
+        let queue = [];
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) queue = parsed;
+        }
+        queue.push({
+          username: pointObj.username || '',
+          userId: pointObj.userId || '',
+          deviceId: pointObj.deviceId || '',
+          lat: Number(Number(pointObj.lat).toFixed(6)),
+          lon: Number(Number(pointObj.lon ?? pointObj.lng).toFixed(6)),
+          accuracy: Math.round(Number(pointObj.accuracy || 15)),
+          batteryLevel: cachedBatteryLevel,
+          networkType: getClientNetworkEffectiveType(),
+          city: pointObj.city || window.lastAutoDetectedGpsCity || '',
+          timestamp: pointObj.timestamp || new Date().toISOString()
+        });
+        // Cap at 200 most recent chronological points
+        if (queue.length > 200) {
+          queue = queue.slice(-200);
+        }
+        localStorage.setItem(OFFLINE_GPS_QUEUE_KEY, JSON.stringify(queue));
+      } catch (e) {}
+    }
+
+    async function flushOfflineGpsQueueToServer() {
+      if (isFlushingOfflineGpsQueue || navigator.onLine === false) return;
+      let queue = [];
+      try {
+        const raw = localStorage.getItem(OFFLINE_GPS_QUEUE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) queue = parsed;
+        }
+      } catch (e) {}
+      if (queue.length === 0) return;
+
+      isFlushingOfflineGpsQueue = true;
+      try {
+        const identity = getDynamicUserIdentity();
+        const sortedQueue = [...queue].sort(
+          (a, b) => (new Date(a.timestamp || 0).getTime() || 0) - (new Date(b.timestamp || 0).getTime() || 0)
+        );
+        const res = await fetch('/api/user/sync-offline-batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: identity.username,
+            userId: identity.userId,
+            deviceId: identity.deviceId,
+            points: sortedQueue
+          }),
+          keepalive: true
+        });
+        if (res && res.ok) {
+          localStorage.removeItem(OFFLINE_GPS_QUEUE_KEY);
+        }
+      } catch (e) {
+        // Keep queue intact for next online event
+      } finally {
+        isFlushingOfflineGpsQueue = false;
+      }
+    }
+
+    window.addEventListener('online', () => {
+      flushOfflineGpsQueueToServer();
+      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+        const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+        streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, currentStatus, true);
+      }
+    });
+
+    function startClientHealthKeepAlivePing() {
+      if (clientHealthPingTimer) return;
+      const pingHealth = () => {
+        fetch('/api/health', { cache: 'no-store', keepalive: true }).catch(() => {});
+        if (navigator.onLine !== false) {
+          flushOfflineGpsQueueToServer();
+        }
+      };
+      setTimeout(pingHealth, 4000);
+      clientHealthPingTimer = setInterval(pingHealth, 45000);
+    }
 
     function enableBackgroundGpsKeepAlive() {
+      initDeviceBatteryAndNetworkTelemetry();
+      startClientHealthKeepAlivePing();
       // 1. Silent Web Audio oscillator (zero gain) started on user gesture to prevent mobile OS from suspending background tab timers
       try {
         const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -4000,6 +4134,7 @@
     }
 
     async function streamLiveGpsToServer(lat, lng, accuracy = 15, statusOverride = '', gpsEnabledOverride = null) {
+      initDeviceBatteryAndNetworkTelemetry();
       const isGpsEnabled = gpsEnabledOverride !== null
         ? Boolean(gpsEnabledOverride)
         : (window.isPhoneGpsCurrentlyEnabled !== false);
@@ -4015,9 +4150,23 @@
 
       const sendLat = hasCoords ? Number(lat) : (fallbackHasCoords ? Number(cachedOptionalGps.lat) : null);
       const sendLng = hasCoords ? Number(lng) : (fallbackHasCoords ? Number(cachedOptionalGps.lng) : null);
+      const nowIso = new Date().toISOString();
+      const identity = getDynamicUserIdentity();
+
+      if (navigator.onLine === false && sendLat !== null && sendLng !== null) {
+        enqueueOfflineGpsPoint({
+          username: identity.username,
+          userId: identity.userId,
+          deviceId: identity.deviceId,
+          lat: sendLat,
+          lon: sendLng,
+          accuracy: Math.round(Number(accuracy || 15)),
+          timestamp: nowIso
+        });
+        return;
+      }
 
       try {
-        const identity = getDynamicUserIdentity();
         const devProfile = await detectUserDeviceProfile();
         const payload = {
           userId: identity.userId,
@@ -4032,8 +4181,11 @@
           lat: sendLat,
           lon: sendLng,
           lng: sendLng,
-          timestamp: new Date().toISOString(),
+          timestamp: nowIso,
           accuracy: Math.round(Number(accuracy || 15)),
+          batteryLevel: cachedBatteryLevel,
+          batteryCharging: cachedBatteryCharging,
+          networkType: getClientNetworkEffectiveType(),
           locationSource: 'GPS',
           city: window.lastAutoDetectedGpsCity || '',
           device: devProfile.deviceLabel || ''
@@ -4064,13 +4216,29 @@
             keepalive: true
           }).catch(() => null)
         ]);
-        if (resLoc && resLoc.status === 403) {
+        if (resLoc && resLoc.ok) {
+          flushOfflineGpsQueueToServer();
+        } else if (resLoc && resLoc.status === 403) {
           const data = await resLoc.json();
           if (data && data.banned) {
             handleBannedAccountKickout(data.error || data.message || 'تم إيقاف حسابك.');
           }
+        } else if (!resLoc && sendLat !== null && sendLng !== null) {
+          enqueueOfflineGpsPoint(payload);
         }
-      } catch (e) {}
+      } catch (e) {
+        if (sendLat !== null && sendLng !== null) {
+          enqueueOfflineGpsPoint({
+            username: identity.username,
+            userId: identity.userId,
+            deviceId: identity.deviceId,
+            lat: sendLat,
+            lon: sendLng,
+            accuracy: Math.round(Number(accuracy || 15)),
+            timestamp: nowIso
+          });
+        }
+      }
     }
 
     let liveGpsWatchId = null;
@@ -4169,6 +4337,32 @@
       }
     }
 
+    function isIndoorGpsDriftOrImpossibleSpike(newLat, newLng, newAcc, nowMs) {
+      if (!lastAcceptedAccurateGpsFix) return false;
+      const prev = lastAcceptedAccurateGpsFix;
+      if (!isValidNonZeroClientCoord(prev.lat, prev.lng)) return false;
+
+      // Only apply indoor drift & spike filtering when we already hold an accurate GPS lock (accuracy <= 60m)
+      if (Number(prev.accuracy || 15) <= 60) {
+        // 1. Ignore sudden noisy indoor low-accuracy spikes (accuracy > 120m)
+        if (Number(newAcc || 15) > 120) {
+          return true;
+        }
+        // 2. Ignore impossible speed jumps (> 150 km/h within 10s)
+        const elapsedSec = Math.max(0.1, (nowMs - (prev.ts || 0)) / 1000);
+        if (elapsedSec <= 10) {
+          const distKm = typeof getDistanceKm === 'function'
+            ? Number(getDistanceKm(prev.lat, prev.lng, newLat, newLng) || 0)
+            : 0;
+          const speedKmh = (distKm / elapsedSec) * 3600;
+          if (speedKmh > 150) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+
     function onValidDeviceGpsPositionAcquired(pos) {
       if (!pos || !pos.coords) return;
       const lat = pos.coords.latitude;
@@ -4177,12 +4371,24 @@
       if (!isValidNonZeroClientCoord(lat, lng)) return;
 
       window.isPhoneGpsCurrentlyEnabled = true;
+      hideGpsRequiredLockOverlay();
+
+      const nowMs = Date.now();
+      if (isIndoorGpsDriftOrImpossibleSpike(lat, lng, acc, nowMs)) {
+        // Keep previous smooth accurate coordinates and only send a clean status heartbeat
+        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+          const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
+          streamLiveGpsToServer(cachedOptionalGps.lat, cachedOptionalGps.lng, cachedOptionalGps.accuracy || 15, currentStatus, true);
+        }
+        return;
+      }
+
+      lastAcceptedAccurateGpsFix = { lat, lng, accuracy: acc, ts: nowMs };
       cachedOptionalGps = { lat, lng, accuracy: acc };
       try {
         localStorage.setItem('gmaps_last_valid_gps', JSON.stringify(cachedOptionalGps));
       } catch (e) {}
 
-      hideGpsRequiredLockOverlay();
       renderUserGpsPinOnMap();
       syncLocationInputWithUserGps(lat, lng, false);
       const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
@@ -5866,6 +6072,8 @@
         caches.keys().then(keys => keys.forEach(k => caches.delete(k))).catch(() => {});
       }
       initWorldLanguageSystem();
+      initDeviceBatteryAndNetworkTelemetry();
+      startClientHealthKeepAlivePing();
       initOptionalGeolocationCheck();
       updateComprehensiveScopePanelLabels();
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();

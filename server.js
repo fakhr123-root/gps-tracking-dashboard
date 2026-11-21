@@ -3,10 +3,77 @@ const zlib = require('zlib');
 const url = require('url');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const { parsePhoneNumberFromString } = require('libphonenumber-js');
 const turfPointInPolygonPkg = require('@turf/boolean-point-in-polygon');
 const booleanPointInPolygon = turfPointInPolygonPkg.default || turfPointInPolygonPkg;
+
+// Strictly server-side WhatsApp OTP & Brand configuration (NEVER exposed to clients or frontend files)
+const OTP_SENDER_PHONE = String(process.env.OTP_SENDER_PHONE || '+967780074742').trim();
+const APP_BRAND_NAME = String(process.env.APP_BRAND_NAME || 'GeoRadar 3D').trim();
+const WHATSAPP_TOKEN = String(process.env.WHATSAPP_TOKEN || '').trim();
+const WHATSAPP_PHONE_ID = String(process.env.WHATSAPP_PHONE_ID || '').trim();
+
+const otpChallengesByPhone = new Map();
+const otpResetTokens = new Map();
+const otpRateLimitMap = new Map();
+
+function hashPasswordScrypt(plainPassword) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.scryptSync(String(plainPassword), salt, 64).toString('hex');
+  return `scrypt$${salt}$${derived}`;
+}
+
+function verifyPasswordScrypt(plainPassword, storedHash) {
+  if (!storedHash || !String(storedHash).startsWith('scrypt$')) return false;
+  const parts = String(storedHash).split('$');
+  if (parts.length !== 3) return false;
+  const [, salt, expectedHex] = parts;
+  if (!salt || !expectedHex) return false;
+  const derivedBuf = crypto.scryptSync(String(plainPassword), salt, 64);
+  const expectedBuf = Buffer.from(expectedHex, 'hex');
+  if (derivedBuf.length !== expectedBuf.length) return false;
+  return crypto.timingSafeEqual(derivedBuf, expectedBuf);
+}
+
+function normalizeRecipientPhoneToE164(rawPhone = '') {
+  const cleaned = String(rawPhone || '').trim().replace(/[\s\-()]/g, '');
+  if (!cleaned) return '';
+  let candidate = cleaned;
+  if (candidate.startsWith('00')) candidate = '+' + candidate.slice(2);
+  const parsed = parsePhoneNumberFromString(candidate, 'YE');
+  if (parsed && parsed.isValid()) {
+    return parsed.number; // E.164 format e.g. +9677XXXXXXXX
+  }
+  // Fallback E.164 check for valid international digits
+  const digitsOnly = candidate.replace(/\D/g, '');
+  if (digitsOnly.length >= 9 && digitsOnly.length <= 15) {
+    if (candidate.startsWith('+')) return `+${digitsOnly}`;
+    if (digitsOnly.startsWith('967') && digitsOnly.length === 12) return `+${digitsOnly}`;
+    if (digitsOnly.length === 9 && digitsOnly.startsWith('7')) return `+967${digitsOnly}`;
+  }
+  return '';
+}
+
+function checkOtpRateLimit(key, maxRequests = 5, windowMs = 15 * 60 * 1000, minCooldownMs = 30 * 1000) {
+  const now = Date.now();
+  const rec = otpRateLimitMap.get(key) || { timestamps: [], lastSentAt: 0 };
+  rec.timestamps = rec.timestamps.filter(ts => (now - ts) < windowMs);
+  if (rec.lastSentAt && (now - rec.lastSentAt) < minCooldownMs) {
+    const waitSec = Math.ceil((minCooldownMs - (now - rec.lastSentAt)) / 1000);
+    return { allowed: false, retryAfterSec: waitSec };
+  }
+  if (rec.timestamps.length >= maxRequests) {
+    const oldest = rec.timestamps[0];
+    const waitSec = Math.ceil((windowMs - (now - oldest)) / 1000);
+    return { allowed: false, retryAfterSec: Math.max(waitSec, 30) };
+  }
+  rec.timestamps.push(now);
+  rec.lastSentAt = now;
+  otpRateLimitMap.set(key, rec);
+  return { allowed: true, retryAfterSec: 0 };
+}
 
 // Dice coefficient string similarity (0.0 to 1.0) for 20m >80% smart deduplication
 function calcNameSimilarity(a = '', b = '') {
@@ -5824,6 +5891,9 @@ async function recordVisitor(info) {
 
     const verifyAccountPassword = (acc, plain) => {
       if (!acc) return false;
+      if (acc.passwordHash && String(acc.passwordHash).startsWith('scrypt$')) {
+        return verifyPasswordScrypt(String(plain), acc.passwordHash);
+      }
       if (acc.passwordHash && String(acc.passwordHash).startsWith('$2')) {
         return bcrypt.compareSync(String(plain), acc.passwordHash);
       }
@@ -6412,6 +6482,303 @@ const server = http.createServer(async (req, res) => {
   const parsedUrl = url.parse(req.url, true);
   const pathname = parsedUrl.pathname;
   const clientIp = extractRealClientIp(req);
+
+  // ============================================================================
+  // WhatsApp OTP "Forgot Password" Flow (/api/auth/forgot-password, /verify-otp, /reset-password)
+  // Privacy: NEVER expose OTP_SENDER_PHONE, WHATSAPP_TOKEN, or WHATSAPP_PHONE_ID to clients.
+  // ============================================================================
+  if (pathname === '/api/auth/forgot-password' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const rawUsername = normalizeIgUsername(data.username || '');
+    const phoneE164 = normalizeRecipientPhoneToE164(data.phone || '');
+
+    if (!phoneE164) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'يرجى إدخال رقم واتساب صحيح بالصيغة الدولية أو المحلية (مثال: +9677XXXXXXXX).'
+      }));
+      return;
+    }
+
+    // Rate limit per recipient phone AND per client IP
+    const phoneLimit = checkOtpRateLimit(`phone:${phoneE164}`, 5, 15 * 60 * 1000, 30 * 1000);
+    if (!phoneLimit.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        retryAfterSec: phoneLimit.retryAfterSec,
+        message: `تم إرسال رمز التحقق مؤخراً. يرجى الانتظار ${phoneLimit.retryAfterSec} ثانية قبل المحاولة مرة أخرى.`
+      }));
+      return;
+    }
+    const ipLimit = checkOtpRateLimit(`ip:${clientIp}`, 10, 15 * 60 * 1000, 5 * 1000);
+    if (!ipLimit.allowed) {
+      res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        retryAfterSec: ipLimit.retryAfterSec,
+        message: 'عدد محاولات كثيرة من هذا الجهاز. يرجى المحاولة لاحقاً.'
+      }));
+      return;
+    }
+
+    const logs = loadAdminLogs();
+    if (rawUsername && !logs.savedAccounts?.[rawUsername]) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'لم يتم العثور على حساب مطابق لاسم المستخدم المدخل.'
+      }));
+      return;
+    }
+
+    const otpCode = String(crypto.randomInt(100000, 1000000));
+    const otpSalt = crypto.randomBytes(16).toString('hex');
+    const otpHash = crypto.createHash('sha256').update(`${otpSalt}:${otpCode}`).digest('hex');
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    otpChallengesByPhone.set(phoneE164, {
+      otpHash,
+      otpSalt,
+      phoneE164,
+      username: rawUsername,
+      expiresAt,
+      attemptsLeft: 5,
+      createdAt: Date.now()
+    });
+
+    const whatsappMessageBody = `رمز التحقق الخاص بك في ${APP_BRAND_NAME} هو: ${otpCode}\nصالح لمدة 10 دقائق. لا تشارك هذا الرمز مع أي شخص.`;
+
+    if (WHATSAPP_TOKEN && WHATSAPP_PHONE_ID) {
+      try {
+        const waEndpoint = `https://graph.facebook.com/v21.0/${encodeURIComponent(WHATSAPP_PHONE_ID)}/messages`;
+        const waAbort = new AbortController();
+        const waTimer = setTimeout(() => waAbort.abort(), 10000);
+        try {
+          const waRes = await fetch(waEndpoint, {
+            method: 'POST',
+            signal: waAbort.signal,
+            headers: {
+              'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: phoneE164.replace(/^\+/, ''),
+              type: 'text',
+              text: { body: whatsappMessageBody }
+            })
+          });
+          if (!waRes.ok) {
+            console.warn(`[OTP WA Dispatch] Provider returned HTTP ${waRes.status} for ${phoneE164}`);
+            res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({
+              success: false,
+              brandName: APP_BRAND_NAME,
+              message: `تعذّر إرسال رمز التحقق عبر واتساب حالياً من ${APP_BRAND_NAME}. يرجى المحاولة مرة أخرى بعد قليل.`
+            }));
+            return;
+          }
+        } finally {
+          clearTimeout(waTimer);
+        }
+      } catch (waErr) {
+        console.warn(`[OTP WA Dispatch] Network/timeout error for ${phoneE164}`);
+        res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({
+          success: false,
+          brandName: APP_BRAND_NAME,
+          message: `تعذّر الاتصال بخدمة التحقق الخاصة بـ ${APP_BRAND_NAME} حالياً. يرجى المحاولة لاحقاً.`
+        }));
+        return;
+      }
+    } else {
+      // Safe dev/fallback mode when WHATSAPP_TOKEN / WHATSAPP_PHONE_ID are not configured yet (console log ONLY, no sender phone or secrets exposed)
+      console.log(`[DEV OTP] [${APP_BRAND_NAME}] recipient=${phoneE164} user=${rawUsername || 'unspecified'} code=${otpCode} (valid 10m; sender configured=${Boolean(OTP_SENDER_PHONE)})`);
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      brandName: APP_BRAND_NAME,
+      expiresInMinutes: 10,
+      message: `تم إرسال رمز التحقق عبر واتساب من ${APP_BRAND_NAME}. الرمز صالح لمدة 10 دقائق.`
+    }));
+    return;
+  }
+
+  if (pathname === '/api/auth/verify-otp' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const phoneE164 = normalizeRecipientPhoneToE164(data.phone || '');
+    const submittedOtp = String(data.otp || '').trim().replace(/\D/g, '');
+
+    if (!phoneE164 || submittedOtp.length !== 6) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'يرجى إدخال رقم الهاتف ورمز التحقق المكوّن من 6 أرقام.'
+      }));
+      return;
+    }
+
+    const challenge = otpChallengesByPhone.get(phoneE164);
+    if (!challenge) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'لا يوجد رمز تحقق نشط لهذا الرقم. يرجى طلب رمز جديد.'
+      }));
+      return;
+    }
+
+    if (Date.now() > challenge.expiresAt) {
+      otpChallengesByPhone.delete(phoneE164);
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'انتهت صلاحية رمز التحقق (10 دقائق). يرجى طلب رمز جديد.'
+      }));
+      return;
+    }
+
+    if (challenge.attemptsLeft <= 0) {
+      otpChallengesByPhone.delete(phoneE164);
+      res.writeHead(429, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'تم استنفاد جميع محاولات التحقق. يرجى طلب رمز جديد.'
+      }));
+      return;
+    }
+
+    const candidateHash = crypto.createHash('sha256').update(`${challenge.otpSalt}:${submittedOtp}`).digest('hex');
+    const expectedBuf = Buffer.from(challenge.otpHash, 'hex');
+    const candidateBuf = Buffer.from(candidateHash, 'hex');
+    const isMatch = expectedBuf.length === candidateBuf.length && crypto.timingSafeEqual(expectedBuf, candidateBuf);
+
+    if (!isMatch) {
+      challenge.attemptsLeft = Math.max(0, challenge.attemptsLeft - 1);
+      if (challenge.attemptsLeft === 0) {
+        otpChallengesByPhone.delete(phoneE164);
+      }
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        attemptsLeft: challenge.attemptsLeft,
+        message: challenge.attemptsLeft > 0
+          ? `رمز التحقق غير صحيح. المحاولات المتبقية: ${challenge.attemptsLeft}`
+          : 'رمز التحقق غير صحيح وتم إلغاء الرمز. يرجى طلب رمز جديد.'
+      }));
+      return;
+    }
+
+    // Valid OTP: invalidate OTP immediately and issue short-lived single-use resetToken (10m)
+    otpChallengesByPhone.delete(phoneE164);
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    otpResetTokens.set(resetToken, {
+      phoneE164,
+      username: challenge.username || normalizeIgUsername(data.username || ''),
+      expiresAt: Date.now() + 10 * 60 * 1000
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      brandName: APP_BRAND_NAME,
+      resetToken,
+      message: 'تم التحقق من الرمز بنجاح. يمكنك الآن تعيين كلمة مرور جديدة.'
+    }));
+    return;
+  }
+
+  if (pathname === '/api/auth/reset-password' && req.method === 'POST') {
+    const data = await readRequestBody(req);
+    const resetToken = String(data.resetToken || '').trim();
+    const newPassword = String(data.newPassword || '');
+    const tokenRecord = resetToken ? otpResetTokens.get(resetToken) : null;
+
+    if (!tokenRecord || Date.now() > tokenRecord.expiresAt) {
+      if (resetToken) otpResetTokens.delete(resetToken);
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'انتهت صلاحية جلسة إعادة التعيين. يرجى طلب رمز تحقق جديد.'
+      }));
+      return;
+    }
+
+    if (newPassword.length < 4 || newPassword.length > 128) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'يجب أن تتكون كلمة المرور الجديدة من 4 أحرف على الأقل.'
+      }));
+      return;
+    }
+
+    const targetUsername = normalizeIgUsername(tokenRecord.username || data.username || '');
+    if (!targetUsername || !VALID_IG_USERNAME_REGEX.test(targetUsername)) {
+      res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'يرجى تحديد اسم المستخدم الصحيح للحساب.'
+      }));
+      return;
+    }
+
+    const logs = loadAdminLogs();
+    if (!logs.savedAccounts || !logs.savedAccounts[targetUsername]) {
+      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({
+        success: false,
+        brandName: APP_BRAND_NAME,
+        message: 'الحساب غير موجود في النظام.'
+      }));
+      return;
+    }
+
+    // Hash password with scryptSync + per-user random salt
+    const scryptHash = hashPasswordScrypt(newPassword);
+    logs.savedAccounts[targetUsername].passwordHash = scryptHash;
+    delete logs.savedAccounts[targetUsername].password;
+    logs.savedAccounts[targetUsername].updatedAt = new Date().toISOString();
+
+    if (Array.isArray(logs.visitors)) {
+      for (const v of logs.visitors) {
+        if (v && !v.isDeviceIpAutoAuth && normalizeIgUsername(v.username || v.visitorName || '') === targetUsername) {
+          v.passwordHash = scryptHash;
+          delete v.accountPassword;
+        }
+      }
+    }
+    saveAdminLogs(logs);
+
+    // Immediately invalidate resetToken and any remaining OTP for this phone
+    otpResetTokens.delete(resetToken);
+    if (tokenRecord.phoneE164) otpChallengesByPhone.delete(tokenRecord.phoneE164);
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      brandName: APP_BRAND_NAME,
+      username: `@${targetUsername}`,
+      message: `تم تحديث كلمة مرور حسابك في ${APP_BRAND_NAME} بنجاح! يمكنك الآن تسجيل الدخول.`
+    }));
+    return;
+  }
 
   // Log visitor entry, user login & user registration endpoint (/api/log-visit, /api/login, and /api/register)
   if ((pathname === '/api/log-visit' || pathname === '/api/login' || pathname === '/api/register') && req.method === 'POST') {

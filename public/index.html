@@ -3526,9 +3526,10 @@
       });
 
       function updateDualEngineScanTelemetry(data) {
-        const dedupedCount = typeof data.deduplicatedTotal === 'number' ? data.deduplicatedTotal : (data.current || extractedPlaces.length);
+        // Strictly reflect ONLY results that passed the client relevance & deduplication filter (matching #statTotal & results grid)
+        const strictNetCount = extractedPlaces.length;
         const netBadge = document.getElementById('telemetryNetDedupBadge');
-        if (netBadge) netBadge.innerText = `✅ الإجمالي الصافي: ${Number(dedupedCount).toLocaleString()}`;
+        if (netBadge) netBadge.innerText = `✅ الإجمالي الصافي: ${strictNetCount.toLocaleString()}`;
         if (data.scopeLabel) {
           const scopeEl = document.getElementById('telemetryActiveScopeBadge');
           if (scopeEl) scopeEl.innerText = `🎯 النطاق: ${data.scopeLabel}`;
@@ -3559,14 +3560,19 @@
         pendingProgressData = null;
         lastProgressUiPaintMs = Date.now();
 
-        const dedupedCount = typeof data.deduplicatedTotal === 'number' ? data.deduplicatedTotal : (data.current || extractedPlaces.length);
-        if (typeof data.total === 'number' && data.total > 0) {
-          const percent = Math.min(Math.round(((data.current || dedupedCount) / data.total) * 100), 98);
+        const strictNetCount = extractedPlaces.length;
+        if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
+          const percent = Math.min(Math.round((data.scannedCells / data.totalCells) * 100), 98);
+          progressBar.style.width = `${percent}%`;
+          const pctEl = document.getElementById('progressPercentBadge');
+          if (pctEl) pctEl.innerText = `${percent}%`;
+        } else if (typeof data.total === 'number' && data.total > 0) {
+          const percent = Math.min(Math.round(((data.current || strictNetCount) / data.total) * 100), 98);
           progressBar.style.width = `${percent}%`;
           const pctEl = document.getElementById('progressPercentBadge');
           if (pctEl) pctEl.innerText = `${percent}%`;
         }
-        progressRatio.innerText = `✅ صافي بدون تكرار: ${Number(dedupedCount).toLocaleString()} موقع`;
+        progressRatio.innerText = `✅ صافي بدون تكرار: ${strictNetCount.toLocaleString()} موقع`;
         if (typeof data.scannedCells === 'number') {
           const qtBadge = document.getElementById('quadtreeCellsBadge');
           const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
@@ -4412,6 +4418,16 @@
 
       const sidebarBadge = document.getElementById('sidebarResultsCountBadge');
       if (sidebarBadge) sidebarBadge.innerText = total.toLocaleString();
+
+      // Keep progress bar net counter ("صافي بدون تكرار") and telemetry net badge 100% synced with post-filter extractedPlaces.length
+      const progressRatioEl = document.getElementById('progressRatio');
+      if (progressRatioEl && (total > 0 || currentEventSource)) {
+        progressRatioEl.innerText = `✅ صافي بدون تكرار: ${total.toLocaleString()} موقع`;
+      }
+      const netBadgeEl = document.getElementById('telemetryNetDedupBadge');
+      if (netBadgeEl) {
+        netBadgeEl.innerText = `✅ الإجمالي الصافي: ${total.toLocaleString()}`;
+      }
 
       const phonesEl = document.getElementById('statPhones');
       if (phonesEl) phonesEl.innerText = liveExtractedPhonesTotal.toLocaleString();

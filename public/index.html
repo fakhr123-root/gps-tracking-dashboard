@@ -3603,7 +3603,9 @@
         pendingProgressData = Object.assign({}, pendingProgressData || {}, data);
         const now = Date.now();
         const elapsed = now - lastProgressUiPaintMs;
-        if (elapsed >= 500) {
+        // Immediately paint on the very first progress/cell-grid event (0 / N) or completion, otherwise throttle cleanly to 300ms
+        const isImmediatePaint = lastProgressUiPaintMs === 0 || (data && (data.completed === true || (typeof data.scannedCells === 'number' && data.scannedCells <= 3)));
+        if (isImmediatePaint || elapsed >= 300) {
           if (progressUiPaintTimer) {
             clearTimeout(progressUiPaintTimer);
             progressUiPaintTimer = null;
@@ -3613,7 +3615,7 @@
           progressUiPaintTimer = setTimeout(() => {
             progressUiPaintTimer = null;
             flushThrottledProgressUi();
-          }, 500 - elapsed);
+          }, 300 - elapsed);
         }
       }
 
@@ -4257,8 +4259,8 @@
           leafletMap.setView([place.lat, place.lng], 12);
         }
 
-        // Buffer UI updates: flush immediately on first item, every 50 items, or within 350ms
-        scheduleBufferedUiSync(idx === 1 || idx <= INITIAL_PAGE_SIZE && idx % 10 === 0 || idx % 50 === 0);
+        // Instant DOM streaming: flush immediately for the first 15 nearby stores, then every 5 up to INITIAL_PAGE_SIZE, then every 25
+        scheduleBufferedUiSync(idx <= 15 || (idx <= INITIAL_PAGE_SIZE && idx % 5 === 0) || idx % 25 === 0);
       } catch (err) {
         console.warn('Error in ingestIncomingStreamPlace:', err);
       }

@@ -1763,10 +1763,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       discoverLiveCityQuartersAndStreets().catch(() => {});
     }
 
-    // 4. Dense Street-Level Geographic Micro-Grid covering the entire city bounding box (11x11 = 121 micro-cells)
-    // Ensures every single block and residential alley in the city is scanned at high zoom (span: 1300m)
-    const latSteps = [-0.125, -0.10, -0.075, -0.05, -0.025, 0, 0.025, 0.05, 0.075, 0.10, 0.125];
-    const lngSteps = [-0.085, -0.068, -0.051, -0.034, -0.017, 0, 0.017, 0.034, 0.051, 0.068, 0.085];
+    // 4. Progressive Coarse-to-Fine QuadTree Initial Grid (1.5km radius / span: 1500m) covering the city bounding box
+    // Starts coarse (7x7 = 49 cells) sorted closest-first to user so first batch streams within 1-2s; dense cells (>=15 results) subdivide dynamically on the fly!
+    const latSteps = [-0.12, -0.08, -0.04, 0, 0.04, 0.08, 0.12];
+    const lngSteps = [-0.09, -0.06, -0.03, 0, 0.03, 0.06, 0.09];
     for (const dLat of latSteps) {
       for (const dLng of lngSteps) {
         const gLat = center.lat + dLat;
@@ -1777,18 +1777,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           name: cellLabel,
           lat: gLat,
           lng: gLng,
-          span: 1300
+          span: 1500
         });
       }
     }
 
-    // 5. Inject User's Exact Live GPS Spot + Immediate Surrounding Micro-Ring (300m-800m) and sort ALL sectors by proximity to User!
+    // 5. Inject User's Exact Live GPS Spot (1.5km coarse cell FIRST) so nearby stores stream within 1-2 seconds!
     if (hasValidUserGps) {
       const uHood = resolveLocalNeighborhood(refLat, refLng)?.shortHood || 'موقعك الحالي';
       const immediateOffsets = [
-        [0, 0, 500],
-        [0.0035, 0, 800], [-0.0035, 0, 800], [0, 0.0035, 800], [0, -0.0035, 800],
-        [0.007, 0.007, 1100], [-0.007, 0.007, 1100], [0.007, -0.007, 1100], [-0.007, -0.007, 1100]
+        [0, 0, 1500],
+        [0.012, 0, 1500], [-0.012, 0, 1500], [0, 0.012, 1500], [0, -0.012, 1500]
       ];
       for (const [dLat, dLng, sp] of immediateOffsets) {
         namedSectors.unshift({
@@ -3638,8 +3637,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   }
 
-  // Full OpenStreetMap (OSM) Overpass City-Wide Grocery Boost:
-  // Queries ["shop"~"convenience|supermarket|grocery|general|kiosk"] across the ENTIRE city bounding box to merge community-mapped stores alongside Google Maps
+  // Full OpenStreetMap (OSM) Overpass City-Wide Grocery Boost (Non-blocking background task with strict 12000ms AbortController timeout):
+  // Queries ["shop"~"convenience|supermarket|grocery|general|kiosk"] across the city bounding box without ever blocking Google Places workers
   const runOverpassGroceryCityBoost = async () => {
     if (isAborted()) return;
     const normQ = normAr(stdQuery || '');
@@ -3652,35 +3651,43 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const maxLat = (center.lat + delta).toFixed(4);
     const maxLon = (center.lng + delta).toFixed(4);
     const bbox = `${minLat},${minLon},${maxLat},${maxLon}`;
-    const q = `[out:json][timeout:35];(node["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox});way["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox}););out center 5000;`;
+    const q = `[out:json][timeout:12];(node["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox});way["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox}););out center 5000;`;
     const mirrors = [
       'https://overpass-api.de/api/interpreter',
       'https://overpass.kumi.systems/api/interpreter',
       'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
     ];
-    for (const mirror of mirrors) {
-      if (isAborted()) return;
-      try {
-        const res = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(q)}`, {
-          timeout: 32000,
-          headers: { 'User-Agent': 'GeoRadar3DStudio/4.0', 'Accept': 'application/json' }
-        });
-        if (!res.ok) continue;
-        const data = await res.json();
-        const elements = Array.isArray(data.elements) ? data.elements : [];
-        for (const el of elements) {
-          if (isAborted()) break;
-          const pLat = el.lat || el.center?.lat;
-          const pLng = el.lon || el.center?.lon;
-          const tags = el.tags || {};
-          const rawName = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['name:en'] || '').trim();
-          const finalName = rawName || (tags.shop === 'supermarket' ? 'سوبر ماركت' : 'بقالة ومواد غذائية');
-          if (!pLat || !pLng) continue;
-          const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
-          await emitPlace(finalName, Number(pLat), Number(pLng), tags, 'OSM Overpass Boost (بقالات)', osmId);
+    const overallAbort = new AbortController();
+    const overallTimer = setTimeout(() => overallAbort.abort(), 12000);
+    try {
+      for (const mirror of mirrors) {
+        if (isAborted() || overallAbort.signal.aborted) return;
+        try {
+          const res = await fetch(`${mirror}?data=${encodeURIComponent(q)}`, {
+            signal: overallAbort.signal,
+            headers: { 'User-Agent': 'GeoRadar3DStudio/4.0', 'Accept': 'application/json' }
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const elements = Array.isArray(data.elements) ? data.elements : [];
+          for (const el of elements) {
+            if (isAborted()) break;
+            const pLat = el.lat || el.center?.lat;
+            const pLng = el.lon || el.center?.lon;
+            const tags = el.tags || {};
+            const rawName = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['name:en'] || '').trim();
+            const finalName = rawName || (tags.shop === 'supermarket' ? 'سوبر ماركت' : 'بقالة ومواد غذائية');
+            if (!pLat || !pLng) continue;
+            const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+            await emitPlace(finalName, Number(pLat), Number(pLng), tags, 'OSM Overpass Boost (بقالات)', osmId);
+          }
+          return;
+        } catch (e) {
+          if (overallAbort.signal.aborted) return;
         }
-        return;
-      } catch (e) {}
+      }
+    } finally {
+      clearTimeout(overallTimer);
     }
   };
 
@@ -3980,35 +3987,43 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const BATCH_CONCURRENCY = 14;
     let activeWorkers = 0;
     let completedMapTasks = 0;
+    let nextTaskIndex = 0;
+    let lastProgressEmitMs = 0;
 
-    // Process ALL tasks and dynamically added QuadTree subdivisions via 14-way parallel Promise pool with strict worker & queue tracking
-    for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
-      if (isAborted()) break;
-      const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
-      activeWorkers += batch.length;
-      await Promise.all(batch.map(async (t) => {
-        try {
-          await executeSingleMapTask(t);
-        } finally {
-          activeWorkers = Math.max(0, activeWorkers - 1);
-          completedMapTasks++;
-        }
-      }));
+    // Immediately broadcast initial coarse QuadTree grid count (0 / N) BEFORE any worker request finishes
+    // so the UI populates "الخلايا: 0 / N" instantly and never appears frozen at "0 / 0"!
+    const initialTotalCells = Math.max(queryTasks.length, 1);
+    sendEvent('quadtree_progress', {
+      scannedCells: 0,
+      totalCells: initialTotalCells,
+      pendingCells: initialTotalCells,
+      activeWorkers: Math.min(BATCH_CONCURRENCY, initialTotalCells),
+      subdividedCells: quadtreeSubdividedCells,
+      googleCount: googleExtractedCount,
+      osmCount: osmExtractedCount,
+      deduplicatedTotal: fetchedCount
+    });
+    sendEvent('progress', {
+      current: 0,
+      total: initialTotalCells,
+      scannedCells: 0,
+      totalCells: initialTotalCells,
+      pendingCells: initialTotalCells,
+      activeWorkers: Math.min(BATCH_CONCURRENCY, initialTotalCells),
+      subdividedCells: quadtreeSubdividedCells,
+      googleCount: googleExtractedCount,
+      osmCount: osmExtractedCount,
+      deduplicatedTotal: fetchedCount
+    });
 
+    const emitStreamingProgress = (force = false) => {
+      const nowMs = Date.now();
+      if (!force && nowMs - lastProgressEmitMs < 250) return;
+      lastProgressEmitMs = nowMs;
       const effectiveScanned = Math.max(quadtreeScannedCells, completedMapTasks);
       const effectiveTotal = Math.max(quadtreeTotalCells, queryTasks.length, effectiveScanned);
       const pendingCells = Math.max(0, effectiveTotal - effectiveScanned);
-      sendEvent('quadtree_progress', {
-        scannedCells: effectiveScanned,
-        totalCells: effectiveTotal,
-        pendingCells,
-        activeWorkers,
-        subdividedCells: quadtreeSubdividedCells,
-        googleCount: googleExtractedCount,
-        osmCount: osmExtractedCount,
-        deduplicatedTotal: fetchedCount
-      });
-      sendEvent('progress', {
+      const payload = {
         current: effectiveScanned,
         total: effectiveTotal,
         scannedCells: effectiveScanned,
@@ -4019,14 +4034,42 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         googleCount: googleExtractedCount,
         osmCount: osmExtractedCount,
         deduplicatedTotal: fetchedCount
-      });
+      };
+      sendEvent('quadtree_progress', payload);
+      sendEvent('progress', payload);
+    };
 
-      if (i + BATCH_CONCURRENCY < queryTasks.length) {
-        await sleep(15);
+    // True Continuous Streaming Worker Pool (14 independent workers):
+    // As soon as ANY single worker finishes a cell, results & progress stream immediately (never waiting for a slow peer in a batch!)
+    const runWorker = async () => {
+      while (!isAborted()) {
+        if (nextTaskIndex >= queryTasks.length) {
+          // Wait briefly if sibling workers are still subdividing dense cells into queryTasks
+          if (activeWorkers > 0) {
+            await sleep(40);
+            continue;
+          }
+          break;
+        }
+        const task = queryTasks[nextTaskIndex++];
+        if (!task) continue;
+        activeWorkers++;
+        try {
+          await executeSingleMapTask(task);
+        } finally {
+          activeWorkers = Math.max(0, activeWorkers - 1);
+          completedMapTasks++;
+          // Force immediate progress emit on the first 5 completed cells so UI jumps off 0% within 1-2 seconds!
+          emitStreamingProgress(completedMapTasks <= 5);
+        }
       }
-    }
+    };
 
-    await overpassPromise;
+    const workerCount = Math.min(BATCH_CONCURRENCY, Math.max(queryTasks.length, 1));
+    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+    // Non-blocking background Overpass settle with strict 12000ms cap so Overpass can never stall completion
+    await Promise.race([overpassPromise.catch(() => {}), sleep(12000)]);
     const finalTotalCells = Math.max(quadtreeTotalCells, queryTasks.length, completedMapTasks, 1);
     sendEvent('quadtree_progress', {
       scannedCells: finalTotalCells,

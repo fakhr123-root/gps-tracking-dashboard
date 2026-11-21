@@ -4846,57 +4846,132 @@ function purgeFakeHardcodedCoordsFromPersistedStore() {
       for (const acc of Object.values(logs.savedAccounts)) cleanRecordCoords(acc);
     }
 
-    // Also detect & clean IP-collision coordinate bleed: if an offline user (@kalif, @3, @2, @medoyas, etc.)
-    // has identical lat/lon to @1 due to previous IP-collision, restore their own distinct historical coord or reset to null
-    const admin1Acc = logs.savedAccounts?.['1'] || (logs.visitors || []).find(v => v && normalizeIgUsername(v.username || v.visitorName || '') === '1');
-    const ref1Lat = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng) ? Number(admin1Acc.lat) : null;
-    const ref1Lng = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng) ? Number(admin1Acc.lng) : null;
+    // Detect & wipe IP-collision coordinate bleed: if any offline user (@kalif, @2, @3, @medoyas, etc.)
+    // has coordinates within 50 meters of @1 due to the previous IP-collision bug, wipe them to null.
+    purgedCount += wipeOfflineUserCollisionsWithUser1(logs);
 
-    if (ref1Lat !== null && ref1Lng !== null) {
-      const isCollidedWithUser1 = (la, ln) => {
-        const a = Number(la), b = Number(ln);
-        if (!isFinite(a) || !isFinite(b)) return false;
-        return Math.abs(a - ref1Lat) < 0.0001 && Math.abs(b - ref1Lng) < 0.0001;
-      };
-      const cleanBleedForOtherUser = (rawU, rec) => {
-        if (!rec || typeof rec !== 'object') return;
-        const cleanU = normalizeIgUsername(rawU || rec.username || rec.visitorName || '');
-        if (!cleanU || cleanU === '1') return;
-        if (isCollidedWithUser1(rec.lat, rec.lng ?? rec.lon)) {
-          if (Array.isArray(rec.movementHistory)) {
-            rec.movementHistory = rec.movementHistory.filter(pt => pt && isValidNonZeroCoord(pt.lat, pt.lng ?? pt.lon) && !isCollidedWithUser1(pt.lat, pt.lng ?? pt.lon));
-          }
-          const ownLastValid = Array.isArray(rec.movementHistory) && rec.movementHistory.length > 0
-            ? rec.movementHistory[rec.movementHistory.length - 1]
-            : null;
-          if (ownLastValid && isValidNonZeroCoord(ownLastValid.lat, ownLastValid.lng ?? ownLastValid.lon)) {
-            rec.lat = Number(ownLastValid.lat);
-            rec.lng = Number(ownLastValid.lng ?? ownLastValid.lon);
-          } else {
-            rec.lat = null;
-            rec.lng = null;
-            if ('lon' in rec) rec.lon = null;
-          }
-          purgedCount++;
-        }
-      };
-      if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
-        for (const [k, acc] of Object.entries(logs.savedAccounts)) cleanBleedForOtherUser(k, acc);
-      }
-      if (Array.isArray(logs.visitors)) {
-        for (const v of logs.visitors) {
-          if (v && !v.isDeviceIpAutoAuth) cleanBleedForOtherUser(v.username || v.visitorName, v);
-        }
+    // Deduplicate logs.visitors strictly to ONE record per unique username on startup
+    if (Array.isArray(logs.visitors) && logs.visitors.length > 0) {
+      const beforeLen = logs.visitors.length;
+      logs.visitors = deduplicateVisitorsByUsernameStrict(logs.visitors);
+      if (logs.visitors.length !== beforeLen) {
+        purgedCount += Math.abs(beforeLen - logs.visitors.length);
       }
     }
 
     if (purgedCount > 0) {
       saveAdminLogs(logs);
-      console.log(`🧹 Purged ${purgedCount} fake/collided coordinates from persisted store on startup.`);
+      console.log(`🧹 Purged ${purgedCount} fake/collided/duplicate user records from persisted store on startup.`);
     }
   } catch (e) {
     console.warn('Startup fake-coord purge skipped:', e.message);
   }
+}
+
+// Strictly deduplicate logs.visitors so there is at most ONE active record per unique normalized username
+// (merges latest active session metadata onto the single canonical record).
+function deduplicateVisitorsByUsernameStrict(visitors = []) {
+  if (!Array.isArray(visitors)) return [];
+  const sorted = [...visitors].sort((a, b) => {
+    const tA = new Date(a?.lastHeartbeatAt || a?.lastSeen || a?.firstSeen || 0).getTime() || 0;
+    const tB = new Date(b?.lastHeartbeatAt || b?.lastSeen || b?.firstSeen || 0).getTime() || 0;
+    return tB - tA;
+  });
+  const byUser = new Map();
+  const anonList = [];
+  for (const v of sorted) {
+    if (!v || typeof v !== 'object') continue;
+    const rawName = String(v.visitorName || '').trim();
+    const cleanU = normalizeIgUsername(v.username || (!rawName.includes('•') ? rawName : ''));
+    if (!v.isDeviceIpAutoAuth && cleanU && VALID_IG_USERNAME_REGEX.test(cleanU) && !rawName.includes('•')) {
+      if (!byUser.has(cleanU)) {
+        byUser.set(cleanU, {
+          ...v,
+          id: `user_${cleanU}`,
+          username: `@${cleanU}`,
+          visitorName: `@${cleanU}`,
+          isDeviceIpAutoAuth: false
+        });
+      }
+    } else {
+      anonList.push(v);
+    }
+  }
+  return [...byUser.values(), ...anonList];
+}
+
+// Inspect all stored user records: if any offline user (or unauthenticated guest) has coordinates within 50m of @1
+// caused by the earlier IP-collision bug, immediately wipe/nullify those corrupted coordinates (lat: null, lng: null).
+function wipeOfflineUserCollisionsWithUser1(logs) {
+  if (!logs || typeof logs !== 'object') return 0;
+  let wipedCount = 0;
+  const nowMs = Date.now();
+
+  const admin1Acc = logs.savedAccounts?.['1'] || (logs.visitors || []).find(v => v && !v.isDeviceIpAutoAuth && normalizeIgUsername(v.username || v.visitorName || '') === '1');
+  const ref1Lat = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng ?? admin1Acc.lon) ? Number(admin1Acc.lat) : null;
+  const ref1Lng = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng ?? admin1Acc.lon) ? Number(admin1Acc.lng ?? admin1Acc.lon) : null;
+  if (ref1Lat === null || ref1Lng === null) return 0;
+
+  const isWithin50mOfUser1 = (la, ln) => {
+    const a = Number(la), b = Number(ln);
+    if (!isFinite(a) || !isFinite(b) || (Math.abs(a) < 0.0001 && Math.abs(b) < 0.0001)) return false;
+    return haversineMetersBetween(a, b, ref1Lat, ref1Lng) <= 50;
+  };
+
+  const isRecordOnlineNow = (rec) => {
+    if (!rec || typeof rec !== 'object') return false;
+    const rawConn = String(rec.status || rec.connectionStatus || rec.liveStatus || '').trim().toLowerCase();
+    if (rawConn === 'gps_off' || rawConn === 'gps_disabled' || rawConn === 'exited' || rec.gpsEnabled === false) return false;
+    const lastMs = Math.max(
+      typeof rec.lastSeen === 'number' ? rec.lastSeen : (rec.lastSeen ? new Date(rec.lastSeen).getTime() : 0),
+      typeof rec.lastSeenMs === 'number' ? rec.lastSeenMs : 0,
+      rec.lastHeartbeatAt ? new Date(rec.lastHeartbeatAt).getTime() : 0
+    );
+    return lastMs > 0 && (nowMs - lastMs) < 45000;
+  };
+
+  const wipeIfCollided = (rawU, rec, isGuest = false) => {
+    if (!rec || typeof rec !== 'object') return;
+    const cleanU = normalizeIgUsername(rawU || rec.username || rec.visitorName || '');
+    if (!isGuest && cleanU === '1') return;
+
+    const onlineNow = isRecordOnlineNow(rec);
+    // Wipe offline users (or offline guest entries) whose coordinates are within 50m of @1
+    if (!onlineNow && isWithin50mOfUser1(rec.lat, rec.lng ?? rec.lon)) {
+      rec.lat = null;
+      rec.lng = null;
+      if ('lon' in rec) rec.lon = null;
+      wipedCount++;
+    }
+    if (!onlineNow && Array.isArray(rec.movementHistory)) {
+      const before = rec.movementHistory.length;
+      rec.movementHistory = rec.movementHistory.filter(pt => pt && !isWithin50mOfUser1(pt.lat, pt.lng ?? pt.lon));
+      if (rec.movementHistory.length !== before) wipedCount++;
+    }
+    if (!onlineNow && Array.isArray(rec.previousLogs)) {
+      for (const snap of rec.previousLogs) {
+        if (snap && isWithin50mOfUser1(snap.lat, snap.lng ?? snap.lon)) {
+          snap.lat = null;
+          snap.lng = null;
+          if ('lon' in snap) snap.lon = null;
+          wipedCount++;
+        }
+      }
+    }
+  };
+
+  if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
+    for (const [k, acc] of Object.entries(logs.savedAccounts)) {
+      wipeIfCollided(k, acc, false);
+    }
+  }
+  if (Array.isArray(logs.visitors)) {
+    for (const v of logs.visitors) {
+      if (!v) continue;
+      wipeIfCollided(v.username || v.visitorName, v, Boolean(v.isDeviceIpAutoAuth));
+    }
+  }
+  return wipedCount;
 }
 
 // Reject 0,0, NaN, null, out-of-range, or hardcoded placeholder coordinates so a user's real GPS position is NEVER overwritten!
@@ -5385,8 +5460,9 @@ function reconcileAllUsersAndVisitors(logs, fallbackRealIp = '') {
 // Consolidate duplicate visitor entries (registered users strictly by normalized @username; anonymous guests by IP/device)
 function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = {}) {
   if (logsMeta && typeof logsMeta === 'object') {
-    logsMeta.visitors = visitors;
+    logsMeta.visitors = deduplicateVisitorsByUsernameStrict(visitors);
     reconcileAllUsersAndVisitors(logsMeta, fallbackRealIp);
+    wipeOfflineUserCollisionsWithUser1(logsMeta);
     visitors = logsMeta.visitors;
   }
 
@@ -5474,19 +5550,16 @@ function consolidateVisitorsList(visitors = [], fallbackRealIp = '', logsMeta = 
           });
         }
       }
-      const snapWithValidCoords = Array.isArray(item.previousLogs)
-        ? item.previousLogs.find(sn => sn && isValidNonZeroCoord(sn.lat, sn.lng))
-        : null;
       const resolvedLat = isValidNonZeroCoord(item.lat, item.lng)
         ? Number(item.lat)
         : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng)
             ? Number(savedAcc.lat)
-            : (snapWithValidCoords ? Number(snapWithValidCoords.lat) : null));
+            : null);
       const resolvedLng = isValidNonZeroCoord(item.lat, item.lng)
         ? Number(item.lng)
         : (isValidNonZeroCoord(savedAcc.lat, savedAcc.lng)
             ? Number(savedAcc.lng)
-            : (snapWithValidCoords ? Number(snapWithValidCoords.lng) : null));
+            : null);
       const latestHeartbeatMs = Math.max(
         new Date(item.lastHeartbeatAt || 0).getTime() || 0,
         new Date(savedAcc.lastHeartbeatAt || 0).getTime() || 0,
@@ -6894,6 +6967,14 @@ const server = http.createServer(async (req, res) => {
   // Detailed Isolated Users Last Session & Coordinates Log Endpoint (GET /api/admin/users-sessions)
   if (pathname === '/api/admin/users-sessions' && req.method === 'GET') {
     const logs = loadAdminLogs();
+    const wipedCollisions = wipeOfflineUserCollisionsWithUser1(logs);
+    const beforeDedupLen = Array.isArray(logs.visitors) ? logs.visitors.length : 0;
+    if (Array.isArray(logs.visitors)) {
+      logs.visitors = deduplicateVisitorsByUsernameStrict(logs.visitors);
+    }
+    if (wipedCollisions > 0 || (Array.isArray(logs.visitors) && logs.visitors.length !== beforeDedupLen)) {
+      saveAdminLogs(logs);
+    }
     const serverNowMs = Date.now();
     const accountMap = new Map();
 
@@ -6993,6 +7074,22 @@ const server = http.createServer(async (req, res) => {
       for (const v of logs.visitors) {
         if (!v || v.isDeviceIpAutoAuth) continue;
         mergeIsolatedUserRecord(v.username || v.visitorName, v);
+      }
+    }
+
+    const user1Session = accountMap.get('1');
+    if (user1Session && isValidNonZeroCoord(user1Session.lastLat, user1Session.lastLon)) {
+      for (const [uKey, sess] of accountMap.entries()) {
+        if (uKey === '1' || sess.isOnline) continue;
+        if (isValidNonZeroCoord(sess.lastLat, sess.lastLon)) {
+          const distM = haversineMetersBetween(sess.lastLat, sess.lastLon, user1Session.lastLat, user1Session.lastLon);
+          if (distM <= 50) {
+            sess.lastLat = null;
+            sess.lastLon = null;
+            sess.lastLocationName = 'بانتظار التقاط GPS حقيقي';
+            sess.neighborhood = 'غير محدد بعد';
+          }
+        }
       }
     }
 

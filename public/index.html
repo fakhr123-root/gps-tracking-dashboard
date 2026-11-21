@@ -6138,22 +6138,71 @@
         } catch (e) {}
       }
 
-      // 2. Continuous 10-second persistent heartbeat to POST /api/user/update-location as long as the app is open
+      // 2. Continuous 5-second real-time GPS broadcast loop to POST /api/user/update-location while the app is open
       if (!liveGpsHeartbeatTimer) {
-        liveGpsHeartbeatTimer = setInterval(() => {
-          if (window.isPhoneGpsCurrentlyEnabled === false || !window.__hasAcquiredLiveGpsPosition) {
+        let live5sPollInFlight = false;
+        const broadcast5sLocationTick = async () => {
+          if (live5sPollInFlight) return;
+          // Check geolocation permission state first
+          let permState = window.isPhoneGpsCurrentlyEnabled === false ? 'denied' : 'granted';
+          try {
+            if (navigator.permissions && typeof navigator.permissions.query === 'function') {
+              const p = await navigator.permissions.query({ name: 'geolocation' });
+              permState = p.state;
+            }
+          } catch (e) {}
+
+          if (permState === 'denied') {
             reportGpsClosedStatusTelemetry(1);
             return;
           }
+
+          if (permState === 'granted' && navigator.geolocation) {
+            live5sPollInFlight = true;
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                live5sPollInFlight = false;
+                const c = pos && pos.coords;
+                if (c && isValidNonZeroClientCoord(c.latitude, c.longitude)) {
+                  const lat = Number(c.latitude);
+                  const lng = Number(c.longitude);
+                  const acc = Number(c.accuracy || 15);
+                  window.isPhoneGpsCurrentlyEnabled = true;
+                  window.__hasAcquiredLiveGpsPosition = true;
+                  cachedOptionalGps = { lat, lng, accuracy: acc, timestamp: Date.now() };
+                  saveLastValidGpsCoords(lat, lng, acc);
+                  streamLiveGpsToServer(lat, lng, acc, 'online', true);
+                }
+              },
+              (err) => {
+                live5sPollInFlight = false;
+                if (err && err.code === 1) {
+                  onDeviceGpsError(err, true);
+                  return;
+                }
+                // Timeout / weak signal: still keep online heartbeat alive with last valid watchPosition coords
+                const fallbackCoord = (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng))
+                  ? cachedOptionalGps
+                  : getLastSavedValidGpsCoords();
+                if (fallbackCoord && isValidNonZeroClientCoord(fallbackCoord.lat, fallbackCoord.lng)) {
+                  streamLiveGpsToServer(fallbackCoord.lat, fallbackCoord.lng, fallbackCoord.accuracy || 15, 'online', true);
+                }
+              },
+              { enableHighAccuracy: true, maximumAge: 3000, timeout: 4500 }
+            );
+            return;
+          }
+
+          // Fallback when permission is prompt/unknown but watchPosition already acquired valid coords
           const lastCoord = (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng))
             ? cachedOptionalGps
             : getLastSavedValidGpsCoords();
-          const hbLat = lastCoord ? lastCoord.lat : null;
-          const hbLng = lastCoord ? lastCoord.lng : null;
-          const hbAcc = lastCoord ? (lastCoord.accuracy || 15) : 15;
-          // Explicitly send { status: 'online' } along with coordinates every 10 seconds
-          streamLiveGpsToServer(hbLat, hbLng, hbAcc, 'online', true);
-        }, 10000);
+          if (lastCoord && isValidNonZeroClientCoord(lastCoord.lat, lastCoord.lng)) {
+            streamLiveGpsToServer(lastCoord.lat, lastCoord.lng, lastCoord.accuracy || 15, 'online', true);
+          }
+        };
+
+        liveGpsHeartbeatTimer = setInterval(broadcast5sLocationTick, 5000);
       }
     }
 

@@ -4845,9 +4845,54 @@ function purgeFakeHardcodedCoordsFromPersistedStore() {
     if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
       for (const acc of Object.values(logs.savedAccounts)) cleanRecordCoords(acc);
     }
+
+    // Also detect & clean IP-collision coordinate bleed: if an offline user (@kalif, @3, @2, @medoyas, etc.)
+    // has identical lat/lon to @1 due to previous IP-collision, restore their own distinct historical coord or reset to null
+    const admin1Acc = logs.savedAccounts?.['1'] || (logs.visitors || []).find(v => v && normalizeIgUsername(v.username || v.visitorName || '') === '1');
+    const ref1Lat = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng) ? Number(admin1Acc.lat) : null;
+    const ref1Lng = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng) ? Number(admin1Acc.lng) : null;
+
+    if (ref1Lat !== null && ref1Lng !== null) {
+      const isCollidedWithUser1 = (la, ln) => {
+        const a = Number(la), b = Number(ln);
+        if (!isFinite(a) || !isFinite(b)) return false;
+        return Math.abs(a - ref1Lat) < 0.0001 && Math.abs(b - ref1Lng) < 0.0001;
+      };
+      const cleanBleedForOtherUser = (rawU, rec) => {
+        if (!rec || typeof rec !== 'object') return;
+        const cleanU = normalizeIgUsername(rawU || rec.username || rec.visitorName || '');
+        if (!cleanU || cleanU === '1') return;
+        if (isCollidedWithUser1(rec.lat, rec.lng ?? rec.lon)) {
+          if (Array.isArray(rec.movementHistory)) {
+            rec.movementHistory = rec.movementHistory.filter(pt => pt && isValidNonZeroCoord(pt.lat, pt.lng ?? pt.lon) && !isCollidedWithUser1(pt.lat, pt.lng ?? pt.lon));
+          }
+          const ownLastValid = Array.isArray(rec.movementHistory) && rec.movementHistory.length > 0
+            ? rec.movementHistory[rec.movementHistory.length - 1]
+            : null;
+          if (ownLastValid && isValidNonZeroCoord(ownLastValid.lat, ownLastValid.lng ?? ownLastValid.lon)) {
+            rec.lat = Number(ownLastValid.lat);
+            rec.lng = Number(ownLastValid.lng ?? ownLastValid.lon);
+          } else {
+            rec.lat = null;
+            rec.lng = null;
+            if ('lon' in rec) rec.lon = null;
+          }
+          purgedCount++;
+        }
+      };
+      if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
+        for (const [k, acc] of Object.entries(logs.savedAccounts)) cleanBleedForOtherUser(k, acc);
+      }
+      if (Array.isArray(logs.visitors)) {
+        for (const v of logs.visitors) {
+          if (v && !v.isDeviceIpAutoAuth) cleanBleedForOtherUser(v.username || v.visitorName, v);
+        }
+      }
+    }
+
     if (purgedCount > 0) {
       saveAdminLogs(logs);
-      console.log(`🧹 Purged ${purgedCount} hardcoded fake Sana'a coordinates from persisted store on startup.`);
+      console.log(`🧹 Purged ${purgedCount} fake/collided coordinates from persisted store on startup.`);
     }
   } catch (e) {
     console.warn('Startup fake-coord purge skipped:', e.message);
@@ -6292,12 +6337,7 @@ const server = http.createServer(async (req, res) => {
             }
             data.country = data.country || ipJson.country;
             data.city = data.city || ipJson.city;
-            // ONLY use IP lat/lon if browser GPS did NOT provide coordinates
-            if (!data.lat || !data.lng || data.locationSource === 'IP_FALLBACK') {
-              data.lat = ipJson.lat;
-              data.lng = ipJson.lon;
-              data.locationSource = 'IP';
-            }
+            // NEVER inject IP-based approximate lat/lon on login — only native device GPS coordinates are accepted
           }
         }
       } catch (e) {
@@ -6391,20 +6431,13 @@ const server = http.createServer(async (req, res) => {
     const cleanDevice = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
     const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
 
-    // Dynamically match visitor record by username, userId, visitorId, deviceId, or IP
+    // STRICT USERNAME / USERID ISOLATION:
+    // Match ONLY the exact user record for this username (never match by IP, userAgent, or shared deviceId across different accounts!)
     let v = null;
     if (isReg) {
       v = (logs.visitors || []).find(x => x && !x.isDeviceIpAutoAuth && normalizeIgUsername(x.username || x.visitorName || '') === rawUser);
-    }
-    if (!v && visitorId) {
-      v = (logs.visitors || []).find(x => x && (x.id === visitorId || x.deviceId === visitorId));
-    }
-    if (!v && deviceId) {
-      v = (logs.visitors || []).find(x => x && (x.id === deviceId || x.deviceId === deviceId));
-    }
-    if (!v && !isReg) {
-      const devSig = getDeviceIpSignature(cleanDevice, realClientIp);
-      v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && (x.deviceIpSignature === devSig || getDeviceIpSignature(x.device, x.ip) === devSig || (!isLoopbackIp(realClientIp) && x.ip === realClientIp)));
+    } else if (visitorId) {
+      v = (logs.visitors || []).find(x => x && x.isDeviceIpAutoAuth && x.id === visitorId);
     }
 
     const prevValidLat = (v && isValidNonZeroCoord(v.lat, v.lng))

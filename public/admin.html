@@ -1052,6 +1052,16 @@
               if (rawSt !== 'gps_off' && rawSt !== 'gps_disabled' && rawSt !== 'exited' && v.gpsEnabled !== false) {
                 visitorSseReceivedAtMap.set(vKey, Date.now());
               }
+              // Strict per-username marker binding: immediately move ONLY the exact marker belonging to this username/id
+              try {
+                const strictKey = typeof getStrictMarkerKeyForVisitor === 'function' ? getStrictMarkerKeyForVisitor(v) : null;
+                if (strictKey && visitorMarkersByKey && visitorMarkersByKey.has(strictKey) && isValidAdminNonZeroCoord(v.lat, v.lng)) {
+                  const targetMarker = visitorMarkersByKey.get(strictKey);
+                  if (targetMarker && typeof targetMarker.setLatLng === 'function') {
+                    targetMarker.setLatLng([Number(v.lat), Number(v.lng)]);
+                  }
+                }
+              } catch (e) {}
               const prevState = lastVisitorLiveStateMap.get(vKey);
               const nextMeta = getVisitorLiveStatusMeta(v);
               lastVisitorLiveStateMap.set(vKey, nextMeta.state);
@@ -2276,10 +2286,22 @@
     }
 
     // Render Glowing Concentric Radar Rings + Movement Trail Polylines on Map
+    const visitorMarkersByKey = new Map();
+
+    function getStrictMarkerKeyForVisitor(v) {
+      if (!v) return '';
+      const cleanU = String(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+      if (cleanU && !v.isDeviceIpAutoAuth && ADMIN_VALID_USERNAME_REGEX.test(cleanU)) {
+        return `user:${cleanU}`;
+      }
+      return v.id ? `id:${v.id}` : '';
+    }
+
     function renderMapPins(visitors = []) {
       if (!adminMap) return;
       visitorMarkers.forEach(m => adminMap.removeLayer(m));
       visitorMarkers = [];
+      visitorMarkersByKey.clear();
       movementTrailLayers.forEach(l => adminMap.removeLayer(l));
       movementTrailLayers = [];
 
@@ -2288,6 +2310,8 @@
 
       visitors.forEach((v, idx) => {
         if (!v) return;
+        const markerKey = getStrictMarkerKeyForVisitor(v);
+        if (!markerKey || visitorMarkersByKey.has(markerKey)) return;
         const hasValidCoords = isValidAdminNonZeroCoord(v.lat, v.lng);
         const prevValidSnap = (!hasValidCoords && Array.isArray(v.previousLogs))
           ? v.previousLogs.find(sn => sn && isValidAdminNonZeroCoord(sn.lat, sn.lng))
@@ -2414,9 +2438,11 @@
         marker.on('click', () => {
           focusedMovementTrailVisitorId = v.id;
           updateMovementTrailUiButton();
-          inspectVisitor(idx);
+          const currentIdx = (currentAdminData.visitors || []).findIndex(item => getStrictMarkerKeyForVisitor(item) === markerKey);
+          inspectVisitor(currentIdx >= 0 ? currentIdx : idx);
         });
         visitorMarkers.push(marker);
+        visitorMarkersByKey.set(markerKey, marker);
       });
 
       if (!hasCenteredMapOnce && visitors.length > 0 && visitors[0].lat && visitors[0].lng) {

@@ -31,7 +31,8 @@
   <script defer src="/js/excel-export-helper.js"></script>
 
   <style>
-    * {
+    *, *::before, *::after {
+      box-sizing: border-box;
       font-family: 'Cairo', system-ui, sans-serif;
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none;
@@ -42,6 +43,8 @@
       -webkit-overflow-scrolling: touch;
       user-select: none;
       -webkit-user-select: none;
+      font-size: 14px;
+      zoom: 1;
     }
     input, textarea, select, .font-num {
       user-select: text;
@@ -373,91 +376,87 @@
           <!-- Real-Time Radar Event Notification Stack (Top Center) -->
           <div id="adminRadarAlertStack" class="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md"></div>
 
-          <!-- Compact Floating Glassmorphic "Visitor Inspector" -->
-          <div id="visitorInspectorDrawer" class="inspector-glass absolute top-2.5 bottom-2.5 left-2.5 z-[400] w-[250px] sm:w-[295px] rounded-xl p-3 flex flex-col justify-between overflow-hidden" dir="rtl">
-            
-            <div class="shrink-0">
-              <div class="flex items-center justify-between pb-2 border-b border-slate-700/70">
-                <h4 class="text-xs font-bold text-white tracking-wide">فاحص الزائر المباشر</h4>
-                <button type="button" onclick="document.getElementById('visitorInspectorDrawer').classList.toggle('hidden')" class="text-slate-400 hover:text-white cursor-pointer">
+          <!-- Clean, Spacious Floating Glassmorphic Radar Sidebar -->
+          <div id="visitorInspectorDrawer" class="inspector-glass absolute top-3 bottom-3 left-3 z-[400] w-[285px] sm:w-[325px] max-w-[calc(100%-24px)] rounded-2xl p-3 flex flex-col gap-4 overflow-y-auto" dir="rtl">
+
+            <!-- CARD 1: Live Visitor Inspector (فاحص الزائر المباشر) -->
+            <div class="bg-slate-950/60 border border-slate-700/60 rounded-xl p-3 space-y-3 shrink-0">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                <h4 class="text-xs font-extrabold text-white tracking-wide flex items-center gap-1.5">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                  <span>فاحص الزائر المباشر</span>
+                </h4>
+                <button type="button" onclick="document.getElementById('visitorInspectorDrawer').classList.toggle('hidden')" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer transition" title="إخفاء اللوحة">
                   <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 </button>
               </div>
 
-              <!-- Quick User Search Bar & Directory List -->
-              <div class="py-2 border-b border-slate-700/60 space-y-1.5">
-                <div class="relative">
-                  <input
-                    id="radarUserSearchInput"
-                    type="text"
-                    oninput="renderRadarUserDirectory(this.value)"
-                    placeholder="🔍 ابحث عن اسم مستخدم (مثل @kalif)..."
-                    class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-emerald-500/40 focus:border-cyan-400 focus:outline-none text-[11px] text-white placeholder-slate-400 font-bold"
-                    autocomplete="off"
-                  />
-                </div>
-                <div id="radarUserDirectoryList" class="max-h-[108px] overflow-y-auto space-y-1 pr-0.5"></div>
+              <!-- Clean User Search Input & Compact Scannable Directory -->
+              <div class="space-y-2">
+                <input
+                  id="radarUserSearchInput"
+                  type="text"
+                  oninput="renderRadarUserDirectory(this.value)"
+                  placeholder="🔍 ابحث عن اسم مستخدم (مثل @kalif)..."
+                  class="w-full px-3 py-2 rounded-lg bg-slate-900/95 border border-slate-700 focus:border-cyan-400 focus:outline-none text-xs text-white placeholder-slate-400 font-semibold transition"
+                  autocomplete="off"
+                />
+                <div id="radarUserDirectoryList" class="max-h-[132px] overflow-y-auto space-y-1.5 pr-0.5"></div>
               </div>
 
-              <!-- Selected Visitor Profile Row -->
-              <div class="flex items-center justify-between py-2 border-b border-slate-700/60">
-                <div class="flex items-center gap-2 min-w-0">
-                  <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-xs shrink-0">
-                    👤
-                  </div>
-                  <div class="min-w-0">
-                    <div id="inspVisitorName" class="text-xs font-black text-white truncate">زائر نشط</div>
-                    <div id="inspVisitorSub" class="text-[10px] text-slate-400 truncate">جلسة نشطة الآن</div>
-                  </div>
-                </div>
-                <a id="inspGmapsLink" href="#" target="_blank" class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 flex items-center justify-center shrink-0" title="فتح في خرائط جوجل">
-                  <i data-lucide="info" class="w-3 h-3"></i>
-                </a>
-              </div>
-
-              <!-- Telemetry Specs -->
-              <div class="py-2 space-y-1.5 border-b border-slate-700/60 text-right">
-                <div class="flex items-start gap-2">
-                  <i data-lucide="smartphone" class="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0"></i>
-                  <div class="min-w-0">
-                    <div class="text-[9px] text-slate-400">الجهاز وآخر ظهور</div>
-                    <div id="inspDevice" class="text-[11px] font-bold text-white truncate">هاتف ذكي / كمبيوتر</div>
-                    <div id="inspLastSeen" class="text-[10px] font-num text-cyan-300/90 truncate">—</div>
-                  </div>
-                </div>
-
-                <div class="flex items-start gap-2">
-                  <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0"></i>
-                  <div class="min-w-0 flex-1">
-                    <div class="text-[9px] text-slate-400">إحداثيات GPS (Lat, Lng)</div>
-                    <div class="flex items-center gap-1.5 justify-between">
-                      <div id="inspCoords" class="text-[11px] font-num font-bold text-white" dir="ltr">بانتظار GPS...</div>
-                      <button type="button" id="inspCopyCoordsBtn" onclick="copyAdminCoords(document.getElementById('inspCoords').innerText)" class="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 text-[9px] font-bold cursor-pointer">نسخ 📋</button>
+              <!-- Selected User Inspector Card -->
+              <div class="bg-slate-900/85 border border-slate-700/70 rounded-xl p-3 space-y-2.5">
+                <!-- User Header -->
+                <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-xs shrink-0">
+                      👤
                     </div>
-                    <div id="inspNoGpsNotice" class="hidden mt-1 px-2 py-1 rounded-md bg-amber-500/15 border border-amber-400/45 text-amber-300 text-[10px] font-bold leading-snug">
-                      ⚠️ هذا الحساب لا يملك إحداثيات GPS صالحة بعد — بانتظار التقاط GPS حقيقي
+                    <div class="min-w-0">
+                      <div id="inspVisitorName" class="text-xs font-black text-white truncate" dir="ltr">زائر نشط</div>
+                      <div id="inspVisitorSub" class="text-[10px] text-slate-400 truncate mt-0.5">جلسة نشطة الآن</div>
                     </div>
                   </div>
+                  <a id="inspGmapsLink" href="#" target="_blank" class="w-7 h-7 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/45 text-emerald-300 flex items-center justify-center shrink-0 transition" title="فتح في خرائط جوجل">
+                    <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+                  </a>
                 </div>
 
-                <div class="flex items-start gap-2">
-                  <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0"></i>
-                  <div class="min-w-0">
-                    <div class="text-[9px] text-slate-400">عنوان IP والحي</div>
-                    <div id="inspIp" class="text-[11px] font-num font-bold text-white" dir="ltr">0.0.0.0</div>
-                    <div id="inspCityBadge" class="text-[10px] text-emerald-400 font-semibold">GPS مباشر ✓</div>
+                <!-- Labeled Row 1: الجهاز وآخر ظهور -->
+                <div class="space-y-0.5">
+                  <div class="text-[10px] font-bold text-slate-400">📱 الجهاز وآخر ظهور</div>
+                  <div id="inspDevice" class="text-[11px] font-bold text-white break-words leading-snug">هاتف ذكي / كمبيوتر</div>
+                  <div id="inspLastSeen" class="text-[10px] font-num text-cyan-300/90 leading-snug">—</div>
+                </div>
+
+                <!-- Labeled Row 2: الإحداثيات (Lat, Lng) + زر نسخ -->
+                <div class="space-y-1 pt-2 border-t border-slate-800/80">
+                  <div class="text-[10px] font-bold text-slate-400">📍 الإحداثيات (Lat, Lng)</div>
+                  <div class="flex items-center justify-between gap-2">
+                    <div id="inspCoords" class="text-[11px] font-num font-bold text-emerald-300 break-all" dir="ltr">بانتظار التقاط GPS حقيقي</div>
+                    <button type="button" id="inspCopyCoordsBtn" onclick="copyAdminCoords(document.getElementById('inspCoords').innerText)" class="px-2 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-200 text-[10px] font-bold cursor-pointer shrink-0 transition">نسخ</button>
                   </div>
+                  <div id="inspNoGpsNotice" class="hidden mt-1 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-400/40 text-amber-300 text-[10px] font-bold leading-relaxed">
+                    ⚠️ هذا الحساب لا يملك إحداثيات GPS صالحة بعد — بانتظار التقاط GPS حقيقي
+                  </div>
+                </div>
+
+                <!-- Labeled Row 3: الحي / الشارع + IP -->
+                <div class="space-y-0.5 pt-2 border-t border-slate-800/80">
+                  <div class="text-[10px] font-bold text-slate-400">🌐 الحي / الشارع + IP</div>
+                  <div id="inspCityBadge" class="text-[11px] font-bold text-emerald-300 break-words leading-snug">—</div>
+                  <div id="inspIp" class="text-[10px] font-num font-semibold text-slate-300" dir="ltr">0.0.0.0</div>
                 </div>
               </div>
             </div>
 
-            <!-- Live Search & Visitor Activity Log Timeline -->
-            <div class="flex-1 flex flex-col min-h-0 pt-1.5">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-[11px] font-bold text-white">السجل المباشر</span>
-                <i data-lucide="chevron-up" class="w-3 h-3 text-slate-400"></i>
+            <!-- CARD 2: Live Feed (السجل المباشر) — Clearly separated with gap-4 -->
+            <div class="bg-slate-950/60 border border-slate-700/60 rounded-xl p-3 flex flex-col gap-2 shrink-0">
+              <div class="flex items-center justify-between pb-1.5 border-b border-slate-700/60">
+                <span class="text-xs font-extrabold text-white">السجل المباشر</span>
+                <span class="text-[10px] text-slate-400 font-semibold">أحدث الأنشطة</span>
               </div>
-              <div id="inspectorLiveTimeline" class="space-y-1.5 overflow-y-auto pr-1 flex-1" dir="rtl"></div>
+              <div id="inspectorLiveTimeline" class="space-y-2 max-h-[210px] overflow-y-auto pr-0.5" dir="rtl"></div>
             </div>
 
           </div>
@@ -1529,22 +1528,22 @@
       box.innerHTML = list.map(u => {
         const dotColor = u.isOnline ? '#10b981' : (u.isGpsOff ? '#ef4444' : '#f59e0b');
         const statusTxt = u.isOnline ? 'نشط' : (u.isGpsOff ? 'أقفل الموقع' : 'خارج التطبيق');
-        const hasCoord = isValidAdminNonZeroCoord(u.lat, u.lng);
+        const badgeCls = u.isOnline
+          ? 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40'
+          : (u.isGpsOff ? 'bg-red-500/15 text-red-300 border-red-400/40' : 'bg-amber-500/15 text-amber-300 border-amber-400/40');
         const safeU = u.cleanU.replace(/'/g, '');
         const isSelected = currentInspectedUsername && currentInspectedUsername === u.cleanU;
         const rowBorderCls = isSelected
-          ? 'bg-emerald-500/20 border-cyan-400/80 shadow-[0_0_12px_rgba(34,211,238,0.22)]'
-          : 'bg-slate-900/80 hover:bg-emerald-500/15 border-slate-800 hover:border-emerald-400/45';
+          ? 'bg-emerald-500/20 border-cyan-400/80 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+          : 'bg-slate-900/90 hover:bg-slate-800/80 border-slate-800 hover:border-emerald-400/40';
         return `
-          <div data-username="${u.username}" onclick="selectAndFlyToRadarUser('${safeU}', true)" class="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border ${rowBorderCls} transition text-right cursor-pointer">
-            <div class="min-w-0 flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full shrink-0" style="background:${dotColor}; box-shadow:0 0 7px ${dotColor};"></span>
-              <div class="min-w-0">
-                <div class="text-[11px] font-black text-white truncate" dir="ltr">${u.username}</div>
-                <div class="text-[9px] text-slate-400 truncate">${u.district} • ${statusTxt}</div>
-              </div>
+          <div data-username="${u.username}" onclick="selectAndFlyToRadarUser('${safeU}', true)" class="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg border ${rowBorderCls} transition text-right cursor-pointer">
+            <div class="min-w-0 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full shrink-0" style="background:${dotColor}; box-shadow:0 0 6px ${dotColor};"></span>
+              <span class="text-xs font-extrabold text-white truncate" dir="ltr">${u.username}</span>
+              <span class="px-1.5 py-0.5 rounded-full border text-[9px] font-bold shrink-0 ${badgeCls}">${statusTxt}</span>
             </div>
-            <button type="button" data-username="${u.username}" onclick="event.stopPropagation(); selectAndFlyToRadarUser('${safeU}', true);" class="px-1.5 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-[9px] font-bold shrink-0 cursor-pointer ${hasCoord ? 'text-cyan-300' : 'text-amber-300'}">${hasCoord ? '📍 عرض' : 'عرض'}</button>
+            <button type="button" data-username="${u.username}" onclick="event.stopPropagation(); selectAndFlyToRadarUser('${safeU}', true);" class="px-2.5 py-1 rounded-md bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/45 text-cyan-200 text-[10px] font-bold shrink-0 cursor-pointer transition">عرض</button>
           </div>
         `;
       }).join('');
@@ -2501,7 +2500,7 @@
       if (!box) return;
 
       const items = [];
-      visitors.slice(0, 12).forEach((v, idx) => {
+      visitors.slice(0, 4).forEach((v, idx) => {
         const cleanU = String(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '').trim().replace(/^@+/, '');
         const userLabel = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
         const liveMeta = getVisitorLiveStatusMeta(v);
@@ -2511,11 +2510,11 @@
           username: (!v.isDeviceIpAutoAuth && cleanU) ? cleanU.toLowerCase() : '',
           displayUsername: userLabel,
           title: `👤 ${userLabel}`,
-          sub: `${liveMeta.markerTag} • ${v.city || 'صنعاء'} • ${v.ip || ''}`,
+          sub: `${liveMeta.markerTag} • ${v.city || 'صنعاء'}`,
           color: liveMeta.markerColor
         });
       });
-      searches.slice(0, 8).forEach((s) => {
+      searches.slice(0, 2).forEach((s) => {
         const cleanSU = String(s.visitorName || '').trim().replace(/^@+/, '');
         const sUserLabel = cleanSU && !cleanSU.includes('•') ? `@${cleanSU}` : (s.visitorName || 'زائر');
         items.push({
@@ -2523,7 +2522,7 @@
           idx: 0,
           username: '',
           displayUsername: '',
-          title: `🔍 ${s.query || 'بحث'} - ${s.targetLocation || 'صنعاء'}`,
+          title: `🔍 ${s.query || 'بحث'} — ${s.targetLocation || 'صنعاء'}`,
           sub: `${sUserLabel} (${s.resultsCount || 0} نتيجة)`,
           color: '#a855f7'
         });
@@ -2534,17 +2533,17 @@
         return;
       }
 
-      box.innerHTML = items.map(item => {
+      box.innerHTML = items.slice(0, 6).map(item => {
         const clickHandler = item.type === 'visitor'
           ? (item.username ? `selectAndFlyToRadarUser('${item.username.replace(/'/g, '')}', true)` : `inspectVisitor(${item.idx}, true)`)
           : '';
         return `
-          <div data-username="${item.displayUsername || ''}" onclick="${clickHandler}" class="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-slate-800/60 cursor-pointer transition border border-transparent hover:border-slate-700">
-            <div class="min-w-0 text-right">
+          <div data-username="${item.displayUsername || ''}" onclick="${clickHandler}" class="flex items-center justify-between gap-2.5 p-2.5 rounded-lg bg-slate-900/75 hover:bg-slate-800/80 cursor-pointer transition border border-slate-800/80 hover:border-slate-700">
+            <div class="min-w-0 text-right space-y-0.5">
               <div class="text-xs font-bold text-white truncate" dir="ltr">${item.title}</div>
               <div class="text-[10px] text-slate-400 truncate">${item.sub}</div>
             </div>
-            <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
+            <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
           </div>
         `;
       }).join('');

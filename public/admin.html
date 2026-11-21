@@ -1002,6 +1002,9 @@
           try {
             const payload = JSON.parse(ev.data);
             if (!payload) return;
+            if (typeof payload.serverNowMs === 'number' && payload.serverNowMs > 0) {
+              adminServerClockOffsetMs = Date.now() - payload.serverNowMs;
+            }
             if (payload.type === 'connected') {
               syncLatestAdminUsersAndSearchesOnReconnect();
               return;
@@ -1009,6 +1012,10 @@
             if (payload.visitor) {
               const v = payload.visitor;
               const vKey = normVisitorKey(v) || v.id;
+              const rawSt = String(v.status || v.connectionStatus || v.liveStatus || '').trim().toLowerCase();
+              if (rawSt !== 'gps_off' && rawSt !== 'gps_disabled' && rawSt !== 'exited' && v.gpsEnabled !== false) {
+                visitorSseReceivedAtMap.set(vKey, Date.now());
+              }
               const prevState = lastVisitorLiveStateMap.get(vKey);
               const nextMeta = getVisitorLiveStatusMeta(v);
               lastVisitorLiveStateMap.set(vKey, nextMeta.state);
@@ -1231,6 +1238,9 @@
       }
     }
 
+    let adminServerClockOffsetMs = 0;
+    const visitorSseReceivedAtMap = new Map();
+
     function getVisitorLastSeenTimestampMs(v) {
       if (!v) return 0;
       const candidates = [
@@ -1247,6 +1257,7 @@
       const lastSeenTs = getVisitorLastSeenTimestampMs(v);
       const rawConn = String((v && (v.status || v.connectionStatus || v.liveStatus)) || '').trim().toLowerCase();
       const isGpsOff = Boolean(v && (rawConn === 'gps_off' || rawConn === 'gps_disabled' || v.gpsEnabled === false));
+      const isExited = Boolean(v && rawConn === 'exited');
 
       if (isGpsOff) {
         const closedRawTs = (v && (v.gpsClosedAt || v.lastHeartbeatAt || v.lastSeen)) || '';
@@ -1267,8 +1278,13 @@
         };
       }
 
-      // Strict 45-second real-time check: if heartbeat arrived within 45s, ALWAYS display "نشط داخل التطبيق" with Green dot (🟢)
-      const isOnline = lastSeenTs > 0 && (Date.now() - lastSeenTs) < 45000;
+      // Clock-skew-proof 45-second real-time check: uses server-aligned clock, server isOnline/inApp flag, and local SSE receive timestamp
+      const alignedNowMs = Date.now() - adminServerClockOffsetMs;
+      const vKey = (typeof normVisitorKey === 'function' ? normVisitorKey(v) : '') || (v && v.id) || '';
+      const sseLocalTs = vKey ? (visitorSseReceivedAtMap.get(vKey) || 0) : 0;
+      const isWithin45sServerClock = lastSeenTs > 0 && (alignedNowMs - lastSeenTs) < 45000 && (alignedNowMs - lastSeenTs) > -60000;
+      const isWithin45sLocalSse = sseLocalTs > 0 && (Date.now() - sseLocalTs) < 45000;
+      const isOnline = !isExited && (v.isOnline === true || v.inApp === true || isWithin45sServerClock || isWithin45sLocalSse);
       if (isOnline) {
         const isBg = Boolean(rawConn === 'background_live');
         const subText = isBg ? 'في الخلفية — GPS شغال' : 'متصل الآن — GPS مباشر';
@@ -1516,8 +1532,9 @@
       const la = Number(lat);
       const ln = Number(lng);
       if (!isFinite(la) || !isFinite(ln)) return true;
-      if (Math.abs(la - 15.3538) < 0.00001 && Math.abs(ln - 44.2058) < 0.00001) return true;
-      if (Math.abs(la - 15.3694) < 0.00001 && Math.abs(ln - 44.1910) < 0.00001) return true;
+      if (Math.abs(la - 15.3538) < 0.001 && Math.abs(ln - 44.2058) < 0.001) return true;
+      if (Math.abs(la - 15.3694) < 0.001 && Math.abs(ln - 44.1910) < 0.001) return true;
+      if (Math.abs(la - 15.3522) < 0.001 && Math.abs(ln - 44.2095) < 0.001) return true;
       return false;
     }
 
@@ -1828,6 +1845,9 @@
         const res = await fetch('/api/admin/data', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
+          if (typeof data.serverNowMs === 'number' && data.serverNowMs > 0) {
+            adminServerClockOffsetMs = Date.now() - data.serverNowMs;
+          }
           const localArch = loadLocalArchive();
 
           // Merge tombstones from both browser and server, but if a visitor is actively present in `data.visitors` (and not in server's `deletedVisitorKeys`), they have logged in anew — so clear their old local tombstone!

@@ -4700,14 +4700,64 @@ function isLoopbackIp(ip = '') {
   return !s || s === '::1' || s === '127.0.0.1' || s === '0.0.0.0' || s === 'localhost';
 }
 
-// Detect legacy hardcoded Sana'a default placeholder coordinates so they never overwrite or block a user's real GPS position
+// Detect legacy hardcoded Sana'a default placeholder coordinates (within 0.001 deg) so they never overwrite or plot fake locations
 function isHardcodedDefaultCoord(lat, lng) {
   const la = Number(lat);
   const ln = Number(lng);
   if (!isFinite(la) || !isFinite(ln)) return true;
-  if (Math.abs(la - 15.3538) < 0.00001 && Math.abs(ln - 44.2058) < 0.00001) return true;
-  if (Math.abs(la - 15.3694) < 0.00001 && Math.abs(ln - 44.1910) < 0.00001) return true;
+  if (Math.abs(la - 15.3538) < 0.001 && Math.abs(ln - 44.2058) < 0.001) return true;
+  if (Math.abs(la - 15.3694) < 0.001 && Math.abs(ln - 44.1910) < 0.001) return true;
+  if (Math.abs(la - 15.3522) < 0.001 && Math.abs(ln - 44.2095) < 0.001) return true;
   return false;
+}
+
+// Purge any stuck fake Sana'a placeholder coordinates from persisted admin_logs.json on server startup
+function purgeFakeHardcodedCoordsFromPersistedStore() {
+  try {
+    const logs = loadAdminLogs();
+    let purgedCount = 0;
+
+    const cleanRecordCoords = (rec) => {
+      if (!rec || typeof rec !== 'object') return;
+      if ((rec.lat !== null && rec.lat !== undefined) || (rec.lng !== null && rec.lng !== undefined) || (rec.lon !== null && rec.lon !== undefined)) {
+        const la = Number(rec.lat);
+        const ln = Number(rec.lng ?? rec.lon);
+        if (isHardcodedDefaultCoord(la, ln)) {
+          rec.lat = null;
+          rec.lng = null;
+          if ('lon' in rec) rec.lon = null;
+          purgedCount++;
+        }
+      }
+      if (Array.isArray(rec.movementHistory)) {
+        const before = rec.movementHistory.length;
+        rec.movementHistory = rec.movementHistory.filter(pt => pt && !isHardcodedDefaultCoord(pt.lat, pt.lng ?? pt.lon));
+        if (rec.movementHistory.length !== before) purgedCount += (before - rec.movementHistory.length);
+      }
+      if (Array.isArray(rec.previousLogs)) {
+        for (const snap of rec.previousLogs) {
+          if (snap && isHardcodedDefaultCoord(snap.lat, snap.lng ?? snap.lon)) {
+            snap.lat = null;
+            snap.lng = null;
+            purgedCount++;
+          }
+        }
+      }
+    };
+
+    if (Array.isArray(logs.visitors)) {
+      for (const v of logs.visitors) cleanRecordCoords(v);
+    }
+    if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
+      for (const acc of Object.values(logs.savedAccounts)) cleanRecordCoords(acc);
+    }
+    if (purgedCount > 0) {
+      saveAdminLogs(logs);
+      console.log(`🧹 Purged ${purgedCount} hardcoded fake Sana'a coordinates from persisted store on startup.`);
+    }
+  } catch (e) {
+    console.warn('Startup fake-coord purge skipped:', e.message);
+  }
 }
 
 // Reject 0,0, NaN, null, out-of-range, or hardcoded placeholder coordinates so a user's real GPS position is NEVER overwritten!
@@ -4726,7 +4776,8 @@ const ADMIN_SSE_CLIENTS = new Set();
 
 function broadcastAdminRadarUpdate(payload) {
   if (ADMIN_SSE_CLIENTS.size === 0) return;
-  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  const enriched = Object.assign({ serverNowMs: Date.now() }, payload || {});
+  const msg = `data: ${JSON.stringify(enriched)}\n\n`;
   for (const clientRes of ADMIN_SSE_CLIENTS) {
     try {
       clientRes.write(msg);
@@ -6323,7 +6374,9 @@ const server = http.createServer(async (req, res) => {
         });
       }
       logs.savedAccounts[rawUser].locationSource = 'GPS';
-      logs.savedAccounts[rawUser].status = isGpsDisabledReport ? 'gps_off' : 'online';
+      logs.savedAccounts[rawUser].status = isGpsDisabledReport ? 'gps_off' : (isExitedReport ? 'exited' : 'online');
+      logs.savedAccounts[rawUser].isOnline = !isGpsDisabledReport && !isExitedReport;
+      logs.savedAccounts[rawUser].inApp = !isGpsDisabledReport && !isExitedReport;
       logs.savedAccounts[rawUser].connectionStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].liveStatus = incomingLiveStatus;
       logs.savedAccounts[rawUser].gpsEnabled = incomingGpsEnabled;
@@ -6372,7 +6425,9 @@ const server = http.createServer(async (req, res) => {
       }
       v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
       v.locationSource = 'GPS';
-      v.status = isGpsDisabledReport ? 'gps_off' : 'online';
+      v.status = isGpsDisabledReport ? 'gps_off' : (isExitedReport ? 'exited' : 'online');
+      v.isOnline = !isGpsDisabledReport && !isExitedReport;
+      v.inApp = !isGpsDisabledReport && !isExitedReport;
       v.connectionStatus = incomingLiveStatus;
       v.liveStatus = incomingLiveStatus;
       v.gpsEnabled = incomingGpsEnabled;
@@ -6414,7 +6469,9 @@ const server = http.createServer(async (req, res) => {
         lng: effLng,
         accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
         locationSource: 'GPS',
-        status: isGpsDisabledReport ? 'gps_off' : 'online',
+        status: isGpsDisabledReport ? 'gps_off' : (isExitedReport ? 'exited' : 'online'),
+        isOnline: !isGpsDisabledReport && !isExitedReport,
+        inApp: !isGpsDisabledReport && !isExitedReport,
         connectionStatus: incomingLiveStatus,
         liveStatus: incomingLiveStatus,
         gpsEnabled: incomingGpsEnabled,
@@ -6928,8 +6985,28 @@ const server = http.createServer(async (req, res) => {
     }).length;
     const todaySearches = logs.searches.filter(s => (s.timestamp || '').startsWith(todayStr)).length;
 
+    const serverNowMs = Date.now();
+    const visitorsWithLiveFlags = (logs.visitors || []).map(v => {
+      if (!v) return v;
+      const vLastSeen = Math.max(
+        typeof v.lastSeen === 'number' ? v.lastSeen : (v.lastSeen ? new Date(v.lastSeen).getTime() : 0),
+        typeof v.lastSeenMs === 'number' ? v.lastSeenMs : 0,
+        v.lastHeartbeatAt ? new Date(v.lastHeartbeatAt).getTime() : 0
+      );
+      const rawConn = String(v.status || v.connectionStatus || v.liveStatus || '').trim().toLowerCase();
+      const isGpsOff = rawConn === 'gps_off' || rawConn === 'gps_disabled' || v.gpsEnabled === false;
+      const isExited = rawConn === 'exited';
+      const isServerOnline = !isGpsOff && !isExited && vLastSeen > 0 && (serverNowMs - vLastSeen) < 45000;
+      return {
+        ...v,
+        isOnline: isServerOnline,
+        inApp: isServerOnline
+      };
+    });
+
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
+      serverNowMs,
       stats: {
         totalVisitors,
         registeredUsersCount,
@@ -6937,7 +7014,7 @@ const server = http.createServer(async (req, res) => {
         todayVisitors,
         todaySearches
       },
-      visitors: logs.visitors,
+      visitors: visitorsWithLiveFlags,
       savedAccounts: logs.savedAccounts || {},
       searches: logs.searches,
       deletedVisitorKeys: logs.deletedVisitorKeys || {},
@@ -7978,6 +8055,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Bind to PORT immediately BEFORE loading large JSON archives into memory so incoming requests never hang!
+purgeFakeHardcodedCoordsFromPersistedStore();
+
 server.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`🚀 تطبيق استخراج بيانات خرائط جوجل 3D يعمل الآن بنجاح!`);

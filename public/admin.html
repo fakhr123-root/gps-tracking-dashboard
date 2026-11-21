@@ -148,6 +148,11 @@
       #mobileSearchesCards, #mobileVisitorsCards { display: flex !important; }
       main { padding-bottom: 5rem !important; }
     }
+    @keyframes radarPulse {
+      0% { transform: scale(0.75); opacity: 0.95; }
+      70% { transform: scale(1.22); opacity: 0.25; }
+      100% { transform: scale(1.35); opacity: 0; }
+    }
   </style>
 </head>
 <body class="flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
@@ -369,14 +374,29 @@
           <div id="adminRadarAlertStack" class="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] flex flex-col items-center gap-2 pointer-events-none w-[92%] max-w-md"></div>
 
           <!-- Compact Floating Glassmorphic "Visitor Inspector" -->
-          <div id="visitorInspectorDrawer" class="inspector-glass absolute top-2.5 bottom-2.5 left-2.5 z-[400] w-[240px] sm:w-[280px] rounded-xl p-3 flex flex-col justify-between overflow-hidden" dir="rtl">
+          <div id="visitorInspectorDrawer" class="inspector-glass absolute top-2.5 bottom-2.5 left-2.5 z-[400] w-[250px] sm:w-[295px] rounded-xl p-3 flex flex-col justify-between overflow-hidden" dir="rtl">
             
-            <div>
+            <div class="shrink-0">
               <div class="flex items-center justify-between pb-2 border-b border-slate-700/70">
                 <h4 class="text-xs font-bold text-white tracking-wide">فاحص الزائر المباشر</h4>
                 <button type="button" onclick="document.getElementById('visitorInspectorDrawer').classList.toggle('hidden')" class="text-slate-400 hover:text-white cursor-pointer">
                   <i data-lucide="x" class="w-3.5 h-3.5"></i>
                 </button>
+              </div>
+
+              <!-- Quick User Search Bar & Directory List -->
+              <div class="py-2 border-b border-slate-700/60 space-y-1.5">
+                <div class="relative">
+                  <input
+                    id="radarUserSearchInput"
+                    type="text"
+                    oninput="renderRadarUserDirectory(this.value)"
+                    placeholder="🔍 ابحث عن اسم مستخدم (مثل @kalif)..."
+                    class="w-full px-2.5 py-1.5 rounded-lg bg-slate-950/90 border border-emerald-500/40 focus:border-cyan-400 focus:outline-none text-[11px] text-white placeholder-slate-400 font-bold"
+                    autocomplete="off"
+                  />
+                </div>
+                <div id="radarUserDirectoryList" class="max-h-[108px] overflow-y-auto space-y-1 pr-0.5"></div>
               </div>
 
               <!-- Selected Visitor Profile Row -->
@@ -396,12 +416,13 @@
               </div>
 
               <!-- Telemetry Specs -->
-              <div class="py-2 space-y-2 border-b border-slate-700/60 text-right">
+              <div class="py-2 space-y-1.5 border-b border-slate-700/60 text-right">
                 <div class="flex items-start gap-2">
                   <i data-lucide="smartphone" class="w-3.5 h-3.5 text-slate-400 mt-0.5 shrink-0"></i>
                   <div class="min-w-0">
-                    <div class="text-[9px] text-slate-400">الجهاز</div>
+                    <div class="text-[9px] text-slate-400">الجهاز وآخر ظهور</div>
                     <div id="inspDevice" class="text-[11px] font-bold text-white truncate">هاتف ذكي / كمبيوتر</div>
+                    <div id="inspLastSeen" class="text-[10px] font-num text-cyan-300/90 truncate">—</div>
                   </div>
                 </div>
 
@@ -410,7 +431,7 @@
                   <div class="min-w-0 flex-1">
                     <div class="text-[9px] text-slate-400">إحداثيات GPS (Lat, Lng)</div>
                     <div class="flex items-center gap-1.5 justify-between">
-                      <div id="inspCoords" class="text-[11px] font-num font-bold text-white" dir="ltr">15.353800, 44.205800</div>
+                      <div id="inspCoords" class="text-[11px] font-num font-bold text-white" dir="ltr">بانتظار GPS...</div>
                       <button type="button" onclick="copyAdminCoords(document.getElementById('inspCoords').innerText)" class="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 text-[9px] font-bold cursor-pointer">نسخ 📋</button>
                     </div>
                   </div>
@@ -419,7 +440,7 @@
                 <div class="flex items-start gap-2">
                   <i data-lucide="globe" class="w-3.5 h-3.5 text-cyan-400 mt-0.5 shrink-0"></i>
                   <div class="min-w-0">
-                    <div class="text-[9px] text-slate-400">عنوان IP</div>
+                    <div class="text-[9px] text-slate-400">عنوان IP والحي</div>
                     <div id="inspIp" class="text-[11px] font-num font-bold text-white" dir="ltr">0.0.0.0</div>
                     <div id="inspCityBadge" class="text-[10px] text-emerald-400 font-semibold">GPS مباشر ✓</div>
                   </div>
@@ -428,8 +449,8 @@
             </div>
 
             <!-- Live Search & Visitor Activity Log Timeline -->
-            <div class="flex-1 flex flex-col min-h-0 pt-2">
-              <div class="flex items-center justify-between mb-1.5">
+            <div class="flex-1 flex flex-col min-h-0 pt-1.5">
+              <div class="flex items-center justify-between mb-1">
                 <span class="text-[11px] font-bold text-white">السجل المباشر</span>
                 <i data-lucide="chevron-up" class="w-3 h-3 text-slate-400"></i>
               </div>
@@ -1366,6 +1387,216 @@
     }
 
     let currentInspectedVisitorId = '';
+    let latestUsersSessionsCache = [];
+    let selectedRadarPulseMarker = null;
+
+    function highlightAndFlyToMarker(markerKey, lat, lng, userObj = null) {
+      if (!adminMap || !isValidAdminNonZeroCoord(lat, lng)) return;
+      const nLat = Number(lat);
+      const nLng = Number(lng);
+      if (!markersLayer) {
+        markersLayer = L.layerGroup().addTo(adminMap);
+      }
+
+      // Ensure marker exists on the map even if user is offline (as long as coords are valid)
+      let marker = markerKey ? visitorMarkersByKey.get(markerKey) : null;
+      if (!marker && userObj) {
+        const cleanU = String(userObj.username || userObj.visitorName || '').trim().replace(/^@+/, '');
+        const badgeTxt = cleanU ? `@${cleanU}` : (userObj.visitorName || 'مستخدم');
+        const liveMeta = getVisitorLiveStatusMeta(userObj);
+        const ringColor = liveMeta.isLive ? '#10b981' : liveMeta.markerColor;
+        const customIcon = L.divIcon({
+          className: 'concentric-radar-marker',
+          html: `
+            <div style="position:relative; width:56px; height:56px; display:flex; align-items:center; justify-content:center; overflow:visible;">
+              <div class="target-ring-outer" style="position:absolute; width:52px; height:52px; border-radius:50%; border:2px solid ${ringColor}; background:${ringColor}18; box-shadow:0 0 20px ${ringColor}66;"></div>
+              <div style="position:absolute; width:34px; height:34px; border-radius:50%; border:1.5px solid ${ringColor}; background:${ringColor}28;"></div>
+              <div style="position:relative; width:14px; height:14px; border-radius:50%; background:${ringColor}; border:2px solid #ffffff; box-shadow:0 0 14px ${ringColor};"></div>
+              <div dir="ltr" style="position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:rgba(3,12,14,0.95); border:1.5px solid ${ringColor}; color:#ffffff; font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; padding:1px 7px; border-radius:999px; white-space:nowrap; box-shadow:0 2px 10px rgba(0,0,0,0.88); z-index:45; display:flex; align-items:center; gap:4px;">
+                <span>${badgeTxt}</span>
+                <span dir="rtl" style="background:${ringColor}33; color:${ringColor}; border:1px solid ${ringColor}88; padding:0 4px; border-radius:4px; font-size:8px; font-family:'Cairo',sans-serif;">${liveMeta.markerTag}</span>
+              </div>
+            </div>
+          `,
+          iconSize: [56, 56],
+          iconAnchor: [28, 28]
+        });
+        marker = L.marker([nLat, nLng], { icon: customIcon, zIndexOffset: 700 }).addTo(markersLayer);
+        marker.bindPopup(`
+          <div style="font-family:'Cairo',sans-serif; text-align:right; direction:rtl; min-width:210px; color:#0f172a;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+              <strong style="font-size:12px;" dir="ltr">${badgeTxt}</strong>
+              <span style="background:${ringColor}; color:#fff; font-size:9px; font-weight:800; padding:1px 6px; border-radius:999px;">${liveMeta.mainLabel}</span>
+            </div>
+            <div style="font-size:11px; color:#334155;">📍 ${userObj.lastLocationName || userObj.locationName || userObj.city || 'صنعاء'}</div>
+            <div style="font-size:10px; color:#0f766e; font-family:monospace;" dir="ltr">${nLat.toFixed(6)}, ${nLng.toFixed(6)}</div>
+            <div style="font-size:10px; color:#64748b;">🌐 IP: ${userObj.ip || '—'}</div>
+          </div>
+        `);
+        visitorMarkers.push(marker);
+        if (markerKey) visitorMarkersByKey.set(markerKey, marker);
+      }
+
+      // Add a glowing pulsing selection highlight ring around the target user's coordinates
+      if (selectedRadarPulseMarker) {
+        try { adminMap.removeLayer(selectedRadarPulseMarker); } catch (e) {}
+        selectedRadarPulseMarker = null;
+      }
+      const pulseIcon = L.divIcon({
+        className: 'selected-radar-pulse-ring',
+        html: `<div style="width:74px; height:74px; border-radius:50%; border:3px solid #22d3ee; background:rgba(34,211,238,0.14); box-shadow:0 0 28px #22d3ee, inset 0 0 18px rgba(34,211,238,0.45); animation: radarPulse 1.4s ease-out infinite; pointer-events:none;"></div>`,
+        iconSize: [74, 74],
+        iconAnchor: [37, 37]
+      });
+      selectedRadarPulseMarker = L.marker([nLat, nLng], { icon: pulseIcon, interactive: false, zIndexOffset: 900 }).addTo(adminMap);
+
+      setTimeout(() => {
+        try {
+          adminMap.invalidateSize();
+          adminMap.flyTo([nLat, nLng], 17, { duration: 1.0 });
+          if (marker && typeof marker.openPopup === 'function') {
+            setTimeout(() => {
+              try { marker.openPopup(); } catch (e) {}
+            }, 350);
+          }
+        } catch (e) {}
+      }, 80);
+    }
+
+    function renderRadarUserDirectory(filterText = '') {
+      const box = document.getElementById('radarUserDirectoryList');
+      if (!box) return;
+      const q = String(filterText || document.getElementById('radarUserSearchInput')?.value || '').trim().toLowerCase().replace(/^@+/, '');
+
+      // Merge registered users from latestUsersSessionsCache + currentAdminData.visitors
+      const dirMap = new Map();
+      const addEntry = (uObj) => {
+        if (!uObj) return;
+        const cleanU = String(uObj.username || (!String(uObj.visitorName || '').includes('•') ? uObj.visitorName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+        if (!cleanU || uObj.isDeviceIpAutoAuth) return;
+        const prev = dirMap.get(cleanU) || {};
+        const lat = isValidAdminNonZeroCoord(uObj.lastLat ?? uObj.lat, uObj.lastLon ?? uObj.lng)
+          ? Number(uObj.lastLat ?? uObj.lat)
+          : (prev.lat ?? null);
+        const lng = isValidAdminNonZeroCoord(uObj.lastLat ?? uObj.lat, uObj.lastLon ?? uObj.lng)
+          ? Number(uObj.lastLon ?? uObj.lng)
+          : (prev.lng ?? null);
+        const isOnline = Boolean(uObj.isOnline || uObj.inApp || uObj.statusCode === 'online');
+        const isGpsOff = uObj.statusCode === 'gps_off' || String(uObj.connectionStatus || uObj.status || '').toLowerCase() === 'gps_off' || uObj.gpsEnabled === false;
+        const district = (uObj.neighborhood && uObj.neighborhood !== 'غير محدد بعد')
+          ? uObj.neighborhood
+          : (uObj.lastLocationName && !uObj.lastLocationName.includes('بانتظار') ? uObj.lastLocationName : (uObj.region || uObj.city || prev.district || 'صنعاء'));
+        dirMap.set(cleanU, {
+          cleanU,
+          username: `@${cleanU}`,
+          lat,
+          lng,
+          isOnline: isOnline || Boolean(prev.isOnline),
+          isGpsOff: !isOnline && (isGpsOff || Boolean(prev.isGpsOff)),
+          district,
+          lastSeen: uObj.lastSeen || prev.lastSeen || '—',
+          deviceModel: uObj.deviceModel || uObj.device || prev.deviceModel || 'غير معروف',
+          ip: (uObj.ip && uObj.ip !== '—') ? uObj.ip : (prev.ip || '—'),
+          lastSeenMs: Math.max(Number(uObj.lastSeenMs) || 0, Number(prev.lastSeenMs) || 0)
+        });
+      };
+
+      (latestUsersSessionsCache || []).forEach(addEntry);
+      (currentAdminData?.visitors || []).forEach(addEntry);
+
+      let list = Array.from(dirMap.values()).sort((a, b) => {
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        return (b.lastSeenMs || 0) - (a.lastSeenMs || 0);
+      });
+
+      if (q) {
+        list = list.filter(u =>
+          u.cleanU.includes(q) ||
+          u.username.toLowerCase().includes(q) ||
+          String(u.district || '').toLowerCase().includes(q)
+        );
+      }
+
+      if (list.length === 0) {
+        box.innerHTML = `<div class="text-[10px] text-slate-500 text-center py-2">لا توجد نتائج مطابقة</div>`;
+        return;
+      }
+
+      box.innerHTML = list.map(u => {
+        const dotColor = u.isOnline ? '#10b981' : (u.isGpsOff ? '#ef4444' : '#f59e0b');
+        const statusTxt = u.isOnline ? 'نشط' : (u.isGpsOff ? 'أقفل الموقع' : 'خارج التطبيق');
+        const hasCoord = isValidAdminNonZeroCoord(u.lat, u.lng);
+        const safeU = u.cleanU.replace(/'/g, '');
+        return `
+          <button type="button" onclick="selectAndFlyToRadarUser('${safeU}')" class="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-900/80 hover:bg-emerald-500/15 border border-slate-800 hover:border-emerald-400/45 transition text-right cursor-pointer">
+            <div class="min-w-0 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full shrink-0" style="background:${dotColor}; box-shadow:0 0 7px ${dotColor};"></span>
+              <div class="min-w-0">
+                <div class="text-[11px] font-black text-white truncate" dir="ltr">${u.username}</div>
+                <div class="text-[9px] text-slate-400 truncate">${u.district} • ${statusTxt}</div>
+              </div>
+            </div>
+            <span class="text-[9px] font-bold shrink-0 ${hasCoord ? 'text-cyan-300' : 'text-slate-500'}">${hasCoord ? '📍 عرض' : '—'}</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectAndFlyToRadarUser(rawUsername) {
+      const cleanU = String(rawUsername || '').trim().replace(/^@+/, '').toLowerCase();
+      if (!cleanU) return;
+      if (currentAdminTab !== 'radar') switchAdminTab('radar');
+
+      const sess = (latestUsersSessionsCache || []).find(s => String(s.username || '').trim().replace(/^@+/, '').toLowerCase() === cleanU);
+      const visIdx = (currentAdminData?.visitors || []).findIndex(v => {
+        const u = String(v?.username || (!String(v?.visitorName || '').includes('•') ? v?.visitorName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+        return u === cleanU && !v?.isDeviceIpAutoAuth;
+      });
+
+      if (visIdx >= 0) {
+        const v = currentAdminData.visitors[visIdx];
+        // Hydrate exact session coords if missing on visitor
+        if (!isValidAdminNonZeroCoord(v.lat, v.lng) && sess && isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon)) {
+          v.lat = Number(sess.lastLat);
+          v.lng = Number(sess.lastLon);
+        }
+        if (sess && sess.lastLocationName && !sess.lastLocationName.includes('بانتظار')) {
+          v.locationName = sess.lastLocationName;
+        }
+        inspectVisitor(visIdx, true);
+        return;
+      }
+
+      if (sess) {
+        const hasCoord = isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon);
+        const nameEl = document.getElementById('inspVisitorName');
+        const subEl = document.getElementById('inspVisitorSub');
+        const devEl = document.getElementById('inspDevice');
+        const lastSeenEl = document.getElementById('inspLastSeen');
+        const coordEl = document.getElementById('inspCoords');
+        const ipEl = document.getElementById('inspIp');
+        const cityEl = document.getElementById('inspCityBadge');
+        const linkEl = document.getElementById('inspGmapsLink');
+
+        if (nameEl) nameEl.innerText = sess.username;
+        if (subEl) {
+          subEl.innerText = sess.status || 'خارج التطبيق';
+          subEl.style.color = sess.isOnline ? '#34d399' : (sess.statusCode === 'gps_off' ? '#ef4444' : '#f59e0b');
+        }
+        if (devEl) devEl.innerText = sess.deviceModel || 'غير معروف';
+        if (lastSeenEl) lastSeenEl.innerText = `آخر ظهور: ${sess.lastSeen || '—'}`;
+        if (coordEl) coordEl.innerText = hasCoord ? `${Number(sess.lastLat).toFixed(6)}, ${Number(sess.lastLon).toFixed(6)}` : 'بانتظار التقاط GPS حقيقي...';
+        if (ipEl) ipEl.innerText = sess.ip || '—';
+        if (cityEl) cityEl.innerText = sess.lastLocationName || sess.neighborhood || 'صنعاء';
+        if (linkEl) linkEl.href = hasCoord ? `https://www.google.com/maps?q=${Number(sess.lastLat).toFixed(6)},${Number(sess.lastLon).toFixed(6)}` : '#';
+
+        if (hasCoord) {
+          highlightAndFlyToMarker(`user:${cleanU}`, sess.lastLat, sess.lastLon, sess);
+        } else {
+          showAdminCornerToast(`ℹ️ لا توجد إحداثيات GPS صالحة حالياً للحساب ${sess.username}`, false);
+        }
+      }
+    }
 
     // Populate Floating Visitor Inspector & Fly Map to Visitor
     function inspectVisitor(idx, shouldFlyMap = true) {
@@ -1389,9 +1620,11 @@
       const liveMeta = getVisitorLiveStatusMeta(v);
       const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
       const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
+      const lastSeenFormatted = v.lastSeen ? new Date(v.lastSeen).toLocaleString('ar-SA', { hour12: true }) : '—';
       const nameEl = document.getElementById('inspVisitorName');
       const subEl = document.getElementById('inspVisitorSub');
       const devEl = document.getElementById('inspDevice');
+      const lastSeenEl = document.getElementById('inspLastSeen');
       const coordEl = document.getElementById('inspCoords');
       const ipEl = document.getElementById('inspIp');
       const cityEl = document.getElementById('inspCityBadge');
@@ -1403,6 +1636,7 @@
         subEl.style.color = liveMeta.isLive ? '#34d399' : liveMeta.markerColor;
       }
       if (devEl) devEl.innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
+      if (lastSeenEl) lastSeenEl.innerText = `آخر ظهور: ${lastSeenFormatted}`;
       if (coordEl) coordEl.innerText = hasValidCoord ? `${lat6}, ${lng6}` : 'بانتظار التقاط GPS حقيقي...';
       if (ipEl) ipEl.innerText = v.ip || '0.0.0.0';
       if (cityEl) cityEl.innerText = `${v.locationName || v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
@@ -1411,10 +1645,8 @@
       }
 
       if (shouldFlyMap && adminMap && hasValidCoord) {
-        setTimeout(() => {
-          adminMap.invalidateSize();
-          adminMap.flyTo([Number(v.lat), Number(v.lng)], 16, { duration: 1.0 });
-        }, 100);
+        const markerKey = getStrictMarkerKeyForVisitor(v);
+        highlightAndFlyToMarker(markerKey, Number(v.lat), Number(v.lng), v);
       }
     }
 
@@ -1431,22 +1663,13 @@
 
     function focusUserSessionOnMap(username, lat, lng) {
       const cleanTarget = String(username || '').trim().replace(/^@+/, '').toLowerCase();
-      const idx = (currentAdminData.visitors || []).findIndex(v => {
-        const u = String(v?.username || v?.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
-        return u === cleanTarget;
-      });
-      if (idx >= 0) {
-        inspectVisitor(idx, true);
+      if (cleanTarget) {
+        selectAndFlyToRadarUser(cleanTarget);
         return;
       }
       if (isValidAdminNonZeroCoord(lat, lng)) {
         switchAdminTab('radar');
-        setTimeout(() => {
-          if (adminMap) {
-            adminMap.invalidateSize();
-            adminMap.flyTo([Number(lat), Number(lng)], 16, { duration: 1.0 });
-          }
-        }, 150);
+        highlightAndFlyToMarker('', Number(lat), Number(lng), null);
       }
     }
 
@@ -1467,6 +1690,8 @@
     }
 
     function renderUsersLastSessionsRows(sessions = []) {
+      latestUsersSessionsCache = Array.isArray(sessions) ? sessions : [];
+      renderRadarUserDirectory();
       const tbody = document.getElementById('usersLastSessionsTableBody');
       const badge = document.getElementById('usersSessionsLogCountBadge');
       if (badge) badge.innerText = `${sessions.length} حساب`;
@@ -2203,6 +2428,7 @@
     }
 
     function renderInspectorTimeline(visitors = [], searches = []) {
+      renderRadarUserDirectory();
       const box = document.getElementById('inspectorLiveTimeline');
       if (!box) return;
 

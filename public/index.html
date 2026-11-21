@@ -2743,10 +2743,29 @@
       };
     }
 
+    function getActiveCategoryQueryFromUi() {
+      const qInput = document.getElementById('queryInput') || document.getElementById('searchInput');
+      const typed = qInput ? String(qInput.value || '').trim() : '';
+      if (typed) return typed;
+      const activePill = document.querySelector('.cat-pill.active');
+      if (activePill) {
+        const onclickAttr = String(activePill.getAttribute('onclick') || '');
+        const m = onclickAttr.match(/triggerCategorySearch\(\s*'([^']+)'/);
+        if (m && m[1]) return m[1].trim();
+        const cleanedPillText = String(activePill.innerText || '').replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, '').trim();
+        if (cleanedPillText) return cleanedPillText;
+      }
+      return '';
+    }
+
     function startLocationAwareComprehensiveScan(resumeFromCheckpoint = false) {
       clearDrawnCircle(true);
-      const qInput = document.getElementById('queryInput');
-      if (qInput) qInput.value = '';
+      const qInput = document.getElementById('queryInput') || document.getElementById('searchInput');
+      // ALWAYS preserve & enforce active search input or selected quick-category pill (e.g., "بقالات" / "بقالة")
+      const activeQuery = getActiveCategoryQueryFromUi();
+      if (qInput && activeQuery && !qInput.value.trim()) {
+        qInput.value = activeQuery;
+      }
       const cfg = getActiveComprehensiveScopeConfig();
       const locInput = document.getElementById('locationInput');
       if (locInput) {
@@ -2754,13 +2773,15 @@
       }
       const hoodInput = document.getElementById('neighborhoodInput');
       if (hoodInput) hoodInput.value = '';
-      document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      if (!activeQuery) {
+        document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+      }
       document.getElementById('btnFullCityMode')?.classList.add('active');
       document.getElementById('btnDrawCircleMode')?.classList.remove('active');
       setRadius(50);
-      lastActiveQuery = '__FULL_CITY_SCAN__';
+      lastActiveQuery = activeQuery || '__FULL_CITY_SCAN__';
       window.__activeComprehensiveScanOptions = {
-        isComprehensiveScan: true,
+        isComprehensiveScan: !activeQuery,
         scopeMode: cfg.scopeMode,
         city: cfg.city,
         country: cfg.country,
@@ -3412,7 +3433,11 @@
       pendingPlacesBatch = [];
       liveExtractedPhonesTotal = 0;
 
-      const query = document.getElementById('queryInput').value.trim();
+      const qInputEl = document.getElementById('queryInput') || document.getElementById('searchInput');
+      const query = getActiveCategoryQueryFromUi();
+      if (qInputEl && query && !qInputEl.value.trim()) {
+        qInputEl.value = query;
+      }
       const locInputEl = document.getElementById('locationInput');
       if (locInputEl && !locInputEl.value.trim() && window.lastAutoDetectedGpsCity) {
         locInputEl.value = window.lastAutoDetectedGpsCity;
@@ -3422,10 +3447,13 @@
       const apiKey = (document.getElementById('apiKeyInput')?.value || '').trim();
       lastActiveQuery = query || '__EMPTY__';
 
-      // Sync category pills highlight with what is typed in queryInput (or unselect all if custom/empty)
+      // Sync category pills highlight with what is typed in queryInput (matching category attr or stripped text)
       document.querySelectorAll('.cat-pill').forEach(b => {
-        const txt = b.innerText.trim();
-        if (query && (txt === query || (txt === 'صرافة' && query === 'شركات الصرافة'))) {
+        const onclickAttr = String(b.getAttribute('onclick') || '');
+        const m = onclickAttr.match(/triggerCategorySearch\(\s*'([^']+)'/);
+        const pillCat = m && m[1] ? m[1].trim() : '';
+        const cleanTxt = String(b.innerText || '').replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, '').trim();
+        if (query && (pillCat === query || cleanTxt === query || (cleanTxt === 'صرافة' && query === 'شركات الصرافة'))) {
           b.classList.add('active');
         } else {
           b.classList.remove('active');

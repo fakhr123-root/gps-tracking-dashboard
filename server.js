@@ -3746,70 +3746,42 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       }
     } else {
-      // Specific Activity Comprehensive Planetary & Alley-by-Alley Deep Scan (e.g., "بقالة", "محكمة", "صالة", "منفذ", "صيدليات", "مطاعم", etc.)
-      // IMPORTANT: Passing pure `q: syn` (without "في صنعاء") + `!7i100` makes Google Maps strictly obey the `pb` coordinate viewport (lat, lng)
-      // and return up to 100 local places per single request inside that exact neighborhood, street, or grid cell!
+      // High-Speed Specific Activity Deep Scan (~45-60s city-wide completion):
+      // Limit to top 3 highest-yield terms (e.g., ["بقالة", "تموينات", "سوبر ماركت"]) across ~60 deduplicated 1.2km city cells (~180 initial tasks),
+      // dynamically splitting ONLY cells that hit the 60-result cap!
       const synonyms = expandSpecificActivitySynonyms(stdQuery);
-      const allCitySectors = [...namedSectors, ...microGridSectors].sort(
+      const topYieldSynonyms = synonyms.slice(0, 3);
+      const rawCitySectors = [...namedSectors, ...microGridSectors].sort(
         (a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng)
       );
-      const coreSynonyms = synonyms.slice(0, 8);
-      const extendedSynonyms = synonyms.slice(8);
 
-      // Group sectors into Concentric Proximity Rings around the user's location (refLat, refLng):
-      // Ring 1 (0 - 2.5 km: User's immediate neighborhood & streets) -> Ring 2 (2.5 - 6 km) -> Ring 3 (6 - 12 km) -> Ring 4 (12+ km)
-      const ring1 = allCitySectors.filter(s => calcDistanceKm(refLat, refLng, s.lat, s.lng) <= 2.5);
-      const ring2 = allCitySectors.filter(s => { const d = calcDistanceKm(refLat, refLng, s.lat, s.lng); return d > 2.5 && d <= 6.0; });
-      const ring3 = allCitySectors.filter(s => { const d = calcDistanceKm(refLat, refLng, s.lat, s.lng); return d > 6.0 && d <= 12.0; });
-      const ring4 = allCitySectors.filter(s => calcDistanceKm(refLat, refLng, s.lat, s.lng) > 12.0);
-      const proximityRings = [ring1, ring2, ring3, ring4];
-
-      // Pass 1 (Closest-First Concentric Rings Sweep - Page 1: 0..100):
-      // Scans all core synonyms in Ring 1 (closest to user) FIRST, then Ring 2, then Ring 3, then Ring 4!
-      for (const ring of proximityRings) {
-        for (const syn of coreSynonyms) {
-          for (const sec of ring) {
-            queryTasks.push({
-              q: syn,
-              lat: sec.lat,
-              lng: sec.lng,
-              span: sec.span || 1400,
-              offset: 0,
-              count: 100,
-              cat: stdQuery
-            });
-          }
+      // Spatially deduplicate to ~60 medium-sized city cells (~1.2km radius) sorted closest-first to the user
+      const mediumCityCells = [];
+      for (const sec of rawCitySectors) {
+        if (mediumCityCells.length >= 60) break;
+        const tooClose = mediumCityCells.some(existing => calcDistanceKm(existing.lat, existing.lng, sec.lat, sec.lng) < 1.05);
+        if (!tooClose) {
+          mediumCityCells.push({
+            name: sec.name,
+            lat: sec.lat,
+            lng: sec.lng,
+            span: 1200
+          });
         }
       }
 
-      // Pass 2 (Concentric Rings Deep Pagination - Page 2: 100..200):
-      for (const ring of proximityRings) {
-        for (const syn of coreSynonyms.slice(0, 6)) {
-          for (const sec of ring) {
-            queryTasks.push({
-              q: syn,
-              lat: sec.lat,
-              lng: sec.lng,
-              span: sec.span || 1400,
-              offset: 100,
-              count: 100,
-              cat: stdQuery
-            });
-          }
-        }
-      }
-
-      // Pass 3 (Extended Synonyms & Sub-Categories Sweep ordered from closest to farthest):
-      for (const syn of extendedSynonyms) {
-        for (const sec of namedSectors) {
+      // Build ~180 closest-first tasks (top 3 highest-yield terms × ~60 medium 1.2km cells)
+      for (const sec of mediumCityCells) {
+        for (const syn of topYieldSynonyms) {
           queryTasks.push({
             q: syn,
             lat: sec.lat,
             lng: sec.lng,
-            span: sec.span || 1600,
+            span: 1200,
             offset: 0,
-            count: 100,
-            cat: stdQuery
+            count: 60,
+            cat: stdQuery,
+            qtDepth: 0
           });
         }
       }
@@ -3839,7 +3811,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         let gText = '';
         let reqSucceeded = false;
 
-        for (let attempt = 1; attempt <= 5; attempt++) {
+        for (let attempt = 1; attempt <= 2; attempt++) {
           if (isAborted()) return;
           const reqIdx = uaCounter++;
           const gDomain = MAP_DOMAINS[reqIdx % MAP_DOMAINS.length];
@@ -3848,7 +3820,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
           try {
             const gRes = await fetchWithTimeout(gUrl, {
-              timeout: 7500,
+              timeout: 6500,
               headers: {
                 'User-Agent': ua,
                 'Accept-Language': 'ar,en;q=0.9',
@@ -3857,7 +3829,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             });
 
             if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
-              await sleep(3000);
+              await sleep(800);
               continue;
             }
             if (!gRes.ok) {
@@ -3867,16 +3839,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             reqSucceeded = true;
             break;
           } catch (err) {
-            await sleep(3000);
+            await sleep(800);
           }
         }
 
         if (!reqSucceeded) {
-          // Push failed task to the BACK of the queue to be processed at the end of the scan (Zero cells left behind!)
-          const deferredPasses = (task.deferredPasses || 0) + 1;
-          if (deferredPasses <= 6) {
-            queryTasks.push({ ...task, deferredPasses });
-          }
           return;
         }
 
@@ -3889,12 +3856,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const entries = gData?.[0]?.[1] || [];
         if (!Array.isArray(entries) || entries.length === 0) return;
 
-        // Aggressive Deep QuadTree Subdivision for Dense Urban Neighborhoods (~100m street blocks):
-        // Whenever a cell returns >= 15 results (or hits the 60-result cap), FORCE subdivision into 4 smaller sub-quadrants!
+        // Dynamic QuadTree Subdivision: split ONLY cells that hit the 60-result cap (keeps total city scan to ~45-60s!)
         const qtDepth = task.qtDepth || 0;
-        if (entries.length >= 15 && (task.span || 1500) >= 100 && qtDepth < 22) {
-          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 95);
-          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.0007);
+        if (entries.length >= 60 && (task.span || 1200) >= 600 && qtDepth < 4) {
+          const childSpan = Math.max(Math.round((task.span || 1200) / 2), 300);
+          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.002);
           const quadrants = [
             [dDeg, dDeg],
             [dDeg, -dDeg],
@@ -3984,7 +3950,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 14;
+    const BATCH_CONCURRENCY = 8;
     let activeWorkers = 0;
     let completedMapTasks = 0;
     let nextTaskIndex = 0;
@@ -4039,8 +4005,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       sendEvent('progress', payload);
     };
 
-    // True Continuous Streaming Worker Pool (14 independent workers):
-    // As soon as ANY single worker finishes a cell, results & progress stream immediately (never waiting for a slow peer in a batch!)
+    // High-Speed Parallel Worker Pool (8 concurrent workers with 100ms pacing):
+    // Streams results & progress immediately as each worker finishes without waiting for slower peers!
     const runWorker = async () => {
       while (!isAborted()) {
         if (nextTaskIndex >= queryTasks.length) {
@@ -4061,6 +4027,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           completedMapTasks++;
           // Force immediate progress emit on the first 5 completed cells so UI jumps off 0% within 1-2 seconds!
           emitStreamingProgress(completedMapTasks <= 5);
+        }
+        if (nextTaskIndex < queryTasks.length && !isAborted()) {
+          await sleep(100);
         }
       }
     };

@@ -4934,19 +4934,27 @@ function deduplicateVisitorsByUsernameStrict(visitors = []) {
   return [...byUser.values(), ...anonList];
 }
 
-// Inspect all stored user records: if any offline user (or unauthenticated guest) has coordinates within 50m of @1
-// caused by the earlier IP-collision bug, immediately wipe/nullify those corrupted coordinates (lat: null, lng: null).
+// Inspect all stored user records & historical session logs (previousLogs):
+// 1. Wipe any record or historical session snapshot whose coordinates came from IP/non-GPS fallback (not verified 'GPS').
+// 2. Wipe any offline user (or unauthenticated guest) whose coordinates are within 50m of @1 due to earlier IP-collision.
 function wipeOfflineUserCollisionsWithUser1(logs) {
   if (!logs || typeof logs !== 'object') return 0;
   let wipedCount = 0;
   const nowMs = Date.now();
 
+  const isNonGpsLegacySource = (rec) => {
+    if (!rec || typeof rec !== 'object') return false;
+    const src = String(rec.source || rec.locationSource || '').trim().toUpperCase();
+    if (!src) return true; // Legacy record with no verified GPS source tag
+    return src === 'IP' || src === 'IP_FALLBACK' || src === 'SERVER_IP' || src === 'APPROXIMATE' || src === 'IN_APP' || src === 'GEOIP';
+  };
+
   const admin1Acc = logs.savedAccounts?.['1'] || (logs.visitors || []).find(v => v && !v.isDeviceIpAutoAuth && normalizeIgUsername(v.username || v.visitorName || '') === '1');
   const ref1Lat = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng ?? admin1Acc.lon) ? Number(admin1Acc.lat) : null;
   const ref1Lng = admin1Acc && isValidNonZeroCoord(admin1Acc.lat, admin1Acc.lng ?? admin1Acc.lon) ? Number(admin1Acc.lng ?? admin1Acc.lon) : null;
-  if (ref1Lat === null || ref1Lng === null) return 0;
 
   const isWithin50mOfUser1 = (la, ln) => {
+    if (ref1Lat === null || ref1Lng === null) return false;
     const a = Number(la), b = Number(ln);
     if (!isFinite(a) || !isFinite(b) || (Math.abs(a) < 0.0001 && Math.abs(b) < 0.0001)) return false;
     return haversineMetersBetween(a, b, ref1Lat, ref1Lng) <= 50;
@@ -4964,45 +4972,60 @@ function wipeOfflineUserCollisionsWithUser1(logs) {
     return lastMs > 0 && (nowMs - lastMs) < 45000;
   };
 
-  const wipeIfCollided = (rawU, rec, isGuest = false) => {
+  const nullifyRecCoords = (rec) => {
+    rec.lat = null;
+    rec.lng = null;
+    if ('lon' in rec) rec.lon = null;
+    if ('lastLat' in rec) rec.lastLat = null;
+    if ('lastLon' in rec) rec.lastLon = null;
+    rec.source = '';
+    rec.locationSource = '';
+    wipedCount++;
+  };
+
+  const wipeIfCollidedOrNonGps = (rawU, rec, isGuest = false) => {
     if (!rec || typeof rec !== 'object') return;
     const cleanU = normalizeIgUsername(rawU || rec.username || rec.visitorName || '');
-    if (!isGuest && cleanU === '1') return;
-
     const onlineNow = isRecordOnlineNow(rec);
-    // Wipe offline users (or offline guest entries) whose coordinates are within 50m of @1
-    if (!onlineNow && isWithin50mOfUser1(rec.lat, rec.lng ?? rec.lon)) {
-      rec.lat = null;
-      rec.lng = null;
-      if ('lon' in rec) rec.lon = null;
-      wipedCount++;
+
+    // 1. Clean historical session cards (previousLogs) that did not originate from verified device GPS or collided with @1
+    if (Array.isArray(rec.previousLogs)) {
+      for (const snap of rec.previousLogs) {
+        if (!snap || typeof snap !== 'object') continue;
+        const snapHasCoord = isValidNonZeroCoord(snap.lat, snap.lng ?? snap.lon);
+        if (snapHasCoord && (isNonGpsLegacySource(snap) || ((!isGuest && cleanU !== '1') && isWithin50mOfUser1(snap.lat, snap.lng ?? snap.lon)))) {
+          nullifyRecCoords(snap);
+        }
+      }
+    }
+
+    // 2. Clean main record if it originated from IP/non-GPS fallback
+    const recHasCoord = isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
+    if (recHasCoord && isNonGpsLegacySource(rec)) {
+      nullifyRecCoords(rec);
+    }
+
+    // 3. Wipe offline non-@1 users (or offline guests) whose coords collide within 50m of @1
+    if (!isGuest && cleanU === '1') return;
+    if (!onlineNow && isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon) && isWithin50mOfUser1(rec.lat, rec.lng ?? rec.lon)) {
+      nullifyRecCoords(rec);
     }
     if (!onlineNow && Array.isArray(rec.movementHistory)) {
       const before = rec.movementHistory.length;
       rec.movementHistory = rec.movementHistory.filter(pt => pt && !isWithin50mOfUser1(pt.lat, pt.lng ?? pt.lon));
       if (rec.movementHistory.length !== before) wipedCount++;
     }
-    if (!onlineNow && Array.isArray(rec.previousLogs)) {
-      for (const snap of rec.previousLogs) {
-        if (snap && isWithin50mOfUser1(snap.lat, snap.lng ?? snap.lon)) {
-          snap.lat = null;
-          snap.lng = null;
-          if ('lon' in snap) snap.lon = null;
-          wipedCount++;
-        }
-      }
-    }
   };
 
   if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
     for (const [k, acc] of Object.entries(logs.savedAccounts)) {
-      wipeIfCollided(k, acc, false);
+      wipeIfCollidedOrNonGps(k, acc, false);
     }
   }
   if (Array.isArray(logs.visitors)) {
     for (const v of logs.visitors) {
       if (!v) continue;
-      wipeIfCollided(v.username || v.visitorName, v, Boolean(v.isDeviceIpAutoAuth));
+      wipeIfCollidedOrNonGps(v.username || v.visitorName, v, Boolean(v.isDeviceIpAutoAuth));
     }
   }
   return wipedCount;
@@ -6523,7 +6546,9 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
-    const hasValidIncomingCoords = !isIpBasedSource && hasValidAccuracy && isValidNonZeroCoord(inLat, inLng);
+    const isVerifiedGpsSource = String(data.source || '').trim().toUpperCase() === 'GPS' || String(data.locationSource || '').trim().toUpperCase() === 'GPS' || String(data.source || '').trim().toLowerCase() === 'native_geolocation';
+    const hasValidIncomingCoords = !isGpsDisabledReport && isVerifiedGpsSource && !isIpBasedSource && hasValidAccuracy && isValidNonZeroCoord(inLat, inLng);
+    const incomingAccuracyRounded = hasValidIncomingCoords ? Math.round(Number(data.accuracy)) : null;
     const now = new Date().toISOString();
     const incomingLiveStatus = isGpsDisabledReport
       ? 'gps_off'
@@ -6594,20 +6619,31 @@ const server = http.createServer(async (req, res) => {
       if (effLat !== null && effLng !== null) {
         logs.savedAccounts[rawUser].lat = effLat;
         logs.savedAccounts[rawUser].lng = effLng;
+        logs.savedAccounts[rawUser].lastLat = effLat;
+        logs.savedAccounts[rawUser].lastLon = effLng;
         logs.savedAccounts[rawUser].city = finalCity;
         logs.savedAccounts[rawUser].country = finalCountry;
         logs.savedAccounts[rawUser].region = finalRegion;
+        logs.savedAccounts[rawUser].lastLocationName = finalLocationName;
+        if (incomingAccuracyRounded !== null) {
+          logs.savedAccounts[rawUser].gpsAccuracy = incomingAccuracyRounded;
+          logs.savedAccounts[rawUser].accuracy = incomingAccuracyRounded;
+        }
+        logs.savedAccounts[rawUser].source = 'GPS';
+        logs.savedAccounts[rawUser].locationSource = 'GPS';
         appendMovementHistoryPoint(logs.savedAccounts[rawUser], {
           lat: effLat,
           lng: effLng,
           city: finalCity,
           region: finalRegion,
-          accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : 15,
+          accuracy: incomingAccuracyRounded || logs.savedAccounts[rawUser].gpsAccuracy || 15,
           status: incomingLiveStatus,
           timestamp: now
         });
+      } else {
+        logs.savedAccounts[rawUser].source = '';
+        logs.savedAccounts[rawUser].locationSource = '';
       }
-      logs.savedAccounts[rawUser].locationSource = 'GPS';
       logs.savedAccounts[rawUser].status = isGpsDisabledReport ? 'gps_off' : (isExitedReport ? 'exited' : 'online');
       logs.savedAccounts[rawUser].isOnline = !isGpsDisabledReport && !isExitedReport;
       logs.savedAccounts[rawUser].inApp = !isGpsDisabledReport && !isExitedReport;
@@ -6643,22 +6679,32 @@ const server = http.createServer(async (req, res) => {
       if (effLat !== null && effLng !== null) {
         v.lat = effLat;
         v.lng = effLng;
+        v.lastLat = effLat;
+        v.lastLon = effLng;
         v.city = finalCity;
         v.country = finalCountry;
         v.region = finalRegion;
         v.locationName = finalLocationName;
+        v.lastLocationName = finalLocationName;
+        if (incomingAccuracyRounded !== null) {
+          v.gpsAccuracy = incomingAccuracyRounded;
+          v.accuracy = incomingAccuracyRounded;
+        }
+        v.source = 'GPS';
+        v.locationSource = 'GPS';
         appendMovementHistoryPoint(v, {
           lat: effLat,
           lng: effLng,
           city: finalCity,
           region: finalRegion,
-          accuracy: data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15),
+          accuracy: incomingAccuracyRounded || v.gpsAccuracy || v.accuracy || 15,
           status: incomingLiveStatus,
           timestamp: now
         });
+      } else {
+        v.source = '';
+        v.locationSource = '';
       }
-      v.accuracy = data.accuracy ? Math.round(Number(data.accuracy)) : (v.accuracy || 15);
-      v.locationSource = 'GPS';
       v.status = isGpsDisabledReport ? 'gps_off' : (isExitedReport ? 'exited' : 'online');
       v.isOnline = !isGpsDisabledReport && !isExitedReport;
       v.inApp = !isGpsDisabledReport && !isExitedReport;
@@ -7033,6 +7079,8 @@ const server = http.createServer(async (req, res) => {
         username: `@${cleanU}`,
         lastLat: null,
         lastLon: null,
+        gpsAccuracy: null,
+        source: '',
         lastLocationName: 'بانتظار التقاط GPS حقيقي',
         neighborhood: 'غير محدد بعد',
         deviceModel: 'غير معروف',
@@ -7053,10 +7101,15 @@ const server = http.createServer(async (req, res) => {
         rec.updatedAt ? new Date(rec.updatedAt).getTime() : 0
       );
 
-      const recHasValidCoord = isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
+      const recSrc = String(rec.source || rec.locationSource || '').trim().toUpperCase();
+      const isVerifiedGpsRec = recSrc === 'GPS' || recSrc === 'NATIVE_GEOLOCATION';
+      const recHasValidCoord = isVerifiedGpsRec && isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
       if (recHasValidCoord && (existing.lastLat === null || recLastSeenMs >= existing.lastSeenMs)) {
         existing.lastLat = Number(Number(rec.lat).toFixed(6));
         existing.lastLon = Number(Number(rec.lng ?? rec.lon).toFixed(6));
+        existing.source = 'GPS';
+        const rawAcc = rec.gpsAccuracy ?? rec.accuracy;
+        existing.gpsAccuracy = (typeof rawAcc === 'number' && isFinite(rawAcc) && rawAcc > 0) ? Math.round(rawAcc) : (existing.gpsAccuracy || null);
         const resolved = resolveLocalNeighborhood(existing.lastLat, existing.lastLon);
         existing.neighborhood = resolved?.neighborhood || resolved?.shortHood || rec.region || 'غير محدد';
         const cityLabel = resolved?.city || rec.city || 'صنعاء';

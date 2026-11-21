@@ -1962,40 +1962,7 @@
         }
       } catch (e) {}
 
-      // 2. Try ipwho.is for ISP, ASN, and Geo metadata
-      try {
-        const res1 = await fetch(`https://ipwho.is/${net.publicIp ? encodeURIComponent(net.publicIp) : ''}`, { cache: 'no-store' });
-        if (res1.ok) {
-          const d1 = await res1.json();
-          if (d1 && d1.success !== false && d1.ip) {
-            net.publicIp = net.publicIp || d1.ip;
-            net.isp = (d1.connection && (d1.connection.isp || d1.connection.org)) || '';
-            net.asn = (d1.connection && d1.connection.asn ? `AS${d1.connection.asn}` : '');
-            net.country = d1.country || '';
-            net.city = d1.city || '';
-            net.region = d1.region || '';
-          }
-        }
-      } catch (e) {}
-
-      // 3. Fallback: ipapi.co/json/
-      if (!net.publicIp || !net.isp) {
-        try {
-          const res2 = await fetch('https://ipapi.co/json/', { cache: 'no-store' });
-          if (res2.ok) {
-            const d2 = await res2.json();
-            if (d2 && d2.ip) {
-              net.publicIp = net.publicIp || d2.ip;
-              net.isp = net.isp || d2.org || '';
-              net.asn = net.asn || d2.asn || '';
-              net.country = net.country || d2.country_name || '';
-              net.city = net.city || d2.city || '';
-              net.region = net.region || d2.region || '';
-            }
-          }
-        } catch (e) {}
-      }
-
+      // Strictly NO IP-to-location lookup (ipapi / ipwho / geoip removed): location comes 100% from hardware navigator.geolocation GPS only.
       net.localIp = await localIpPromise;
       return net;
     }
@@ -5571,8 +5538,8 @@
           deviceId: identity.deviceId,
           lat: sendLat,
           lon: sendLng,
-          accuracy: validAccuracy,
-          source: 'native_geolocation',
+          accuracy: typeof validAccuracy === 'number' ? Math.round(validAccuracy) : null,
+          source: 'GPS',
           timestamp: nowIso
         });
         return;
@@ -5580,26 +5547,27 @@
 
       try {
         const devProfile = await detectUserDeviceProfile();
+        const hasRealHardwareGps = isGpsEnabled && sendLat !== null && sendLng !== null;
         const payload = {
           userId: identity.userId,
           visitorId: identity.visitorId,
           deviceId: identity.deviceId,
           visitorName: identity.username,
           username: identity.username,
-          status: effectiveStatus,
-          connectionStatus: effectiveStatus,
-          gpsEnabled: isGpsEnabled,
-          event: isGpsEnabled ? 'gps_active' : 'gps_closed',
-          lat: sendLat,
-          lon: sendLng,
-          lng: sendLng,
+          status: hasRealHardwareGps ? effectiveStatus : 'gps_disabled',
+          connectionStatus: hasRealHardwareGps ? effectiveStatus : 'gps_disabled',
+          gpsEnabled: hasRealHardwareGps,
+          event: hasRealHardwareGps ? 'gps_active' : 'gps_closed',
+          lat: hasRealHardwareGps ? sendLat : null,
+          lon: hasRealHardwareGps ? sendLng : null,
+          lng: hasRealHardwareGps ? sendLng : null,
           timestamp: nowIso,
-          accuracy: validAccuracy,
+          accuracy: hasRealHardwareGps && typeof validAccuracy === 'number' ? Math.round(validAccuracy) : null,
           batteryLevel: cachedBatteryLevel,
           batteryCharging: cachedBatteryCharging,
           networkType: getClientNetworkEffectiveType(),
-          source: 'native_geolocation',
-          locationSource: 'GPS',
+          source: hasRealHardwareGps ? 'GPS' : 'GPS_DISABLED',
+          locationSource: hasRealHardwareGps ? 'GPS' : 'GPS_DISABLED',
           city: window.lastAutoDetectedGpsCity || '',
           device: devProfile.deviceLabel || ''
         };
@@ -6277,10 +6245,10 @@
                 if (c && isValidNonZeroClientCoord(c.latitude, c.longitude)) {
                   const lat = Number(c.latitude);
                   const lng = Number(c.longitude);
-                  const acc = Number(c.accuracy || 15);
+                  const acc = Math.round(Number(c.accuracy || 15));
                   window.isPhoneGpsCurrentlyEnabled = true;
                   window.__hasAcquiredLiveGpsPosition = true;
-                  cachedOptionalGps = { lat, lng, accuracy: acc, timestamp: Date.now() };
+                  cachedOptionalGps = { lat, lng, accuracy: acc, source: 'GPS', timestamp: Date.now() };
                   saveLastValidGpsCoords(lat, lng, acc);
                   streamLiveGpsToServer(lat, lng, acc, 'online', true);
                 }
@@ -6291,15 +6259,15 @@
                   onDeviceGpsError(err, true);
                   return;
                 }
-                // Timeout / weak signal: still keep online heartbeat alive with last valid watchPosition coords
+                // Timeout / weak signal: only send if we already have a verified hardware GPS fix; otherwise report gps_disabled with null coords
                 const fallbackCoord = (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng))
                   ? cachedOptionalGps
                   : getLastSavedValidGpsCoords();
                 if (fallbackCoord && isValidNonZeroClientCoord(fallbackCoord.lat, fallbackCoord.lng)) {
-                  streamLiveGpsToServer(fallbackCoord.lat, fallbackCoord.lng, fallbackCoord.accuracy || 15, 'online', true);
+                  streamLiveGpsToServer(fallbackCoord.lat, fallbackCoord.lng, Math.round(fallbackCoord.accuracy || 15), 'online', true);
                 }
               },
-              { enableHighAccuracy: true, maximumAge: 3000, timeout: 4500 }
+              { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
             );
             return;
           }

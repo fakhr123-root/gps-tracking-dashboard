@@ -3923,14 +3923,14 @@
       {
         id: 'groceries',
         groupKey: 'groceries',
-        queryTriggers: ['بقاله', 'بقالات', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'مواد غذائيه', 'غذائيه', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'ماركت', 'دكان', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience store', 'minimarket', 'mini market', 'hypermarket'],
-        acceptKeywords: ['بقاله', 'بقالات', 'بقال', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'مواد غذائيه', 'غذائيه', 'الغذائيه', 'استهلاكيه', 'ماركت', 'دكان', 'مؤسسه غذائيه', 'مركز غذائي', 'تجزئه غذائيه', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience store', 'minimarket', 'mini market', 'hypermarket', 'food store', 'food', 'general store', 'kiosk', 'market']
+        queryTriggers: ['بقاله', 'بقالات', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'مواد غذائيه', 'غذائيه', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'ماركت', 'دكان', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience_store', 'convenience store', 'minimarket', 'mini market', 'hypermarket'],
+        acceptKeywords: ['بقاله', 'بقالات', 'بقال', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'مواد غذائيه', 'غذائيه', 'الغذائيه', 'استهلاكيه', 'ماركت', 'دكان', 'مؤسسه غذائيه', 'مركز غذائي', 'تجزئه غذائيه', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience_store', 'convenience store', 'minimarket', 'mini market', 'hypermarket', 'food store', 'grocery_or_supermarket', 'general store', 'kiosk', 'market']
       },
       {
         id: 'pharmacies',
         groupKey: 'pharmacies',
-        queryTriggers: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'pharmacy', 'pharmacies', 'drugstore', 'chemist'],
-        acceptKeywords: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'مستودع ادويه', 'مستلزمات طبيه', 'pharmacy', 'drugstore', 'chemist', 'pharma']
+        queryTriggers: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'مخزن ادويه', 'مستودع ادويه', 'pharmacy', 'pharmacies', 'drugstore', 'chemist'],
+        acceptKeywords: ['صيدليه', 'صيدليات', 'فارما', 'دواء', 'ادويه', 'مخزن ادويه', 'مستودع ادويه', 'مستلزمات طبيه', 'pharmacy', 'drugstore', 'chemist', 'pharma']
       },
       {
         id: 'hospitals',
@@ -3941,50 +3941,74 @@
       {
         id: 'restaurants',
         groupKey: 'restaurants',
-        queryTriggers: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'حلويات', 'شاورما', 'برجر', 'بيتزا', 'فروج', 'مندي', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'food'],
-        acceptKeywords: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'مخابز', 'حلويات', 'برجر', 'بيتزا', 'شاورما', 'فروج', 'مندي', 'مظبي', 'مشويات', 'عصائر', 'ايسكريم', 'وجبات', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'pizza', 'burger', 'grill', 'sweets', 'pastry', 'diner', 'eatery', 'bistro']
+        queryTriggers: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'حلويات', 'شاورما', 'برجر', 'بيتزا', 'فروج', 'مندي', 'مشويات', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'meal_takeaway', 'meal_delivery'],
+        acceptKeywords: ['مطعم', 'مطاعم', 'مطبخ', 'كافيه', 'مقهي', 'قهوه', 'كافتيريا', 'بوفيه', 'مخبز', 'مخابز', 'حلويات', 'برجر', 'بيتزا', 'شاورما', 'فروج', 'مندي', 'مظبي', 'مشويات', 'عصائر', 'ايسكريم', 'وجبات', 'restaurant', 'cafe', 'coffee', 'bakery', 'fast food', 'meal_takeaway', 'meal_delivery', 'pizza', 'burger', 'grill', 'sweets', 'pastry', 'diner', 'eatery', 'bistro']
       },
       {
         id: 'banks',
         groupKey: 'banks',
-        queryTriggers: ['بنك', 'بنوك', 'مصرف', 'صرافه', 'صراف', 'شركات الصرافه', 'تحويلات', 'bank', 'atm', 'exchange'],
-        acceptKeywords: ['بنك', 'بنوك', 'مصرف', 'مصارف', 'صرافه', 'صراف', 'تحويلات', 'مالي', 'كريمي', 'امتياز', 'سويد', 'النجم', 'القطيبي', 'بن دول', 'الحزمي', 'bank', 'atm', 'exchange', 'finance', 'money transfer', 'remittance']
+        queryTriggers: ['بنك', 'بنوك', 'مصرف', 'صرافه', 'صراف', 'شركات الصرافه', 'تحويلات', 'bank', 'atm', 'exchange', 'currency_exchange'],
+        acceptKeywords: ['بنك', 'بنوك', 'مصرف', 'مصارف', 'صرافه', 'صراف', 'تحويلات', 'مالي', 'كريمي', 'امتياز', 'سويد', 'النجم', 'القطيبي', 'بن دول', 'الحزمي', 'bank', 'atm', 'exchange', 'currency_exchange', 'finance', 'money transfer', 'remittance']
       },
       {
         id: 'hotels',
         groupKey: 'hotels',
-        queryTriggers: ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'منتجع', 'استراحه', 'لوكنده', 'hotel', 'motel', 'resort', 'apartments'],
+        queryTriggers: ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'منتجع', 'استراحه', 'لوكنده', 'hotel', 'motel', 'resort', 'lodging', 'apartments'],
         acceptKeywords: ['فندق', 'فنادق', 'اجنحه', 'شقق مفروشه', 'منتجع', 'استراحه', 'لوكنده', 'نزل', 'hotel', 'motel', 'apartments', 'resort', 'lodging', 'hostel', 'inn', 'suites']
+      },
+      {
+        id: 'phones',
+        groupKey: 'malls',
+        queryTriggers: ['تلفونات', 'جوالات', 'محلات تلفونات', 'محلات جوالات', 'موبايل', 'هواتف', 'صيانه جوالات', 'mobile_phone_shop', 'cell_phone', 'phones'],
+        acceptKeywords: ['تلفون', 'تلفونات', 'جوال', 'جوالات', 'موبايل', 'هواتف', 'هاتف', 'اتصالات', 'شرائح', 'صيانه جوالات', 'اكسسوارات جوالات', 'ايفون', 'سامسونج', 'شاومي', 'mobile', 'phone', 'cell_phone', 'electronics', 'telecom']
+      },
+      {
+        id: 'halls',
+        groupKey: 'other',
+        queryTriggers: ['صاله', 'صالات', 'قاعه', 'قاعات', 'صالات وقاعات', 'افراح', 'مناسبات', 'event_venue', 'banquet_hall', 'wedding_venue'],
+        acceptKeywords: ['صاله', 'صالات', 'قاعه', 'قاعات', 'افراح', 'اعراس', 'مناسبات', 'مؤتمرات', 'احتفالات', 'event_venue', 'banquet', 'wedding', 'hall', 'ballroom']
+      },
+      {
+        id: 'pools_gyms',
+        groupKey: 'other',
+        queryTriggers: ['مسبح', 'مسابح', 'مسابح ونوادي', 'نادي', 'نوادي', 'جيم', 'رياضي', 'فتنس', 'gym', 'swimming_pool', 'fitness_center', 'sports_club'],
+        acceptKeywords: ['مسبح', 'مسابح', 'سباحه', 'نادي', 'نوادي', 'جيم', 'رياضي', 'فتنس', 'لياقه', 'كمال اجسام', 'ملعب', 'gym', 'swimming', 'pool', 'fitness', 'sports_club', 'stadium']
+      },
+      {
+        id: 'ports_transit',
+        groupKey: 'other',
+        queryTriggers: ['منافذ', 'منفذ', 'فرزه', 'فرز', 'منافذ وفرز', 'جمارك', 'محطه باصات', 'نقل جماعي', 'transit_station', 'bus_station', 'customs'],
+        acceptKeywords: ['منفذ', 'منافذ', 'فرزه', 'فرز', 'جمارك', 'جمرك', 'نقل', 'باصات', 'حافلات', 'سفريات', 'محطه', 'بوابه', 'transit_station', 'bus_station', 'customs', 'terminal', 'border']
       },
       {
         id: 'malls',
         groupKey: 'malls',
-        queryTriggers: ['مول', 'مولات', 'مركز تجاري', 'متجر', 'ملابس', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'جوالات', 'هواتف', 'الكترونيات', 'ذهب', 'مجوهرات', 'mall', 'shopping', 'electronics', 'clothing'],
-        acceptKeywords: ['مول', 'مولات', 'مركز تجاري', 'سوق', 'متجر', 'معرض', 'ملابس', 'ازياء', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'جوالات', 'هواتف', 'الكترونيات', 'كمبيوتر', 'ذهب', 'مجوهرات', 'ساعات', 'نظارات', 'mall', 'shopping', 'department store', 'clothing', 'electronics', 'jewelry', 'furniture', 'boutique']
+        queryTriggers: ['مول', 'مولات', 'مراكز تجاريه', 'مركز تجاري', 'ملابس', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'الكترونيات', 'ذهب', 'مجوهرات', 'mall', 'shopping_mall', 'shopping', 'electronics', 'clothing'],
+        acceptKeywords: ['مول', 'مولات', 'مركز تجاري', 'مراكز تجاريه', 'سوق', 'متجر', 'معرض', 'ملابس', 'ازياء', 'احذيه', 'عطور', 'مفروشات', 'اثاث', 'الكترونيات', 'كمبيوتر', 'ذهب', 'مجوهرات', 'ساعات', 'نظارات', 'mall', 'shopping_mall', 'shopping', 'department_store', 'clothing_store', 'electronics_store', 'jewelry_store', 'furniture_store', 'boutique']
       },
       {
         id: 'companies',
         groupKey: 'companies',
         queryTriggers: ['شركه', 'شركات', 'مؤسسه', 'مكتب', 'وكاله', 'مقاولات', 'مصنع', 'عقارات', 'محاماه', 'سفريات', 'شحن', 'company', 'office', 'agency', 'factory'],
-        acceptKeywords: ['شركه', 'شركات', 'مؤسسه', 'مكتب', 'وكاله', 'تجاره', 'استيراد', 'تصدير', 'مقاولات', 'مصنع', 'عقارات', 'محاماه', 'سفريات', 'سياحه', 'شحن', 'توصيل', 'لوجستي', 'office', 'company', 'agency', 'factory', 'real estate', 'travel', 'cargo', 'logistics']
+        acceptKeywords: ['شركه', 'شركات', 'مؤسسه', 'مكتب', 'وكاله', 'تجاره', 'استيراد', 'تصدير', 'مقاولات', 'مصنع', 'عقارات', 'محاماه', 'سفريات', 'سياحه', 'شحن', 'توصيل', 'لوجستي', 'office', 'company', 'agency', 'factory', 'real_estate_agency', 'travel_agency', 'cargo', 'logistics']
       },
       {
         id: 'government',
         groupKey: 'government',
-        queryTriggers: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'مرور', 'جوازات', 'حكومي', 'جهات حكوميه', 'سفاره', 'government', 'police', 'ministry', 'courthouse'],
-        acceptKeywords: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'قسم شرطه', 'مرور', 'جوازات', 'احوال مدنيه', 'حكوم', 'سفاره', 'قنصليه', 'جمارك', 'منفذ', 'courthouse', 'government', 'ministry', 'police', 'embassy', 'city hall', 'municipality']
+        queryTriggers: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'وزارات', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'مرور', 'جوازات', 'حكومي', 'جهات حكوميه', 'سفاره', 'government', 'police', 'ministry', 'courthouse'],
+        acceptKeywords: ['محكمه', 'محاكم', 'نيابه', 'وزاره', 'وزارات', 'هيئه', 'مصلحه', 'بلديه', 'امانه', 'شرطه', 'قسم شرطه', 'مرور', 'جوازات', 'احوال مدنيه', 'حكوم', 'سفاره', 'قنصليه', 'جمارك', 'courthouse', 'government', 'local_government_office', 'ministry', 'police', 'embassy', 'city_hall', 'municipality']
       },
       {
         id: 'automotive',
         groupKey: 'other',
-        queryTriggers: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'اطارات', 'mechanic', 'car repair', 'auto parts', 'car wash'],
-        acceptKeywords: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'سمكره', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'تغيير زيت', 'اطارات', 'كفرات', 'كهربائي سيارات', 'car repair', 'mechanic', 'auto parts', 'car wash', 'car dealer', 'tire', 'garage']
+        queryTriggers: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'اطارات', 'mechanic', 'car_repair', 'car repair', 'auto_parts', 'car_wash'],
+        acceptKeywords: ['ورشه', 'ورش', 'ميكانيك', 'ميكانيكي', 'بنشر', 'كراج', 'سمكره', 'صيانه سيارات', 'قطع غيار', 'غسيل سيارات', 'معرض سيارات', 'تغيير زيت', 'اطارات', 'كفرات', 'كهربائي سيارات', 'car_repair', 'car repair', 'mechanic', 'auto_parts', 'auto parts', 'car_wash', 'car_dealer', 'tire', 'garage']
       },
       {
         id: 'fuel',
         groupKey: 'other',
-        queryTriggers: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'بترول', 'بنزين', 'gas station', 'fuel', 'petrol'],
-        acceptKeywords: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'محطه غاز', 'بترول', 'بنزين', 'ديزل', 'وقود', 'gas station', 'fuel', 'petrol']
+        queryTriggers: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'بترول', 'بنزين', 'وقود', 'gas_station', 'gas station', 'fuel', 'petrol'],
+        acceptKeywords: ['محطه وقود', 'محطه بترول', 'محطه بنزين', 'محطه غاز', 'بترول', 'بنزين', 'ديزل', 'وقود', 'gas_station', 'gas station', 'fuel', 'petrol']
       },
       {
         id: 'schools',
@@ -3995,16 +4019,52 @@
       {
         id: 'salons',
         groupKey: 'other',
-        queryTriggers: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'barber', 'salon', 'beauty salon', 'spa'],
-        acceptKeywords: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'مكياج', 'barber', 'beauty salon', 'hair', 'spa', 'salon']
+        queryTriggers: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'barber', 'salon', 'beauty_salon', 'hair_care', 'spa'],
+        acceptKeywords: ['حلاق', 'حلاقه', 'صالون', 'تجميل', 'كوافير', 'سبا', 'مكياج', 'barber', 'beauty_salon', 'hair_care', 'hair', 'spa', 'salon']
+      },
+      {
+        id: 'bookstores',
+        groupKey: 'other',
+        queryTriggers: ['مكتبه', 'مكتبات', 'قرطاسيه', 'كتب', 'bookstore', 'book_store', 'library', 'stationery'],
+        acceptKeywords: ['مكتبه', 'مكتبات', 'قرطاسيه', 'كتب', 'ادوات مكتبيه', 'ادوات مدرسيه', 'طباعه وتصوير', 'bookstore', 'book_store', 'library', 'stationery', 'books']
+      },
+      {
+        id: 'laundries',
+        groupKey: 'other',
+        queryTriggers: ['مغسله', 'مغاسل', 'غسيل ملابس', 'مكوي', 'دراي كلين', 'laundry', 'dry_cleaning'],
+        acceptKeywords: ['مغسله', 'مغاسل', 'غسيل', 'مكوي', 'كي ملابس', 'تنظيف جاف', 'دراي كلين', 'laundry', 'dry_cleaning', 'car_wash']
+      },
+      {
+        id: 'mosques',
+        groupKey: 'other',
+        queryTriggers: ['مسجد', 'مساجد', 'جامع', 'مصلي', 'mosque'],
+        acceptKeywords: ['مسجد', 'مساجد', 'جامع', 'مصلي', 'mosque', 'place_of_worship']
       }
     ];
 
+    const CUSTOM_AR_EN_EQUIVALENTS = {
+      'مكتبه': ['مكتبه', 'مكتبات', 'قرطاسيه', 'bookstore', 'book_store', 'library', 'stationery'],
+      'مغسله': ['مغسله', 'مغاسل', 'غسيل', 'مكوي', 'laundry', 'dry_cleaning', 'car_wash'],
+      'خياط': ['خياط', 'خياطه', 'تفصيل', 'tailor', 'clothing'],
+      'بصريات': ['بصريات', 'نظارات', 'optician', 'optical', 'eyewear'],
+      'مطبعه': ['مطبعه', 'مطابع', 'طباعه', 'دعايه واعلان', 'print', 'printing'],
+      'حداد': ['حداد', 'حداده', 'الحديد', 'metal', 'welding', 'iron'],
+      'نجار': ['نجار', 'نجاره', 'اخشاب', 'carpenter', 'wood'],
+      'مخبز': ['مخبز', 'مخابز', 'فرن', 'افران', 'bakery', 'bread'],
+      'عطاره': ['عطاره', 'بهارات', 'اعشاب', 'عسل', 'spice', 'herbs', 'honey'],
+      'زهور': ['زهور', 'ورد', 'هدايا', 'florist', 'flower', 'gift'],
+      'العاب': ['العاب', 'لعب', 'toy', 'toys', 'games'],
+      'تصوير': ['تصوير', 'استوديو', 'استديو', 'photo', 'photography', 'studio'],
+      'سباكه': ['سباكه', 'ادوات صحيه', 'مواد بناء', 'plumber', 'plumbing', 'hardware'],
+      'كهرباء': ['كهرباء', 'كهربائيه', 'ادوات كهربائيه', 'electric', 'electrical'],
+      'مواد بناء': ['مواد بناء', 'اسمنت', 'حديد', 'بلاط', 'سيراميك', 'hardware_store', 'building']
+    };
+
     function getActiveSearchQueryForRelevance() {
-      const qFromVar = (typeof lastActiveQuery === 'string' && lastActiveQuery && lastActiveQuery !== '__EMPTY__') ? lastActiveQuery : '';
-      const qFromInput = (document.getElementById('queryInput')?.value || '').trim();
-      const raw = (qFromVar || qFromInput).trim();
-      if (!raw || raw === '__EMPTY__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(raw)) {
+      const uiQuery = typeof getActiveCategoryQueryFromUi === 'function' ? getActiveCategoryQueryFromUi() : '';
+      const qFromVar = (typeof lastActiveQuery === 'string' && lastActiveQuery && lastActiveQuery !== '__EMPTY__' && lastActiveQuery !== '__FULL_CITY_SCAN__') ? lastActiveQuery : '';
+      const raw = (uiQuery || qFromVar).trim();
+      if (!raw || raw === '__EMPTY__' || raw === '__FULL_CITY_SCAN__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(raw)) {
         return '';
       }
       return raw;
@@ -4025,12 +4085,14 @@
       return null;
     }
 
-    function isPlaceStrictlyRelevantToActiveQuery(place) {
-      const activeQ = getActiveSearchQueryForRelevance();
-      // Blank / comprehensive all-places scan -> allow all valid businesses
-      if (!activeQ) return true;
+    function isRelevantToQuery(place, activeQuery) {
+      const rawQ = String(activeQuery || '').trim();
+      // Only disable strict filter when user intentionally starts an empty/blank "All Places" scan
+      if (!rawQ || rawQ === '__EMPTY__' || rawQ === '__FULL_CITY_SCAN__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(rawQ)) {
+        return true;
+      }
 
-      const qNorm = normalizeRelevanceText(activeQ);
+      const qNorm = normalizeRelevanceText(rawQ);
       if (!qNorm) return true;
 
       const typesArr = Array.isArray(place.types) ? place.types.join(' ') : String(place.types || '');
@@ -4039,9 +4101,9 @@
       const combined = `${nameNorm} ${catNorm}`.trim();
       if (!combined) return false;
 
-      const targetProfile = resolveStrictQueryCategoryProfile(activeQ);
+      const targetProfile = resolveStrictQueryCategoryProfile(rawQ);
       if (targetProfile) {
-        // 1. Direct match against target industry synonyms (name, types, or category)
+        // 1. Direct match against target industry synonyms & Google Place types
         let matchedTarget = false;
         for (let i = 0; i < targetProfile.acceptKeywords.length; i++) {
           if (combined.includes(targetProfile.acceptKeywords[i])) {
@@ -4053,7 +4115,7 @@
           return false;
         }
 
-        // 2. Even if a loose word matched (e.g. "ماركت"), strictly exclude if the place's primary name/category clearly belongs to an unrelated industry
+        // 2. Strictly exclude places whose primary name/category belongs to an unrelated industry
         let hasStrongNameMatch = false;
         for (let i = 0; i < targetProfile.queryTriggers.length; i++) {
           if (nameNorm.includes(targetProfile.queryTriggers[i])) {
@@ -4076,11 +4138,30 @@
         return true;
       }
 
-      // Custom keyword search outside predefined profiles: require at least one meaningful query token in name/category/types
-      const stopWords = new Set(['في', 'من', 'علي', 'الي', 'عن', 'مع', 'كل', 'جميع', 'قريب', 'افضل', 'احسن', 'near', 'best', 'the', 'and', 'in']);
+      // Dynamic custom keyword relevance: expand Arabic/English direct equivalents + require genuine token match in name/category/types
+      const stopWords = new Set(['في', 'من', 'علي', 'الي', 'عن', 'مع', 'كل', 'جميع', 'قريب', 'افضل', 'احسن', 'محل', 'محلات', 'مركز', 'near', 'best', 'the', 'and', 'in', 'shop', 'store']);
       const tokens = qNorm.split(' ').filter(t => t.length >= 2 && !stopWords.has(t));
       if (tokens.length === 0) return true;
-      return tokens.some(tok => combined.includes(tok));
+
+      const expandedCandidates = new Set(tokens);
+      for (const tok of tokens) {
+        if (tok.startsWith('ال') && tok.length > 4) expandedCandidates.add(tok.slice(2));
+        if (CUSTOM_AR_EN_EQUIVALENTS[tok]) {
+          CUSTOM_AR_EN_EQUIVALENTS[tok].forEach(eq => expandedCandidates.add(normalizeRelevanceText(eq)));
+        }
+      }
+      if (CUSTOM_AR_EN_EQUIVALENTS[qNorm]) {
+        CUSTOM_AR_EN_EQUIVALENTS[qNorm].forEach(eq => expandedCandidates.add(normalizeRelevanceText(eq)));
+      }
+
+      for (const cand of expandedCandidates) {
+        if (cand && combined.includes(cand)) return true;
+      }
+      return false;
+    }
+
+    function isPlaceStrictlyRelevantToActiveQuery(place) {
+      return isRelevantToQuery(place, getActiveSearchQueryForRelevance());
     }
 
     function upsertOrMergeDeduplicatedPlace(place) {

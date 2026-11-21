@@ -2420,6 +2420,25 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
     if (rawTokens.length === 0) rawTokens = [q];
 
+    const CUSTOM_SERVER_AR_EN_MAP = {
+      'مكتبه': ['مكتبه', 'مكتبات', 'قرطاسيه', 'bookstore', 'book_store', 'library', 'stationery'],
+      'مغسله': ['مغسله', 'مغاسل', 'غسيل', 'مكوي', 'laundry', 'dry_cleaning', 'car_wash'],
+      'وقود': ['محطه وقود', 'محطه بترول', 'بنزين', 'بترول', 'ديزل', 'gas_station', 'fuel', 'petrol'],
+      'بترول': ['محطه وقود', 'محطه بترول', 'بنزين', 'بترول', 'gas_station', 'fuel', 'petrol'],
+      'بنزين': ['محطه وقود', 'محطه بترول', 'بنزين', 'بترول', 'gas_station', 'fuel', 'petrol'],
+      'خياط': ['خياط', 'خياطه', 'تفصيل', 'tailor'],
+      'بصريات': ['بصريات', 'نظارات', 'optician', 'optical', 'eyewear'],
+      'مطبعه': ['مطبعه', 'مطابع', 'طباعه', 'دعايه واعلان', 'print', 'printing'],
+      'حداد': ['حداد', 'حداده', 'الحديد', 'metal', 'welding'],
+      'نجار': ['نجار', 'نجاره', 'اخشاب', 'carpenter', 'wood'],
+      'زهور': ['زهور', 'ورد', 'هدايا', 'florist', 'flower', 'gift'],
+      'العاب': ['العاب', 'لعب', 'toy', 'toys'],
+      'تصوير': ['تصوير', 'استوديو', 'استديو', 'photo', 'photography', 'studio'],
+      'سباكه': ['سباكه', 'ادوات صحيه', 'plumber', 'plumbing'],
+      'كهرباء': ['كهرباء', 'كهربائيه', 'electric', 'electrical'],
+      'مواد بناء': ['مواد بناء', 'اسمنت', 'حديد', 'سيراميك', 'hardware_store', 'building']
+    };
+
     const stems = [];
     for (const tk of rawTokens) {
       stems.push(tk);
@@ -2427,7 +2446,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       if (noAl.length >= 2) stems.push(noAl);
       const singular = noAl.replace(/(ات|ين|ون|ان|ه|ة)$/, '');
       if (singular.length >= 2) stems.push(singular);
+      if (CUSTOM_SERVER_AR_EN_MAP[tk]) stems.push(...CUSTOM_SERVER_AR_EN_MAP[tk]);
+      if (CUSTOM_SERVER_AR_EN_MAP[noAl]) stems.push(...CUSTOM_SERVER_AR_EN_MAP[noAl]);
     }
+    if (CUSTOM_SERVER_AR_EN_MAP[q]) stems.push(...CUSTOM_SERVER_AR_EN_MAP[q]);
 
     // Reject qat markets unless the user explicitly searched for qat ("قات")
     if (!q.includes('قات') && nName.includes('قات')) {

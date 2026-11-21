@@ -437,6 +437,16 @@
     <span id="weakNetworkGeoToastText">⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...</span>
   </div>
 
+  <!-- Celebratory 100% Scan Completion Toast Notification -->
+  <div id="scanCompleteCelebrationToast" style="z-index: 100002;" class="hidden fixed top-5 left-1/2 -translate-x-1/2 px-5 py-3.5 rounded-2xl bg-emerald-950/95 border-2 border-emerald-400/80 text-emerald-100 text-xs sm:text-sm font-black shadow-[0_16px_50px_rgba(16,185,129,0.45)] backdrop-blur-xl flex items-center gap-3 max-w-[94vw]">
+    <span class="w-3 h-3 rounded-full bg-emerald-400 animate-ping shrink-0"></span>
+    <div class="flex flex-col">
+      <span id="scanCompleteToastTitle" class="text-emerald-300 font-black">✅ اكتمل المسح الشامل بنجاح! (100%)</span>
+      <span id="scanCompleteToastSubtitle" class="text-[11px] text-emerald-100/90 font-bold">إجمالي المواقع الصافية بدون تكرار: 0 موقع</span>
+    </div>
+    <button type="button" onclick="document.getElementById('scanCompleteCelebrationToast')?.classList.add('hidden')" class="mr-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 text-xs font-black cursor-pointer">✕</button>
+  </div>
+
   <!-- Legacy Slim Non-Blocking Hybrid Offline Connection Banner (kept for compatibility) -->
   <div id="nativeOfflineOverlay" class="hidden fixed top-0 inset-x-0 z-[200] px-3 py-2 bg-amber-950/95 backdrop-blur-md border-b border-amber-400/60 shadow-[0_6px_25px_rgba(0,0,0,0.65)] pointer-events-auto">
     <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-200 text-[11px] sm:text-xs font-extrabold">
@@ -3561,13 +3571,18 @@
         lastProgressUiPaintMs = Date.now();
 
         const strictNetCount = extractedPlaces.length;
-        if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
-          const percent = Math.min(Math.round((data.scannedCells / data.totalCells) * 100), 98);
+        const isDoneSignal = Boolean(data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
+        if (isDoneSignal) {
+          progressBar.style.width = '100%';
+          const pctEl = document.getElementById('progressPercentBadge');
+          if (pctEl) pctEl.innerText = '100%';
+        } else if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
+          const percent = Math.min(Math.round((data.scannedCells / data.totalCells) * 100), 99);
           progressBar.style.width = `${percent}%`;
           const pctEl = document.getElementById('progressPercentBadge');
           if (pctEl) pctEl.innerText = `${percent}%`;
         } else if (typeof data.total === 'number' && data.total > 0) {
-          const percent = Math.min(Math.round(((data.current || strictNetCount) / data.total) * 100), 98);
+          const percent = Math.min(Math.round(((data.current || strictNetCount) / data.total) * 100), 99);
           progressBar.style.width = `${percent}%`;
           const pctEl = document.getElementById('progressPercentBadge');
           if (pctEl) pctEl.innerText = `${percent}%`;
@@ -3712,9 +3727,18 @@
           keepalive: true
         }).catch(() => {});
         progressBar.style.width = '100%';
+        progressBar.classList.remove('from-cyan-400', 'to-blue-500');
+        progressBar.classList.add('from-emerald-400', 'to-teal-300');
         const pctEl = document.getElementById('progressPercentBadge');
         if (pctEl) pctEl.innerText = '100%';
-        setTimeout(() => progressContainer.classList.add('hidden'), 1500);
+        if (statusMessage) {
+          statusMessage.innerText = '✅ اكتمل المسح الشامل بنجاح!';
+          statusMessage.classList.add('text-emerald-300', 'font-black');
+        }
+        if (typeof showScanCompleteCelebrationToast === 'function') {
+          showScanCompleteCelebrationToast(extractedPlaces.length);
+        }
+        setTimeout(() => progressContainer.classList.add('hidden'), 4500);
         finishSearch();
       });
 
@@ -4277,10 +4301,32 @@
       return `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(msg)}`;
     }
 
+    let scanCompleteToastTimer = null;
+    function showScanCompleteCelebrationToast(finalNetCount = 0) {
+      const toast = document.getElementById('scanCompleteCelebrationToast');
+      const titleEl = document.getElementById('scanCompleteToastTitle');
+      const subEl = document.getElementById('scanCompleteToastSubtitle');
+      if (!toast) return;
+      if (titleEl) titleEl.innerText = '✅ اكتمل المسح الشامل بنجاح! (100%)';
+      if (subEl) subEl.innerText = `إجمالي المواقع الصافية بدون تكرار: ${Number(finalNetCount || 0).toLocaleString()} موقع`;
+      toast.classList.remove('hidden');
+      if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);
+      scanCompleteToastTimer = setTimeout(() => {
+        scanCompleteToastTimer = null;
+        toast.classList.add('hidden');
+      }, 9000);
+    }
+
     function finishSearch() {
       if (currentEventSource) {
         currentEventSource.close();
         currentEventSource = null;
+      }
+      const searchBtn = document.getElementById('searchBtn');
+      if (searchBtn) {
+        searchBtn.disabled = false;
+        const labelSpan = searchBtn.querySelector('span');
+        if (labelSpan) labelSpan.innerText = 'بدء المسح الشامل';
       }
     }
 

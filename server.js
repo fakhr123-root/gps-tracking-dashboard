@@ -1814,8 +1814,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('غذائي') || q.includes('دكان') || q.includes('grocery') || q.includes('supermarket') || q.includes('convenience')) {
       [
-        'بقالة', 'تموينات', 'سوبر ماركت', 'مواد غذائية', 'supermarket', 'grocery',
-        'ميني ماركت', 'هايبر ماركت', 'دكان', 'تاجر مواد غذائية', 'جملة مواد غذائية',
+        'بقالة', 'تموينات', 'سوبر ماركت', 'مواد غذائية', 'ميني ماركت', 'دكان', 'grocery', 'supermarket',
+        'هايبر ماركت', 'تاجر مواد غذائية', 'جملة مواد غذائية',
         'مؤسسة مواد غذائية', 'شركة مواد غذائية', 'مركز تموينات', 'محل مواد غذائية',
         'بهارات وعطارة', 'بوفية وبقالة', 'سوق وتموينات', 'ارزاق ومواد غذائية',
         'بقاله', 'سوبرماركت', 'بقالات', 'ماركت', 'كشك وبقالة',
@@ -2742,10 +2742,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       let mirrorCursor = 0;
       let gmapsCellCursor = 0;
 
-      const QUADTREE_SPLIT_THRESHOLD = 20; // Lowered from 60 -> 20 to force deep street-level subdivision in dense neighborhoods
+      const QUADTREE_SPLIT_THRESHOLD = 15; // Aggressive subdivision (>= 15 results) down to ~100m street blocks in dense urban centers
       const OVERPASS_CELL_CAP = 500;
-      const MIN_CELL_SPAN_DEG = 0.0012; // ~135m-150m street/block resolution so dense areas subdivide thoroughly
-      const MAX_QUADTREE_DEPTH = 20; // Deep recursive subdivision down to street/block level in dense urban centers
+      const MIN_CELL_SPAN_DEG = 0.0009; // ~100m street/block resolution so dense Sana'a districts subdivide thoroughly
+      const MAX_QUADTREE_DEPTH = 22; // Deep recursive subdivision down to ~100m street blocks
 
       const scopeMode = targetScope.scopeMode || (isCountrySearch ? 'country' : 'city');
       const countryCode = (center.countryCode || 'YE').toUpperCase();
@@ -2963,7 +2963,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const spanMeters = Math.min(Math.max(Math.round(diagKm * 650), 150), 25000);
         const cellTerms = isFullAreaScan
           ? [GMAPS_CELL_TERMS[(gmapsCellCursor) % GMAPS_CELL_TERMS.length]]
-          : expandSpecificActivitySynonyms(stdQuery || 'نشاط تجاري').slice(0, 6);
+          : expandSpecificActivitySynonyms(stdQuery || 'نشاط تجاري').slice(0, 8);
         const glCode = (center.countryCode || 'YE').toLowerCase();
         const pb = `!4m12!1m3!1d${spanMeters}!2d${midLon}!3d${midLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!8i0!10b1`;
 
@@ -3638,14 +3638,58 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     }
   }
 
+  // Full OpenStreetMap (OSM) Overpass City-Wide Grocery Boost:
+  // Queries ["shop"~"convenience|supermarket|grocery|general|kiosk"] across the ENTIRE city bounding box to merge community-mapped stores alongside Google Maps
+  const runOverpassGroceryCityBoost = async () => {
+    if (isAborted()) return;
+    const normQ = normAr(stdQuery || '');
+    const isGrocerySearch = normQ.includes('بقال') || normQ.includes('تموين') || normQ.includes('سوبر') || normQ.includes('ماركت') || normQ.includes('غذائي') || normQ.includes('دكان') || normQ.includes('grocery') || normQ.includes('supermarket');
+    if (!isGrocerySearch) return;
+
+    const delta = isCountrySearch ? 2.5 : 0.28;
+    const minLat = (center.lat - delta).toFixed(4);
+    const minLon = (center.lng - delta).toFixed(4);
+    const maxLat = (center.lat + delta).toFixed(4);
+    const maxLon = (center.lng + delta).toFixed(4);
+    const bbox = `${minLat},${minLon},${maxLat},${maxLon}`;
+    const q = `[out:json][timeout:35];(node["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox});way["shop"~"convenience|supermarket|grocery|general|kiosk"](${bbox}););out center 5000;`;
+    const mirrors = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://maps.mail.ru/osm/tools/overpass/api/interpreter'
+    ];
+    for (const mirror of mirrors) {
+      if (isAborted()) return;
+      try {
+        const res = await fetchWithTimeout(`${mirror}?data=${encodeURIComponent(q)}`, {
+          timeout: 32000,
+          headers: { 'User-Agent': 'GeoRadar3DStudio/4.0', 'Accept': 'application/json' }
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const elements = Array.isArray(data.elements) ? data.elements : [];
+        for (const el of elements) {
+          if (isAborted()) break;
+          const pLat = el.lat || el.center?.lat;
+          const pLng = el.lon || el.center?.lon;
+          const tags = el.tags || {};
+          const rawName = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['name:en'] || '').trim();
+          const finalName = rawName || (tags.shop === 'supermarket' ? 'سوبر ماركت' : 'بقالة ومواد غذائية');
+          if (!pLat || !pLng) continue;
+          const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+          await emitPlace(finalName, Number(pLat), Number(pLng), tags, 'OSM Overpass Boost (بقالات)', osmId);
+        }
+        return;
+      } catch (e) {}
+    }
+  };
+
   // 1. PRIMARY ENGINE: High-Speed Parallel Multi-Wave Google Maps Live Search (`tbm=map`) across ALL Alleys (حارات), Neighborhoods, Streets & Micro-Grid Cells
   try {
     const countryGl = (center.countryCode || 'YE').toLowerCase();
     const overpassPromise = (isFullAreaScan || isCountrySearch)
       ? Promise.all([runYemenAdaptiveQuadtreeScan(), runGlobalPhotonAndArcgisScan()])
-      : (fetchedCount >= 50
-          ? Promise.resolve()
-          : Promise.all([runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]));
+      : Promise.all([runOverpassGroceryCityBoost(), runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();
     const queryTasks = [];
 
@@ -3838,12 +3882,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const entries = gData?.[0]?.[1] || [];
         if (!Array.isArray(entries) || entries.length === 0) return;
 
-        // Deep QuadTree Subdivision for Dense Areas (Street/Block Level ~150m radius):
-        // Whenever a cell returns >= 20 results (or hits the 60-result API cap), FORCE subdivision into 4 smaller sub-quadrants!
+        // Aggressive Deep QuadTree Subdivision for Dense Urban Neighborhoods (~100m street blocks):
+        // Whenever a cell returns >= 15 results (or hits the 60-result cap), FORCE subdivision into 4 smaller sub-quadrants!
         const qtDepth = task.qtDepth || 0;
-        if (entries.length >= 20 && (task.span || 1500) >= 150 && qtDepth < 20) {
-          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 140);
-          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.0009);
+        if (entries.length >= 15 && (task.span || 1500) >= 100 && qtDepth < 22) {
+          const childSpan = Math.max(Math.round((task.span || 1500) / 2), 95);
+          const dDeg = Math.max((childSpan / 111000) * 0.75, 0.0007);
           const quadrants = [
             [dDeg, dDeg],
             [dDeg, -dDeg],
@@ -3934,23 +3978,73 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     };
 
     const BATCH_CONCURRENCY = 14;
-    // Process ALL tasks and dynamically added QuadTree subdivisions via 14-way parallel Promise pool (Zero auto-abort, zero artificial wave limits!)
+    let activeWorkers = 0;
+    let completedMapTasks = 0;
+
+    // Process ALL tasks and dynamically added QuadTree subdivisions via 14-way parallel Promise pool with strict worker & queue tracking
     for (let i = 0; i < queryTasks.length; i += BATCH_CONCURRENCY) {
       if (isAborted()) break;
       const batch = queryTasks.slice(i, i + BATCH_CONCURRENCY);
-      await Promise.all(batch.map(executeSingleMapTask));
+      activeWorkers += batch.length;
+      await Promise.all(batch.map(async (t) => {
+        try {
+          await executeSingleMapTask(t);
+        } finally {
+          activeWorkers = Math.max(0, activeWorkers - 1);
+          completedMapTasks++;
+        }
+      }));
+
+      const effectiveScanned = Math.max(quadtreeScannedCells, completedMapTasks);
+      const effectiveTotal = Math.max(quadtreeTotalCells, queryTasks.length, effectiveScanned);
+      const pendingCells = Math.max(0, effectiveTotal - effectiveScanned);
+      sendEvent('quadtree_progress', {
+        scannedCells: effectiveScanned,
+        totalCells: effectiveTotal,
+        pendingCells,
+        activeWorkers,
+        subdividedCells: quadtreeSubdividedCells,
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount,
+        deduplicatedTotal: fetchedCount
+      });
+      sendEvent('progress', {
+        current: effectiveScanned,
+        total: effectiveTotal,
+        scannedCells: effectiveScanned,
+        totalCells: effectiveTotal,
+        pendingCells,
+        activeWorkers,
+        subdividedCells: quadtreeSubdividedCells,
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount,
+        deduplicatedTotal: fetchedCount
+      });
+
       if (i + BATCH_CONCURRENCY < queryTasks.length) {
         await sleep(15);
       }
     }
 
     await overpassPromise;
+    const finalTotalCells = Math.max(quadtreeTotalCells, queryTasks.length, completedMapTasks, 1);
+    sendEvent('quadtree_progress', {
+      scannedCells: finalTotalCells,
+      totalCells: finalTotalCells,
+      pendingCells: 0,
+      activeWorkers: 0,
+      subdividedCells: quadtreeSubdividedCells,
+      googleCount: googleExtractedCount,
+      osmCount: osmExtractedCount,
+      deduplicatedTotal: fetchedCount,
+      completed: true
+    });
   } catch (gErr) {
     console.log('Google Maps direct search notice:', gErr.message);
   }
 
-  sendEvent('progress', { current: fetchedCount, total: fetchedCount });
-  sendEvent('status', { message: `اكتمل المسح الشامل واستخراج (${fetchedCount} موقع حقيقي) في كافة الحارات والشوارع والمنافذ داخل [${center.city} - ${center.district}] بنجاح!` });
+  sendEvent('progress', { current: fetchedCount, total: Math.max(fetchedCount, 1), percent: 100, pendingCells: 0, activeWorkers: 0, completed: true });
+  sendEvent('status', { message: `✅ اكتمل المسح الشامل بنجاح!`, completed: true });
 }
 
 // Generate authentic, strictly country-specific telephone numbers

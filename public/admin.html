@@ -562,6 +562,40 @@
             <div id="usernameFullDossierPanel" class="hidden pt-2 border-t border-emerald-500/30"></div>
           </div>
 
+          <!-- DETAILED USERS LAST SESSION & ISOLATED COORDINATES LOG TABLE -->
+          <div class="rounded-xl border border-emerald-500/35 bg-slate-900/90 overflow-hidden">
+            <div class="px-3 py-2 bg-slate-950/80 border-b border-emerald-500/25 flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <h4 class="text-xs sm:text-sm font-black text-emerald-300">📍 سجل آخر جلسة وإحداثيات الحسابات (معزولة لكل يوزر)</h4>
+                <span id="usersSessionsLogCountBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-[10px] font-num font-bold">0 حساب</span>
+              </div>
+              <button type="button" onclick="fetchAndRenderUsersLastSessionsTable()" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/45 text-emerald-200 text-[10px] font-bold transition cursor-pointer">
+                🔄 تحديث السجل
+              </button>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-right text-[11px] sm:text-xs">
+                <thead class="bg-slate-950/90 text-slate-300 border-b border-slate-800 text-[10px] sm:text-[11px]">
+                  <tr>
+                    <th class="px-3 py-2 font-black">اسم الحساب</th>
+                    <th class="px-3 py-2 font-black">الإحداثيات الدقيقة (Lat, Lng)</th>
+                    <th class="px-3 py-2 font-black">الحي / الشارع</th>
+                    <th class="px-3 py-2 font-black">الجهاز</th>
+                    <th class="px-3 py-2 font-black">وقت آخر جلسة</th>
+                    <th class="px-3 py-2 font-black">الحالة</th>
+                    <th class="px-3 py-2 font-black text-center">إجراء</th>
+                  </tr>
+                </thead>
+                <tbody id="usersLastSessionsTableBody" class="divide-y divide-slate-800/70">
+                  <tr>
+                    <td colspan="7" class="px-3 py-4 text-center text-slate-400 text-xs">جاري تحميل سجل آخر جلسات وإحداثيات الحسابات...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80">
             <table class="w-full text-right text-[11px]">
               <thead class="bg-slate-900 text-cyan-300 font-bold border-b border-slate-800">
@@ -730,6 +764,8 @@
 
       if (tabName === 'radar' && adminMap) {
         setTimeout(() => adminMap.invalidateSize(), 150);
+      } else if (tabName === 'visitors' && typeof fetchAndRenderUsersLastSessionsTable === 'function') {
+        fetchAndRenderUsersLastSessionsTable();
       }
     }
 
@@ -1332,8 +1368,9 @@
       const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
       const displayUser = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
       const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
-      const lat6 = Number(v.lat || 15.3538).toFixed(6);
-      const lng6 = Number(v.lng || 44.2058).toFixed(6);
+      const hasValidCoord = isValidAdminNonZeroCoord(v.lat, v.lng);
+      const lat6 = hasValidCoord ? Number(v.lat).toFixed(6) : '';
+      const lng6 = hasValidCoord ? Number(v.lng).toFixed(6) : '';
       const liveMeta = getVisitorLiveStatusMeta(v);
       const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
       const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
@@ -1351,17 +1388,98 @@
         subEl.style.color = liveMeta.isLive ? '#34d399' : liveMeta.markerColor;
       }
       if (devEl) devEl.innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
-      if (coordEl) coordEl.innerText = `${lat6}, ${lng6}`;
+      if (coordEl) coordEl.innerText = hasValidCoord ? `${lat6}, ${lng6}` : 'بانتظار التقاط GPS حقيقي...';
       if (ipEl) ipEl.innerText = v.ip || '0.0.0.0';
-      if (cityEl) cityEl.innerText = `${v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
-      if (linkEl) linkEl.href = `https://www.google.com/maps?q=${lat6},${lng6}`;
+      if (cityEl) cityEl.innerText = `${v.locationName || v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
+      if (linkEl) {
+        linkEl.href = hasValidCoord ? `https://www.google.com/maps?q=${lat6},${lng6}` : '#';
+      }
 
-      if (shouldFlyMap && adminMap && v.lat && v.lng) {
+      if (shouldFlyMap && adminMap && hasValidCoord) {
         setTimeout(() => {
           adminMap.invalidateSize();
-          adminMap.flyTo([v.lat, v.lng], 16, { duration: 1.0 });
+          adminMap.flyTo([Number(v.lat), Number(v.lng)], 16, { duration: 1.0 });
         }, 100);
       }
+    }
+
+    function copyUserSessionCoords(lat, lng, username) {
+      const txt = `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt).then(() => {
+          showAdminCornerToast(`📋 تم نسخ إحداثيات ${username}: ${txt}`, false);
+        }).catch(() => alert(`تم نسخ إحداثيات ${username}:\n${txt}`));
+      } else {
+        alert(`إحداثيات ${username}:\n${txt}`);
+      }
+    }
+
+    function focusUserSessionOnMap(username, lat, lng) {
+      const cleanTarget = String(username || '').trim().replace(/^@+/, '').toLowerCase();
+      const idx = (currentAdminData.visitors || []).findIndex(v => {
+        const u = String(v?.username || v?.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
+        return u === cleanTarget;
+      });
+      if (idx >= 0) {
+        inspectVisitor(idx, true);
+        return;
+      }
+      if (isValidAdminNonZeroCoord(lat, lng)) {
+        switchAdminTab('radar');
+        setTimeout(() => {
+          if (adminMap) {
+            adminMap.invalidateSize();
+            adminMap.flyTo([Number(lat), Number(lng)], 16, { duration: 1.0 });
+          }
+        }, 150);
+      }
+    }
+
+    async function fetchAndRenderUsersLastSessionsTable() {
+      const tbody = document.getElementById('usersLastSessionsTableBody');
+      const badge = document.getElementById('usersSessionsLogCountBadge');
+      if (!tbody) return;
+      try {
+        const res = await fetch('/api/admin/users-sessions', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (typeof data.serverNowMs === 'number' && data.serverNowMs > 0) {
+          adminServerClockOffsetMs = Date.now() - data.serverNowMs;
+        }
+        const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+        if (badge) badge.innerText = `${sessions.length} حساب`;
+        if (sessions.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-3 py-4 text-center text-slate-400 text-xs">لا توجد جلسات مسجلة بعد.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = sessions.map(s => {
+          const hasCoord = isValidAdminNonZeroCoord(s.lastLat, s.lastLon);
+          const coordText = hasCoord ? `${Number(s.lastLat).toFixed(6)}, ${Number(s.lastLon).toFixed(6)}` : 'بانتظار GPS حقيقي';
+          const statusBadge = s.statusCode === 'online'
+            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/55 text-emerald-300 text-[10px] font-extrabold">🟢 نشط داخل التطبيق</span>`
+            : s.statusCode === 'gps_off'
+              ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-400/55 text-red-300 text-[10px] font-extrabold">🔴 أقفل الموقع</span>`
+              : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/45 text-amber-300 text-[10px] font-extrabold">🟠 خارج التطبيق</span>`;
+          const safeUser = String(s.username || '').replace(/'/g, '');
+          return `
+            <tr class="hover:bg-emerald-500/5 transition">
+              <td class="px-3 py-2 font-black text-white whitespace-nowrap">${s.username}</td>
+              <td class="px-3 py-2 font-num text-cyan-300 font-bold whitespace-nowrap" dir="ltr">${coordText}</td>
+              <td class="px-3 py-2 text-emerald-200 font-bold">${s.lastLocationName || s.neighborhood || 'غير محدد'}</td>
+              <td class="px-3 py-2 text-slate-300 text-[10px] sm:text-[11px] max-w-[200px] truncate" title="${s.deviceModel || ''}">${s.deviceModel || 'غير معروف'} <span class="text-slate-500">(${s.ip || '—'})</span></td>
+              <td class="px-3 py-2 text-slate-300 font-num text-[10px] sm:text-[11px] whitespace-nowrap">${s.lastSeen || '—'}</td>
+              <td class="px-3 py-2 whitespace-nowrap">${statusBadge}</td>
+              <td class="px-3 py-2 whitespace-nowrap text-center">
+                <div class="inline-flex items-center gap-1">
+                  ${hasCoord ? `<button type="button" onclick="copyUserSessionCoords(${s.lastLat}, ${s.lastLon}, '${safeUser}')" class="px-2 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/45 text-cyan-200 text-[10px] font-bold transition cursor-pointer">📋 نسخ الإحداثيات</button>` : ''}
+                  ${hasCoord ? `<button type="button" onclick="focusUserSessionOnMap('${safeUser}', ${s.lastLat}, ${s.lastLon})" class="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/50 text-emerald-200 text-[10px] font-bold transition cursor-pointer">📍 على الخريطة</button>` : '<span class="text-[10px] text-slate-500">—</span>'}
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      } catch (e) {}
     }
 
     const ARCHIVE_STORAGE_KEY = 'admin_permanent_archive_v2';
@@ -1847,6 +1965,9 @@
           const data = await res.json();
           if (typeof data.serverNowMs === 'number' && data.serverNowMs > 0) {
             adminServerClockOffsetMs = Date.now() - data.serverNowMs;
+          }
+          if (typeof fetchAndRenderUsersLastSessionsTable === 'function') {
+            fetchAndRenderUsersLastSessionsTable();
           }
           const localArch = loadLocalArchive();
 

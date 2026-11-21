@@ -6858,6 +6858,122 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Detailed Isolated Users Last Session & Coordinates Log Endpoint (GET /api/admin/users-sessions)
+  if (pathname === '/api/admin/users-sessions' && req.method === 'GET') {
+    const logs = loadAdminLogs();
+    const serverNowMs = Date.now();
+    const accountMap = new Map();
+
+    const extractDeviceAndOs = (rawDev = '') => {
+      const s = String(rawDev || '').trim();
+      if (!s) return { deviceModel: 'غير معروف', os: 'غير معروف' };
+      let os = 'غير معروف';
+      if (/windows\s*10\/11|windows/i.test(s)) os = 'Windows 10/11';
+      else if (/android/i.test(s)) os = 'Android';
+      else if (/iphone|ipad|ios/i.test(s)) os = 'iOS';
+      else if (/mac\s*os|macintosh/i.test(s)) os = 'macOS';
+      else if (/linux/i.test(s)) os = 'Linux';
+      return { deviceModel: s, os };
+    };
+
+    const mergeIsolatedUserRecord = (rawKey, rec) => {
+      if (!rec || typeof rec !== 'object') return;
+      const cleanU = normalizeIgUsername(rawKey || rec.username || rec.visitorName || '');
+      if (!cleanU || !VALID_IG_USERNAME_REGEX.test(cleanU)) return;
+
+      const existing = accountMap.get(cleanU) || {
+        username: `@${cleanU}`,
+        lastLat: null,
+        lastLon: null,
+        lastLocationName: 'بانتظار التقاط GPS حقيقي',
+        neighborhood: 'غير محدد بعد',
+        deviceModel: 'غير معروف',
+        os: 'غير معروف',
+        ip: '—',
+        lastSeenMs: 0,
+        lastSeen: '—',
+        status: 'خارج التطبيق',
+        statusCode: 'exited',
+        isOnline: false,
+        inApp: false
+      };
+
+      const recLastSeenMs = Math.max(
+        typeof rec.lastSeen === 'number' ? rec.lastSeen : (rec.lastSeen ? new Date(rec.lastSeen).getTime() : 0),
+        typeof rec.lastSeenMs === 'number' ? rec.lastSeenMs : 0,
+        rec.lastHeartbeatAt ? new Date(rec.lastHeartbeatAt).getTime() : 0,
+        rec.updatedAt ? new Date(rec.updatedAt).getTime() : 0
+      );
+
+      const recHasValidCoord = isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
+      if (recHasValidCoord && (existing.lastLat === null || recLastSeenMs >= existing.lastSeenMs)) {
+        existing.lastLat = Number(Number(rec.lat).toFixed(6));
+        existing.lastLon = Number(Number(rec.lng ?? rec.lon).toFixed(6));
+        const resolved = resolveLocalNeighborhood(existing.lastLat, existing.lastLon);
+        existing.neighborhood = resolved?.neighborhood || resolved?.shortHood || rec.region || 'غير محدد';
+        const cityLabel = resolved?.city || rec.city || 'صنعاء';
+        existing.lastLocationName = `${cityLabel} - ${existing.neighborhood}`;
+      }
+
+      if (rec.device && (existing.deviceModel === 'غير معروف' || recLastSeenMs >= existing.lastSeenMs)) {
+        const parsedDev = extractDeviceAndOs(rec.device);
+        existing.deviceModel = parsedDev.deviceModel;
+        existing.os = parsedDev.os;
+      }
+
+      if (rec.ip && !isLoopbackIp(rec.ip) && (existing.ip === '—' || recLastSeenMs >= existing.lastSeenMs)) {
+        existing.ip = String(rec.ip).trim();
+      }
+
+      if (recLastSeenMs >= existing.lastSeenMs) {
+        existing.lastSeenMs = recLastSeenMs;
+        if (recLastSeenMs > 0) {
+          existing.lastSeen = new Date(recLastSeenMs).toLocaleString('ar-SA', { hour12: true });
+        }
+        const rawConn = String(rec.status || rec.connectionStatus || rec.liveStatus || '').trim().toLowerCase();
+        const isGpsOff = rawConn === 'gps_off' || rawConn === 'gps_disabled' || rec.gpsEnabled === false;
+        const isExited = rawConn === 'exited';
+        const isOnlineNow = !isGpsOff && !isExited && recLastSeenMs > 0 && (serverNowMs - recLastSeenMs) < 45000;
+        existing.isOnline = isOnlineNow;
+        existing.inApp = isOnlineNow;
+        if (isGpsOff) {
+          existing.status = 'أقفل الموقع';
+          existing.statusCode = 'gps_off';
+        } else if (isOnlineNow) {
+          existing.status = 'نشط داخل التطبيق';
+          existing.statusCode = 'online';
+        } else {
+          existing.status = 'خارج التطبيق';
+          existing.statusCode = 'exited';
+        }
+      }
+
+      accountMap.set(cleanU, existing);
+    };
+
+    if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
+      for (const [k, acc] of Object.entries(logs.savedAccounts)) {
+        mergeIsolatedUserRecord(k, acc);
+      }
+    }
+    if (Array.isArray(logs.visitors)) {
+      for (const v of logs.visitors) {
+        if (!v || v.isDeviceIpAutoAuth) continue;
+        mergeIsolatedUserRecord(v.username || v.visitorName, v);
+      }
+    }
+
+    const sessions = Array.from(accountMap.values()).sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      serverNowMs,
+      total: sessions.length,
+      sessions
+    }));
+    return;
+  }
+
   // Admin Login Endpoint
   if ((pathname === '/api/admin/login' || pathname === '/api/admin/verify') && req.method === 'POST') {
     const data = await readRequestBody(req);

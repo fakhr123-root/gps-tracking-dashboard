@@ -327,10 +327,11 @@
           </div>
 
           <!-- Card 3: Active GPS Devices -->
-          <div class="kpi-emerald p-2.5 sm:p-3 rounded-xl flex items-center justify-between">
-            <div class="text-right">
+          <div class="kpi-emerald p-2.5 sm:p-3 rounded-xl flex items-center justify-between gap-2">
+            <div class="text-right min-w-0">
               <p class="text-[10px] text-emerald-200/80 font-bold">أجهزة GPS:</p>
               <h3 id="statGpsVisitors" class="text-base sm:text-xl font-black font-num text-white mt-0.5">0</h3>
+              <p id="statGpsBreakdown" class="text-[9px] text-emerald-300/80 font-semibold truncate">بإحداثيات GPS حقيقية</p>
             </div>
             <div class="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300 shrink-0">
               <i data-lucide="compass" class="w-4 h-4"></i>
@@ -338,10 +339,11 @@
           </div>
 
           <!-- Card 4: Total Visitors -->
-          <div class="kpi-cyan p-2.5 sm:p-3 rounded-xl flex items-center justify-between">
-            <div class="text-right">
+          <div class="kpi-cyan p-2.5 sm:p-3 rounded-xl flex items-center justify-between gap-2">
+            <div class="text-right min-w-0">
               <p class="text-[10px] text-cyan-200/80 font-bold">إجمالي الزوار:</p>
               <h3 id="statTotalVisitors" class="text-base sm:text-xl font-black font-num text-white mt-0.5">0</h3>
+              <p id="statTotalVisitorsBreakdown" class="text-[9px] text-cyan-200/85 font-semibold truncate">0 حسابات مسجلة</p>
             </div>
             <div class="w-8 h-8 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0">
               <i data-lucide="users" class="w-4 h-4"></i>
@@ -1841,11 +1843,15 @@
             if (s.ip && s.ip !== '—') targetV.ip = s.ip;
             if (s.deviceModel && s.deviceModel !== 'غير معروف') targetV.device = s.deviceModel;
 
-            if (hasCoord) {
+            const isVerifiedSessionGps = String(s.source || '').trim().toUpperCase() === 'GPS' && hasCoord;
+            if (isVerifiedSessionGps) {
               const newLat = Number(s.lastLat);
               const newLng = Number(s.lastLon);
               targetV.lat = newLat;
               targetV.lng = newLng;
+              targetV.source = 'GPS';
+              targetV.locationSource = 'GPS';
+              if (typeof s.gpsAccuracy === 'number' && s.gpsAccuracy > 0) targetV.gpsAccuracy = s.gpsAccuracy;
               const existingMarker = visitorMarkersByKey.get(strictKey);
               if (existingMarker && typeof existingMarker.setLatLng === 'function' && prevOnline === nextOnline && prevStatus === nextStatus) {
                 // Smooth in-place marker coordinate update (zero flicker)
@@ -1853,10 +1859,14 @@
               } else {
                 needsFullMapRerender = true;
               }
-            } else if (visitorMarkersByKey.has(strictKey)) {
+            } else {
               targetV.lat = null;
               targetV.lng = null;
-              needsFullMapRerender = true;
+              targetV.source = '';
+              targetV.locationSource = '';
+              if (visitorMarkersByKey.has(strictKey)) {
+                needsFullMapRerender = true;
+              }
             }
             if (prevOnline !== nextOnline || prevStatus !== nextStatus) {
               needsFullMapRerender = true;
@@ -1868,6 +1878,34 @@
 
         if (needsFullMapRerender) {
           renderMapPins(currentAdminData.visitors);
+        }
+        // Keep top KPI counters synchronized with deduplicated live GPS & account counts
+        if (currentAdminData && Array.isArray(currentAdminData.visitors)) {
+          let regCnt = 0, guestCnt = 0, gpsCnt = 0;
+          const seenU = new Set();
+          for (const v of currentAdminData.visitors) {
+            if (!v) continue;
+            const rawVName = String(v.visitorName || '').trim();
+            const cU = String(v.username || (!rawVName.includes('•') ? rawVName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+            if (!v.isDeviceIpAutoAuth && cU && ADMIN_VALID_USERNAME_REGEX.test(cU) && !rawVName.includes('•')) {
+              if (seenU.has(cU)) continue;
+              seenU.add(cU);
+              regCnt++;
+            } else {
+              guestCnt++;
+            }
+            const src = String(v.source || v.locationSource || '').trim().toUpperCase();
+            if ((src === 'GPS' || src === 'NATIVE_GEOLOCATION') && isValidAdminNonZeroCoord(v.lat, v.lng ?? v.lon)) {
+              gpsCnt++;
+            }
+          }
+          renderStats({
+            ...(currentAdminData.stats || {}),
+            totalVisitors: regCnt + guestCnt,
+            registeredUsersCount: regCnt,
+            guestVisitorsCount: guestCnt,
+            gpsVisitors: gpsCnt
+          });
         }
         // Smoothly refresh live inspector & radar list timestamps without flying the map
         if (typeof renderInspectorTimeline === 'function') {
@@ -2428,7 +2466,36 @@
             syncAdminStateWithServer();
           }
 
-          const gpsCount = mergedVisitors.filter(v => v.locationSource !== 'IP').length;
+          const computeUnifiedVisitorCounts = (list = []) => {
+            let registeredCount = 0;
+            let guestCount = 0;
+            let gpsVerifiedCount = 0;
+            const seenRegUsers = new Set();
+            for (const v of list) {
+              if (!v) continue;
+              const rawVName = String(v.visitorName || '').trim();
+              const cleanU = String(v.username || (!rawVName.includes('•') ? rawVName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+              const isRegUser = Boolean(!v.isDeviceIpAutoAuth && cleanU && ADMIN_VALID_USERNAME_REGEX.test(cleanU) && !rawVName.includes('•'));
+              if (isRegUser) {
+                if (seenRegUsers.has(cleanU)) continue;
+                seenRegUsers.add(cleanU);
+                registeredCount++;
+              } else {
+                guestCount++;
+              }
+              const src = String(v.source || v.locationSource || '').trim().toUpperCase();
+              const hasVerifiedGps = (src === 'GPS' || src === 'NATIVE_GEOLOCATION') && isValidAdminNonZeroCoord(v.lat, v.lng ?? v.lon);
+              if (hasVerifiedGps) gpsVerifiedCount++;
+            }
+            return {
+              totalVisitors: registeredCount + guestCount,
+              registeredUsersCount: registeredCount,
+              guestVisitorsCount: guestCount,
+              gpsVisitors: gpsVerifiedCount
+            };
+          };
+
+          const unifiedCounts = computeUnifiedVisitorCounts(mergedVisitors);
 
           // Compute Top Active City
           const cityCounts = {};
@@ -2439,8 +2506,10 @@
           const topCity = Object.keys(cityCounts).sort((a, b) => cityCounts[b] - cityCounts[a])[0] || 'صنعاء';
 
           const mergedStats = {
-            totalVisitors: mergedVisitors.length,
-            gpsVisitors: gpsCount,
+            totalVisitors: unifiedCounts.totalVisitors,
+            registeredUsersCount: unifiedCounts.registeredUsersCount,
+            guestVisitorsCount: unifiedCounts.guestVisitorsCount,
+            gpsVisitors: unifiedCounts.gpsVisitors,
             totalSearches: mergedSearches.length,
             topCity: topCity
           };
@@ -2486,12 +2555,29 @@
     }
 
     function renderStats(stats = {}) {
-      document.getElementById('statTotalVisitors').innerText = (stats.totalVisitors || 0).toLocaleString();
-      document.getElementById('statGpsVisitors').innerText = (stats.gpsVisitors || 0).toLocaleString();
+      const totalV = Number(stats.totalVisitors || 0);
+      const regCount = typeof stats.registeredUsersCount === 'number' ? stats.registeredUsersCount : totalV;
+      const guestCount = typeof stats.guestVisitorsCount === 'number' ? stats.guestVisitorsCount : Math.max(0, totalV - regCount);
+      const gpsCount = Number(stats.gpsVisitors || 0);
+
+      document.getElementById('statTotalVisitors').innerText = totalV.toLocaleString();
+      const totalBreakdownEl = document.getElementById('statTotalVisitorsBreakdown');
+      if (totalBreakdownEl) {
+        totalBreakdownEl.innerText = guestCount > 0
+          ? `${regCount} حسابات | ${guestCount} زائر غير مسجل`
+          : `${regCount} حسابات مسجلة`;
+      }
+      document.getElementById('statGpsVisitors').innerText = gpsCount.toLocaleString();
+      const gpsBreakdownEl = document.getElementById('statGpsBreakdown');
+      if (gpsBreakdownEl) {
+        gpsBreakdownEl.innerText = gpsCount > 0
+          ? `بإحداثيات GPS حقيقية (${gpsCount} من ${totalV})`
+          : 'بانتظار التقاط GPS حقيقي';
+      }
       document.getElementById('statTotalSearches').innerText = (stats.totalSearches || 0).toLocaleString();
       document.getElementById('statTopCity').innerText = stats.topCity || 'صنعاء';
       const notif = document.getElementById('notifBadgeCount');
-      if (notif) notif.innerText = Math.min(stats.totalVisitors || 1, 99);
+      if (notif) notif.innerText = Math.min(totalV || 1, 99);
     }
 
     function renderInspectorTimeline(visitors = [], searches = []) {

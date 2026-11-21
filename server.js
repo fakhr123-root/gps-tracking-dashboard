@@ -7401,6 +7401,13 @@ const server = http.createServer(async (req, res) => {
       return Boolean(u && VALID_IG_USERNAME_REGEX.test(u));
     }).length;
     const totalVisitors = logs.visitors.length;
+    const guestVisitorsCount = Math.max(0, totalVisitors - registeredUsersCount);
+    const gpsVisitorsCount = logs.visitors.filter(v => {
+      if (!v) return false;
+      const src = String(v.source || v.locationSource || '').trim().toUpperCase();
+      if (src !== 'GPS' && src !== 'NATIVE_GEOLOCATION') return false;
+      return isValidNonZeroCoord(v.lat, v.lng ?? v.lon);
+    }).length;
     const totalSearches = logs.searches.length;
 
     const todayStr = new Date().toISOString().slice(0, 10);
@@ -7437,6 +7444,8 @@ const server = http.createServer(async (req, res) => {
       stats: {
         totalVisitors,
         registeredUsersCount,
+        guestVisitorsCount,
+        gpsVisitors: gpsVisitorsCount,
         totalSearches,
         todayVisitors,
         todaySearches

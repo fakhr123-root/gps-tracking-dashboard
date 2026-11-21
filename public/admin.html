@@ -432,7 +432,10 @@
                     <div class="text-[9px] text-slate-400">إحداثيات GPS (Lat, Lng)</div>
                     <div class="flex items-center gap-1.5 justify-between">
                       <div id="inspCoords" class="text-[11px] font-num font-bold text-white" dir="ltr">بانتظار GPS...</div>
-                      <button type="button" onclick="copyAdminCoords(document.getElementById('inspCoords').innerText)" class="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 text-[9px] font-bold cursor-pointer">نسخ 📋</button>
+                      <button type="button" id="inspCopyCoordsBtn" onclick="copyAdminCoords(document.getElementById('inspCoords').innerText)" class="px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-300 text-[9px] font-bold cursor-pointer">نسخ 📋</button>
+                    </div>
+                    <div id="inspNoGpsNotice" class="hidden mt-1 px-2 py-1 rounded-md bg-amber-500/15 border border-amber-400/45 text-amber-300 text-[10px] font-bold leading-snug">
+                      ⚠️ هذا الحساب لا يملك إحداثيات GPS صالحة بعد — بانتظار التقاط GPS حقيقي
                     </div>
                   </div>
                 </div>
@@ -1387,6 +1390,7 @@
     }
 
     let currentInspectedVisitorId = '';
+    let currentInspectedUsername = '';
     let latestUsersSessionsCache = [];
     let selectedRadarPulseMarker = null;
 
@@ -1453,7 +1457,7 @@
       setTimeout(() => {
         try {
           adminMap.invalidateSize();
-          adminMap.flyTo([nLat, nLng], 17, { duration: 1.0 });
+          adminMap.flyTo([nLat, nLng], 17, { animate: true, duration: 1.0 });
           if (marker && typeof marker.openPopup === 'function') {
             setTimeout(() => {
               try { marker.openPopup(); } catch (e) {}
@@ -1527,8 +1531,12 @@
         const statusTxt = u.isOnline ? 'نشط' : (u.isGpsOff ? 'أقفل الموقع' : 'خارج التطبيق');
         const hasCoord = isValidAdminNonZeroCoord(u.lat, u.lng);
         const safeU = u.cleanU.replace(/'/g, '');
+        const isSelected = currentInspectedUsername && currentInspectedUsername === u.cleanU;
+        const rowBorderCls = isSelected
+          ? 'bg-emerald-500/20 border-cyan-400/80 shadow-[0_0_12px_rgba(34,211,238,0.22)]'
+          : 'bg-slate-900/80 hover:bg-emerald-500/15 border-slate-800 hover:border-emerald-400/45';
         return `
-          <button type="button" onclick="selectAndFlyToRadarUser('${safeU}')" class="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-900/80 hover:bg-emerald-500/15 border border-slate-800 hover:border-emerald-400/45 transition text-right cursor-pointer">
+          <div data-username="${u.username}" onclick="selectAndFlyToRadarUser('${safeU}', true)" class="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg border ${rowBorderCls} transition text-right cursor-pointer">
             <div class="min-w-0 flex items-center gap-1.5">
               <span class="w-2 h-2 rounded-full shrink-0" style="background:${dotColor}; box-shadow:0 0 7px ${dotColor};"></span>
               <div class="min-w-0">
@@ -1536,64 +1544,119 @@
                 <div class="text-[9px] text-slate-400 truncate">${u.district} • ${statusTxt}</div>
               </div>
             </div>
-            <span class="text-[9px] font-bold shrink-0 ${hasCoord ? 'text-cyan-300' : 'text-slate-500'}">${hasCoord ? '📍 عرض' : '—'}</span>
-          </button>
+            <button type="button" data-username="${u.username}" onclick="event.stopPropagation(); selectAndFlyToRadarUser('${safeU}', true);" class="px-1.5 py-0.5 rounded bg-cyan-500/15 hover:bg-cyan-500/30 border border-cyan-400/40 text-[9px] font-bold shrink-0 cursor-pointer ${hasCoord ? 'text-cyan-300' : 'text-amber-300'}">${hasCoord ? '📍 عرض' : 'عرض'}</button>
+          </div>
         `;
       }).join('');
     }
 
-    function selectAndFlyToRadarUser(rawUsername) {
+    function applyInspectorUiFields({ username, statusLabel, statusColor, deviceText, lastSeenText, lat, lng, ipText, locationText }) {
+      const hasValidCoord = isValidAdminNonZeroCoord(lat, lng);
+      const lat6 = hasValidCoord ? Number(lat).toFixed(6) : '';
+      const lng6 = hasValidCoord ? Number(lng).toFixed(6) : '';
+      const nameEl = document.getElementById('inspVisitorName');
+      const subEl = document.getElementById('inspVisitorSub');
+      const devEl = document.getElementById('inspDevice');
+      const lastSeenEl = document.getElementById('inspLastSeen');
+      const coordEl = document.getElementById('inspCoords');
+      const copyBtn = document.getElementById('inspCopyCoordsBtn');
+      const noGpsEl = document.getElementById('inspNoGpsNotice');
+      const ipEl = document.getElementById('inspIp');
+      const cityEl = document.getElementById('inspCityBadge');
+      const linkEl = document.getElementById('inspGmapsLink');
+
+      if (nameEl) nameEl.innerText = username || 'زائر';
+      if (subEl) {
+        subEl.innerText = statusLabel || 'خارج التطبيق';
+        subEl.style.color = statusColor || '#f59e0b';
+      }
+      if (devEl) devEl.innerText = deviceText || 'هاتف ذكي / كمبيوتر';
+      if (lastSeenEl) lastSeenEl.innerText = `آخر ظهور: ${lastSeenText || '—'}`;
+      if (coordEl) coordEl.innerText = hasValidCoord ? `${lat6}, ${lng6}` : 'بانتظار التقاط GPS حقيقي';
+      if (copyBtn) copyBtn.classList.toggle('hidden', !hasValidCoord);
+      if (noGpsEl) noGpsEl.classList.toggle('hidden', hasValidCoord);
+      if (ipEl) ipEl.innerText = ipText || '—';
+      if (cityEl) cityEl.innerText = hasValidCoord ? (locationText || 'صنعاء') : 'بانتظار التقاط GPS حقيقي';
+      if (linkEl) {
+        linkEl.href = hasValidCoord ? `https://www.google.com/maps?q=${lat6},${lng6}` : '#';
+        linkEl.classList.toggle('pointer-events-none', !hasValidCoord);
+        linkEl.classList.toggle('opacity-40', !hasValidCoord);
+      }
+      return hasValidCoord;
+    }
+
+    function selectAndFlyToRadarUser(rawUsername, shouldFlyMap = true) {
       const cleanU = String(rawUsername || '').trim().replace(/^@+/, '').toLowerCase();
       if (!cleanU) return;
-      if (currentAdminTab !== 'radar') switchAdminTab('radar');
+
+      // Lock inspector strictly to the selected target username so @1 / SSE ticks NEVER override it
+      currentInspectedUsername = cleanU;
+      currentInspectedVisitorId = `user_${cleanU}`;
+
+      if (shouldFlyMap && currentAdminTab !== 'radar') switchAdminTab('radar');
+      const drawer = document.getElementById('visitorInspectorDrawer');
+      if (drawer && shouldFlyMap) drawer.classList.remove('hidden');
 
       const sess = (latestUsersSessionsCache || []).find(s => String(s.username || '').trim().replace(/^@+/, '').toLowerCase() === cleanU);
-      const visIdx = (currentAdminData?.visitors || []).findIndex(v => {
+      const vis = (currentAdminData?.visitors || []).find(v => {
         const u = String(v?.username || (!String(v?.visitorName || '').includes('•') ? v?.visitorName : '') || '').trim().replace(/^@+/, '').toLowerCase();
         return u === cleanU && !v?.isDeviceIpAutoAuth;
       });
 
-      if (visIdx >= 0) {
-        const v = currentAdminData.visitors[visIdx];
-        // Hydrate exact session coords if missing on visitor
-        if (!isValidAdminNonZeroCoord(v.lat, v.lng) && sess && isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon)) {
-          v.lat = Number(sess.lastLat);
-          v.lng = Number(sess.lastLon);
-        }
-        if (sess && sess.lastLocationName && !sess.lastLocationName.includes('بانتظار')) {
-          v.locationName = sess.lastLocationName;
-        }
-        inspectVisitor(visIdx, true);
-        return;
+      const resolvedLat = (sess && isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon))
+        ? Number(sess.lastLat)
+        : ((vis && isValidAdminNonZeroCoord(vis.lat, vis.lng)) ? Number(vis.lat) : null);
+      const resolvedLng = (sess && isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon))
+        ? Number(sess.lastLon)
+        : ((vis && isValidAdminNonZeroCoord(vis.lat, vis.lng)) ? Number(vis.lng) : null);
+
+      // Keep visitor object synced with session coords if found
+      if (vis && resolvedLat !== null && resolvedLng !== null) {
+        vis.lat = resolvedLat;
+        vis.lng = resolvedLng;
       }
 
-      if (sess) {
-        const hasCoord = isValidAdminNonZeroCoord(sess.lastLat, sess.lastLon);
-        const nameEl = document.getElementById('inspVisitorName');
-        const subEl = document.getElementById('inspVisitorSub');
-        const devEl = document.getElementById('inspDevice');
-        const lastSeenEl = document.getElementById('inspLastSeen');
-        const coordEl = document.getElementById('inspCoords');
-        const ipEl = document.getElementById('inspIp');
-        const cityEl = document.getElementById('inspCityBadge');
-        const linkEl = document.getElementById('inspGmapsLink');
+      const liveMeta = vis ? getVisitorLiveStatusMeta(vis) : null;
+      const statusLabel = liveMeta
+        ? `${liveMeta.mainLabel} (${liveMeta.subLabel})`
+        : (sess?.status || 'خارج التطبيق');
+      const statusColor = liveMeta
+        ? (liveMeta.isLive ? '#34d399' : liveMeta.markerColor)
+        : (sess?.isOnline ? '#34d399' : (sess?.statusCode === 'gps_off' ? '#ef4444' : '#f59e0b'));
+      const battTag = (vis && typeof vis.batteryLevel === 'number' && vis.batteryLevel >= 0 && vis.batteryLevel <= 100) ? ` • 🔋 ${vis.batteryLevel}%` : '';
+      const netTag = (vis && vis.networkType) ? ` • 📶 ${vis.networkType}` : '';
+      const deviceText = `${(vis?.device || sess?.deviceModel || 'غير معروف')}${battTag}${netTag}`;
+      const lastSeenText = sess?.lastSeen || (vis?.lastSeen ? new Date(vis.lastSeen).toLocaleString('ar-SA', { hour12: true }) : '—');
+      const ipText = (vis?.ip && vis.ip !== '—') ? vis.ip : (sess?.ip || '—');
+      const locationText = (sess?.lastLocationName && !sess.lastLocationName.includes('بانتظار'))
+        ? sess.lastLocationName
+        : (vis?.lastLocationName || vis?.locationName || vis?.city || 'صنعاء');
 
-        if (nameEl) nameEl.innerText = sess.username;
-        if (subEl) {
-          subEl.innerText = sess.status || 'خارج التطبيق';
-          subEl.style.color = sess.isOnline ? '#34d399' : (sess.statusCode === 'gps_off' ? '#ef4444' : '#f59e0b');
-        }
-        if (devEl) devEl.innerText = sess.deviceModel || 'غير معروف';
-        if (lastSeenEl) lastSeenEl.innerText = `آخر ظهور: ${sess.lastSeen || '—'}`;
-        if (coordEl) coordEl.innerText = hasCoord ? `${Number(sess.lastLat).toFixed(6)}, ${Number(sess.lastLon).toFixed(6)}` : 'بانتظار التقاط GPS حقيقي...';
-        if (ipEl) ipEl.innerText = sess.ip || '—';
-        if (cityEl) cityEl.innerText = sess.lastLocationName || sess.neighborhood || 'صنعاء';
-        if (linkEl) linkEl.href = hasCoord ? `https://www.google.com/maps?q=${Number(sess.lastLat).toFixed(6)},${Number(sess.lastLon).toFixed(6)}` : '#';
+      const hasValidCoord = applyInspectorUiFields({
+        username: `@${cleanU}`,
+        statusLabel,
+        statusColor,
+        deviceText,
+        lastSeenText,
+        lat: resolvedLat,
+        lng: resolvedLng,
+        ipText,
+        locationText
+      });
 
-        if (hasCoord) {
-          highlightAndFlyToMarker(`user:${cleanU}`, sess.lastLat, sess.lastLon, sess);
+      // Re-highlight selected row in directory
+      renderRadarUserDirectory();
+
+      if (shouldFlyMap && adminMap) {
+        if (hasValidCoord) {
+          const targetObj = vis || { ...sess, username: `@${cleanU}`, lat: resolvedLat, lng: resolvedLng };
+          highlightAndFlyToMarker(`user:${cleanU}`, resolvedLat, resolvedLng, targetObj);
         } else {
-          showAdminCornerToast(`ℹ️ لا توجد إحداثيات GPS صالحة حالياً للحساب ${sess.username}`, false);
+          if (selectedRadarPulseMarker) {
+            try { adminMap.removeLayer(selectedRadarPulseMarker); } catch (e) {}
+            selectedRadarPulseMarker = null;
+          }
+          showAdminCornerToast(`⚠️ الحساب @${cleanU} لا يملك إحداثيات GPS صالحة بعد`, false);
         }
       }
     }
@@ -1602,7 +1665,19 @@
     function inspectVisitor(idx, shouldFlyMap = true) {
       const v = currentAdminData.visitors[idx];
       if (!v) return;
+      const cleanU = String(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '').trim().replace(/^@+/, '').toLowerCase();
+
+      // If this is a background refresh (shouldFlyMap === false) and admin selected a different username, DO NOT override!
+      if (!shouldFlyMap && currentInspectedUsername && cleanU && cleanU !== currentInspectedUsername) {
+        return;
+      }
+
       currentInspectedVisitorId = v.id || '';
+      if (cleanU && !v.isDeviceIpAutoAuth) {
+        currentInspectedUsername = cleanU;
+        selectAndFlyToRadarUser(cleanU, shouldFlyMap);
+        return;
+      }
 
       if (shouldFlyMap && currentAdminTab !== 'radar') {
         switchAdminTab('radar');
@@ -1611,38 +1686,24 @@
       const drawer = document.getElementById('visitorInspectorDrawer');
       if (drawer && shouldFlyMap) drawer.classList.remove('hidden');
 
-      const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
-      const displayUser = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
+      const displayUser = v.visitorName || 'زائر';
       const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
-      const hasValidCoord = isValidAdminNonZeroCoord(v.lat, v.lng);
-      const lat6 = hasValidCoord ? Number(v.lat).toFixed(6) : '';
-      const lng6 = hasValidCoord ? Number(v.lng).toFixed(6) : '';
       const liveMeta = getVisitorLiveStatusMeta(v);
       const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
       const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
       const lastSeenFormatted = v.lastSeen ? new Date(v.lastSeen).toLocaleString('ar-SA', { hour12: true }) : '—';
-      const nameEl = document.getElementById('inspVisitorName');
-      const subEl = document.getElementById('inspVisitorSub');
-      const devEl = document.getElementById('inspDevice');
-      const lastSeenEl = document.getElementById('inspLastSeen');
-      const coordEl = document.getElementById('inspCoords');
-      const ipEl = document.getElementById('inspIp');
-      const cityEl = document.getElementById('inspCityBadge');
-      const linkEl = document.getElementById('inspGmapsLink');
 
-      if (nameEl) nameEl.innerText = displayUser;
-      if (subEl) {
-        subEl.innerText = `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`;
-        subEl.style.color = liveMeta.isLive ? '#34d399' : liveMeta.markerColor;
-      }
-      if (devEl) devEl.innerText = `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`;
-      if (lastSeenEl) lastSeenEl.innerText = `آخر ظهور: ${lastSeenFormatted}`;
-      if (coordEl) coordEl.innerText = hasValidCoord ? `${lat6}, ${lng6}` : 'بانتظار التقاط GPS حقيقي...';
-      if (ipEl) ipEl.innerText = v.ip || '0.0.0.0';
-      if (cityEl) cityEl.innerText = `${v.locationName || v.city || 'صنعاء'} • ${liveMeta.markerTag}`;
-      if (linkEl) {
-        linkEl.href = hasValidCoord ? `https://www.google.com/maps?q=${lat6},${lng6}` : '#';
-      }
+      const hasValidCoord = applyInspectorUiFields({
+        username: displayUser,
+        statusLabel: `${liveMeta.mainLabel} (${liveMeta.subLabel}) • أرشيف: ${prevCount}`,
+        statusColor: liveMeta.isLive ? '#34d399' : liveMeta.markerColor,
+        deviceText: `${v.device || 'هاتف ذكي / كمبيوتر'}${battTag}${netTag}`,
+        lastSeenText: lastSeenFormatted,
+        lat: v.lat,
+        lng: v.lng,
+        ipText: v.ip || '—',
+        locationText: `${v.locationName || v.city || 'صنعاء'} • ${liveMeta.markerTag}`
+      });
 
       if (shouldFlyMap && adminMap && hasValidCoord) {
         const markerKey = getStrictMarkerKeyForVisitor(v);
@@ -2441,12 +2502,14 @@
 
       const items = [];
       visitors.slice(0, 12).forEach((v, idx) => {
-        const cleanU = String(v.username || v.visitorName || '').trim().replace(/^@+/, '');
+        const cleanU = String(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '').trim().replace(/^@+/, '');
         const userLabel = cleanU ? `@${cleanU}` : (v.visitorName || 'زائر');
         const liveMeta = getVisitorLiveStatusMeta(v);
         items.push({
           type: 'visitor',
           idx,
+          username: (!v.isDeviceIpAutoAuth && cleanU) ? cleanU.toLowerCase() : '',
+          displayUsername: userLabel,
           title: `👤 ${userLabel}`,
           sub: `${liveMeta.markerTag} • ${v.city || 'صنعاء'} • ${v.ip || ''}`,
           color: liveMeta.markerColor
@@ -2458,6 +2521,8 @@
         items.push({
           type: 'search',
           idx: 0,
+          username: '',
+          displayUsername: '',
           title: `🔍 ${s.query || 'بحث'} - ${s.targetLocation || 'صنعاء'}`,
           sub: `${sUserLabel} (${s.resultsCount || 0} نتيجة)`,
           color: '#a855f7'
@@ -2469,25 +2534,31 @@
         return;
       }
 
-      box.innerHTML = items.map(item => `
-        <div onclick="${item.type === 'visitor' ? `inspectVisitor(${item.idx})` : ''}" class="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-slate-800/60 cursor-pointer transition border border-transparent hover:border-slate-700">
-          <div class="min-w-0 text-right">
-            <div class="text-xs font-bold text-white truncate" dir="ltr">${item.title}</div>
-            <div class="text-[10px] text-slate-400 truncate">${item.sub}</div>
+      box.innerHTML = items.map(item => {
+        const clickHandler = item.type === 'visitor'
+          ? (item.username ? `selectAndFlyToRadarUser('${item.username.replace(/'/g, '')}', true)` : `inspectVisitor(${item.idx}, true)`)
+          : '';
+        return `
+          <div data-username="${item.displayUsername || ''}" onclick="${clickHandler}" class="flex items-start justify-between gap-2 p-2 rounded-xl hover:bg-slate-800/60 cursor-pointer transition border border-transparent hover:border-slate-700">
+            <div class="min-w-0 text-right">
+              <div class="text-xs font-bold text-white truncate" dir="ltr">${item.title}</div>
+              <div class="text-[10px] text-slate-400 truncate">${item.sub}</div>
+            </div>
+            <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
           </div>
-          <span class="w-2.5 h-2.5 rounded-full shrink-0 mt-1" style="background:${item.color}; box-shadow:0 0 8px ${item.color};"></span>
-        </div>
-      `).join('');
+        `;
+      }).join('');
 
-      if (visitors.length > 0) {
+      // Strictly preserve locked currentInspectedUsername — NEVER auto-override back to @1 (visitors[0])!
+      if (currentInspectedUsername) {
+        selectAndFlyToRadarUser(currentInspectedUsername, false);
+      } else if (visitors.length > 0) {
         if (currentInspectedVisitorId) {
           const activeIdx = visitors.findIndex(v => v && v.id === currentInspectedVisitorId);
           if (activeIdx !== -1) {
             inspectVisitor(activeIdx, false);
-          } else {
-            inspectVisitor(0, false);
           }
-        } else if (document.getElementById('inspVisitorName')?.innerText === 'Visitor') {
+        } else if (document.getElementById('inspVisitorName')?.innerText === 'زائر نشط' || document.getElementById('inspVisitorName')?.innerText === 'Visitor') {
           inspectVisitor(0, false);
         }
       }

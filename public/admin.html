@@ -587,29 +587,55 @@
             <div id="usernameFullDossierPanel" class="hidden pt-2 border-t border-emerald-500/30"></div>
           </div>
 
-          <!-- DETAILED USERS LAST SESSION & ISOLATED COORDINATES LOG TABLE -->
-          <div class="rounded-xl border border-emerald-500/35 bg-slate-900/90 overflow-hidden">
-            <div class="px-3 py-2 bg-slate-950/80 border-b border-emerald-500/25 flex flex-wrap items-center justify-between gap-2">
+          <!-- CLEAN 4-TAB NAVIGATION BAR (Active / Registered / Pre-Login Devices / User Searches) -->
+          <div id="usersSubTabBar" class="grid grid-cols-2 lg:grid-cols-4 gap-2">
+            <button type="button" id="usersSubTabBtn_registered" onclick="switchUsersSubTab('registered')" class="px-3 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/60 text-emerald-200 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition shadow-sm">
+              <span class="flex items-center gap-1.5"><span>👤</span><span>اليوزرات المسجّلة</span></span>
+              <span id="usersSubTabCount_registered" class="px-2 py-0.5 rounded-full bg-emerald-500/25 text-emerald-200 text-[10px] font-num font-black">0</span>
+            </button>
+            <button type="button" id="usersSubTabBtn_active" onclick="switchUsersSubTab('active')" class="px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition">
+              <span class="flex items-center gap-1.5"><span>🟢</span><span>النشطون الآن</span></span>
+              <span id="usersSubTabCount_active" class="px-2 py-0.5 rounded-full bg-slate-800 text-emerald-300 text-[10px] font-num font-black">0</span>
+            </button>
+            <button type="button" id="usersSubTabBtn_prelogin" onclick="switchUsersSubTab('prelogin')" class="px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition">
+              <span class="flex items-center gap-1.5"><span>📱</span><span>أجهزة قبل الدخول</span></span>
+              <span id="usersSubTabCount_prelogin" class="px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 text-[10px] font-num font-black">0</span>
+            </button>
+            <button type="button" id="usersSubTabBtn_searches" onclick="switchUsersSubTab('searches')" class="px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition">
+              <span class="flex items-center gap-1.5"><span>🔍</span><span>ماذا بحثوا</span></span>
+              <span id="usersSubTabCount_searches" class="px-2 py-0.5 rounded-full bg-slate-800 text-cyan-300 text-[10px] font-num font-black">0</span>
+            </button>
+          </div>
+
+          <!-- SUB-PANEL A: COLLAPSIBLE ISOLATED SESSIONS & COORDINATES TABLE (Shown on Registered & Active tabs) -->
+          <div id="usersSubPanel_sessionsCard" class="rounded-xl border border-emerald-500/35 bg-slate-900/90 overflow-hidden">
+            <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-emerald-500/25 flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <h4 class="text-xs sm:text-sm font-black text-emerald-300">📍 سجل آخر جلسة وإحداثيات الحسابات (معزولة لكل يوزر)</h4>
+                <h4 id="usersSessionsCardTitle" class="text-xs sm:text-sm font-black text-emerald-300">📍 سجل آخر جلسة وإحداثيات الحسابات (المسجّلة فقط)</h4>
                 <span id="usersSessionsLogCountBadge" class="px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/35 text-emerald-300 text-[10px] font-num font-bold">0 حساب</span>
               </div>
-              <button type="button" onclick="fetchAndRenderUsersLastSessionsTable()" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/45 text-emerald-200 text-[10px] font-bold transition cursor-pointer">
-                🔄 تحديث السجل
-              </button>
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="fetchAndRenderUsersLastSessionsTable()" class="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/30 border border-emerald-400/45 text-emerald-200 text-[10px] font-bold transition cursor-pointer">
+                  🔄 تحديث
+                </button>
+                <button type="button" id="btnToggleSessionsCollapse" onclick="toggleUsersSessionsTableCollapse()" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-[10px] font-extrabold flex items-center gap-1 transition cursor-pointer" title="رفع أو تنزيل قائمة الجلسات">
+                  <span id="sessionsCollapseArrow">▲</span>
+                  <span id="sessionsCollapseLabel">طي القائمة</span>
+                </button>
+              </div>
             </div>
-            <div class="overflow-x-auto">
+            <div id="usersSessionsTableCollapsibleBody" class="overflow-x-auto transition-all">
               <table class="w-full text-right text-[11px] sm:text-xs">
                 <thead class="bg-slate-950/90 text-slate-300 border-b border-slate-800 text-[10px] sm:text-[11px]">
                   <tr>
-                    <th class="px-3 py-2 font-black">اسم الحساب</th>
-                    <th class="px-3 py-2 font-black">الإحداثيات الدقيقة (Lat, Lng)</th>
-                    <th class="px-3 py-2 font-black">الحي / الشارع</th>
-                    <th class="px-3 py-2 font-black">الجهاز</th>
-                    <th class="px-3 py-2 font-black">وقت آخر جلسة</th>
-                    <th class="px-3 py-2 font-black">الحالة</th>
-                    <th class="px-3 py-2 font-black text-center">إجراء</th>
+                    <th class="px-3 py-2.5 font-black">اسم الحساب</th>
+                    <th class="px-3 py-2.5 font-black">الإحداثيات الدقيقة (Lat, Lng)</th>
+                    <th class="px-3 py-2.5 font-black">الحي / الشارع</th>
+                    <th class="px-3 py-2.5 font-black">الجهاز</th>
+                    <th class="px-3 py-2.5 font-black">وقت آخر جلسة</th>
+                    <th class="px-3 py-2.5 font-black">الحالة</th>
+                    <th class="px-3 py-2.5 font-black text-center">إجراء</th>
                   </tr>
                 </thead>
                 <tbody id="usersLastSessionsTableBody" class="divide-y divide-slate-800/70">
@@ -621,29 +647,60 @@
             </div>
           </div>
 
-          <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80">
-            <table class="w-full text-right text-[11px]">
-              <thead class="bg-slate-900 text-cyan-300 font-bold border-b border-slate-800">
-                <tr>
-                  <th class="p-2 w-7 text-center">
-                    <input type="checkbox" id="selectAllVisitorsCheckbox" onchange="toggleSelectAllVisitors(this.checked)" class="accent-cyan-400 cursor-pointer" />
-                  </th>
-                  <th class="p-2">#</th>
-                  <th class="p-2">اليوزر / الجلسة</th>
-                  <th class="p-2">IP</th>
-                  <th class="p-2">الموقع</th>
-                  <th class="p-2">البحث</th>
-                  <th class="p-2">الشبكة والجهاز</th>
-                  <th class="p-2">الدخول</th>
-                  <th class="p-2 text-center">التتبع</th>
-                  <th class="p-2 text-center">حذف</th>
-                </tr>
-              </thead>
-              <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60"></tbody>
-            </table>
+          <!-- SUB-PANEL B: REGISTERED / ACTIVE ACCOUNTS FULL MANAGEMENT TABLE -->
+          <div id="usersSubPanel_accountsTable" class="space-y-2.5">
+            <div id="desktopVisitorsTableWrapper" class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/80">
+              <table class="w-full text-right text-[11px]">
+                <thead class="bg-slate-900 text-cyan-300 font-bold border-b border-slate-800">
+                  <tr>
+                    <th class="p-2 w-7 text-center">
+                      <input type="checkbox" id="selectAllVisitorsCheckbox" onchange="toggleSelectAllVisitors(this.checked)" class="accent-cyan-400 cursor-pointer" />
+                    </th>
+                    <th class="p-2">#</th>
+                    <th class="p-2">اليوزر / الجلسة</th>
+                    <th class="p-2">IP</th>
+                    <th class="p-2">الموقع</th>
+                    <th class="p-2">البحث</th>
+                    <th class="p-2">الشبكة والجهاز</th>
+                    <th class="p-2">الدخول</th>
+                    <th class="p-2 text-center">التتبع</th>
+                    <th class="p-2 text-center">حذف</th>
+                  </tr>
+                </thead>
+                <tbody id="visitorsTableBody" class="divide-y divide-slate-800/60"></tbody>
+              </table>
+            </div>
+
+            <div id="mobileVisitorsCards" class="flex-col gap-2"></div>
           </div>
 
-          <div id="mobileVisitorsCards" class="flex-col gap-2"></div>
+          <!-- SUB-PANEL C: PRE-LOGIN PHONES & UNAUTHENTICATED DEVICES ONLY -->
+          <div id="usersSubPanel_prelogin" class="hidden rounded-xl border border-amber-500/35 bg-slate-900/90 overflow-hidden">
+            <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-amber-500/25 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">📱</span>
+                <h4 class="text-xs sm:text-sm font-black text-amber-300">الهواتف والأجهزة التي لم تسجّل الدخول بعد</h4>
+              </div>
+              <span class="text-[10px] text-slate-400 font-semibold">معزولة عن الحسابات المسجّلة</span>
+            </div>
+            <div id="preLoginDevicesListBody" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+              <div class="col-span-full text-center text-slate-400 text-xs py-6">لا توجد أجهزة غير مسجّلة حالياً</div>
+            </div>
+          </div>
+
+          <!-- SUB-PANEL D: WHAT USERS SEARCHED FOR ("ماذا بحثوا") -->
+          <div id="usersSubPanel_searches" class="hidden rounded-xl border border-cyan-500/35 bg-slate-900/90 overflow-hidden">
+            <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-cyan-500/25 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">🔍</span>
+                <h4 class="text-xs sm:text-sm font-black text-cyan-300">ماذا بحث المستخدمون (سجل الاستعلامات حسب اليوزر)</h4>
+              </div>
+              <span class="text-[10px] text-slate-400 font-semibold">أحدث عمليات البحث</span>
+            </div>
+            <div id="usersWhatTheySearchedBody" class="p-3 space-y-2 max-h-[520px] overflow-y-auto">
+              <div class="text-center text-slate-400 text-xs py-6">لا توجد عمليات بحث مسجّلة بعد</div>
+            </div>
+          </div>
         </section>
 
         <!-- TAB 4: COMPACT SECURITY & PASSWORD SETTINGS -->
@@ -1735,9 +1792,126 @@
       }
     }
 
+    let currentUsersSubTab = 'registered'; // 'registered' | 'active' | 'prelogin' | 'searches'
+    let latestPreLoginDevicesCache = [];
+    let isUsersSessionsTableCollapsed = localStorage.getItem('admin_sessions_table_collapsed') === '1';
+
+    function applyUsersSessionsCollapseState() {
+      const body = document.getElementById('usersSessionsTableCollapsibleBody');
+      const arrow = document.getElementById('sessionsCollapseArrow');
+      const label = document.getElementById('sessionsCollapseLabel');
+      if (body) body.classList.toggle('hidden', isUsersSessionsTableCollapsed);
+      if (arrow) arrow.innerText = isUsersSessionsTableCollapsed ? '▼' : '▲';
+      if (label) label.innerText = isUsersSessionsTableCollapsed ? 'فتح القائمة' : 'طي القائمة';
+    }
+
+    function toggleUsersSessionsTableCollapse() {
+      isUsersSessionsTableCollapsed = !isUsersSessionsTableCollapsed;
+      try { localStorage.setItem('admin_sessions_table_collapsed', isUsersSessionsTableCollapsed ? '1' : '0'); } catch (e) {}
+      applyUsersSessionsCollapseState();
+    }
+
+    function switchUsersSubTab(tabName = 'registered') {
+      currentUsersSubTab = tabName;
+      const tabs = ['registered', 'active', 'prelogin', 'searches'];
+      tabs.forEach(t => {
+        const btn = document.getElementById(`usersSubTabBtn_${t}`);
+        if (!btn) return;
+        if (t === tabName) {
+          btn.className = 'px-3 py-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/60 text-emerald-200 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition shadow-sm';
+        } else {
+          btn.className = 'px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition';
+        }
+      });
+
+      const sessionsCard = document.getElementById('usersSubPanel_sessionsCard');
+      const accountsTable = document.getElementById('usersSubPanel_accountsTable');
+      const preloginPanel = document.getElementById('usersSubPanel_prelogin');
+      const searchesPanel = document.getElementById('usersSubPanel_searches');
+      const cardTitle = document.getElementById('usersSessionsCardTitle');
+
+      const showAccounts = tabName === 'registered' || tabName === 'active';
+      if (sessionsCard) sessionsCard.classList.toggle('hidden', !showAccounts);
+      if (accountsTable) accountsTable.classList.toggle('hidden', !showAccounts);
+      if (preloginPanel) preloginPanel.classList.toggle('hidden', tabName !== 'prelogin');
+      if (searchesPanel) searchesPanel.classList.toggle('hidden', tabName !== 'searches');
+      if (cardTitle) {
+        cardTitle.innerText = tabName === 'active'
+          ? '🟢 الحسابات النشطة الآن داخل التطبيق'
+          : '📍 سجل آخر جلسة وإحداثيات الحسابات (المسجّلة فقط)';
+      }
+
+      renderUsersLastSessionsRows(latestUsersSessionsCache, latestPreLoginDevicesCache);
+      renderPreLoginDevicesTab(latestPreLoginDevicesCache);
+      renderUsersWhatTheySearchedTab(currentAdminData?.searches || []);
+      if (Array.isArray(currentAdminData?.visitors)) {
+        renderVisitors(currentAdminData.visitors, currentAdminData.searches || []);
+      }
+    }
+
+    function renderPreLoginDevicesTab(devices = []) {
+      const box = document.getElementById('preLoginDevicesListBody');
+      const countEl = document.getElementById('usersSubTabCount_prelogin');
+      const list = Array.isArray(devices) ? devices : [];
+      if (countEl) countEl.innerText = list.length.toLocaleString();
+      if (!box) return;
+      if (list.length === 0) {
+        box.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-6">لا توجد أجهزة أو محاولات قبل تسجيل الدخول حالياً</div>`;
+        return;
+      }
+      box.innerHTML = list.map(d => {
+        const dotColor = d.isOnline ? '#10b981' : (d.statusCode === 'gps_off' ? '#ef4444' : '#f59e0b');
+        const hasCoord = isValidAdminNonZeroCoord(d.lastLat, d.lastLon);
+        return `
+          <div class="p-3 rounded-xl bg-slate-950/85 border border-slate-800 hover:border-amber-500/40 transition flex flex-col gap-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:${dotColor}; box-shadow:0 0 8px ${dotColor};"></span>
+                <span class="text-xs font-extrabold text-white truncate">${d.label || d.deviceModel || 'جهاز قبل الدخول'}</span>
+              </div>
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${d.isOnline ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/40' : 'bg-amber-500/15 text-amber-300 border border-amber-400/40'}">${d.status || 'قبل الدخول'}</span>
+            </div>
+            <div class="text-[11px] text-slate-300 truncate">📱 ${d.deviceModel || 'غير معروف'} • 🌐 <span class="font-num text-cyan-300" dir="ltr">${d.ip || '—'}</span></div>
+            <div class="flex items-center justify-between text-[10px] text-slate-400">
+              <span>🕒 ${d.lastSeen || '—'}</span>
+              <span class="font-num text-emerald-300" dir="ltr">${hasCoord ? `${Number(d.lastLat).toFixed(5)}, ${Number(d.lastLon).toFixed(5)}` : 'بدون GPS'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderUsersWhatTheySearchedTab(searches = []) {
+      const box = document.getElementById('usersWhatTheySearchedBody');
+      const countEl = document.getElementById('usersSubTabCount_searches');
+      const list = Array.isArray(searches) ? searches : [];
+      if (countEl) countEl.innerText = list.length.toLocaleString();
+      if (!box) return;
+      if (list.length === 0) {
+        box.innerHTML = `<div class="text-center text-slate-400 text-xs py-6">لا توجد عمليات بحث مسجّلة بعد</div>`;
+        return;
+      }
+      box.innerHTML = list.slice(0, 60).map(s => {
+        const rawU = String(s.username || s.visitorName || '').trim().replace(/^@+/, '');
+        const userBadge = (rawU && !rawU.includes('•')) ? `@${rawU}` : (s.visitorName || 'زائر');
+        const timeStr = s.timestamp ? new Date(s.timestamp).toLocaleString('ar-SA', { hour12: true }) : '—';
+        return `
+          <div class="p-3 rounded-xl bg-slate-950/85 border border-slate-800 hover:border-cyan-500/40 transition flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/40 text-cyan-200 text-xs font-num font-black shrink-0" dir="ltr">${userBadge}</span>
+              <div class="min-w-0">
+                <div class="text-xs font-extrabold text-white truncate">🔍 ${s.query || 'مسح شامل'}</div>
+                <div class="text-[10px] text-slate-400 truncate">📍 ${s.targetLocation || 'صنعاء'}${s.targetNeighborhood ? ` — ${s.targetNeighborhood}` : ''} • 🕒 ${timeStr}</div>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-[10px] font-num font-bold shrink-0">${Number(s.resultsCount || 0).toLocaleString()} نتيجة</span>
+          </div>
+        `;
+      }).join('');
+    }
+
     async function fetchAndRenderUsersLastSessionsTable() {
       const tbody = document.getElementById('usersLastSessionsTableBody');
-      const badge = document.getElementById('usersSessionsLogCountBadge');
       if (!tbody) return;
       try {
         const res = await fetch('/api/admin/users-sessions', { cache: 'no-store' });
@@ -1747,23 +1921,38 @@
           adminServerClockOffsetMs = Date.now() - data.serverNowMs;
         }
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
-        renderUsersLastSessionsRows(sessions);
+        const preLogin = Array.isArray(data.preLoginDevices) ? data.preLoginDevices : [];
+        renderUsersLastSessionsRows(sessions, preLogin);
+        renderPreLoginDevicesTab(preLogin);
+        renderUsersWhatTheySearchedTab(currentAdminData?.searches || []);
       } catch (e) {}
     }
 
-    function renderUsersLastSessionsRows(sessions = []) {
+    function renderUsersLastSessionsRows(sessions = [], preLoginDevices = null) {
       latestUsersSessionsCache = Array.isArray(sessions) ? sessions : [];
+      if (Array.isArray(preLoginDevices)) {
+        latestPreLoginDevicesCache = preLoginDevices;
+      }
       renderRadarUserDirectory();
+      applyUsersSessionsCollapseState();
+
+      const activeSessions = latestUsersSessionsCache.filter(s => s && s.isOnline);
+      const regCountEl = document.getElementById('usersSubTabCount_registered');
+      const actCountEl = document.getElementById('usersSubTabCount_active');
+      if (regCountEl) regCountEl.innerText = latestUsersSessionsCache.length.toLocaleString();
+      if (actCountEl) actCountEl.innerText = activeSessions.length.toLocaleString();
+
+      const displayList = currentUsersSubTab === 'active' ? activeSessions : latestUsersSessionsCache;
       const tbody = document.getElementById('usersLastSessionsTableBody');
       const badge = document.getElementById('usersSessionsLogCountBadge');
-      if (badge) badge.innerText = `${sessions.length} حساب`;
+      if (badge) badge.innerText = `${displayList.length} حساب`;
       if (!tbody) return;
-      if (sessions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-3 py-4 text-center text-slate-400 text-xs">لا توجد جلسات مسجلة بعد.</td></tr>`;
+      if (displayList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-3 py-5 text-center text-slate-400 text-xs">${currentUsersSubTab === 'active' ? 'لا توجد حسابات نشطة داخل التطبيق حالياً.' : 'لا توجد حسابات مسجلة بعد.'}</td></tr>`;
         return;
       }
 
-      tbody.innerHTML = sessions.map(s => {
+      tbody.innerHTML = displayList.map(s => {
         const isVerifiedGps = String(s.source || '').trim().toUpperCase() === 'GPS' && isValidAdminNonZeroCoord(s.lastLat, s.lastLon);
         const accNum = (typeof s.gpsAccuracy === 'number' && isFinite(s.gpsAccuracy) && s.gpsAccuracy > 0) ? Math.round(s.gpsAccuracy) : null;
         const accBadge = (isVerifiedGps && accNum !== null)
@@ -1811,7 +2000,9 @@
           adminServerClockOffsetMs = Date.now() - data.serverNowMs;
         }
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
-        renderUsersLastSessionsRows(sessions);
+        const preLogin = Array.isArray(data.preLoginDevices) ? data.preLoginDevices : [];
+        renderUsersLastSessionsRows(sessions, preLogin);
+        renderPreLoginDevicesTab(preLogin);
 
         if (!Array.isArray(currentAdminData?.visitors)) return;
         let needsFullMapRerender = false;
@@ -3431,17 +3622,34 @@
     function renderVisitors(visitors = [], allSearches = []) {
       const tbody = document.getElementById('visitorsTableBody');
       const mobileCards = document.getElementById('mobileVisitorsCards');
-      renderSavedUsernamesQuickList(visitors);
+      // Strictly filter accounts table to verified logged-in accounts ONLY (pre-login devices live in their own tab)
+      const authenticatedVisitors = visitors.filter(v => {
+        if (!v || v.isDeviceIpAutoAuth) return false;
+        const rawVName = String(v.visitorName || '').trim();
+        if (rawVName.includes('•')) return false;
+        const cleanU = String(v.username || rawVName || '').trim().replace(/^@+/, '').toLowerCase();
+        if (!cleanU || !ADMIN_VALID_USERNAME_REGEX.test(cleanU)) return false;
+        return cleanU === '1' || Boolean(v.hasPasswordHash || v.passwordHash);
+      });
+
+      renderSavedUsernamesQuickList(authenticatedVisitors);
+      if (typeof renderUsersWhatTheySearchedTab === 'function') {
+        renderUsersWhatTheySearchedTab(allSearches || []);
+      }
+
+      const tabScopedVisitors = (currentUsersSubTab === 'active')
+        ? authenticatedVisitors.filter(v => getVisitorLiveStatusMeta(v).isLive)
+        : authenticatedVisitors;
 
       const filteredVisitors = currentAdminUsernameQuery
-        ? visitors.filter(v => {
+        ? tabScopedVisitors.filter(v => {
             const u = String(v.username || v.visitorName || '').toLowerCase().replace(/^@+/, '');
             const ip = String(v.ip || '').toLowerCase();
             const dev = String(v.device || '').toLowerCase();
             const city = String(v.city || '').toLowerCase();
             return u.includes(currentAdminUsernameQuery) || ip.includes(currentAdminUsernameQuery) || dev.includes(currentAdminUsernameQuery) || city.includes(currentAdminUsernameQuery);
           })
-        : visitors;
+        : tabScopedVisitors;
 
       const dossierTarget = selectedDossierVisitorId
         ? visitors.find(v => v.id === selectedDossierVisitorId)

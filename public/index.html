@@ -5298,19 +5298,19 @@
     function getDynamicUserIdentity() {
       const session = getSavedVisitorSession();
       const deviceId = getOrCreateDeviceVisitorId();
-      const rawSessionUser = (session.visitorName || localStorage.getItem('gmaps_visitor_name') || '').trim().replace(/^@+/, '').toLowerCase();
-      const inputEl = document.getElementById('visitorNameInput');
-      const rawInputUser = (inputEl ? inputEl.value : '').trim().replace(/^@+/, '').toLowerCase();
-      const activeUsername = (rawSessionUser && IG_USERNAME_REGEX.test(rawSessionUser))
-        ? rawSessionUser
-        : ((rawInputUser && IG_USERNAME_REGEX.test(rawInputUser)) ? rawInputUser : '');
+      // Strictly use ONLY a completed authenticated session username — NEVER send half-typed text from #visitorNameInput before login!
+      const rawSessionUser = (session && session.hasSession && session.visitorName)
+        ? String(session.visitorName).trim().replace(/^@+/, '').toLowerCase()
+        : '';
+      const activeUsername = (rawSessionUser && IG_USERNAME_REGEX.test(rawSessionUser)) ? rawSessionUser : '';
       const userId = activeUsername ? `user_${activeUsername}` : (session.visitorId || deviceId);
       return {
         username: activeUsername,
         visitorName: activeUsername,
         userId,
         visitorId: userId,
-        deviceId
+        deviceId,
+        isAuthenticated: Boolean(activeUsername)
       };
     }
 

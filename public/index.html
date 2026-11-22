@@ -3426,7 +3426,9 @@
       const progressRatio = document.getElementById('progressRatio');
 
       progressContainer.classList.remove('hidden');
-      progressBar.style.width = '18%';
+      progressBar.style.width = '2%';
+      const initPctBadge = document.getElementById('progressPercentBadge');
+      if (initPctBadge) initPctBadge.innerText = '2%';
       progressRatio.innerText = drawnCircleState
         ? (query ? `جارٍ استخراج (${query}) داخل الدائرة...` : `جارٍ المسح الشامل للدائرة المرسومة...`)
         : `جارٍ استخراج المنطقة كاملة...`;
@@ -3547,10 +3549,11 @@
         }
       }
 
-      // UI Progress Throttling: refresh progress bar & telemetry counters at most once every 500ms so high-speed parallel fetches never freeze the UI
+      // UI Progress Throttling: refresh progress bar & telemetry counters cleanly with strictly monotonic progress (never drops backwards!)
       let pendingProgressData = null;
       let lastProgressUiPaintMs = 0;
       let progressUiPaintTimer = null;
+      let maxDisplayedProgressPercent = 0;
 
       function flushThrottledProgressUi() {
         if (!pendingProgressData) return;
@@ -3561,25 +3564,32 @@
         const strictNetCount = extractedPlaces.length;
         const isDoneSignal = Boolean(data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
         if (isDoneSignal) {
+          maxDisplayedProgressPercent = 100;
           progressBar.style.width = '100%';
           const pctEl = document.getElementById('progressPercentBadge');
           if (pctEl) pctEl.innerText = '100%';
-        } else if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
-          const percent = Math.min(Math.round((data.scannedCells / data.totalCells) * 100), 99);
-          progressBar.style.width = `${percent}%`;
-          const pctEl = document.getElementById('progressPercentBadge');
-          if (pctEl) pctEl.innerText = `${percent}%`;
-        } else if (typeof data.total === 'number' && data.total > 0) {
-          const percent = Math.min(Math.round(((data.current || strictNetCount) / data.total) * 100), 99);
-          progressBar.style.width = `${percent}%`;
-          const pctEl = document.getElementById('progressPercentBadge');
-          if (pctEl) pctEl.innerText = `${percent}%`;
+        } else {
+          let computedPercent = null;
+          if (typeof data.percent === 'number' && isFinite(data.percent)) {
+            computedPercent = Math.min(Math.max(Math.round(data.percent), 0), 99);
+          } else if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
+            computedPercent = Math.min(Math.round((data.scannedCells / data.totalCells) * 100), 99);
+          } else if (typeof data.total === 'number' && data.total > 0 && typeof data.current === 'number') {
+            computedPercent = Math.min(Math.round((data.current / data.total) * 100), 99);
+          }
+          if (computedPercent !== null) {
+            // Strictly monotonic: progress bar NEVER jumps backwards when dense cells subdivide!
+            maxDisplayedProgressPercent = Math.max(maxDisplayedProgressPercent, computedPercent);
+            progressBar.style.width = `${maxDisplayedProgressPercent}%`;
+            const pctEl = document.getElementById('progressPercentBadge');
+            if (pctEl) pctEl.innerText = `${maxDisplayedProgressPercent}%`;
+          }
         }
         progressRatio.innerText = `✅ صافي بدون تكرار: ${strictNetCount.toLocaleString()} موقع`;
-        if (typeof data.scannedCells === 'number') {
+        if (typeof data.scannedCells === 'number' && typeof data.totalCells === 'number' && data.totalCells > 0) {
           const qtBadge = document.getElementById('quadtreeCellsBadge');
           const subTxt = data.subdividedCells ? ` (تفرع: ${data.subdividedCells})` : '';
-          const totalC = data.totalCells || data.scannedCells;
+          const totalC = Math.max(data.totalCells, data.scannedCells);
           if (qtBadge) qtBadge.innerText = `🔲 الخلايا: ${data.scannedCells} / ${totalC}${subTxt}`;
           const dqQt = document.getElementById('dqQuadtreeCellsValue');
           if (dqQt) dqQt.innerText = `${data.scannedCells} / ${totalC}${subTxt}`;

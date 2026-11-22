@@ -1465,14 +1465,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     sendEvent('place', item);
     if (fetchedCount % 15 === 0 || fetchedCount <= 5) {
       sendEvent('progress', {
-        current: fetchedCount,
-        total: fetchedCount + 60,
         deduplicatedTotal: fetchedCount,
         googleCount: googleExtractedCount,
         osmCount: osmExtractedCount,
-        scannedCells: quadtreeScannedCells,
-        totalCells: quadtreeTotalCells,
-        subdividedCells: quadtreeSubdividedCells,
         activeScopeLabel
       });
     }
@@ -2571,14 +2566,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     sendEvent('place', item);
     if (fetchedCount % 20 === 0) {
       sendEvent('progress', {
-        current: fetchedCount,
-        total: fetchedCount + 120,
         deduplicatedTotal: fetchedCount,
         googleCount: googleExtractedCount,
         osmCount: osmExtractedCount,
-        scannedCells: quadtreeScannedCells,
-        totalCells: quadtreeTotalCells,
-        subdividedCells: quadtreeSubdividedCells,
         activeScopeLabel
       });
     }
@@ -3616,17 +3606,12 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         if (global._tempSeedBatchBuffer.length >= 300) {
           sendEvent('places_batch', global._tempSeedBatchBuffer);
           global._tempSeedBatchBuffer = [];
-          const estTotalCells = Math.max(1475, Math.ceil(matchedSeedPlaces.length / 60));
-          const estScannedCells = Math.min(estTotalCells, Math.ceil(fetchedCount / 60));
+          const seedPct = Math.min(14, Math.max(2, Math.round((fetchedCount / Math.max(matchedSeedPlaces.length, 1)) * 14)));
           sendEvent('progress', {
-            current: fetchedCount,
-            total: Math.max(matchedSeedPlaces.length, fetchedCount + 50),
+            percent: seedPct,
             deduplicatedTotal: fetchedCount,
             googleCount: googleExtractedCount,
             osmCount: osmExtractedCount,
-            scannedCells: estScannedCells,
-            totalCells: estTotalCells,
-            subdividedCells: Math.floor(estScannedCells / 4),
             activeScopeLabel: requestedScopeMode === 'country' ? `كامل دولة ${center.country}` : `مدينة ${center.city}`
           });
           await new Promise(r => setTimeout(r, 6));
@@ -3636,14 +3621,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     if (global._tempSeedBatchBuffer && global._tempSeedBatchBuffer.length > 0) {
       sendEvent('places_batch', global._tempSeedBatchBuffer);
       global._tempSeedBatchBuffer = [];
-      const estTotalCells = Math.max(1475, Math.ceil(matchedSeedPlaces.length / 60));
       sendEvent('progress', {
-        current: fetchedCount,
-        total: Math.max(matchedSeedPlaces.length, fetchedCount),
+        percent: 15,
         deduplicatedTotal: fetchedCount,
-        scannedCells: estTotalCells,
-        totalCells: estTotalCells,
-        subdividedCells: Math.floor(estTotalCells / 4)
+        googleCount: googleExtractedCount,
+        osmCount: osmExtractedCount
       });
     }
   }
@@ -3994,6 +3976,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       deduplicatedTotal: fetchedCount
     });
 
+    let maxServerProgressPercent = 15;
     const emitStreamingProgress = (force = false) => {
       const nowMs = Date.now();
       if (!force && nowMs - lastProgressEmitMs < 250) return;
@@ -4001,7 +3984,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const effectiveScanned = Math.max(quadtreeScannedCells, completedMapTasks);
       const effectiveTotal = Math.max(quadtreeTotalCells, queryTasks.length, effectiveScanned);
       const pendingCells = Math.max(0, effectiveTotal - effectiveScanned);
+      const rawPct = Math.min(99, 15 + Math.round((effectiveScanned / Math.max(effectiveTotal, 1)) * 84));
+      maxServerProgressPercent = Math.max(maxServerProgressPercent, rawPct);
       const payload = {
+        percent: maxServerProgressPercent,
         current: effectiveScanned,
         total: effectiveTotal,
         scannedCells: effectiveScanned,

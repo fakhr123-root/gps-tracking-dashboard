@@ -5882,6 +5882,8 @@ async function recordVisitor(info) {
       ...prevAcc,
       username: `@${normInputName}`,
       passwordHash: hashed,
+      hasLoggedIn: true,
+      lastLoginAt: now,
       searchQuota: typeof prevAcc.searchQuota === 'number' ? prevAcc.searchQuota : 1000,
       isBanned: isBannedFlag,
       suspended: isBannedFlag,
@@ -6454,6 +6456,38 @@ const server = http.createServer(async (req, res) => {
     try {
       const recorded = await recordVisitor(data);
       if (recorded && recorded.authError) {
+        // Record every rejected login/register attempt into logs.failedLoginAttempts for Admin Dashboard
+        try {
+          const failLogs = loadAdminLogs();
+          if (!Array.isArray(failLogs.failedLoginAttempts)) failLogs.failedLoginAttempts = [];
+          const attemptedU = String(data.username || data.visitorName || '').trim().replace(/^@+/, '');
+          const attemptIp = (!isLoopbackIp(data.publicIp) ? String(data.publicIp).trim() : (!isLoopbackIp(clientIp) ? clientIp : '—'));
+          const attemptDev = normalizeRealDeviceName(data.device || '', req.headers['user-agent'] || '');
+          const nowTs = Date.now();
+          const lastSame = failLogs.failedLoginAttempts[0];
+          const isRecentDup = lastSame &&
+            lastSame.attemptedUsername === (attemptedU ? `@${attemptedU}` : 'غير محدد') &&
+            lastSame.reasonCode === (recorded.code || 'AUTH_REJECTED') &&
+            (nowTs - (lastSame.timestampMs || 0)) < 30000;
+          if (!isRecentDup) {
+            failLogs.failedLoginAttempts.unshift({
+              id: `fail_${nowTs}_${Math.floor(Math.random() * 10000)}`,
+              attemptedUsername: attemptedU ? `@${attemptedU}` : 'غير محدد',
+              authMode: data.authMode || (pathname === '/api/register' ? 'register' : 'login'),
+              reasonCode: recorded.code || 'AUTH_REJECTED',
+              reasonText: recorded.message || recorded.error || 'تم رفض محاولة الدخول',
+              device: attemptDev,
+              ip: attemptIp,
+              timestampMs: nowTs,
+              timestamp: new Date(nowTs).toLocaleString('ar-SA', { hour12: true })
+            });
+            if (failLogs.failedLoginAttempts.length > 150) {
+              failLogs.failedLoginAttempts = failLogs.failedLoginAttempts.slice(0, 150);
+            }
+            saveAdminLogs(failLogs);
+            broadcastAdminRadarUpdate({ type: 'failed_login_attempt', timestamp: new Date(nowTs).toISOString() });
+          }
+        } catch (fErr) {}
         const statusCode = recorded.httpStatus || (recorded.banned ? 403 : 400);
         res.writeHead(statusCode, { 'Content-Type': 'application/json; charset=utf-8' });
         res.end(JSON.stringify({
@@ -7137,7 +7171,19 @@ const server = http.createServer(async (req, res) => {
     };
 
     const authenticatedUserSet = new Set(['1']);
-    const preLoginDevices = [];
+    // Any username that has actual recorded searches in logs.searches is a real logged-in user!
+    const searchedUsernamesSet = new Set();
+    if (Array.isArray(logs.searches)) {
+      for (const s of logs.searches) {
+        const su = normalizeIgUsername(s?.username || s?.visitorName || '');
+        if (su && VALID_IG_USERNAME_REGEX.test(su)) {
+          searchedUsernamesSet.add(su);
+          authenticatedUserSet.add(su);
+        }
+      }
+    }
+
+    const preLoginDevicesMap = new Map();
 
     const pushPreLoginDevice = (rec, labelFallback = '') => {
       if (!rec || typeof rec !== 'object') return;
@@ -7152,13 +7198,18 @@ const server = http.createServer(async (req, res) => {
       const isExited = rawConn === 'exited';
       const isOnlineNow = !isGpsOff && !isExited && recLastMs > 0 && (serverNowMs - recLastMs) < 45000;
       const parsedDev = extractDeviceAndOs(rec.device || '');
+      const cleanIpStr = (rec.ip && !isLoopbackIp(rec.ip)) ? String(rec.ip).trim() : '—';
       const hasGps = ['GPS', 'NATIVE_GEOLOCATION'].includes(String(rec.source || rec.locationSource || '').trim().toUpperCase()) && isValidNonZeroCoord(rec.lat, rec.lng ?? rec.lon);
-      preLoginDevices.push({
-        id: rec.id || labelFallback || `pre_${preLoginDevices.length + 1}`,
+      // Deduplicate pre-login devices by deviceModel + IP so the same phone never repeats dozens of times
+      const dedupKey = `${parsedDev.deviceModel}|${cleanIpStr}`;
+      const existingPre = preLoginDevicesMap.get(dedupKey);
+      if (existingPre && (existingPre.lastSeenMs || 0) >= recLastMs) return;
+      preLoginDevicesMap.set(dedupKey, {
+        id: rec.id || labelFallback || `pre_${preLoginDevicesMap.size + 1}`,
         label: labelFallback || rec.visitorName || parsedDev.deviceModel || 'جهاز قبل الدخول',
         deviceModel: parsedDev.deviceModel,
         os: parsedDev.os,
-        ip: (rec.ip && !isLoopbackIp(rec.ip)) ? String(rec.ip).trim() : '—',
+        ip: cleanIpStr,
         lastLat: hasGps ? Number(Number(rec.lat).toFixed(6)) : null,
         lastLon: hasGps ? Number(Number(rec.lng ?? rec.lon).toFixed(6)) : null,
         lastSeenMs: recLastMs,
@@ -7173,7 +7224,8 @@ const server = http.createServer(async (req, res) => {
       for (const [k, acc] of Object.entries(logs.savedAccounts)) {
         const cleanK = normalizeIgUsername(k);
         if (!cleanK || !VALID_IG_USERNAME_REGEX.test(cleanK)) continue;
-        const isAuthenticatedAcc = cleanK === '1' || Boolean(acc && (acc.passwordHash || acc.password));
+        const hasSearchActivity = searchedUsernamesSet.has(cleanK) || Number(acc?.searchesCount || 0) > 0 || (Array.isArray(acc?.sessionSearches) && acc.sessionSearches.length > 0);
+        const isAuthenticatedAcc = cleanK === '1' || Boolean(acc && (acc.passwordHash || acc.password || acc.hasPasswordHash || acc.hasLoggedIn || hasSearchActivity));
         if (isAuthenticatedAcc) {
           authenticatedUserSet.add(cleanK);
           mergeIsolatedUserRecord(cleanK, acc);
@@ -7186,7 +7238,8 @@ const server = http.createServer(async (req, res) => {
       for (const v of logs.visitors) {
         if (!v) continue;
         const cleanV = normalizeIgUsername(v.username || (!String(v.visitorName || '').includes('•') ? v.visitorName : '') || '');
-        const isAuthVisitor = !v.isDeviceIpAutoAuth && cleanV && (authenticatedUserSet.has(cleanV) || Boolean(v.passwordHash || v.hasPasswordHash));
+        const hasVisSearch = (cleanV && searchedUsernamesSet.has(cleanV)) || Number(v.searchesCount || 0) > 0 || (Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0);
+        const isAuthVisitor = !v.isDeviceIpAutoAuth && cleanV && (authenticatedUserSet.has(cleanV) || Boolean(v.passwordHash || v.hasPasswordHash || v.hasLoggedIn || hasVisSearch));
         if (isAuthVisitor) {
           authenticatedUserSet.add(cleanV);
           mergeIsolatedUserRecord(cleanV, v);
@@ -7213,7 +7266,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     const sessions = Array.from(accountMap.values()).sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
-    preLoginDevices.sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
+    const preLoginDevices = Array.from(preLoginDevicesMap.values()).sort((a, b) => (b.lastSeenMs || 0) - (a.lastSeenMs || 0));
+    const failedLoginAttempts = Array.isArray(logs.failedLoginAttempts) ? logs.failedLoginAttempts.slice(0, 100) : [];
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       success: true,
@@ -7221,7 +7275,9 @@ const server = http.createServer(async (req, res) => {
       total: sessions.length,
       sessions,
       preLoginTotal: preLoginDevices.length,
-      preLoginDevices
+      preLoginDevices,
+      failedLoginTotal: failedLoginAttempts.length,
+      failedLoginAttempts
     }));
     return;
   }

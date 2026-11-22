@@ -533,23 +533,52 @@
 
       <!-- ==================== COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
       <div id="gateStep2Login" class="space-y-3.5 pt-1 text-right">
+        <!-- Clear Welcome & Account Guidance Banner for New Users -->
+        <div id="gateNewUserGuideBox" class="p-3 rounded-2xl bg-cyan-950/50 border border-cyan-400/45 text-right space-y-2">
+          <div id="gateGuideLoginHint" class="space-y-1.5">
+            <div class="text-xs font-black text-cyan-200 flex items-center gap-1.5">
+              <span>👋</span>
+              <span>مستخدم جديد وليس لديك حساب بعد؟</span>
+            </div>
+            <p class="text-[11px] text-slate-300 leading-relaxed">
+              إذا كانت هذه أول مرة تدخل فيها إلى التطبيق، يجب عليك <strong class="text-emerald-300">إنشاء حساب جديد أولاً</strong> قبل تسجيل الدخول.
+            </p>
+            <button
+              type="button"
+              onclick="setGateAuthMode('register')"
+              class="w-full py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/60 text-emerald-200 text-xs font-black transition cursor-pointer"
+            >
+              ✨ اضغط هنا لإنشاء حساب جديد أولاً
+            </button>
+          </div>
+          <div id="gateGuideRegisterHint" class="hidden space-y-1.5">
+            <div class="text-xs font-black text-emerald-300 flex items-center gap-1.5">
+              <span>✨</span>
+              <span>خطوات إنشاء حسابك الجديد (ثوانٍ فقط):</span>
+            </div>
+            <p class="text-[11px] text-slate-300 leading-relaxed">
+              اختر <strong class="text-white">اسم مستخدم</strong> خاص بك (أحرف إنجليزية أو أرقام بدون مسافات) ثم اختر <strong class="text-white">كلمة مرور</strong> واضغط «إنشاء الحساب والدخول».
+            </p>
+          </div>
+        </div>
+
         <!-- Clean Top Tab Switcher Inside Card -->
         <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-slate-900/95 border border-emerald-500/30">
           <button
             type="button"
             id="tabBtnLoginMode"
             onclick="setGateAuthMode('login')"
-            class="py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow"
+            class="py-2.5 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow"
           >
-            تسجيل الدخول
+            🔑 تسجيل الدخول
           </button>
           <button
             type="button"
             id="tabBtnRegisterMode"
             onclick="setGateAuthMode('register')"
-            class="py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white"
+            class="py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer text-emerald-300 hover:text-white"
           >
-            إنشاء حساب جديد
+            ✨ إنشاء حساب جديد
           </button>
         </div>
 
@@ -5134,6 +5163,8 @@
       const submitBtn = document.getElementById('gateSubmitBtn');
       const tabLogin = document.getElementById('tabBtnLoginMode');
       const tabRegister = document.getElementById('tabBtnRegisterMode');
+      const guideLogin = document.getElementById('gateGuideLoginHint');
+      const guideRegister = document.getElementById('gateGuideRegisterHint');
       const errEl = document.getElementById('loginNameError');
       if (errEl) errEl.classList.add('hidden');
 
@@ -5141,18 +5172,22 @@
         if (titleEl) titleEl.innerText = 'إنشاء حساب جديد';
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span id="gateSubmitBtnText">إنشاء حساب جديد</span>`;
+          submitBtn.innerHTML = `<span id="gateSubmitBtnText">✨ إنشاء الحساب والدخول</span>`;
         }
-        if (tabRegister) tabRegister.className = 'py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
-        if (tabLogin) tabLogin.className = 'py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
+        if (guideLogin) guideLogin.classList.add('hidden');
+        if (guideRegister) guideRegister.classList.remove('hidden');
+        if (tabRegister) tabRegister.className = 'py-2.5 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
+        if (tabLogin) tabLogin.className = 'py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
       } else {
         if (titleEl) titleEl.innerText = 'تسجيل الدخول';
         if (submitBtn) {
           submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span id="gateSubmitBtnText">تسجيل الدخول</span>`;
+          submitBtn.innerHTML = `<span id="gateSubmitBtnText">🔑 تسجيل الدخول</span>`;
         }
-        if (tabLogin) tabLogin.className = 'py-2 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
-        if (tabRegister) tabRegister.className = 'py-2 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
+        if (guideLogin) guideLogin.classList.remove('hidden');
+        if (guideRegister) guideRegister.classList.add('hidden');
+        if (tabLogin) tabLogin.className = 'py-2.5 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
+        if (tabRegister) tabRegister.className = 'py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer text-emerald-300 hover:text-white';
       }
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }

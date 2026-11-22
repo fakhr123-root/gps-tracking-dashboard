@@ -598,7 +598,7 @@
               <span id="usersSubTabCount_active" class="px-2 py-0.5 rounded-full bg-slate-800 text-emerald-300 text-[10px] font-num font-black">0</span>
             </button>
             <button type="button" id="usersSubTabBtn_prelogin" onclick="switchUsersSubTab('prelogin')" class="px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition">
-              <span class="flex items-center gap-1.5"><span>📱</span><span>أجهزة قبل الدخول</span></span>
+              <span class="flex items-center gap-1.5"><span>🚫</span><span>محاولات مرفوضة / قبل الدخول</span></span>
               <span id="usersSubTabCount_prelogin" class="px-2 py-0.5 rounded-full bg-slate-800 text-amber-300 text-[10px] font-num font-black">0</span>
             </button>
             <button type="button" id="usersSubTabBtn_searches" onclick="switchUsersSubTab('searches')" class="px-3 py-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-extrabold flex items-center justify-between gap-2 cursor-pointer transition">
@@ -674,17 +674,35 @@
             <div id="mobileVisitorsCards" class="flex-col gap-2"></div>
           </div>
 
-          <!-- SUB-PANEL C: PRE-LOGIN PHONES & UNAUTHENTICATED DEVICES ONLY -->
-          <div id="usersSubPanel_prelogin" class="hidden rounded-xl border border-amber-500/35 bg-slate-900/90 overflow-hidden">
-            <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-amber-500/25 flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2">
-                <span class="text-sm">📱</span>
-                <h4 class="text-xs sm:text-sm font-black text-amber-300">الهواتف والأجهزة التي لم تسجّل الدخول بعد</h4>
+          <!-- SUB-PANEL C: REJECTED LOGIN ATTEMPTS & PRE-LOGIN DEVICES -->
+          <div id="usersSubPanel_prelogin" class="hidden space-y-3">
+            <!-- Section C1: Rejected / Failed Login Attempts -->
+            <div class="rounded-xl border border-red-500/35 bg-slate-900/90 overflow-hidden">
+              <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-red-500/25 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm">🚫</span>
+                  <h4 class="text-xs sm:text-sm font-black text-red-300">أشخاص حاولوا تسجيل الدخول ولم يُقبل دخولهم</h4>
+                  <span id="failedLoginAttemptsCountBadge" class="px-2 py-0.5 rounded-full bg-red-500/15 border border-red-400/40 text-red-300 text-[10px] font-num font-bold">0 محاولة</span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-semibold">حساب غير مسجل / كلمة خاطئة / محظور</span>
               </div>
-              <span class="text-[10px] text-slate-400 font-semibold">معزولة عن الحسابات المسجّلة</span>
+              <div id="failedLoginAttemptsListBody" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[300px] overflow-y-auto">
+                <div class="col-span-full text-center text-slate-400 text-xs py-5">لا توجد محاولات دخول مرفوضة مسجّلة حتى الآن</div>
+              </div>
             </div>
-            <div id="preLoginDevicesListBody" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              <div class="col-span-full text-center text-slate-400 text-xs py-6">لا توجد أجهزة غير مسجّلة حالياً</div>
+
+            <!-- Section C2: Unique Pre-Login Devices -->
+            <div class="rounded-xl border border-amber-500/35 bg-slate-900/90 overflow-hidden">
+              <div class="px-3.5 py-2.5 bg-slate-950/85 border-b border-amber-500/25 flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm">📱</span>
+                  <h4 class="text-xs sm:text-sm font-black text-amber-300">أجهزة وهواتف فتحت التطبيق قبل تسجيل الدخول</h4>
+                </div>
+                <span class="text-[10px] text-slate-400 font-semibold">معزولة بدون تكرار عن الحسابات المسجّلة</span>
+              </div>
+              <div id="preLoginDevicesListBody" class="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div class="col-span-full text-center text-slate-400 text-xs py-5">لا توجد أجهزة غير مسجّلة حالياً</div>
+              </div>
             </div>
           </div>
 
@@ -1849,14 +1867,51 @@
       }
     }
 
-    function renderPreLoginDevicesTab(devices = []) {
+    let latestFailedLoginAttemptsCache = [];
+
+    function renderFailedLoginAttemptsTab(attempts = []) {
+      latestFailedLoginAttemptsCache = Array.isArray(attempts) ? attempts : [];
+      const box = document.getElementById('failedLoginAttemptsListBody');
+      const badge = document.getElementById('failedLoginAttemptsCountBadge');
+      if (badge) badge.innerText = `${latestFailedLoginAttemptsCache.length} محاولة`;
+      if (!box) return;
+      if (latestFailedLoginAttemptsCache.length === 0) {
+        box.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-5">لا توجد محاولات دخول مرفوضة مسجّلة حتى الآن</div>`;
+        return;
+      }
+      box.innerHTML = latestFailedLoginAttemptsCache.map(a => {
+        const reasonTag = a.reasonCode === 'ACCOUNT_NOT_FOUND'
+          ? 'حساب غير مسجل'
+          : (a.reasonCode === 'WRONG_PASSWORD'
+              ? 'كلمة مرور خاطئة'
+              : (a.reasonCode === 'ACCOUNT_BANNED' ? 'حساب محظور' : (a.reasonCode === 'USERNAME_TAKEN' ? 'اسم مستخدم مكرر' : 'مرفوض')));
+        return `
+          <div class="p-3 rounded-xl bg-red-950/25 border border-red-500/35 hover:border-red-400/60 transition flex flex-col gap-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs font-black text-white truncate" dir="ltr">${a.attemptedUsername || 'غير محدد'}</span>
+              <span class="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-400/45 text-red-300 text-[10px] font-extrabold shrink-0">🚫 ${reasonTag}</span>
+            </div>
+            <div class="text-[11px] text-red-200/90 leading-snug">${a.reasonText || 'تم رفض محاولة الدخول'}</div>
+            <div class="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+              <span class="truncate">📱 ${a.device || 'غير معروف'} • <span class="font-num text-cyan-300" dir="ltr">${a.ip || '—'}</span></span>
+              <span class="font-num shrink-0">🕒 ${a.timestamp || '—'}</span>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderPreLoginDevicesTab(devices = [], failedAttempts = null) {
+      if (Array.isArray(failedAttempts)) {
+        renderFailedLoginAttemptsTab(failedAttempts);
+      }
       const box = document.getElementById('preLoginDevicesListBody');
       const countEl = document.getElementById('usersSubTabCount_prelogin');
       const list = Array.isArray(devices) ? devices : [];
-      if (countEl) countEl.innerText = list.length.toLocaleString();
+      if (countEl) countEl.innerText = (list.length + latestFailedLoginAttemptsCache.length).toLocaleString();
       if (!box) return;
       if (list.length === 0) {
-        box.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-6">لا توجد أجهزة أو محاولات قبل تسجيل الدخول حالياً</div>`;
+        box.innerHTML = `<div class="col-span-full text-center text-slate-400 text-xs py-5">لا توجد أجهزة غير مسجّلة حالياً</div>`;
         return;
       }
       box.innerHTML = list.map(d => {
@@ -1922,8 +1977,9 @@
         }
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
         const preLogin = Array.isArray(data.preLoginDevices) ? data.preLoginDevices : [];
+        const failedAttempts = Array.isArray(data.failedLoginAttempts) ? data.failedLoginAttempts : [];
         renderUsersLastSessionsRows(sessions, preLogin);
-        renderPreLoginDevicesTab(preLogin);
+        renderPreLoginDevicesTab(preLogin, failedAttempts);
         renderUsersWhatTheySearchedTab(currentAdminData?.searches || []);
       } catch (e) {}
     }
@@ -2001,8 +2057,9 @@
         }
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
         const preLogin = Array.isArray(data.preLoginDevices) ? data.preLoginDevices : [];
+        const failedAttempts = Array.isArray(data.failedLoginAttempts) ? data.failedLoginAttempts : [];
         renderUsersLastSessionsRows(sessions, preLogin);
-        renderPreLoginDevicesTab(preLogin);
+        renderPreLoginDevicesTab(preLogin, failedAttempts);
 
         if (!Array.isArray(currentAdminData?.visitors)) return;
         let needsFullMapRerender = false;
@@ -3622,14 +3679,24 @@
     function renderVisitors(visitors = [], allSearches = []) {
       const tbody = document.getElementById('visitorsTableBody');
       const mobileCards = document.getElementById('mobileVisitorsCards');
-      // Strictly filter accounts table to verified logged-in accounts ONLY (pre-login devices live in their own tab)
+      // Include EVERY real logged-in user (authenticated password, hasLoggedIn, OR has recorded searches in logs/sessions)
+      const searchedUserSet = new Set();
+      (allSearches || []).forEach(s => {
+        const su = String(s?.username || s?.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
+        if (su && ADMIN_VALID_USERNAME_REGEX.test(su)) searchedUserSet.add(su);
+      });
+      const verifiedSessionUserSet = new Set(
+        (latestUsersSessionsCache || []).map(s => String(s?.username || '').trim().replace(/^@+/, '').toLowerCase()).filter(Boolean)
+      );
+
       const authenticatedVisitors = visitors.filter(v => {
         if (!v || v.isDeviceIpAutoAuth) return false;
         const rawVName = String(v.visitorName || '').trim();
         if (rawVName.includes('•')) return false;
         const cleanU = String(v.username || rawVName || '').trim().replace(/^@+/, '').toLowerCase();
         if (!cleanU || !ADMIN_VALID_USERNAME_REGEX.test(cleanU)) return false;
-        return cleanU === '1' || Boolean(v.hasPasswordHash || v.passwordHash);
+        const hasSearches = searchedUserSet.has(cleanU) || Number(v.searchesCount || 0) > 0 || (Array.isArray(v.sessionSearches) && v.sessionSearches.length > 0);
+        return cleanU === '1' || verifiedSessionUserSet.has(cleanU) || Boolean(v.hasPasswordHash || v.passwordHash || v.hasLoggedIn || hasSearches);
       });
 
       renderSavedUsernamesQuickList(authenticatedVisitors);

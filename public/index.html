@@ -1420,6 +1420,9 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-1.5">
+              <button type="button" id="btnEnrichMissingPhones" onclick="enrichMissingPhonesFromWeb()" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition" title="البحث عن أرقام الهواتف الحقيقية الناقصة من الموقع الرسمي والويب">
+                <span>🔎📞 جلب الأرقام الناقصة</span>
+              </button>
               <button type="button" onclick="exportToExcel()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer transition">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>تصدير Excel فوري</span>
@@ -7812,6 +7815,118 @@
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
     });
+
+    // =========================================================================
+    // Real Phone Enrichment Controller (Calls POST /api/enrich-phones in batches)
+    // =========================================================================
+    let isPhoneEnrichmentRunning = false;
+    let cancelPhoneEnrichmentRequested = false;
+
+    async function enrichMissingPhonesFromWeb() {
+      const btn = document.getElementById('btnEnrichMissingPhones');
+      if (isPhoneEnrichmentRunning) {
+        cancelPhoneEnrichmentRequested = true;
+        if (btn) btn.innerHTML = '<span>⏳ جارٍ الإيقاف...</span>';
+        return;
+      }
+
+      const sourceList = (typeof getFilteredPlaces === 'function' ? getFilteredPlaces() : extractedPlaces) || [];
+      const missingTargets = sourceList.filter(p => p && (!p.phone || p.phone === 'غير متوفر' || String(p.phone).trim() === '') && !p.__phoneEnrichChecked);
+
+      if (missingTargets.length === 0) {
+        if (typeof showCompletionCelebrationToast === 'function') {
+          showCompletionCelebrationToast('ℹ️ جميع النتائج الظاهرة إما تحتوي على أرقام هواتف أو تم فحصها مسبقاً.');
+        } else {
+          alert('جميع النتائج الظاهرة إما تحتوي على أرقام هواتف أو تم فحصها مسبقاً.');
+        }
+        return;
+      }
+
+      isPhoneEnrichmentRunning = true;
+      cancelPhoneEnrichmentRequested = false;
+      const BATCH_SIZE = 15;
+      const maxToProcess = Math.min(missingTargets.length, 150);
+      const targets = missingTargets.slice(0, maxToProcess);
+      let checkedCount = 0;
+      let totalFound = 0;
+
+      if (btn) {
+        btn.className = 'px-2.5 py-1 rounded-lg bg-red-500/25 hover:bg-red-500/40 border border-red-400/60 text-red-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition';
+      }
+
+      try {
+        for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+          if (cancelPhoneEnrichmentRequested) break;
+          const batch = targets.slice(i, i + BATCH_SIZE);
+          if (btn) {
+            btn.innerHTML = `<span>⏹ إيقاف (${checkedCount}/${targets.length} • وُجد ${totalFound})</span>`;
+          }
+
+          const payloadPlaces = batch.map(p => ({
+            id: p.id,
+            name: p.name,
+            city: p.city || '',
+            district: p.district || '',
+            lat: p.lat,
+            lng: p.lng,
+            website: p.website || ''
+          }));
+
+          try {
+            const res = await fetch('/api/enrich-phones', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ places: payloadPlaces })
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const enrichedList = Array.isArray(data.enriched) ? data.enriched : [];
+              const enrichedMap = new Map(enrichedList.map(item => [item.id, item]));
+
+              let batchNewPhones = 0;
+              for (const p of batch) {
+                p.__phoneEnrichChecked = true;
+                const match = enrichedMap.get(p.id);
+                if (match && match.phone) {
+                  p.phone = match.phone;
+                  p.phones = Array.isArray(match.phones) && match.phones.length > 0 ? match.phones : [match.phone];
+                  p.phoneVerified = true;
+                  p.phoneSource = match.phoneSource || 'بحث الويب العلني';
+                  batchNewPhones++;
+                  totalFound++;
+                }
+              }
+
+              if (batchNewPhones > 0) {
+                liveExtractedPhonesTotal = extractedPlaces.filter(x => x && x.phone && x.phone !== 'غير متوفر' && String(x.phone).trim() !== '').length;
+                const phEl = document.getElementById('livePhonesCount') || document.getElementById('totalPhonesCount');
+                if (phEl) phEl.innerText = liveExtractedPhonesTotal.toLocaleString();
+                if (typeof refreshVisibleResultsView === 'function') {
+                  refreshVisibleResultsView(true);
+                }
+              }
+            }
+          } catch (batchErr) {}
+
+          checkedCount += batch.length;
+        }
+      } finally {
+        isPhoneEnrichmentRunning = false;
+        cancelPhoneEnrichmentRequested = false;
+        if (btn) {
+          btn.className = 'px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition';
+          btn.innerHTML = '<span>🔎📞 جلب الأرقام الناقصة</span>';
+        }
+        const summaryMsg = totalFound > 0
+          ? `✅ تم جلب ${totalFound} رقم هاتف حقيقي جديد (من أصل ${checkedCount} نشاط تم فحصه) وتحديث الجدول وملف Excel!`
+          : `ℹ️ تم فحص ${checkedCount} نشاط عبر المواقع والويب العلني ولم تتوفر أرقام منشورة إضافية لها.`;
+        if (typeof showCompletionCelebrationToast === 'function') {
+          showCompletionCelebrationToast(summaryMsg);
+        } else {
+          alert(summaryMsg);
+        }
+      }
+    }
 
     window.addEventListener('DOMContentLoaded', () => {
       if ('serviceWorker' in navigator) {

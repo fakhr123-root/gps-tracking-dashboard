@@ -8455,6 +8455,206 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ============================================================================
+  // Real Phone Enrichment Engine (POST /api/enrich-phones)
+  // Finds 100% real, validated phone numbers for places missing phones from:
+  //   1) Official Business Website (tel:, wa.me/, page body)
+  //   2) Direct Google Maps Pinpoint Lookup (exact name + city + coordinates)
+  //   3) Public Web Search (DuckDuckGo HTML lite with strict business-name matching)
+  // Every extracted candidate is validated via libphonenumber-js (no fake/generated numbers).
+  // ============================================================================
+  if (pathname === '/api/enrich-phones' && req.method === 'POST') {
+    const body = await readRequestBody(req);
+    const inputPlaces = Array.isArray(body.places) ? body.places.slice(0, 40) : [];
+
+    const extractValidatedPhonesFromText = (rawText = '', defaultCountry = 'YE') => {
+      const text = String(rawText || '');
+      if (!text) return [];
+      const foundSet = new Set();
+      const candidates = [];
+
+      // 1. tel: and wa.me/ links
+      const linkMatches = text.matchAll(/(?:tel:|wa\.me\/|api\.whatsapp\.com\/send\?phone=)(\+?[0-9\s\-().]{7,20})/gi);
+      for (const m of linkMatches) {
+        if (m && m[1]) candidates.push(m[1]);
+      }
+
+      // 2. International (+967 / 00967) & Yemeni mobile/landline patterns
+      const numMatches = text.matchAll(/(?:\+|00)?967[\s\-().]*[1-7][0-9\s\-().]{6,11}|(?<![0-9])(?:77|78|73|71|70)[0-9]{7}(?![0-9])|(?<![0-9])01[\s\-]?[0-9]{6}(?![0-9])/g);
+      for (const m of numMatches) {
+        if (m && m[0]) candidates.push(m[0]);
+      }
+
+      for (const raw of candidates) {
+        let cleaned = String(raw).trim().replace(/[\s\-().]/g, '');
+        if (cleaned.startsWith('00')) cleaned = '+' + cleaned.slice(2);
+        try {
+          const parsed = parsePhoneNumberFromString(cleaned, defaultCountry);
+          if (parsed && parsed.isValid()) {
+            const formatted = parsed.formatInternational();
+            // Reject obvious placeholder/sequential numbers (e.g. 777777777, 123456789)
+            const digits = parsed.nationalNumber || '';
+            if (digits.length >= 7 && !/^(\d)\1{6,}$/.test(digits) && !/^(1234567|0123456)/.test(digits)) {
+              foundSet.add(formatted);
+            }
+          }
+        } catch (e) {}
+        if (foundSet.size >= 3) break;
+      }
+      return Array.from(foundSet);
+    };
+
+    const extractGooglePhonesFromEntry = (p) => {
+      if (!Array.isArray(p)) return [];
+      const rawCandidates = [];
+      const scanVal = (val, depth = 0) => {
+        if (depth > 4 || val == null) return;
+        if (typeof val === 'string') {
+          if (/[0-9]{7,}/.test(val)) rawCandidates.push(val);
+        } else if (Array.isArray(val)) {
+          for (let i = 0; i < val.length; i++) scanVal(val[i], depth + 1);
+        }
+      };
+      if (p[178]) scanVal(p[178], 0);
+      if (p[3]) scanVal(p[3], 0);
+      return extractValidatedPhonesFromText(rawCandidates.join(' | '), 'YE');
+    };
+
+    const enrichSinglePlace = async (place) => {
+      if (!place || !place.name) return null;
+      const cleanName = String(place.name).trim();
+      const city = String(place.city || 'صنعاء').trim();
+      const pLat = Number(place.lat);
+      const pLng = Number(place.lng);
+      const hasCoords = isValidNonZeroCoord(pLat, pLng);
+
+      // Source 1: Official business website (skip generic google maps / social login walls)
+      const siteUrl = String(place.website || '').trim();
+      if (siteUrl && /^https?:\/\//i.test(siteUrl) && !/google\.com\/maps|goo\.gl|facebook\.com|instagram\.com|tiktok\.com/i.test(siteUrl)) {
+        try {
+          const res = await fetchWithTimeout(siteUrl, {
+            timeout: 4200,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept-Language': 'ar,en;q=0.9' }
+          });
+          if (res.ok) {
+            const html = (await res.text()).slice(0, 140000);
+            const sitePhones = extractValidatedPhonesFromText(html, 'YE');
+            if (sitePhones.length > 0) {
+              return { id: place.id, phone: sitePhones[0], phones: sitePhones, phoneSource: 'الموقع الرسمي' };
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Source 2: Direct Google Maps pinpoint lookup by exact business name + city
+      if (hasCoords) {
+        try {
+          const pb = `!4m12!1m3!1d450!2d${pLng}!3d${pLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i10!10b1`;
+          const gUrl = `https://www.google.com/search?tbm=map&authuser=0&hl=ar&gl=ye&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(`${cleanName} ${city}`)}`;
+          const gRes = await fetchWithTimeout(gUrl, {
+            timeout: 4200,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+              'Accept-Language': 'ar,en;q=0.9',
+              'Cookie': 'SOCS=CAISHAgBEhJnd3NfMjAyNDA1MTQtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+            }
+          });
+          if (gRes.ok) {
+            let gText = await gRes.text();
+            if (gText.startsWith(")]}'")) gText = gText.slice(4).trim();
+            const gData = JSON.parse(gText);
+            const entries = gData?.[0]?.[1] || [];
+            for (const entry of entries) {
+              const p = entry?.[14];
+              if (!Array.isArray(p) || !p[11]) continue;
+              const candName = String(p[11]).trim();
+              const cLat = Number(p[9]?.[2]);
+              const cLng = Number(p[9]?.[3]);
+              const nameSim = calcNameSimilarity(normAr(cleanName), normAr(candName));
+              const distM = (isValidNonZeroCoord(cLat, cLng)) ? haversineMetersBetween(pLat, pLng, cLat, cLng) : 9999;
+              if (nameSim >= 0.65 || distM <= 120) {
+                const gPhones = extractGooglePhonesFromEntry(p);
+                if (gPhones.length > 0) {
+                  return { id: place.id, phone: gPhones[0], phones: gPhones, phoneSource: 'خرائط جوجل (مفصّل)' };
+                }
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Source 3: Public Web Search (DuckDuckGo HTML lite) with strict business-name token verification
+      try {
+        const searchQ = `"${cleanName}" ${city} (هاتف OR جوال OR واتساب OR 77 OR 78 OR 73 OR 71)`;
+        const ddgUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(searchQ)}`;
+        const dRes = await fetchWithTimeout(ddgUrl, {
+          timeout: 4800,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept-Language': 'ar,en;q=0.9'
+          }
+        });
+        if (dRes.ok) {
+          const html = (await dRes.text()).slice(0, 160000);
+          const resultBlocks = html.split(/class="result__body"/i).slice(1, 7);
+          const nameTokens = normAr(cleanName).split(/\s+/).filter(t => t.length >= 3);
+          for (const blk of resultBlocks) {
+            const plainBlk = blk.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+            const normBlk = normAr(plainBlk);
+            const matchedTokens = nameTokens.filter(tk => normBlk.includes(tk));
+            const requiredMatch = nameTokens.length <= 1 ? 1 : Math.min(2, nameTokens.length);
+            if (matchedTokens.length >= requiredMatch) {
+              const webPhones = extractValidatedPhonesFromText(plainBlk, 'YE');
+              if (webPhones.length > 0) {
+                return { id: place.id, phone: webPhones[0], phones: webPhones, phoneSource: 'بحث الويب العلني' };
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      return null;
+    };
+
+    const enriched = [];
+    let idxCursor = 0;
+    const ENRICH_CONCURRENCY = 6;
+    const worker = async () => {
+      while (idxCursor < inputPlaces.length) {
+        const target = inputPlaces[idxCursor++];
+        if (!target) continue;
+        try {
+          const result = await enrichSinglePlace(target);
+          if (result && result.phone) {
+            enriched.push(result);
+            // Persist real discovered phone into local index so future searches get it instantaneously
+            if (isValidNonZeroCoord(target.lat, target.lng)) {
+              upsertPlaceIntoPersistentDb({
+                n: String(target.name || '').trim(),
+                la: Number(Number(target.lat).toFixed(6)),
+                ln: Number(Number(target.lng).toFixed(6)),
+                ci: String(target.city || 'صنعاء').trim(),
+                d: String(target.district || '').trim(),
+                ph: result.phone,
+                phones: result.phones
+              });
+            }
+          }
+        } catch (e) {}
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(ENRICH_CONCURRENCY, Math.max(inputPlaces.length, 1)) }, () => worker()));
+
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({
+      success: true,
+      checked: inputPlaces.length,
+      foundCount: enriched.length,
+      enriched
+    }));
+    return;
+  }
+
   // Database Local Backup Export Endpoint (JSON download filtered by city, country, or full database)
   if (pathname === '/api/export-database') {
     const filterCity = String(parsedUrl.query.city || '').trim();

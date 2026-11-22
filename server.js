@@ -3379,69 +3379,58 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     } catch (e) {}
   };
 
-  // Fast Pinpoint Live Google Maps Lookup around User's Exact GPS Building (150m) & Direct Query before streaming index
+  // Fast Non-Blocking Pinpoint Live Google Maps Lookup around User's Exact GPS Building (runs in parallel without delaying 0.05s instant index stream!)
   const livePinpointEntries = [];
-  try {
-    const pinpointQueries = [];
-    if (!isFullAreaScan && stdQuery) {
-      pinpointQueries.push({ q: stdQuery, lat: refLat, lng: refLng, span: 350 });
-      pinpointQueries.push({ q: `${stdQuery} ${isCountrySearch ? 'صنعاء' : center.city}`, lat: center.lat, lng: center.lng, span: 4500 });
-    } else if (isFullAreaScan && hasValidUserGps) {
-      for (const localTerm of ['شركة', 'مؤسسة', 'مكتب', 'مركز', 'محل', 'بقالة', 'صيدلية', 'مطعم']) {
-        pinpointQueries.push({ q: localTerm, lat: userLat, lng: userLng, span: 160 });
-      }
-    }
-    if (pinpointQueries.length > 0) {
-      const PINPOINT_TLDS = ['www.google.com.sa', 'www.google.ae', 'www.google.com.eg', 'www.google.jo', 'www.google.com.kw', 'www.google.com'];
-      const pinpointResults = await Promise.all(pinpointQueries.map(async (pq, idx) => {
-        try {
-          const host = PINPOINT_TLDS[idx % PINPOINT_TLDS.length];
-          const pb = `!4m12!1m3!1d${pq.span}!2d${pq.lng}!3d${pq.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!10b1`;
-          const gUrl = `https://${host}/search?tbm=map&authuser=0&hl=ar&gl=ye&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(pq.q)}`;
-          const res = await fetchWithTimeout(gUrl, {
-            timeout: 2400,
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-              'Accept-Language': 'ar,en;q=0.9',
-              'Cookie': 'SOCS=CAESHAgBEhJnd3NfMjAyNDA1MTUtMF9SQzIaAmFyIAEaBgiA_LyaBg'
-            }
-          });
-          if (!res.ok) return [];
-          let text = await res.text();
-          if (text.startsWith(")]}'")) text = text.slice(4).trim();
-          const data = JSON.parse(text);
-          const entries = data?.[0]?.[1] || [];
-          const out = [];
-          for (const entry of entries) {
-            const p = entry?.[14];
-            if (!p || !p[11]) continue;
-            const pLat = p[9]?.[2];
-            const pLng = p[9]?.[3];
-            if (!pLat || !pLng) continue;
-            const cats = Array.isArray(p[13]) ? p[13].filter(Boolean) : [];
-            const phoneData = extractGoogleMapsPlacePhones(p);
-            const addr = p[39] || p[18] || (Array.isArray(p[2]) ? p[2].join('، ') : '') || '';
-            out.push({
-              n: String(p[11]).trim(),
-              la: Number(pLat),
-              ln: Number(pLng),
-              c: cats,
-              d: '',
-              a: addr,
-              ph: phoneData.phone || '',
-              r: p[4]?.[7] ? String(Number(p[4][7]).toFixed(1)) : '4.6'
-            });
-          }
-          return out;
-        } catch (e) {
-          return [];
+  const pinpointBackgroundPromise = (async () => {
+    try {
+      const pinpointQueries = [];
+      if (!isFullAreaScan && stdQuery) {
+        pinpointQueries.push({ q: stdQuery, lat: refLat, lng: refLng, span: 350 });
+        pinpointQueries.push({ q: `${stdQuery} ${isCountrySearch ? 'صنعاء' : center.city}`, lat: center.lat, lng: center.lng, span: 4500 });
+      } else if (isFullAreaScan && hasValidUserGps) {
+        for (const localTerm of ['بقالة', 'صيدلية', 'مطعم', 'شركة']) {
+          pinpointQueries.push({ q: localTerm, lat: userLat, lng: userLng, span: 200 });
         }
-      }));
-      for (const list of pinpointResults) {
-        for (const item of list) livePinpointEntries.push(item);
       }
-    }
-  } catch (e) {}
+      if (pinpointQueries.length > 0) {
+        const PINPOINT_TLDS = ['www.google.com.sa', 'www.google.ae', 'www.google.com.eg', 'www.google.jo', 'www.google.com.kw', 'www.google.com'];
+        await Promise.all(pinpointQueries.map(async (pq, idx) => {
+          if (isAborted()) return;
+          try {
+            const host = PINPOINT_TLDS[idx % PINPOINT_TLDS.length];
+            const pb = `!4m12!1m3!1d${pq.span}!2d${pq.lng}!3d${pq.lat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!7i60!10b1`;
+            const gUrl = `https://${host}/search?tbm=map&authuser=0&hl=ar&gl=ye&pb=${encodeURIComponent(pb)}&q=${encodeURIComponent(pq.q)}`;
+            const res = await fetchWithTimeout(gUrl, {
+              timeout: 2200,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept-Language': 'ar,en;q=0.9',
+                'Cookie': 'SOCS=CAESHAgBEhJnd3NfMjAyNDA1MTUtMF9SQzIaAmFyIAEaBgiA_LyaBg'
+              }
+            });
+            if (!res.ok) return;
+            let text = await res.text();
+            if (text.startsWith(")]}'")) text = text.slice(4).trim();
+            const data = JSON.parse(text);
+            const entries = data?.[0]?.[1] || [];
+            for (const entry of entries) {
+              if (isAborted()) break;
+              const p = entry?.[14];
+              if (!p || !p[11]) continue;
+              const cleanName = String(p[11]).trim();
+              const pLat = Number(p[9]?.[2]);
+              const pLng = Number(p[9]?.[3]);
+              if (!cleanName || isNaN(pLat) || isNaN(pLng)) continue;
+              const cats = Array.isArray(p[13]) ? p[13].filter(Boolean) : [];
+              if (!isFullAreaScan && !isPlaceStrictlyRelevantToQuery(cleanName, cats, stdQuery)) continue;
+              if (isDuplicatePlace(cleanName, pLat, pLng, typeof p[78] === 'string' ? p[78] : '')) continue;
+              emitGooglePlaceImmediate(p, cleanName, pLat, pLng, stdQuery || pq.q);
+            }
+          } catch (e) {}
+        }));
+      }
+    } catch (e) {}
+  })();
 
   // Strictly resolve the true Yemeni city/governorate of a coordinate so neighboring governorates (like Taiz & Ibb, or Aden & Lahj) NEVER mix when searching a single city!
   const YEMEN_GOV_CENTERS = [
@@ -3724,46 +3713,47 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
     if (isFullAreaScan) {
       const allCityCategories = [
-        'بقالة', 'تموينات', 'سوبر ماركت', 'مول', 'صيدلية', 'مستشفى', 'عيادة', 'مختبر',
-        'مطعم', 'مطبخ', 'كافيه', 'مخبز', 'حلويات', 'فندق', 'شقق مفروشة', 'جوالات',
-        'اتصالات', 'شركة', 'مؤسسة', 'بنك', 'صرافة', 'محكمة', 'محامي', 'وزارة',
-        'شرطة', 'فرزة', 'شحن', 'صالة أفراح', 'مسبح', 'نادي رياضي', 'حديقة', 'مدرسة',
-        'جامعة', 'معهد', 'مسجد', 'ملابس', 'عبايات', 'أحذية', 'كمبيوتر', 'معرض سيارات',
-        'قطع غيار', 'ورشة', 'عقارات', 'سفريات', 'ذهب', 'مفروشات', 'مواد بناء', 'عطور', 'محطة وقود'
+        'بقالة', 'تموينات', 'سوبر ماركت', 'مول', 'صيدلية', 'مستشفى', 'عيادة',
+        'مطعم', 'كافيه', 'مخبز', 'فندق', 'جوالات', 'شركة', 'بنك', 'صرافة',
+        'محكمة', 'وزارة', 'صالة أفراح', 'مسبح', 'مدرسة', 'جامعة', 'مسجد',
+        'ملابس', 'ورشة', 'محطة وقود'
       ];
 
-      const areaName = neighborhood ? `${neighborhood} ${center.city}` : center.city;
       const mainSpan = hasDrawnCircle
-        ? Math.min(Math.max(radiusMeters * 2.0, 1500), 30000)
-        : 35000;
+        ? Math.min(Math.max(radiusMeters * 2.0, 1500), 25000)
+        : 22000;
 
-      // Wave 1: Query all categories across the main area with !7i100 (100 results per request!)
+      // Wave 1 (Instant Broad Sweep): 25 high-yield categories across the main city center (60 results each)
       for (const cat of allCityCategories) {
-        for (const offset of [0, 100]) {
-          queryTasks.push({ q: cat, lat: center.lat, lng: center.lng, span: mainSpan, offset, count: 100, cat });
-        }
+        queryTasks.push({ q: cat, lat: center.lat, lng: center.lng, span: mainSpan, offset: 0, count: 60, cat, qtDepth: 0 });
       }
 
-      // Wave 2: Breadth-First Sweep across all named & live-discovered sectors + micro-grid cells of the city
+      // Wave 2 (Fast Sector Sweep): Top 12 categories across ~15 spatially deduplicated sectors sorted closest-first to user (~180 tasks)
       const coreSweepCategories = [
-        'بقالة', 'تموينات', 'سوبر ماركت', 'صيدلية', 'مستشفى', 'عيادة',
-        'مطعم', 'كافيه', 'مول', 'فندق', 'جوالات', 'شركة', 'بنك', 'صرافة',
-        'صالة أفراح', 'محكمة', 'فرزة', 'وزارة', 'مدرسة', 'جامعة', 'مسجد',
-        'مخبز', 'ملابس', 'سيارات', 'ذهب', 'مفروشات'
+        'بقالة', 'سوبر ماركت', 'صيدلية', 'مستشفى', 'مطعم', 'كافيه',
+        'مول', 'فندق', 'جوالات', 'شركة', 'بنك', 'صرافة'
       ];
-      const allCombinedSectors = [...namedSectors, ...microGridSectors].sort(
+      const rawCombinedSectors = [...namedSectors, ...microGridSectors].sort(
         (a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng)
       );
-      for (const sec of allCombinedSectors) {
+      const fastSectors = [];
+      for (const sec of rawCombinedSectors) {
+        if (fastSectors.length >= 15) break;
+        if (!fastSectors.some(ex => calcDistanceKm(ex.lat, ex.lng, sec.lat, sec.lng) < 2.0)) {
+          fastSectors.push(sec);
+        }
+      }
+      for (const sec of fastSectors) {
         for (const cat of coreSweepCategories) {
           queryTasks.push({
             q: cat,
             lat: sec.lat,
             lng: sec.lng,
-            span: sec.span || 1500,
+            span: 1600,
             offset: 0,
-            count: 100,
-            cat
+            count: 60,
+            cat,
+            qtDepth: 0
           });
         }
       }
@@ -3842,7 +3832,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
 
           try {
             const gRes = await fetchWithTimeout(gUrl, {
-              timeout: 6500,
+              timeout: 4500,
               headers: {
                 'User-Agent': ua,
                 'Accept-Language': 'ar,en;q=0.9',
@@ -3851,7 +3841,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             });
 
             if (gRes.status === 429 || gRes.status === 503 || gRes.status === 504) {
-              await sleep(800);
+              await sleep(400);
               continue;
             }
             if (!gRes.ok) {
@@ -3861,7 +3851,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             reqSucceeded = true;
             break;
           } catch (err) {
-            await sleep(800);
+            await sleep(400);
           }
         }
 
@@ -3972,7 +3962,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       }
     };
 
-    const BATCH_CONCURRENCY = 8;
+    const BATCH_CONCURRENCY = 12;
     let activeWorkers = 0;
     let completedMapTasks = 0;
     let nextTaskIndex = 0;
@@ -4051,7 +4041,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           emitStreamingProgress(completedMapTasks <= 5);
         }
         if (nextTaskIndex < queryTasks.length && !isAborted()) {
-          await sleep(100);
+          await sleep(30);
         }
       }
     };
@@ -4059,8 +4049,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const workerCount = Math.min(BATCH_CONCURRENCY, Math.max(queryTasks.length, 1));
     await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 
-    // Non-blocking background Overpass settle with strict 12000ms cap so Overpass can never stall completion
-    await Promise.race([overpassPromise.catch(() => {}), sleep(12000)]);
+    // Non-blocking background Overpass & Pinpoint settle with strict 4000ms cap so completion is instant
+    await Promise.race([Promise.all([overpassPromise, pinpointBackgroundPromise]).catch(() => {}), sleep(4000)]);
     const finalTotalCells = Math.max(quadtreeTotalCells, queryTasks.length, completedMapTasks, 1);
     sendEvent('quadtree_progress', {
       scannedCells: finalTotalCells,
@@ -8019,8 +8009,11 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive'
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
     });
+    if (typeof res.flushHeaders === 'function') res.flushHeaders();
+    try { res.write(': stream-open\n\n'); } catch (e) {}
 
     let resultCount = 0;
     const searchSampleCache = [];

@@ -564,17 +564,18 @@
 
         <h2 id="gateAuthHeaderTitle" class="sr-only">تسجيل الدخول</h2>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3">
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3" autocomplete="off">
           <!-- Username Input Box ("اسم المستخدم") -->
           <div class="relative">
             <input 
               type="text" 
               id="visitorNameInput" 
-              name="username"
               required
               minlength="1"
               maxlength="30"
-              autocomplete="username"
+              autocomplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder="اسم المستخدم (a-z, 0-9)"
               class="w-full bg-slate-900/90 text-sm rounded-2xl px-4 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
@@ -585,10 +586,11 @@
             <input 
               type="password" 
               id="visitorPasswordInput" 
-              name="password"
               required
               minlength="1"
-              autocomplete="current-password"
+              autocomplete="off"
+              data-lpignore="true"
+              data-form-type="other"
               placeholder="كلمة المرور"
               class="w-full bg-slate-900/90 text-sm rounded-2xl pr-4 pl-11 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />

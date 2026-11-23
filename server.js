@@ -8431,15 +8431,17 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {}
     }
 
-    const finalCity = (manualCity ? detectedCity : (scopeInfo?.city || detectedCity)) || 'صنعاء';
-    const finalCountry = (scopeInfo?.country || detectedCountry) || 'اليمن';
+    const finalCity = (manualCity ? detectedCity : (scopeInfo?.city || detectedCity)) || (isValidNonZeroCoord(lat, lon) ? `${Number(lat).toFixed(2)}, ${Number(lon).toFixed(2)}` : 'صنعاء');
+    const finalCountry = (scopeInfo?.country || detectedCountry) || (isValidNonZeroCoord(lat, lon) ? '' : 'اليمن');
     const finalCountryCode = (scopeInfo?.countryCode || countryCode || 'ye').toLowerCase();
+    const dynLat = isValidNonZeroCoord(lat, lon) ? Number(lat) : 15.3538;
+    const dynLon = isValidNonZeroCoord(lat, lon) ? Number(lon) : 44.2058;
     const cityBbox = (Array.isArray(scopeInfo?.cityBbox) && scopeInfo.cityBbox.length === 4)
       ? scopeInfo.cityBbox
-      : [15.20, 44.08, 15.55, 44.36];
+      : [Number((dynLat - 0.16).toFixed(4)), Number((dynLon - 0.16).toFixed(4)), Number((dynLat + 0.16).toFixed(4)), Number((dynLon + 0.16).toFixed(4))];
     const countryBbox = (Array.isArray(scopeInfo?.countryBbox) && scopeInfo.countryBbox.length === 4)
       ? scopeInfo.countryBbox
-      : [12.10, 41.80, 19.00, 54.60];
+      : [Number((dynLat - 2.2).toFixed(4)), Number((dynLon - 2.2).toFixed(4)), Number((dynLat + 2.2).toFixed(4)), Number((dynLon + 2.2).toFixed(4))];
 
     // Automatically sync detected { city, country, lat, lon } to active user/visitor record for Admin Radar (preserving existing valid coords and rejecting 0,0)
     if (isValidNonZeroCoord(lat, lon)) {

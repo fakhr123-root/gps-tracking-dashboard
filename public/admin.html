@@ -202,7 +202,6 @@
               type="password" 
               id="adminPasswordInput" 
               placeholder="أدخل كلمة مرور المشرف..." 
-              onkeydown="if(event.key==='Enter'){event.preventDefault();window.handleAdminPasscodeLogin(event);}"
               style="position: relative; z-index: 20; pointer-events: auto;"
               class="w-full bg-slate-950/90 text-sm rounded-xl pr-10 pl-4 py-2.5 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-emerald-400 transition"
               required
@@ -214,9 +213,8 @@
         <div id="loginErrorMsg" class="hidden text-xs text-red-300 bg-red-950/60 p-2.5 rounded-xl border border-red-500/40 text-center font-bold"></div>
 
         <button 
-          type="button" 
+          type="submit" 
           id="loginSubmitBtn"
-          onclick="window.handleAdminPasscodeLogin(event)"
           style="position: relative; z-index: 20; pointer-events: auto; cursor: pointer;"
           class="w-full py-3.5 rounded-2xl font-black text-sm bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 hover:opacity-95 text-slate-950 transition shadow-[0_0_25px_rgba(16,185,129,0.4)] flex items-center justify-center gap-2 cursor-pointer"
         >
@@ -1134,6 +1132,8 @@
         };
 
         adminSseConnection.onmessage = (ev) => {
+          const loginModalEl = document.getElementById('loginModal');
+          if (loginModalEl && !loginModalEl.classList.contains('hidden')) return;
           if (!ev || !ev.data) return;
           try {
             const payload = JSON.parse(ev.data);

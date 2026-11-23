@@ -209,11 +209,9 @@
       animation: floatPin 3s ease-in-out infinite;
     }
 
-    /* Futuristic Holographic Entry Portal Modal */
+    /* Futuristic Holographic Entry Portal Modal (no backdrop-filter to prevent typing lag) */
     .portal-modal-card {
-      background: linear-gradient(160deg, rgba(11, 27, 36, 0.94) 0%, rgba(7, 14, 24, 0.98) 100%);
-      backdrop-filter: blur(28px);
-      -webkit-backdrop-filter: blur(28px);
+      background: linear-gradient(160deg, rgba(11, 27, 36, 0.98) 0%, rgba(7, 14, 24, 0.99) 100%);
       border: 1px solid rgba(16, 185, 129, 0.45);
       box-shadow: 0 30px 90px rgba(0, 0, 0, 0.85), 0 0 50px rgba(16, 185, 129, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.12);
     }
@@ -415,27 +413,20 @@
       visibility: hidden !important;
       display: none !important;
     }
+    /* Fail-safe: permanently hide any legacy manual "Fetch Missing Phones" button */
+    button[onclick*="enrichMissingPhonesFromWeb"],
+    #btnEnrichMissingPhones,
+    button[onclick*="fetchMissingPhones"],
+    #fetchPhonesBtn {
+      display: none !important;
+      pointer-events: none !important;
+    }
   </style>
 </head>
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
   <div id="google_translate_element" class="hidden"></div>
 
-  <!-- Prominent Non-Blocking Network Status Banner (Shown ONLY when internet drops or weakens; NEVER triggers GPS Gatekeeper) -->
-  <div id="networkStatusBanner" style="z-index: 100001;" class="hidden fixed top-0 inset-x-0 px-3 py-2.5 bg-amber-950/95 backdrop-blur-md border-b-2 border-amber-400/75 shadow-[0_8px_30px_rgba(0,0,0,0.75)] pointer-events-auto">
-    <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-100 text-xs sm:text-sm font-black">
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping shrink-0"></span>
-        <span id="networkStatusBannerText" class="truncate">⚠️ الإنترنت ضعيف أو مقطوع حالياً — يتم حفظ البيانات محلياً لحين عودة الاتصال</span>
-      </div>
-      <span id="networkStatusBannerBadge" class="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 text-[10px] font-bold shrink-0">حفظ محلي نشط</span>
-    </div>
-  </div>
-
-  <!-- Subtle Non-Blocking Weak-Network Geolocation Toast -->
-  <div id="weakNetworkGeoToast" style="z-index: 100000;" class="hidden fixed bottom-5 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-2xl bg-slate-900/95 border border-amber-400/55 text-amber-200 text-xs font-extrabold shadow-[0_12px_35px_rgba(0,0,0,0.75)] backdrop-blur-md flex items-center gap-2 max-w-[92vw]">
-    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0"></span>
-    <span id="weakNetworkGeoToastText">⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...</span>
-  </div>
+  <!-- Network/offline warning banners disabled -->
 
   <!-- Celebratory 100% Scan Completion Toast Notification -->
   <div id="scanCompleteCelebrationToast" style="z-index: 100002;" class="hidden fixed top-5 left-1/2 -translate-x-1/2 px-5 py-3.5 rounded-2xl bg-emerald-950/95 border-2 border-emerald-400/80 text-emerald-100 text-xs sm:text-sm font-black shadow-[0_16px_50px_rgba(16,185,129,0.45)] backdrop-blur-xl flex items-center gap-3 max-w-[94vw]">
@@ -445,17 +436,6 @@
       <span id="scanCompleteToastSubtitle" class="text-[11px] text-emerald-100/90 font-bold">إجمالي المواقع الصافية بدون تكرار: 0 موقع</span>
     </div>
     <button type="button" onclick="document.getElementById('scanCompleteCelebrationToast')?.classList.add('hidden')" class="mr-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 text-xs font-black cursor-pointer">✕</button>
-  </div>
-
-  <!-- Legacy Slim Non-Blocking Hybrid Offline Connection Banner (kept for compatibility) -->
-  <div id="nativeOfflineOverlay" class="hidden fixed top-0 inset-x-0 z-[200] px-3 py-2 bg-amber-950/95 backdrop-blur-md border-b border-amber-400/60 shadow-[0_6px_25px_rgba(0,0,0,0.65)] pointer-events-auto">
-    <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 text-amber-200 text-[11px] sm:text-xs font-extrabold">
-      <div class="flex items-center gap-2 min-w-0">
-        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0"></span>
-        <span id="offlineBannerText" class="truncate">📡 انقطع الإنترنت — يتم حفظ تحركاتك محلياً وستُرسل تلقائياً فور عودة الشبكة</span>
-      </div>
-      <span id="offlineQueuedPointsBadge" class="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-amber-300 text-[10px] font-num shrink-0">GPS محلي نشط</span>
-    </div>
   </div>
 
   <!-- Strict Permission-Denied GPS Gatekeeper (Hidden by default; ONLY shown when geolocation permission is explicitly DENIED / error.code === 1) -->
@@ -584,17 +564,17 @@
 
         <h2 id="gateAuthHeaderTitle" class="sr-only">تسجيل الدخول</h2>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3" autocomplete="off">
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3">
           <!-- Username Input Box ("اسم المستخدم") -->
           <div class="relative">
             <input 
               type="text" 
               id="visitorNameInput" 
+              name="username"
               required
               minlength="1"
               maxlength="30"
-              autocomplete="off"
-              oninput="sanitizeInstagramUsernameInput(this)"
+              autocomplete="username"
               placeholder="اسم المستخدم (a-z, 0-9)"
               class="w-full bg-slate-900/90 text-sm rounded-2xl px-4 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
@@ -605,9 +585,10 @@
             <input 
               type="password" 
               id="visitorPasswordInput" 
+              name="password"
               required
               minlength="1"
-              autocomplete="new-password"
+              autocomplete="current-password"
               placeholder="كلمة المرور"
               class="w-full bg-slate-900/90 text-sm rounded-2xl pr-4 pl-11 py-3.5 border border-emerald-500/35 focus:border-emerald-400 focus:shadow-[0_0_20px_rgba(16,185,129,0.2)] text-white placeholder-slate-400 focus:outline-none transition font-bold text-right"
             />
@@ -1449,9 +1430,6 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-1.5">
-              <button type="button" id="btnEnrichMissingPhones" onclick="enrichMissingPhonesFromWeb()" class="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition" title="البحث عن أرقام الهواتف الحقيقية الناقصة من الموقع الرسمي والويب">
-                <span>🔎📞 جلب الأرقام الناقصة</span>
-              </button>
               <button type="button" onclick="exportToExcel()" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black flex items-center gap-1 cursor-pointer transition">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>تصدير Excel فوري</span>
@@ -1696,6 +1674,15 @@
   <script>
     if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
 
+    // Nuclear Guard: returns true whenever the Login/Register modal (#visitorGateModal) is visible in the DOM
+    function isLoginModalVisible() {
+      const modal = document.getElementById('visitorGateModal');
+      if (!modal) return false;
+      if (modal.classList.contains('hidden')) return false;
+      if (modal.style.display === 'none') return false;
+      return true;
+    }
+
     let extractedPlaces = [];
     let currentEventSource = null;
     let selectedRadius = 35;
@@ -1904,16 +1891,18 @@
         deviceModel = isMobile ? 'هاتف ذكي محمول' : 'لابتوب / كمبيوتر مكتبي';
       }
 
-      document.body.classList.toggle('device-mobile', isMobile);
-      document.body.classList.toggle('device-desktop', !isMobile);
+      if (!isLoginModalVisible()) {
+        document.body.classList.toggle('device-mobile', isMobile);
+        document.body.classList.toggle('device-desktop', !isMobile);
 
-      const badgeTxt = document.getElementById('deviceModeText');
-      const badgeIcon = document.getElementById('deviceModeIcon');
-      if (badgeTxt) {
-        badgeTxt.innerText = isMobile ? `📱 ${deviceModel}` : `💻 ${deviceModel}`;
-      }
-      if (badgeIcon) {
-        badgeIcon.setAttribute('data-lucide', isMobile ? 'smartphone' : 'laptop');
+        const badgeTxt = document.getElementById('deviceModeText');
+        const badgeIcon = document.getElementById('deviceModeIcon');
+        if (badgeTxt) {
+          badgeTxt.innerText = isMobile ? `📱 ${deviceModel}` : `💻 ${deviceModel}`;
+        }
+        if (badgeIcon) {
+          badgeIcon.setAttribute('data-lucide', isMobile ? 'smartphone' : 'laptop');
+        }
       }
 
       const screenRes = `${window.screen.width}x${window.screen.height}`;
@@ -1993,6 +1982,8 @@
     }
 
     window.addEventListener('resize', () => {
+      const gateModal = document.getElementById('visitorGateModal');
+      if (gateModal && !gateModal.classList.contains('hidden')) return;
       detectUserDeviceProfile();
     });
 
@@ -2206,12 +2197,15 @@
 
       function animate() {
         requestAnimationFrame(animate);
+        if (isLoginModalVisible()) return;
         controls.update();
         renderer.render(scene, camera);
       }
       animate();
 
       window.addEventListener('resize', () => {
+        const gateModal = document.getElementById('visitorGateModal');
+        if (gateModal && !gateModal.classList.contains('hidden')) return;
         if (!container || container.classList.contains('hidden')) return;
         const w = container.clientWidth || 450;
         const h = container.clientHeight || 450;
@@ -2241,6 +2235,7 @@
     }
 
     function initLeafletMap(centerLat = 15.3538, centerLng = 44.2058) {
+      if (isLoginModalVisible()) return;
       if (leafletMap) return;
       if (typeof L === 'undefined') {
         setTimeout(() => initLeafletMap(centerLat, centerLng), 250);
@@ -2620,6 +2615,7 @@
     };
 
     function updateComprehensiveScopePanelLabels() {
+      if (isLoginModalVisible()) return;
       const geo = window.detectedUserGeoScope || {};
       const city = geo.city || window.lastAutoDetectedGpsCity || 'صنعاء';
       const country = geo.country || 'اليمن';
@@ -2914,6 +2910,7 @@
     }
 
     function renderUserGpsPinOnMap() {
+      if (isLoginModalVisible()) return;
       if (!cachedOptionalGps || !cachedOptionalGps.lat || !cachedOptionalGps.lng) return;
       if (!leafletMap) initLeafletMap(cachedOptionalGps.lat, cachedOptionalGps.lng);
 
@@ -3054,6 +3051,87 @@
     let streamThrottleTimeout = null;
     let pendingPlacesBatch = [];
     let liveExtractedPhonesTotal = 0;
+    const uniqueExtractedPhonesSet = new Set();
+    const autoPhoneFetchQueue = [];
+    const autoPhoneFetchQueuedIds = new Set();
+    let autoPhoneFetchSessionToken = 0;
+
+    function normalizeUniquePhoneKey(raw) {
+      if (!raw) return '';
+      const str = String(raw).trim();
+      if (!str || str === 'غير متوفر') return '';
+      let cleaned = str.replace(/[\s\-().]/g, '');
+      if (cleaned.startsWith('00')) cleaned = '+' + cleaned.slice(2);
+      const digits = cleaned.replace(/[^\d]/g, '');
+      if (digits.length < 7) return '';
+      return cleaned.startsWith('+') ? '+' + digits : digits;
+    }
+
+    function getPlaceValidPhoneList(place) {
+      if (!place || typeof place !== 'object') return [];
+      const rawList = [];
+      if (Array.isArray(place.phones) && place.phones.length > 0) {
+        for (const ph of place.phones) {
+          if (ph && String(ph).trim() && String(ph).trim() !== 'غير متوفر') {
+            rawList.push(...String(ph).split(/[،;,/]+/).map(s => s.trim()).filter(Boolean));
+          }
+        }
+      } else if (place.phone && place.phone !== 'غير متوفر' && String(place.phone).trim() !== '') {
+        rawList.push(...String(place.phone).split(/[،;,/]+/).map(s => s.trim()).filter(Boolean));
+      }
+      return rawList.filter(ph => normalizeUniquePhoneKey(ph) !== '');
+    }
+
+    function placeHasValidPhone(place) {
+      return getPlaceValidPhoneList(place).length > 0;
+    }
+
+    function registerPlaceUniquePhones(place) {
+      const phones = getPlaceValidPhoneList(place);
+      let newlyAddedCount = 0;
+      for (const ph of phones) {
+        const key = normalizeUniquePhoneKey(ph);
+        if (key && !uniqueExtractedPhonesSet.has(key)) {
+          uniqueExtractedPhonesSet.add(key);
+          newlyAddedCount++;
+        }
+      }
+      liveExtractedPhonesTotal = uniqueExtractedPhonesSet.size;
+      return newlyAddedCount;
+    }
+
+    function recalculateUniquePhonesTotal() {
+      uniqueExtractedPhonesSet.clear();
+      if (Array.isArray(extractedPlaces)) {
+        for (let i = 0; i < extractedPlaces.length; i++) {
+          registerPlaceUniquePhones(extractedPlaces[i]);
+        }
+      }
+      liveExtractedPhonesTotal = uniqueExtractedPhonesSet.size;
+      return liveExtractedPhonesTotal;
+    }
+
+    function resetAutoPhoneFetchQueue() {
+      autoPhoneFetchQueue.length = 0;
+      autoPhoneFetchQueuedIds.clear();
+      autoPhoneFetchSessionToken++;
+    }
+
+    function enqueuePlaceForAutoPhoneFetch(place) {
+      if (!place || !place.id) return;
+      if (place.phoneCheckAttempted === true || place.__phoneEnrichChecked === true) return;
+      if (placeHasValidPhone(place)) return;
+      if (autoPhoneFetchQueuedIds.has(place.id)) return;
+      autoPhoneFetchQueuedIds.add(place.id);
+      autoPhoneFetchQueue.push(place);
+    }
+
+    function enqueueMissingPhonesFromList(placesList) {
+      if (!Array.isArray(placesList)) return;
+      for (let i = 0; i < placesList.length; i++) {
+        enqueuePlaceForAutoPhoneFetch(placesList[i]);
+      }
+    }
 
     function resolvePlaceDistanceFromUser(place) {
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng && place.lat && place.lng) {
@@ -3424,6 +3502,8 @@
       }
       pendingPlacesBatch = [];
       liveExtractedPhonesTotal = 0;
+      uniqueExtractedPhonesSet.clear();
+      resetAutoPhoneFetchQueue();
 
       const qInputEl = document.getElementById('queryInput') || document.getElementById('searchInput');
       const query = getActiveCategoryQueryFromUi();
@@ -3458,9 +3538,9 @@
       const progressRatio = document.getElementById('progressRatio');
 
       progressContainer.classList.remove('hidden');
-      progressBar.style.width = '2%';
+      progressBar.style.width = '0%';
       const initPctBadge = document.getElementById('progressPercentBadge');
-      if (initPctBadge) initPctBadge.innerText = '2%';
+      if (initPctBadge) initPctBadge.innerText = '0%';
       progressRatio.innerText = drawnCircleState
         ? (query ? `جارٍ استخراج (${query}) داخل الدائرة...` : `جارٍ المسح الشامل للدائرة المرسومة...`)
         : `جارٍ استخراج المنطقة كاملة...`;
@@ -3553,11 +3633,13 @@
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
       currentEventSource.addEventListener('status', (event) => {
+        if (isLoginModalVisible()) return;
         const data = JSON.parse(event.data);
         statusMessage.innerText = data.message;
       });
 
       function updateDualEngineScanTelemetry(data) {
+        if (isLoginModalVisible()) return;
         // Strictly reflect ONLY results that passed the client relevance & deduplication filter (matching #statTotal & results grid)
         const strictNetCount = extractedPlaces.length;
         const netBadge = document.getElementById('telemetryNetDedupBadge');
@@ -3581,25 +3663,34 @@
         }
       }
 
-      // UI Progress Throttling: refresh progress bar & telemetry counters cleanly with strictly monotonic progress (never drops backwards!)
+      // UI Progress: bind CSS width directly to SSE percent with smooth monotonic updates
       let pendingProgressData = null;
       let lastProgressUiPaintMs = 0;
       let progressUiPaintTimer = null;
       let maxDisplayedProgressPercent = 0;
+      let isSearchDoneHandled = false;
+
+      function applyDirectProgressPercent(rawPercent) {
+        if (isLoginModalVisible()) return;
+        if (typeof rawPercent !== 'number' || !isFinite(rawPercent)) return;
+        const clamped = Math.min(Math.max(Math.round(rawPercent), 0), 100);
+        maxDisplayedProgressPercent = Math.max(maxDisplayedProgressPercent, clamped);
+        progressBar.style.width = `${maxDisplayedProgressPercent}%`;
+        const pctEl = document.getElementById('progressPercentBadge');
+        if (pctEl) pctEl.innerText = `${maxDisplayedProgressPercent}%`;
+      }
 
       function flushThrottledProgressUi() {
+        if (isLoginModalVisible()) return;
         if (!pendingProgressData) return;
         const data = pendingProgressData;
         pendingProgressData = null;
         lastProgressUiPaintMs = Date.now();
 
         const strictNetCount = extractedPlaces.length;
-        const isDoneSignal = Boolean(data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
+        const isDoneSignal = Boolean(data.type === 'done' || data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
         if (isDoneSignal) {
-          maxDisplayedProgressPercent = 100;
-          progressBar.style.width = '100%';
-          const pctEl = document.getElementById('progressPercentBadge');
-          if (pctEl) pctEl.innerText = '100%';
+          applyDirectProgressPercent(100);
         } else {
           let computedPercent = null;
           if (typeof data.percent === 'number' && isFinite(data.percent)) {
@@ -3610,11 +3701,7 @@
             computedPercent = Math.min(Math.round((data.current / data.total) * 100), 99);
           }
           if (computedPercent !== null) {
-            // Strictly monotonic: progress bar NEVER jumps backwards when dense cells subdivide!
-            maxDisplayedProgressPercent = Math.max(maxDisplayedProgressPercent, computedPercent);
-            progressBar.style.width = `${maxDisplayedProgressPercent}%`;
-            const pctEl = document.getElementById('progressPercentBadge');
-            if (pctEl) pctEl.innerText = `${maxDisplayedProgressPercent}%`;
+            applyDirectProgressPercent(computedPercent);
           }
         }
         progressRatio.innerText = `✅ صافي بدون تكرار: ${strictNetCount.toLocaleString()} موقع`;
@@ -3630,12 +3717,15 @@
       }
 
       function scheduleThrottledProgressUi(data) {
+        if (data && typeof data.percent === 'number' && isFinite(data.percent)) {
+          applyDirectProgressPercent(data.completed === true || data.type === 'done' ? 100 : Math.min(data.percent, 99));
+        }
         pendingProgressData = Object.assign({}, pendingProgressData || {}, data);
         const now = Date.now();
         const elapsed = now - lastProgressUiPaintMs;
-        // Immediately paint on the very first progress/cell-grid event (0 / N) or completion, otherwise throttle cleanly to 300ms
-        const isImmediatePaint = lastProgressUiPaintMs === 0 || (data && (data.completed === true || (typeof data.scannedCells === 'number' && data.scannedCells <= 3)));
-        if (isImmediatePaint || elapsed >= 300) {
+        // Immediately paint on the very first progress/cell-grid event (0 / N) or completion, otherwise throttle cleanly to 150ms
+        const isImmediatePaint = lastProgressUiPaintMs === 0 || (data && (data.completed === true || data.type === 'done' || (typeof data.scannedCells === 'number' && data.scannedCells <= 3)));
+        if (isImmediatePaint || elapsed >= 150) {
           if (progressUiPaintTimer) {
             clearTimeout(progressUiPaintTimer);
             progressUiPaintTimer = null;
@@ -3645,60 +3735,24 @@
           progressUiPaintTimer = setTimeout(() => {
             progressUiPaintTimer = null;
             flushThrottledProgressUi();
-          }, 300 - elapsed);
+          }, 150 - elapsed);
         }
       }
 
-      currentEventSource.addEventListener('progress', (event) => {
-        scheduleThrottledProgressUi(JSON.parse(event.data));
-      });
-
-      currentEventSource.addEventListener('quadtree_progress', (event) => {
-        scheduleThrottledProgressUi(JSON.parse(event.data));
-      });
-
-      currentEventSource.addEventListener('center', (event) => {
-        const data = JSON.parse(event.data);
-        if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
-          leafletMap.setView([data.lat, data.lng], 12);
-        }
-      });
-
-      currentEventSource.addEventListener('place', (event) => {
-        const place = JSON.parse(event.data);
-        if (isScanPaused) {
-          pausedBufferedPlaces.push(place);
-          return;
-        }
-        ingestIncomingStreamPlace(place);
-      });
-
-      currentEventSource.addEventListener('places_batch', (event) => {
-        const batch = JSON.parse(event.data);
-        if (!Array.isArray(batch) || batch.length === 0) return;
-        if (isScanPaused) {
-          pausedBufferedPlaces.push(...batch);
-          return;
-        }
-        // Background async chunked ingestion for 100,000+ results memory safety & 60fps UI responsiveness
-        enqueueBackgroundPlacesChunk(batch);
-      });
-
-      currentEventSource.addEventListener('banned', (event) => {
-        let banMsg = 'تم إيقاف حسابك.';
-        try {
-          const data = JSON.parse(event.data);
-          if (data && (data.error || data.message)) banMsg = data.error || data.message;
-        } catch (e) {}
-        finishSearch();
-        document.getElementById('progressContainer')?.classList.add('hidden');
-        handleBannedAccountKickout(banMsg);
-      });
-
-      currentEventSource.addEventListener('complete', () => {
+      function handleSearchDoneEvent() {
+        if (isSearchDoneHandled) return;
+        isSearchDoneHandled = true;
         // 1. Drain any remaining buffered background batches synchronously so extractedPlaces has 100% of results
         if (typeof drainAllBackgroundPlacesSynchronously === 'function') {
           drainAllBackgroundPlacesSynchronously();
+        }
+        // Sort final extracted results strictly by proximity to user's location (closest first)
+        if (extractedPlaces.length > 1) {
+          extractedPlaces.sort((a, b) => {
+            const da = (typeof a.distanceKm === 'number' && isFinite(a.distanceKm)) ? a.distanceKm : Infinity;
+            const db = (typeof b.distanceKm === 'number' && isFinite(b.distanceKm)) ? b.distanceKm : Infinity;
+            return da - db;
+          });
         }
         if (progressUiPaintTimer) {
           clearTimeout(progressUiPaintTimer);
@@ -3758,23 +3812,101 @@
           }),
           keepalive: true
         }).catch(() => {});
+        maxDisplayedProgressPercent = 100;
         progressBar.style.width = '100%';
         progressBar.classList.remove('from-cyan-400', 'to-blue-500');
         progressBar.classList.add('from-emerald-400', 'to-teal-300');
         const pctEl = document.getElementById('progressPercentBadge');
         if (pctEl) pctEl.innerText = '100%';
         if (statusMessage) {
-          statusMessage.innerText = '✅ اكتمل المسح الشامل بنجاح!';
+          statusMessage.innerText = '✅ اكتمل الجلب بنجاح';
           statusMessage.classList.add('text-emerald-300', 'font-black');
         }
         if (typeof showScanCompleteCelebrationToast === 'function') {
           showScanCompleteCelebrationToast(extractedPlaces.length);
         }
-        setTimeout(() => progressContainer.classList.add('hidden'), 4500);
+        setTimeout(() => progressContainer.classList.add('hidden'), 2000);
         finishSearch();
+      }
+
+      // Direct SSE default message stream handler for {"type": "progress", "percent": X} and {"type": "done"}
+      currentEventSource.onmessage = (event) => {
+        if (isLoginModalVisible()) return;
+        try {
+          const data = JSON.parse(event.data);
+          if (!data || typeof data !== 'object') return;
+          if (data.type === 'progress' && typeof data.percent === 'number') {
+            applyDirectProgressPercent(data.percent);
+            scheduleThrottledProgressUi(data);
+          } else if (data.type === 'done') {
+            handleSearchDoneEvent();
+          }
+        } catch (e) {}
+      };
+
+      currentEventSource.addEventListener('progress', (event) => {
+        if (isLoginModalVisible()) return;
+        scheduleThrottledProgressUi(JSON.parse(event.data));
+      });
+
+      currentEventSource.addEventListener('quadtree_progress', (event) => {
+        if (isLoginModalVisible()) return;
+        scheduleThrottledProgressUi(JSON.parse(event.data));
+      });
+
+      currentEventSource.addEventListener('done', () => {
+        if (isLoginModalVisible()) return;
+        handleSearchDoneEvent();
+      });
+
+      currentEventSource.addEventListener('center', (event) => {
+        if (isLoginModalVisible()) return;
+        const data = JSON.parse(event.data);
+        if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
+          leafletMap.setView([data.lat, data.lng], 12);
+        }
+      });
+
+      currentEventSource.addEventListener('place', (event) => {
+        if (isLoginModalVisible()) return;
+        const place = JSON.parse(event.data);
+        if (isScanPaused) {
+          pausedBufferedPlaces.push(place);
+          return;
+        }
+        ingestIncomingStreamPlace(place);
+      });
+
+      currentEventSource.addEventListener('places_batch', (event) => {
+        if (isLoginModalVisible()) return;
+        const batch = JSON.parse(event.data);
+        if (!Array.isArray(batch) || batch.length === 0) return;
+        if (isScanPaused) {
+          pausedBufferedPlaces.push(...batch);
+          return;
+        }
+        // Background async chunked ingestion for 100,000+ results memory safety & 60fps UI responsiveness
+        enqueueBackgroundPlacesChunk(batch);
+      });
+
+      currentEventSource.addEventListener('banned', (event) => {
+        let banMsg = 'تم إيقاف حسابك.';
+        try {
+          const data = JSON.parse(event.data);
+          if (data && (data.error || data.message)) banMsg = data.error || data.message;
+        } catch (e) {}
+        finishSearch();
+        document.getElementById('progressContainer')?.classList.add('hidden');
+        handleBannedAccountKickout(banMsg);
+      });
+
+      currentEventSource.addEventListener('complete', () => {
+        if (isLoginModalVisible()) return;
+        handleSearchDoneEvent();
       });
 
       currentEventSource.addEventListener('error', () => {
+        if (isLoginModalVisible()) return;
         if (typeof drainAllBackgroundPlacesSynchronously === 'function') {
           drainAllBackgroundPlacesSynchronously();
         }
@@ -3803,7 +3935,7 @@
     }
 
     // =========================================================================
-    // CLIENT-SIDE HAVERSINE (<15m) + STRING SIMILARITY DEDUPLICATION & ANTI-SPAM
+    // CLIENT-SIDE HAVERSINE (<50m) + HIGH STRING SIMILARITY DEDUPLICATION & ANTI-SPAM
     // + O(1) SPATIAL HASH GRID & ASYNC BACKGROUND CHUNK PROCESSOR (100,000+ POIs)
     // =========================================================================
     function sleep(ms = 3000) {
@@ -3811,8 +3943,8 @@
     }
 
     const clientSpatialHashBuckets = new Map();
-    const clientSeenPlaceIds = new Set();
-    const clientSeenOsmIds = new Set();
+    const clientSeenPlaceIds = new Map();
+    const clientSeenOsmIds = new Map();
     let backgroundChunkQueue = [];
     let isProcessingBackgroundChunks = false;
 
@@ -3913,7 +4045,9 @@
         .replace(/[\u064B-\u065F\u0670]/g, '')
         .replace(/[أإآ]/g, 'ا')
         .replace(/ة/g, 'ه')
-        .replace(/ى/g, 'ي')
+        .replace(/[ىی]/g, 'ي')
+        .replace(/پ/g, 'ب')
+        .replace(/ک/g, 'ك')
         .replace(/ؤ/g, 'و')
         .replace(/ئ/g, 'ي')
         .replace(/[_\-/|,،.;:()[\]{}]+/g, ' ')
@@ -3926,7 +4060,7 @@
         id: 'groceries',
         groupKey: 'groceries',
         queryTriggers: ['بقاله', 'بقالات', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'مواد غذائيه', 'غذائيه', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'ماركت', 'دكان', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience_store', 'convenience store', 'minimarket', 'mini market', 'hypermarket'],
-        acceptKeywords: ['بقاله', 'بقالات', 'بقال', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'مواد غذائيه', 'غذائيه', 'الغذائيه', 'استهلاكيه', 'ماركت', 'دكان', 'مؤسسه غذائيه', 'مركز غذائي', 'تجزئه غذائيه', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience_store', 'convenience store', 'minimarket', 'mini market', 'hypermarket', 'food store', 'grocery_or_supermarket', 'general store', 'kiosk', 'market']
+        acceptKeywords: ['بقاله', 'بقالات', 'بقال', 'بقال جمله', 'تموينات', 'تموين', 'سوبرماركت', 'سوبر ماركت', 'ميني ماركت', 'هايبرماركت', 'هايبر ماركت', 'هايبر', 'مواد غذائيه', 'غذائيه', 'الغذائيه', 'غذائيات', 'اغذيه', 'استهلاكيه', 'ماركت', 'دكان', 'كشك', 'بهارات', 'توابل', 'عطاره', 'ارزاق', 'خضار', 'فواكه', 'البان', 'مكسرات', 'عسل', 'تمور', 'متجر عمومي', 'منفذ بيع بالتجزيه', 'موسسه غذائيه', 'مركز غذائي', 'تجزيه غذائيه', 'grocery', 'groceries', 'supermarket', 'convenience', 'convenience_store', 'convenience store', 'minimarket', 'mini market', 'hypermarket', 'greengrocer', 'food store', 'food', 'grocery_or_supermarket', 'general store', 'general', 'kiosk', 'deli', 'provisions', 'mart', 'market']
       },
       {
         id: 'pharmacies',
@@ -4089,7 +4223,7 @@
 
     function isRelevantToQuery(place, activeQuery) {
       const rawQ = String(activeQuery || '').trim();
-      // Only disable strict filter when user intentionally starts an empty/blank "All Places" scan
+      // Disable strict filter for empty/blank "All Places" scan
       if (!rawQ || rawQ === '__EMPTY__' || rawQ === '__FULL_CITY_SCAN__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(rawQ)) {
         return true;
       }
@@ -4103,63 +4237,41 @@
       const combined = `${nameNorm} ${catNorm}`.trim();
       if (!combined) return false;
 
+      // Global Broad-Match Mode:
+      // Disable aggressive blocking so results returned directly by live scraping workers (Google Maps / OSM / Photon / ArcGIS)
+      // for ANY search term in ANY country or language are accepted instead of dropped.
+      const isLiveScrapedResult = Boolean(
+        place.placeId || place.place_id || place.osmId || place.osm_id ||
+        (place.source && /(google|osm|overpass|live|خرائط|الرادار|العالمي|جوجل)/i.test(String(place.source)))
+      );
+
       const targetProfile = resolveStrictQueryCategoryProfile(rawQ);
       if (targetProfile) {
-        // 1. Direct match against target industry synonyms & Google Place types
-        let matchedTarget = false;
-        for (let i = 0; i < targetProfile.acceptKeywords.length; i++) {
-          if (combined.includes(targetProfile.acceptKeywords[i])) {
-            matchedTarget = true;
-            break;
+        // Light exclusion only for obvious bank/exchange noise when searching generic companies ("شركة" / "شركات")
+        if (targetProfile.id === 'companies' && !qNorm.includes('بنك') && !qNorm.includes('صراف') && !qNorm.includes('تحويل') && !qNorm.includes('مصرف')) {
+          if (/(بنك|بنوك|صرافه|صراف|تحويلات|مصرف|مصارف)/.test(nameNorm)) {
+            return false;
           }
-        }
-        if (!matchedTarget) {
-          return false;
         }
 
-        // 2. Strictly exclude places whose primary name/category belongs to an unrelated industry
-        let hasStrongNameMatch = false;
-        for (let i = 0; i < targetProfile.queryTriggers.length; i++) {
-          if (nameNorm.includes(targetProfile.queryTriggers[i])) {
-            hasStrongNameMatch = true;
-            break;
+        // Direct match against target industry synonyms & Google Place types
+        for (let i = 0; i < targetProfile.acceptKeywords.length; i++) {
+          if (combined.includes(targetProfile.acceptKeywords[i])) {
+            return true;
           }
         }
-        if (!hasStrongNameMatch) {
-          for (let p = 0; p < STRICT_CATEGORY_RELEVANCE_PROFILES.length; p++) {
-            const other = STRICT_CATEGORY_RELEVANCE_PROFILES[p];
-            if (other.id === targetProfile.id) continue;
-            for (let k = 0; k < other.queryTriggers.length; k++) {
-              const badTerm = other.queryTriggers[k];
-              if (badTerm.length >= 3 && (nameNorm.includes(badTerm) || catNorm.includes(badTerm))) {
-                return false;
-              }
-            }
-          }
+
+        // Accept live worker results (e.g. brand names or foreign-language names like "Hilton", "McDonald's", "Starbucks")
+        // instead of aggressively dropping them
+        if (isLiveScrapedResult) {
+          return true;
         }
         return true;
       }
 
-      // Dynamic custom keyword relevance: expand Arabic/English direct equivalents + require genuine token match in name/category/types
-      const stopWords = new Set(['في', 'من', 'علي', 'الي', 'عن', 'مع', 'كل', 'جميع', 'قريب', 'افضل', 'احسن', 'محل', 'محلات', 'مركز', 'near', 'best', 'the', 'and', 'in', 'shop', 'store']);
-      const tokens = qNorm.split(' ').filter(t => t.length >= 2 && !stopWords.has(t));
-      if (tokens.length === 0) return true;
-
-      const expandedCandidates = new Set(tokens);
-      for (const tok of tokens) {
-        if (tok.startsWith('ال') && tok.length > 4) expandedCandidates.add(tok.slice(2));
-        if (CUSTOM_AR_EN_EQUIVALENTS[tok]) {
-          CUSTOM_AR_EN_EQUIVALENTS[tok].forEach(eq => expandedCandidates.add(normalizeRelevanceText(eq)));
-        }
-      }
-      if (CUSTOM_AR_EN_EQUIVALENTS[qNorm]) {
-        CUSTOM_AR_EN_EQUIVALENTS[qNorm].forEach(eq => expandedCandidates.add(normalizeRelevanceText(eq)));
-      }
-
-      for (const cand of expandedCandidates) {
-        if (cand && combined.includes(cand)) return true;
-      }
-      return false;
+      // Custom search term not explicitly in STRICT_CATEGORY_RELEVANCE_PROFILES:
+      // Default to a broad match and accept live scraping results directly instead of dropping them.
+      return true;
     }
 
     function isPlaceStrictlyRelevantToActiveQuery(place) {
@@ -4171,17 +4283,68 @@
       // Strict Pre-Insertion Category & Keyword Relevance Filter (discards unrelated industries when a specific search is active)
       if (!isPlaceStrictlyRelevantToActiveQuery(place)) return null;
 
-      const pid = place.placeId || place.place_id || '';
-      const oid = place.osmId || place.osm_id || '';
-      if (pid && clientSeenPlaceIds.has(pid)) return null;
-      if (oid && clientSeenOsmIds.has(oid)) return null;
+      const DUPLICATE_MAX_DISTANCE_METERS = 50;
+      const DUPLICATE_MIN_NAME_SIMILARITY = 0.80;
 
       const pLat = Number(place.lat);
       const pLng = Number(place.lng);
       const normName = normalizeClientPoiName(place.name);
       place._normName = normName;
 
+      const mergeDuplicateMetadata = (existing, incoming) => {
+        const existingHadPhone = (Array.isArray(existing.phones) && existing.phones.length > 0) ||
+          (existing.phone && existing.phone !== 'غير متوفر' && existing.phone.trim() !== '');
+        const incomingHasPhone = (Array.isArray(incoming.phones) && incoming.phones.length > 0) ||
+          (incoming.phone && incoming.phone !== 'غير متوفر' && incoming.phone.trim() !== '');
+
+        if (!existingHadPhone && incomingHasPhone) {
+          existing.phone = incoming.phone;
+          existing.phones = incoming.phones;
+          existing.phoneCheckAttempted = true;
+          existing.__phoneEnrichChecked = true;
+          if (incoming.whatsappNumber) existing.whatsappNumber = incoming.whatsappNumber;
+          registerPlaceUniquePhones(existing);
+          if (typeof updatePlacePhoneInDom === 'function') {
+            updatePlacePhoneInDom(existing);
+          }
+        }
+        if ((!existing.website || existing.website === 'غير متوفر') && incoming.website && incoming.website !== 'غير متوفر') {
+          existing.website = incoming.website;
+        }
+        if ((!existing.reviews || Number(existing.reviews) === 0) && Number(incoming.reviews || incoming.reviewsCount) > 0) {
+          existing.reviews = incoming.reviews || incoming.reviewsCount;
+          existing.rating = incoming.rating || existing.rating;
+        }
+      };
+
+      // Universal Branch Protection on ID matches (applies to ALL categories):
+      // Only treat a matching placeId/osmId as a duplicate if it is ALSO geographically < 50m apart
+      // with a very similar name; distant branches (>= 50m) are preserved as separate unique places.
+      const pid = place.placeId || place.place_id || '';
+      const oid = place.osmId || place.osm_id || '';
+      const seenById = (pid && clientSeenPlaceIds.get(pid)) || (oid && clientSeenOsmIds.get(oid)) || null;
+      if (seenById) {
+        const idDistKm = calcHaversineKm(pLat, pLng, Number(seenById.lat), Number(seenById.lng));
+        if (idDistKm != null && Number.isFinite(idDistKm)) {
+          const idDistMeters = idDistKm * 1000;
+          const seenNormName = seenById._normName || normalizeClientPoiName(seenById.name);
+          const idSim = calcClientNameSimilarity(place.name, seenById.name);
+          const idHasVerySimilarName = (normName && normName === seenNormName) || idSim >= DUPLICATE_MIN_NAME_SIMILARITY;
+          if (idDistMeters < DUPLICATE_MAX_DISTANCE_METERS && idHasVerySimilarName) {
+            mergeDuplicateMetadata(seenById, place);
+            return null;
+          }
+        }
+        // Distinct branch with a colliding ID: ensure unique DOM id so both branches render in the UI
+        if (place.id && place.id === seenById.id) {
+          place.id = `${place.id}_${pLat.toFixed(5)}_${pLng.toFixed(5)}`;
+        }
+      }
+
       // O(1) Spatial Grid Bucket (~110m cell) + 8 neighbors for instant 100,000+ POI deduplication
+      // Universal Deduplication Rule (applies to ALL categories):
+      // Two places are ONLY considered duplicates if they share a very similar name AND are < 50m apart.
+      // Same-name branches located >= 50m apart (different streets, neighborhoods, or cities) are preserved.
       const bLat = Math.floor(pLat * 1000);
       const bLng = Math.floor(pLng * 1000);
 
@@ -4191,33 +4354,18 @@
           if (!bucket) continue;
           for (let i = 0; i < bucket.length; i++) {
             const existing = bucket[i];
-            const distMeters = calcHaversineKm(pLat, pLng, Number(existing.lat), Number(existing.lng)) * 1000;
-            if (distMeters > 45) continue;
+            const distKm = calcHaversineKm(pLat, pLng, Number(existing.lat), Number(existing.lng));
+            if (distKm == null || !Number.isFinite(distKm)) continue;
+            const distMeters = distKm * 1000;
+            if (distMeters >= DUPLICATE_MAX_DISTANCE_METERS) continue;
 
+            const existingNormName = existing._normName || normalizeClientPoiName(existing.name);
             const sim = calcClientNameSimilarity(place.name, existing.name);
-            const isDuplicate =
-              (distMeters < 15 && (sim >= 0.45 || normName === (existing._normName || normalizeClientPoiName(existing.name)))) ||
-              (distMeters < 45 && sim >= 0.75);
+            const hasVerySimilarName = (normName && normName === existingNormName) || sim >= DUPLICATE_MIN_NAME_SIMILARITY;
+            const isDuplicate = distMeters < DUPLICATE_MAX_DISTANCE_METERS && hasVerySimilarName;
 
             if (isDuplicate) {
-              const existingHadPhone = (Array.isArray(existing.phones) && existing.phones.length > 0) ||
-                (existing.phone && existing.phone !== 'غير متوفر' && existing.phone.trim() !== '');
-              const incomingHasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
-                (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
-
-              if (!existingHadPhone && incomingHasPhone) {
-                existing.phone = place.phone;
-                existing.phones = place.phones;
-                if (place.whatsappNumber) existing.whatsappNumber = place.whatsappNumber;
-                liveExtractedPhonesTotal++;
-              }
-              if ((!existing.website || existing.website === 'غير متوفر') && place.website && place.website !== 'غير متوفر') {
-                existing.website = place.website;
-              }
-              if ((!existing.reviews || Number(existing.reviews) === 0) && Number(place.reviews || place.reviewsCount) > 0) {
-                existing.reviews = place.reviews || place.reviewsCount;
-                existing.rating = place.rating || existing.rating;
-              }
+              mergeDuplicateMetadata(existing, place);
               return null;
             }
           }
@@ -4231,19 +4379,23 @@
         clientSpatialHashBuckets.set(mainKey, mainBucket);
       }
       mainBucket.push(place);
-      if (pid) clientSeenPlaceIds.add(pid);
-      if (oid) clientSeenOsmIds.add(oid);
+      if (pid && !clientSeenPlaceIds.has(pid)) clientSeenPlaceIds.set(pid, place);
+      if (oid && !clientSeenOsmIds.has(oid)) clientSeenOsmIds.set(oid, place);
 
       extractedPlaces.push(place);
-      const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
-        (place.phone && place.phone !== 'غير متوفر' && place.phone.trim() !== '');
-      if (hasPhone) liveExtractedPhonesTotal++;
+      const hasPhone = placeHasValidPhone(place);
+      if (hasPhone) {
+        registerPlaceUniquePhones(place);
+      } else {
+        enqueuePlaceForAutoPhoneFetch(place);
+      }
       return place;
     }
 
     let pendingUiRefreshNeeded = false;
 
     function flushBufferedUiSync(forceFinalRender = false) {
+      if (isLoginModalVisible()) return;
       if (batchUiThrottleTimer) {
         clearTimeout(batchUiThrottleTimer);
         batchUiThrottleTimer = null;
@@ -4324,6 +4476,7 @@
     }
 
     function processNextBackgroundPlacesSlice() {
+      if (isLoginModalVisible()) return;
       if (isScanPaused || backgroundChunkQueue.length === 0) {
         isProcessingBackgroundChunks = false;
         if (pendingUiRefreshNeeded) scheduleBufferedUiSync(false);
@@ -4570,7 +4723,33 @@
       return { card, tr };
     }
 
+    function updatePlacePhoneInDom(place) {
+      if (!place || !place.id) return;
+      const existingCard = document.getElementById(`bento_${place.id}`);
+      const existingRow = document.getElementById(`row_${place.id}`);
+      if (!existingCard && !existingRow) return;
+
+      const distRaw = existingCard && existingCard.dataset.distKm
+        ? Number(existingCard.dataset.distKm)
+        : (existingRow && existingRow.dataset.distKm ? Number(existingRow.dataset.distKm) : resolvePlaceDistanceFromUser(place));
+      const distKm = isNaN(distRaw) ? 9999 : distRaw;
+
+      const rowIndexText = existingRow && existingRow.cells && existingRow.cells[0]
+        ? existingRow.cells[0].textContent.trim()
+        : '';
+      const displayIndex = parseInt(rowIndexText, 10) || (extractedPlaces.indexOf(place) + 1);
+
+      const rebuilt = buildPlaceDomElements(place, displayIndex, distKm);
+      if (existingCard && rebuilt.card) {
+        existingCard.replaceWith(rebuilt.card);
+      }
+      if (existingRow && rebuilt.tr) {
+        existingRow.replaceWith(rebuilt.tr);
+      }
+    }
+
     function updateStats() {
+      if (isLoginModalVisible()) return;
       const total = extractedPlaces.length;
       const totalEl = document.getElementById('statTotal');
       if (totalEl) totalEl.innerText = total.toLocaleString();
@@ -4821,6 +5000,7 @@
         const tx = db.transaction('sessions', 'readonly');
         const req = tx.objectStore('sessions').get('last_session');
         req.onsuccess = () => {
+          if (isLoginModalVisible()) return;
           const data = req.result;
           if (data && Array.isArray(data.places) && data.places.length > 0) {
             const btn = document.getElementById('btnRestorePreviousSession');
@@ -4831,7 +5011,7 @@
             // If app opens offline and no results are currently loaded, automatically restore last cached results so user can view & export offline immediately
             if (navigator.onLine === false && (!extractedPlaces || extractedPlaces.length === 0)) {
               extractedPlaces = data.places;
-              liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+              recalculateUniquePhonesTotal();
               updateStats();
               refreshVisibleResultsView(true);
             }
@@ -4850,7 +5030,8 @@
           if (!data || !Array.isArray(data.places) || data.places.length === 0) return;
           clearAllResults(true);
           extractedPlaces = data.places;
-          liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+          recalculateUniquePhonesTotal();
+          enqueueMissingPhonesFromList(extractedPlaces);
           updateStats();
           refreshVisibleResultsView(true);
           document.getElementById('btnRestorePreviousSession')?.classList.add('hidden');
@@ -4941,7 +5122,8 @@
       if (!proj || !Array.isArray(proj.places)) return;
       clearAllResults(true);
       extractedPlaces = proj.places;
-      liveExtractedPhonesTotal = extractedPlaces.filter(p => (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '')).length;
+      recalculateUniquePhonesTotal();
+      enqueueMissingPhonesFromList(extractedPlaces);
       updateStats();
       refreshVisibleResultsView(true);
       closeSavedProjectsModal();
@@ -5111,6 +5293,8 @@
       if (resetArray) {
         extractedPlaces = [];
         liveExtractedPhonesTotal = 0;
+        uniqueExtractedPhonesSet.clear();
+        resetAutoPhoneFetchQueue();
         pendingPlacesBatch = [];
         activeCategorySummaryFilter = 'all';
         if (typeof resetClientSpatialDedupeIndex === 'function') {
@@ -5139,16 +5323,17 @@
       const cleaned = original.toLowerCase().replace(/^@+/, '').replace(/[^a-z0-9._]/g, '');
       const hintEl = document.getElementById('usernameFormatHint');
       if (original.replace(/^@+/, '').toLowerCase() !== cleaned) {
-        inputEl.value = cleaned;
+        if (inputEl.value !== cleaned) inputEl.value = cleaned;
         if (hintEl) {
           hintEl.classList.remove('hidden');
-          hintEl.innerHTML = `يقبل فقط حروف إنجليزية صغيرة (a-z) وأرقام (0-9) و(.) و(_)`;
+          const msg = 'يقبل فقط حروف إنجليزية صغيرة (a-z) وأرقام (0-9) و(.) و(_)';
+          if (hintEl.textContent !== msg) hintEl.textContent = msg;
         }
       } else {
-        inputEl.value = cleaned;
+        if (inputEl.value !== cleaned) inputEl.value = cleaned;
         if (hintEl) {
           hintEl.classList.add('hidden');
-          hintEl.innerHTML = '';
+          if (hintEl.textContent !== '') hintEl.textContent = '';
         }
       }
     }
@@ -5168,28 +5353,32 @@
       const errEl = document.getElementById('loginNameError');
       if (errEl) errEl.classList.add('hidden');
 
-      if (currentGateAuthMode === 'register') {
-        if (titleEl) titleEl.innerText = 'إنشاء حساب جديد';
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span id="gateSubmitBtnText">✨ إنشاء الحساب والدخول</span>`;
+      const updateSubmitLabel = (labelText) => {
+        if (!submitBtn) return;
+        submitBtn.disabled = false;
+        const textSpan = document.getElementById('gateSubmitBtnText');
+        if (textSpan && submitBtn.contains(textSpan) && submitBtn.children.length === 1) {
+          if (textSpan.textContent !== labelText) textSpan.textContent = labelText;
+        } else {
+          submitBtn.innerHTML = `<span id="gateSubmitBtnText">${labelText}</span>`;
         }
+      };
+
+      if (currentGateAuthMode === 'register') {
+        if (titleEl && titleEl.innerText !== 'إنشاء حساب جديد') titleEl.innerText = 'إنشاء حساب جديد';
+        updateSubmitLabel('✨ إنشاء الحساب والدخول');
         if (guideLogin) guideLogin.classList.add('hidden');
         if (guideRegister) guideRegister.classList.remove('hidden');
         if (tabRegister) tabRegister.className = 'py-2.5 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
         if (tabLogin) tabLogin.className = 'py-2.5 rounded-xl text-xs font-bold transition cursor-pointer text-slate-300 hover:text-white';
       } else {
-        if (titleEl) titleEl.innerText = 'تسجيل الدخول';
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = `<span id="gateSubmitBtnText">🔑 تسجيل الدخول</span>`;
-        }
+        if (titleEl && titleEl.innerText !== 'تسجيل الدخول') titleEl.innerText = 'تسجيل الدخول';
+        updateSubmitLabel('🔑 تسجيل الدخول');
         if (guideLogin) guideLogin.classList.remove('hidden');
         if (guideRegister) guideRegister.classList.add('hidden');
         if (tabLogin) tabLogin.className = 'py-2.5 rounded-xl text-xs font-black transition cursor-pointer bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 shadow';
         if (tabRegister) tabRegister.className = 'py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer text-emerald-300 hover:text-white';
       }
-      if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
     }
 
     function getOrCreateDeviceVisitorId() {
@@ -5229,7 +5418,11 @@
       passInput.type = isPass ? 'text' : 'password';
       if (eyeIcon) {
         eyeIcon.setAttribute('data-lucide', isPass ? 'eye-off' : 'eye');
-        if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+          try {
+            window.lucide.createIcons({ nodes: [eyeIcon] });
+          } catch (e) {}
+        }
       }
     }
 
@@ -5271,6 +5464,7 @@
     }
 
     function updateAccountButtonsUI() {
+      if (isLoginModalVisible()) return;
       const session = getSavedVisitorSession();
       const topLbl = document.getElementById('topBarAccountLabel');
       const settingsUserEl = document.getElementById('settingsCurrentUsername');
@@ -5411,6 +5605,7 @@
     }
 
     function updateOfflineQueuedPointsBadge() {
+      if (isLoginModalVisible()) return;
       const badge = document.getElementById('offlineQueuedPointsBadge');
       if (!badge) return;
       try {
@@ -5494,6 +5689,7 @@
     }
 
     window.addEventListener('online', () => {
+      if (isLoginModalVisible()) return;
       flushOfflineGpsQueueToServer();
       if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
         const currentStatus = document.visibilityState === 'hidden' ? 'background_live' : 'live';
@@ -5504,6 +5700,7 @@
     function startClientHealthKeepAlivePing() {
       if (clientHealthPingTimer) return;
       const pingHealth = () => {
+        if (isLoginModalVisible()) return;
         fetch('/api/health', { cache: 'no-store', keepalive: true }).catch(() => {});
         if (navigator.onLine !== false) {
           flushOfflineGpsQueueToServer();
@@ -5848,12 +6045,13 @@
     function unlockAppFromGpsGatekeeper() {
       window.__hasAcquiredLiveGpsPosition = true;
       const gatekeeper = document.getElementById('gpsGatekeeperScreen');
-      if (gatekeeper) {
+      const gatekeeperAlreadyHidden = !gatekeeper || (gatekeeper.classList.contains('hidden') && gatekeeper.style.display === 'none');
+      if (gatekeeper && !gatekeeperAlreadyHidden) {
         gatekeeper.classList.add('hidden');
         gatekeeper.style.display = 'none';
       }
       const legacyOverlay = document.getElementById('gpsRequiredLockOverlay');
-      if (legacyOverlay) {
+      if (legacyOverlay && (!legacyOverlay.classList.contains('hidden') || legacyOverlay.style.display !== 'none')) {
         legacyOverlay.classList.add('hidden');
         legacyOverlay.style.display = 'none';
       }
@@ -5870,8 +6068,15 @@
           }, 0);
         }
       } else {
+        const modal = document.getElementById('visitorGateModal');
+        const step2 = document.getElementById('gateStep2Login');
+        const isStep2AlreadyVisible = Boolean(modal && !modal.classList.contains('hidden') && step2 && !step2.classList.contains('hidden'));
+        // If Login screen is already injected and visible, do NOT touch or re-render the DOM (preserves active typing focus)
+        if (isStep2AlreadyVisible) return;
         hideMainAppShellForAuth();
-        showGateModalOnStep2();
+        if (!window.userManuallyViewingStep1) {
+          showGateModalOnStep2();
+        }
       }
     }
 
@@ -5956,6 +6161,7 @@
     };
 
     function onValidDeviceGpsPositionAcquired(pos) {
+      if (isLoginModalVisible()) return;
       if (!pos || !pos.coords) return;
       const lat = Number(pos.coords.latitude);
       const lng = Number(pos.coords.longitude);
@@ -6003,32 +6209,14 @@
     let weakNetworkGeoToastTimer = null;
 
     function showNetworkStatusBanner(isOfflineOrWeak, customText = '') {
-      const banner = document.getElementById('networkStatusBanner');
-      const txtEl = document.getElementById('networkStatusBannerText');
-      if (!banner) return;
+      // Disabled: never show offline/weak internet warning banner
       if (isOfflineOrWeak) {
-        if (txtEl) {
-          txtEl.innerText = customText || '⚠️ الإنترنت ضعيف أو مقطوع حالياً — يتم حفظ البيانات محلياً لحين عودة الاتصال';
-        }
-        banner.classList.remove('hidden');
-        // Never trigger GPS Gatekeeper due to network outage
         clearGpsSignalDropGraceTimer();
-      } else {
-        banner.classList.add('hidden');
       }
     }
 
-    function showWeakNetworkGeoToast(message = '⚠️ ضعف في الشبكة، جاري محاولة تحديث الموقع...') {
-      const toast = document.getElementById('weakNetworkGeoToast');
-      const txt = document.getElementById('weakNetworkGeoToastText');
-      if (!toast) return;
-      if (txt) txt.innerText = message;
-      toast.classList.remove('hidden');
-      if (weakNetworkGeoToastTimer) clearTimeout(weakNetworkGeoToastTimer);
-      weakNetworkGeoToastTimer = setTimeout(() => {
-        weakNetworkGeoToastTimer = null;
-        toast.classList.add('hidden');
-      }, 4500);
+    function showWeakNetworkGeoToast(message = '') {
+      // Disabled: never show weak network warning toast
     }
 
     let silentBackgroundGpsRetryTimer = null;
@@ -6044,6 +6232,7 @@
       if (silentBackgroundGpsRetryTimer) return;
       silentBackgroundGpsRetryTimer = setTimeout(() => {
         silentBackgroundGpsRetryTimer = null;
+        if (isLoginModalVisible()) return;
         if (!window.__hasAcquiredLiveGpsPosition && navigator.geolocation) {
           window.verifyAndStreamDeviceLocation(false);
         }
@@ -6051,6 +6240,7 @@
     }
 
     function onDeviceGpsError(err, fromWatchPosition = false) {
+      if (isLoginModalVisible()) return;
       const code = (err && typeof err.code === 'number') ? err.code : 2;
 
       // 0. Offline check FIRST: NEVER show GPS Gatekeeper when offline — show non-blocking network banner & retry silently
@@ -6099,9 +6289,11 @@
     }
 
     async function checkAndSyncGpsPermissionState() {
+      if (isLoginModalVisible()) return;
       if (!navigator.permissions || typeof navigator.permissions.query !== 'function') {
         // Browsers without Permissions API: allow direct entry and acquire coordinates in background (lock only on code === 1)
         unlockAppFromGpsGatekeeper();
+        if (isLoginModalVisible()) return;
         startLiveGpsLocationWatcher();
         window.verifyAndStreamDeviceLocation(false);
         return;
@@ -6115,12 +6307,14 @@
           // 'granted' or 'prompt': NEVER block on Gatekeeper — allow seamless immediate entry & fetch coordinates in background
           clearGpsSignalDropGraceTimer();
           unlockAppFromGpsGatekeeper();
+          if (isLoginModalVisible()) return;
           startLiveGpsLocationWatcher();
           window.verifyAndStreamDeviceLocation(false);
         }
         if (!gpsPermissionListenerAttached) {
           gpsPermissionListenerAttached = true;
           permissionStatus.onchange = () => {
+            if (isLoginModalVisible()) return;
             if (permissionStatus.state === 'denied') {
               onDeviceGpsError({ code: 1 }, false);
             } else if (permissionStatus.state === 'granted') {
@@ -6128,6 +6322,7 @@
               clearSilentBackgroundGpsRetryTimer();
               showNetworkStatusBanner(false);
               unlockAppFromGpsGatekeeper();
+              if (isLoginModalVisible()) return;
               startLiveGpsLocationWatcher();
               window.verifyAndStreamDeviceLocation(false);
             }
@@ -6135,6 +6330,7 @@
         }
       } catch (e) {
         unlockAppFromGpsGatekeeper();
+        if (isLoginModalVisible()) return;
         startLiveGpsLocationWatcher();
         window.verifyAndStreamDeviceLocation(false);
       }
@@ -6146,6 +6342,7 @@
     }
 
     window.verifyAndStreamDeviceLocation = function(isUserAction = false) {
+      if (!isUserAction && isLoginModalVisible()) return;
       if (!navigator.geolocation) {
         showNetworkStatusBanner(true, '⚠️ الشبكة ضعيفة حالياً — جاري محاولة تحديث الموقع في الخلفية...');
         return;
@@ -6170,6 +6367,7 @@
 
         // Safety watchdog slightly above the 20-second strict high-accuracy timeout: never hang or lock on slow network
         gatekeeperSafetyWatchdogTimer = setTimeout(() => {
+          if (isLoginModalVisible()) return;
           if (isSingleGpsRequestInFlight && !window.__hasAcquiredLiveGpsPosition) {
             isSingleGpsRequestInFlight = false;
             showNetworkStatusBanner(true, '⚠️ الشبكة ضعيفة حالياً — جاري محاولة تحديث الموقع في الخلفية...');
@@ -6240,6 +6438,7 @@
     };
 
     function startLiveGpsLocationWatcher() {
+      if (isLoginModalVisible()) return;
       attachGpsPermissionAutoUnlockListener();
       // 1. Continuous watchPosition strictly on Universal High-Accuracy config ({ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 })
       if (navigator.geolocation && liveGpsWatchId === null) {
@@ -6262,6 +6461,7 @@
       if (!liveGpsHeartbeatTimer) {
         let live5sPollInFlight = false;
         const broadcast5sLocationTick = async () => {
+          if (isLoginModalVisible()) return;
           if (live5sPollInFlight) return;
           // Check geolocation permission state first
           let permState = window.isPhoneGpsCurrentlyEnabled === false ? 'denied' : 'granted';
@@ -6443,10 +6643,26 @@
     };
 
     function markLocationGranted(cityCountryStr = '') {
+      if (isLoginModalVisible()) return;
+      const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
+      const gateCityBadge = document.getElementById('gateApprovedCityBadge');
+      if (gateCityBadge && displayScope) {
+        const nextBadgeText = `📍 ${displayScope}`;
+        if (gateCityBadge.textContent !== nextBadgeText) {
+          gateCityBadge.textContent = nextBadgeText;
+        }
+      }
+
+      // Skip hidden Step 1 DOM mutations if Step 2 login modal is already visible
+      const modal = document.getElementById('visitorGateModal');
+      const step2El = document.getElementById('gateStep2Login');
+      if (modal && !modal.classList.contains('hidden') && step2El && !step2El.classList.contains('hidden')) {
+        return;
+      }
+
       const bannerEl = document.getElementById('termsAcceptedStatusBanner');
       const cbEl = document.getElementById('termsAgreeCheckbox');
       const isEn = String(currentActiveLangCode || '').toLowerCase().startsWith('en');
-      const displayScope = cityCountryStr || window.lastAutoDetectedGpsCity || '';
 
       if (cbEl) cbEl.checked = true;
       setCustomTermsCheckVisual(true);
@@ -6460,8 +6676,6 @@
         bannerEl.innerText = displayScope ? `${successMsg} (${displayScope})` : successMsg;
         bannerEl.classList.remove('hidden');
       }
-      const gateCityBadge = document.getElementById('gateApprovedCityBadge');
-      if (gateCityBadge && displayScope) gateCityBadge.innerText = `📍 ${displayScope}`;
       setStep1NextEnabled(true);
     }
 
@@ -6534,16 +6748,21 @@
     }
 
     function showGateModalOnStep2() {
+      const modal = document.getElementById('visitorGateModal');
+      const step2El = document.getElementById('gateStep2Login');
+      const isAlreadyVisible = Boolean(modal && !modal.classList.contains('hidden') && step2El && !step2El.classList.contains('hidden'));
+      if (isAlreadyVisible) return;
+
       window.userManuallyViewingStep1 = false;
       // Strict Auth Isolation: completely hide sidebar, header, and main app wrapper while Login/Register is active
       hideMainAppShellForAuth();
-      const modal = document.getElementById('visitorGateModal');
+
       if (modal) {
         modal.classList.remove('hidden', 'opacity-0');
       }
       document.getElementById('gateStep1Location')?.classList.add('hidden');
       document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
-      document.getElementById('gateStep2Login')?.classList.remove('hidden');
+      step2El?.classList.remove('hidden');
 
       const b1 = document.getElementById('stepBadge1');
       const b2 = document.getElementById('stepBadge2');
@@ -6556,7 +6775,6 @@
       }
       if (line) line.className = "w-6 h-0.5 bg-emerald-400 rounded-full";
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
-      setTimeout(() => document.getElementById('visitorNameInput')?.focus(), 150);
     }
 
     function handleBannedAccountKickout(banMessage = 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.') {
@@ -6569,17 +6787,29 @@
       }
       closeUserSettingsModal();
       updateAccountButtonsUI();
-      setGateAuthMode('login');
-      showGateModalOnStep2();
-      const btn = document.getElementById('gateSubmitBtn');
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = `<span id="gateSubmitBtnText">تسجيل الدخول</span>`;
+
+      const modal = document.getElementById('visitorGateModal');
+      const step2El = document.getElementById('gateStep2Login');
+      const isLoginAlreadyVisible = Boolean(modal && !modal.classList.contains('hidden') && step2El && !step2El.classList.contains('hidden'));
+      if (!isLoginAlreadyVisible) {
+        setGateAuthMode('login');
+        showGateModalOnStep2();
+        const btn = document.getElementById('gateSubmitBtn');
+        if (btn) {
+          btn.disabled = false;
+          const btnTxt = document.getElementById('gateSubmitBtnText');
+          if (btnTxt && btn.contains(btnTxt) && btn.children.length === 1) {
+            btnTxt.textContent = 'تسجيل الدخول';
+          } else {
+            btn.innerHTML = `<span id="gateSubmitBtnText">تسجيل الدخول</span>`;
+          }
+        }
       }
       const errEl = document.getElementById('loginNameError');
       if (errEl) {
         const cleanMsg = String(banMessage || 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.').replace(/^❌\s*/, '');
-        errEl.innerText = `❌ ${cleanMsg}`;
+        const nextErrText = `❌ ${cleanMsg}`;
+        if (errEl.innerText !== nextErrText) errEl.innerText = nextErrText;
         errEl.classList.remove('hidden');
       }
     }
@@ -6667,6 +6897,7 @@
     let lastReverseGeocodedCoords = null;
 
     async function syncLocationInputWithUserGps(lat, lng, forceUpdate = false) {
+      if (isLoginModalVisible()) return;
       if (!isValidNonZeroClientCoord(lat, lng)) return;
       try {
         if (lastReverseGeocodedCoords && !forceUpdate) {
@@ -6792,6 +7023,7 @@
       lifecycleGpsListenersAttached = true;
 
       const onAppForeground = () => {
+        if (isLoginModalVisible()) return;
         enableBackgroundGpsKeepAlive();
         window.verifyAndStreamDeviceLocation(false);
         startLiveGpsLocationWatcher();
@@ -6800,6 +7032,7 @@
       window.addEventListener('pageshow', onAppForeground);
       window.addEventListener('focus', onAppForeground);
       document.addEventListener('visibilitychange', () => {
+        if (isLoginModalVisible()) return;
         if (document.visibilityState === 'hidden') {
           // Do NOT pause watchPosition or heartbeat when minimized! Send background_live status immediately so user stays Green Live on Admin Radar
           if (window.isPhoneGpsCurrentlyEnabled !== false && cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
@@ -6815,10 +7048,10 @@
       const session = getSavedVisitorSession();
       const nameInput = document.getElementById('visitorNameInput');
       const passInput = document.getElementById('visitorPasswordInput');
-      if (nameInput && session.visitorName) {
+      if (nameInput && session.visitorName && !nameInput.value && document.activeElement !== nameInput) {
         nameInput.value = session.visitorName;
       }
-      if (passInput && session.accountPassword) {
+      if (passInput && session.accountPassword && !passInput.value && document.activeElement !== passInput) {
         passInput.value = session.accountPassword;
       }
 
@@ -6832,12 +7065,15 @@
 
     // Automatic verification & auto-unlock on page refresh (load / pageshow) and when returning to the tab
     window.addEventListener('load', () => {
+      if (isLoginModalVisible()) return;
       if (typeof checkAndSyncGpsPermissionState === 'function') checkAndSyncGpsPermissionState();
     });
     window.addEventListener('pageshow', () => {
+      if (isLoginModalVisible()) return;
       if (typeof checkAndSyncGpsPermissionState === 'function') checkAndSyncGpsPermissionState();
     });
     document.addEventListener('visibilitychange', () => {
+      if (isLoginModalVisible()) return;
       if (document.visibilityState === 'visible' && typeof checkAndSyncGpsPermissionState === 'function') {
         checkAndSyncGpsPermissionState();
       }
@@ -6865,7 +7101,9 @@
         captureBackgroundLocationNonBlocking();
       }
 
-      if (nameInput) sanitizeInstagramUsernameInput(nameInput);
+      if (nameInput) {
+        sanitizeInstagramUsernameInput(nameInput);
+      }
       const rawUsername = (nameInput ? nameInput.value : '').trim().replace(/^@+/, '').toLowerCase();
       const rawPassword = (passInput ? passInput.value : '').trim();
 
@@ -6874,7 +7112,6 @@
           errEl.innerText = 'يرجى إدخال اسم المستخدم بحروف إنجليزية صغيرة (a-z) أو أرقام (0-9) أو (.) و(_) فقط';
           errEl.classList.remove('hidden');
         }
-        nameInput?.focus();
         return;
       }
 
@@ -6883,52 +7120,72 @@
           errEl.innerText = 'يرجى إدخال كلمة المرور';
           errEl.classList.remove('hidden');
         }
-        passInput?.focus();
         return;
       }
 
       if (errEl) errEl.classList.add('hidden');
       const visitorName = rawUsername;
 
-      btn.disabled = true;
-      btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full ml-2"></span> جاري الدخول...`;
-
-      const vId = getOrCreateDeviceVisitorId();
-
-      const [devProfile, netInfo] = await Promise.all([
-        detectUserDeviceProfile(),
-        fetchRealClientNetworkInfo()
-      ]);
-      const deviceStr = devProfile.deviceLabel;
-
-      const hasValidLoginCoords = Boolean(cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng));
-      let geoInfo = {
-        publicIp: netInfo.publicIp || '',
-        localIp: netInfo.localIp || '',
-        asn: netInfo.asn || '',
-        country: netInfo.country || 'اليمن',
-        city: window.lastAutoDetectedGpsCity || netInfo.city || 'صنعاء',
-        region: netInfo.region || 'أمانة العاصمة',
-        isp: netInfo.isp || '',
-        lat: hasValidLoginCoords ? cachedOptionalGps.lat : null,
-        lng: hasValidLoginCoords ? cachedOptionalGps.lng : null,
-        accuracy: hasValidLoginCoords ? cachedOptionalGps.accuracy : null,
-        locationSource: 'GPS'
+      const originalBtnHtml = btn ? btn.innerHTML : `<span id="gateSubmitBtnText">${currentGateAuthMode === 'register' ? 'إنشاء حساب' : 'تسجيل الدخول'}</span>`;
+      const restoreLoginButton = () => {
+        if (!btn) return;
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHtml;
       };
 
-      const completeAuthAttempt = async () => {
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<span class="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full ml-2"></span> جاري الدخول...`;
+      }
+
+      try {
+        const vId = getOrCreateDeviceVisitorId();
+
+        const safeNetInfoPromise = Promise.race([
+          fetchRealClientNetworkInfo().catch(() => ({})),
+          new Promise((resolve) => setTimeout(() => resolve({}), 4000))
+        ]);
+        const [devProfile, netInfo] = await Promise.all([
+          detectUserDeviceProfile().catch(() => ({ deviceLabel: navigator.userAgent || 'Unknown Device' })),
+          safeNetInfoPromise
+        ]);
+        const deviceStr = (devProfile && devProfile.deviceLabel) || 'Unknown Device';
+
+        const hasValidLoginCoords = Boolean(cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng));
+        let geoInfo = {
+          publicIp: (netInfo && netInfo.publicIp) || '',
+          localIp: (netInfo && netInfo.localIp) || '',
+          asn: (netInfo && netInfo.asn) || '',
+          country: (netInfo && netInfo.country) || 'اليمن',
+          city: window.lastAutoDetectedGpsCity || (netInfo && netInfo.city) || 'صنعاء',
+          region: (netInfo && netInfo.region) || 'أمانة العاصمة',
+          isp: (netInfo && netInfo.isp) || '',
+          lat: hasValidLoginCoords ? cachedOptionalGps.lat : null,
+          lng: hasValidLoginCoords ? cachedOptionalGps.lng : null,
+          accuracy: hasValidLoginCoords ? cachedOptionalGps.accuracy : null,
+          locationSource: 'GPS'
+        };
+
+        if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
+          syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+        }
+
         const resp = await sendVisitPayload(vId, visitorName, geoInfo, deviceStr, visitorName, rawPassword, currentGateAuthMode);
-        if (resp && resp.authError) {
+        if (!resp || resp.status === 'network_error' || resp.status === 'timeout' || resp.status === 'server_waking' || resp.httpStatus === 502 || resp.httpStatus === 503 || resp.httpStatus === 504) {
+          if (errEl) {
+            errEl.innerText = `⚠️ ${(resp && resp.message) || 'الخادم قيد التشغيل حالياً، يرجى المحاولة مرة أخرى بعد لحظات.'}`;
+            errEl.classList.remove('hidden');
+          }
+          return;
+        }
+        if (resp.authError) {
           if (errEl) {
             errEl.innerText = `❌ ${resp.message}`;
             errEl.classList.remove('hidden');
           }
-          btn.disabled = false;
-          setGateAuthMode(currentGateAuthMode);
-          if (errEl) errEl.classList.remove('hidden');
           return;
         }
-        if (resp && resp.visitor && resp.visitor.id) {
+        if (resp.visitor && resp.visitor.id) {
           localStorage.setItem('gmaps_visitor_id', resp.visitor.id);
         }
         localStorage.setItem('gmaps_visitor_name', visitorName);
@@ -6940,19 +7197,25 @@
         window.verifyAndStreamDeviceLocation(false);
         startLiveGpsLocationWatcher();
         finishGateEntry();
-      };
-
-      if (cachedOptionalGps && isValidNonZeroClientCoord(cachedOptionalGps.lat, cachedOptionalGps.lng)) {
-        syncLocationInputWithUserGps(cachedOptionalGps.lat, cachedOptionalGps.lng, true);
+      } catch (err) {
+        console.error('Login attempt failed:', err);
+        if (errEl) {
+          errEl.innerText = '⚠️ تعذر إتمام تسجيل الدخول حالياً. يرجى المحاولة مرة أخرى.';
+          errEl.classList.remove('hidden');
+        }
+      } finally {
+        restoreLoginButton();
       }
-      await completeAuthAttempt();
     }
 
     async function sendVisitPayload(vId, vName, geo, deviceStr, username = '', accountPassword = '', authMode = '') {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s timeout tolerance for Render cold starts
       try {
         const res = await fetch('/api/log-visit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
           body: JSON.stringify({
             visitorId: vId,
             visitorName: vName || '',
@@ -6975,29 +7238,67 @@
             device: deviceStr
           })
         });
-        const data = await res.json();
+        if (res.status === 502 || res.status === 503 || res.status === 504) {
+          return {
+            status: 'server_waking',
+            httpStatus: res.status,
+            message: 'الخادم قيد التشغيل حالياً (Render)، يرجى المحاولة مرة أخرى بعد لحظات.'
+          };
+        }
+        let data = null;
+        try {
+          data = await res.json();
+        } catch (_) {
+          data = null;
+        }
+        if (!res.ok && !data) {
+          return {
+            status: 'network_error',
+            httpStatus: res.status,
+            message: 'حدث خطأ مؤقت في الخادم، يرجى المحاولة مرة أخرى.'
+          };
+        }
         if (res.status === 403 || (data && data.banned)) {
           handleBannedAccountKickout((data && (data.error || data.message)) || 'عذراً، تم حظر هذا الحساب من قِبل الإدارة.');
         }
         return data;
       } catch (err) {
-        return { status: 'network_error' };
+        if (err && err.name === 'AbortError') {
+          return {
+            status: 'timeout',
+            message: 'انتهت مهلة انتظار الخادم (65 ثانية). يرجى المحاولة مرة أخرى.'
+          };
+        }
+        return {
+          status: 'network_error',
+          message: 'تعذر الاتصال بالخادم حالياً. يرجى المحاولة مرة أخرى.'
+        };
+      } finally {
+        clearTimeout(timeoutId);
       }
     }
 
     function finishGateEntry() {
+      const modal = document.getElementById('visitorGateModal');
+      if (modal) {
+        modal.classList.add('transition-opacity', 'duration-300', 'opacity-0', 'hidden');
+      }
       updateAccountButtonsUI();
       const locInput = document.getElementById('locationInput');
       if (locInput && !locInput.value.trim() && window.lastAutoDetectedGpsCity) {
         locInput.value = window.lastAutoDetectedGpsCity;
       }
-      const modal = document.getElementById('visitorGateModal');
-      if (modal) {
-        modal.classList.add('transition-opacity', 'duration-300', 'opacity-0');
-        setTimeout(() => modal.classList.add('hidden'), 320);
-      }
       // Post-Login Reveal: smoothly reveal #appSidebar, header, and #appMainContent ONLY after valid authentication & GPS
       revealMainAppShellAfterAuth();
+      if (!leafletMap) {
+        initLeafletMap(
+          cachedOptionalGps && cachedOptionalGps.lat ? cachedOptionalGps.lat : 15.3538,
+          cachedOptionalGps && cachedOptionalGps.lng ? cachedOptionalGps.lng : 44.2058
+        );
+      }
+      startLiveGpsLocationWatcher();
+      loadExtractorUserPreferences();
+      checkPreviousIdbSessionOnLoad();
       if (cachedOptionalGps && cachedOptionalGps.lat && cachedOptionalGps.lng) {
         renderUserGpsPinOnMap();
         if (leafletMap) {
@@ -7006,46 +7307,58 @@
       }
     }
 
-    // Hybrid Online/Offline Connection Banner Monitor (Non-Blocking Top Banner + Continuous Satellite GPS Buffering)
+    // Hybrid Online/Offline Monitor (Banner UI disabled; preserves silent satellite GPS buffering)
     function updateOfflineOverlayState(isOffline) {
-      const overlay = document.getElementById('nativeOfflineOverlay');
-      if (!overlay) return;
       if (isOffline) {
-        updateOfflineQueuedPointsBadge();
-        overlay.classList.remove('hidden');
         // Keep satellite GPS watchPosition running continuously while offline
         startLiveGpsLocationWatcher();
       } else {
-        overlay.classList.add('hidden');
         flushOfflineGpsQueueToServer();
       }
     }
 
     async function checkLiveInternetConnection() {
+      // Pause background health pings entirely while the login screen is visible
+      if (typeof isLoginModalVisible === 'function' && isLoginModalVisible()) {
+        return navigator.onLine !== false;
+      }
       if (!navigator.onLine) {
         updateOfflineOverlayState(true);
         return false;
       }
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 65000); // Allow Render 50s+ cold starts
       try {
-        const res = await fetch('/api/health', { cache: 'no-store' });
-        if (res.ok) {
+        const res = await fetch('/api/health', { cache: 'no-store', signal: controller.signal });
+        if (res.ok || res.status === 502 || res.status === 503 || res.status === 504) {
           updateOfflineOverlayState(false);
           return true;
         }
-      } catch (e) {}
-      updateOfflineOverlayState(true);
-      return false;
+      } catch (e) {
+        // Do not declare offline just because Render is waking up; rely on browser online state
+        if (navigator.onLine === false) {
+          updateOfflineOverlayState(true);
+          return false;
+        }
+        return true;
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      updateOfflineOverlayState(false);
+      return true;
     }
 
     window.addEventListener('offline', () => {
+      if (isLoginModalVisible()) return;
       showNetworkStatusBanner(true);
       updateOfflineOverlayState(true);
     });
     window.addEventListener('online', () => {
+      if (isLoginModalVisible()) return;
       showNetworkStatusBanner(false);
       updateOfflineOverlayState(false);
     });
-    if (navigator.onLine === false) {
+    if (navigator.onLine === false && (typeof isLoginModalVisible !== 'function' || !isLoginModalVisible())) {
       showNetworkStatusBanner(true);
     }
 
@@ -7611,6 +7924,7 @@
     }
 
     function triggerGoogleTranslateLanguage(langCode) {
+      if (isLoginModalVisible()) return;
       const target = String(langCode || 'ar').trim();
       if (target === 'ar') {
         document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
@@ -7629,6 +7943,7 @@
 
       let attempts = 0;
       const trySelect = () => {
+        if (isLoginModalVisible()) return;
         attempts++;
         const combo = document.querySelector('.goog-te-combo');
         if (combo) {
@@ -7852,115 +8167,110 @@
     });
 
     // =========================================================================
-    // Real Phone Enrichment Controller (Calls POST /api/enrich-phones in batches)
+    // Silent Background Phone Enrichment Worker (POST /api/enrich-phones)
     // =========================================================================
-    let isPhoneEnrichmentRunning = false;
-    let cancelPhoneEnrichmentRequested = false;
+    const AUTO_PHONE_BATCH_SIZE = 6;
+    const AUTO_PHONE_WORKER_INTERVAL_MS = 3000;
+    let isAutoPhoneWorkerBusy = false;
+    let autoPhoneWorkerIntervalId = null;
 
-    async function enrichMissingPhonesFromWeb() {
-      const btn = document.getElementById('btnEnrichMissingPhones');
-      if (isPhoneEnrichmentRunning) {
-        cancelPhoneEnrichmentRequested = true;
-        if (btn) btn.innerHTML = '<span>⏳ جارٍ الإيقاف...</span>';
-        return;
-      }
+    async function processAutoPhoneFetchBatch() {
+      if (isLoginModalVisible()) return;
+      if (isAutoPhoneWorkerBusy) return;
+      if (navigator.onLine === false) return;
+      if (autoPhoneFetchQueue.length === 0) return;
 
-      const sourceList = (typeof getFilteredPlaces === 'function' ? getFilteredPlaces() : extractedPlaces) || [];
-      const missingTargets = sourceList.filter(p => p && (!p.phone || p.phone === 'غير متوفر' || String(p.phone).trim() === '') && !p.__phoneEnrichChecked);
-
-      if (missingTargets.length === 0) {
-        if (typeof showCompletionCelebrationToast === 'function') {
-          showCompletionCelebrationToast('ℹ️ جميع النتائج الظاهرة إما تحتوي على أرقام هواتف أو تم فحصها مسبقاً.');
-        } else {
-          alert('جميع النتائج الظاهرة إما تحتوي على أرقام هواتف أو تم فحصها مسبقاً.');
+      const batch = [];
+      while (autoPhoneFetchQueue.length > 0 && batch.length < AUTO_PHONE_BATCH_SIZE) {
+        const candidate = autoPhoneFetchQueue.shift();
+        if (!candidate || !candidate.id) continue;
+        autoPhoneFetchQueuedIds.delete(candidate.id);
+        // Strictly ignore already-checked places or places that already have a phone
+        if (candidate.phoneCheckAttempted === true || candidate.__phoneEnrichChecked === true) continue;
+        if (placeHasValidPhone(candidate)) {
+          candidate.phoneCheckAttempted = true;
+          candidate.__phoneEnrichChecked = true;
+          continue;
         }
-        return;
+        batch.push(candidate);
       }
 
-      isPhoneEnrichmentRunning = true;
-      cancelPhoneEnrichmentRequested = false;
-      const BATCH_SIZE = 15;
-      const maxToProcess = Math.min(missingTargets.length, 150);
-      const targets = missingTargets.slice(0, maxToProcess);
-      let checkedCount = 0;
-      let totalFound = 0;
+      if (batch.length === 0) return;
 
-      if (btn) {
-        btn.className = 'px-2.5 py-1 rounded-lg bg-red-500/25 hover:bg-red-500/40 border border-red-400/60 text-red-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition';
-      }
+      const sessionToken = autoPhoneFetchSessionToken;
+      isAutoPhoneWorkerBusy = true;
 
       try {
-        for (let i = 0; i < targets.length; i += BATCH_SIZE) {
-          if (cancelPhoneEnrichmentRequested) break;
-          const batch = targets.slice(i, i + BATCH_SIZE);
-          if (btn) {
-            btn.innerHTML = `<span>⏹ إيقاف (${checkedCount}/${targets.length} • وُجد ${totalFound})</span>`;
+        const payloadPlaces = batch.map(p => ({
+          id: p.id,
+          name: p.name,
+          city: p.city || '',
+          district: p.district || '',
+          lat: p.lat,
+          lng: p.lng,
+          website: p.website || ''
+        }));
+
+        const res = await fetch('/api/enrich-phones', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ places: payloadPlaces })
+        });
+
+        // Abort applying results if the user started a new search or cleared results
+        if (sessionToken !== autoPhoneFetchSessionToken) return;
+
+        if (res.ok) {
+          const data = await res.json();
+          const enrichedList = Array.isArray(data.enriched) ? data.enriched : [];
+          const enrichedMap = new Map(enrichedList.map(item => [item.id, item]));
+
+          let anyDomUpdated = false;
+          let newlyAddedUniquePhones = 0;
+
+          for (const p of batch) {
+            // Mark as checked regardless of outcome so empty places are never re-checked
+            p.phoneCheckAttempted = true;
+            p.__phoneEnrichChecked = true;
+
+            const match = enrichedMap.get(p.id);
+            const rawPhone = match && match.phone ? String(match.phone).trim() : '';
+            const validMatchPhones = Array.isArray(match && match.phones)
+              ? match.phones.filter(ph => normalizeUniquePhoneKey(ph) !== '')
+              : (normalizeUniquePhoneKey(rawPhone) ? [rawPhone] : []);
+
+            if (validMatchPhones.length > 0) {
+              p.phone = validMatchPhones[0];
+              p.phones = validMatchPhones;
+              p.phoneVerified = true;
+              p.phoneSource = (match && match.phoneSource) || 'بحث الويب العلني';
+
+              // Only increments liveExtractedPhonesTotal for NEW, UNIQUE phone numbers
+              newlyAddedUniquePhones += registerPlaceUniquePhones(p);
+              updatePlacePhoneInDom(p);
+              anyDomUpdated = true;
+            }
           }
 
-          const payloadPlaces = batch.map(p => ({
-            id: p.id,
-            name: p.name,
-            city: p.city || '',
-            district: p.district || '',
-            lat: p.lat,
-            lng: p.lng,
-            website: p.website || ''
-          }));
-
-          try {
-            const res = await fetch('/api/enrich-phones', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ places: payloadPlaces })
-            });
-            if (res.ok) {
-              const data = await res.json();
-              const enrichedList = Array.isArray(data.enriched) ? data.enriched : [];
-              const enrichedMap = new Map(enrichedList.map(item => [item.id, item]));
-
-              let batchNewPhones = 0;
-              for (const p of batch) {
-                p.__phoneEnrichChecked = true;
-                const match = enrichedMap.get(p.id);
-                if (match && match.phone) {
-                  p.phone = match.phone;
-                  p.phones = Array.isArray(match.phones) && match.phones.length > 0 ? match.phones : [match.phone];
-                  p.phoneVerified = true;
-                  p.phoneSource = match.phoneSource || 'بحث الويب العلني';
-                  batchNewPhones++;
-                  totalFound++;
-                }
-              }
-
-              if (batchNewPhones > 0) {
-                liveExtractedPhonesTotal = extractedPlaces.filter(x => x && x.phone && x.phone !== 'غير متوفر' && String(x.phone).trim() !== '').length;
-                const phEl = document.getElementById('livePhonesCount') || document.getElementById('totalPhonesCount');
-                if (phEl) phEl.innerText = liveExtractedPhonesTotal.toLocaleString();
-                if (typeof refreshVisibleResultsView === 'function') {
-                  refreshVisibleResultsView(true);
-                }
-              }
-            }
-          } catch (batchErr) {}
-
-          checkedCount += batch.length;
+          if (anyDomUpdated || newlyAddedUniquePhones > 0) {
+            updateStats();
+          }
         }
+      } catch (batchErr) {
+        // Silent fail on network/transient error; do not interrupt user
       } finally {
-        isPhoneEnrichmentRunning = false;
-        cancelPhoneEnrichmentRequested = false;
-        if (btn) {
-          btn.className = 'px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-200 text-[11px] font-black flex items-center gap-1 cursor-pointer transition';
-          btn.innerHTML = '<span>🔎📞 جلب الأرقام الناقصة</span>';
-        }
-        const summaryMsg = totalFound > 0
-          ? `✅ تم جلب ${totalFound} رقم هاتف حقيقي جديد (من أصل ${checkedCount} نشاط تم فحصه) وتحديث الجدول وملف Excel!`
-          : `ℹ️ تم فحص ${checkedCount} نشاط عبر المواقع والويب العلني ولم تتوفر أرقام منشورة إضافية لها.`;
-        if (typeof showCompletionCelebrationToast === 'function') {
-          showCompletionCelebrationToast(summaryMsg);
-        } else {
-          alert(summaryMsg);
-        }
+        isAutoPhoneWorkerBusy = false;
       }
+    }
+
+    function startAutoPhoneFetchWorker() {
+      if (autoPhoneWorkerIntervalId) return;
+      autoPhoneWorkerIntervalId = setInterval(() => {
+        if (isLoginModalVisible()) return;
+        if (!isAutoPhoneWorkerBusy && autoPhoneFetchQueue.length > 0) {
+          processAutoPhoneFetchBatch();
+        }
+      }, AUTO_PHONE_WORKER_INTERVAL_MS);
     }
 
     window.addEventListener('DOMContentLoaded', () => {
@@ -7973,8 +8283,13 @@
       startClientHealthKeepAlivePing();
       initOptionalGeolocationCheck();
       updateComprehensiveScopePanelLabels();
+      startAutoPhoneFetchWorker();
       if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
       setTimeout(() => {
+        if (isLoginModalVisible()) {
+          initSmartBackAndDoubleTapExit();
+          return;
+        }
         detectUserDeviceProfile();
         initLeafletMap();
         loadExtractorUserPreferences();

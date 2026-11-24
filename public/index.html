@@ -139,8 +139,8 @@
     /* Clean Minimalist Surface Card - 60FPS Scrolling */
     .studio-card {
       background: #111827;
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.24);
       transition: border-color 0.18s ease, background-color 0.18s ease;
       content-visibility: auto;
       contain-intrinsic-size: 0 170px;
@@ -149,7 +149,7 @@
       -webkit-touch-callout: none;
     }
     .studio-card:hover {
-      border-color: rgba(148, 163, 184, 0.26);
+      border-color: rgba(255, 255, 255, 0.14);
     }
 
     /* Category Pills */
@@ -258,7 +258,7 @@
     /* Clean Modal Card */
     .portal-modal-card {
       background: #111827;
-      border: 1px solid rgba(148, 163, 184, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
     }
 
@@ -296,10 +296,10 @@
     }
 
     #appSidebar {
-      width: 248px;
+      width: 252px;
       flex-shrink: 0;
-      background: #0e1522;
-      border-left: 1px solid rgba(148, 163, 184, 0.14);
+      background: #0f172a;
+      border-left: 1px solid rgba(255, 255, 255, 0.08);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -466,19 +466,131 @@
       color: #ffffff;
     }
 
-    /* Hide external translation top banner while keeping widget dropdown & full DOM translation active */
+    /* Hide external translation top banner & Google branding while keeping ONLY the clean language dropdown */
     .goog-te-banner-frame.skiptranslate,
     iframe.goog-te-banner-frame,
     .goog-te-gadget-icon,
     #goog-gt-tt,
     .goog-te-balloon-frame,
-    div#goog-gt- {
+    div#goog-gt-,
+    .goog-logo-link,
+    .goog-te-gadget > span,
+    .goog-te-gadget img,
+    .VIpgJd-ZVi9od-l4eHX-hSRGPd,
+    .VIpgJd-ZVi9od-ORHb-OEVmcd {
       display: none !important;
     }
-    .translate-widget { margin: 6px auto; text-align: center; }
-    .goog-te-combo { padding: 5px 8px; border-radius: 6px; background: #0f172a; color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.25); font-family: inherit; font-size: 12px; }
-    .goog-logo-link { display: none !important; }
-    .goog-te-gadget { color: transparent !important; }
+    .translate-widget {
+      margin: 0;
+      width: 100%;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .translate-widget-box {
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 8px 10px;
+      overflow: hidden;
+      width: 100%;
+    }
+    .goog-te-gadget {
+      font-size: 0 !important;
+      line-height: 0 !important;
+      color: transparent !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100%;
+      overflow: hidden;
+    }
+    .goog-te-gadget > div {
+      display: block !important;
+      width: 100%;
+    }
+    .goog-te-gadget .goog-te-combo {
+      display: block !important;
+      width: 100%;
+      max-width: 100%;
+      margin: 0 !important;
+      padding: 7px 10px;
+      border-radius: 8px;
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: inherit;
+      font-size: 12px !important;
+      line-height: 1.4 !important;
+      cursor: pointer;
+      outline: none;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .goog-te-gadget .goog-te-combo:hover,
+    .goog-te-gadget .goog-te-combo:focus {
+      border-color: rgba(16, 185, 129, 0.55);
+      background: #111827;
+    }
+
+    /* Clean minimalist scan progress & control layout helpers */
+    .scan-progress-card {
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .scan-progress-card.hidden {
+      display: none !important;
+    }
+    .scan-progress-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .scan-progress-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .scan-progress-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 12px;
+    }
+    .scan-metric-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 8px;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 11px;
+      line-height: 1.3;
+      white-space: nowrap;
+    }
+    .scan-controls-primary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .scan-controls-secondary {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
     body {
       top: 0px !important;
     }
@@ -550,8 +662,8 @@
   <div id="visitorGateModal" class="fixed inset-0 z-[9000] flex items-center justify-center bg-[#0b111a] p-4 overflow-y-auto" onclick="event.stopPropagation()">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-2xl text-center relative my-auto space-y-5">
       <!-- Global Google Translate Bar (Top of Login Screen) -->
-      <div id="loginTranslateSlot" class="flex items-center justify-center px-3 py-1.5 rounded-lg bg-slate-900/70 border border-slate-800 relative z-10 min-h-[38px]">
-        <div id="google_translate_element" class="translate-widget" style="margin-bottom: 10px; text-align: center;"></div>
+      <div id="loginTranslateSlot" class="translate-widget-box relative z-10 min-h-[42px] flex items-center justify-center">
+        <div id="google_translate_element" class="translate-widget"></div>
       </div>
 
       <!-- Hidden stub so legacy references never throw -->
@@ -941,7 +1053,10 @@
             <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
             <span>إعدادات الحساب واللغة</span>
           </button>
-          <div id="sidebarTranslateSlot" class="translate-widget flex items-center justify-center pt-2"></div>
+          <div class="pt-3">
+            <div class="text-[11px] font-medium text-slate-500 px-1 pb-1.5">لغة الواجهة</div>
+            <div id="sidebarTranslateSlot" class="translate-widget translate-widget-box"></div>
+          </div>
         </div>
       </div>
 
@@ -1026,24 +1141,28 @@
       </header>
 
       <!-- Global Live Progress Indicator (Visible across views whenever an active scan is running) -->
-      <div id="progressContainer" class="hidden bg-[#111827] border border-slate-800 rounded-xl px-4 py-3 space-y-2.5">
-        <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span id="statusMessage" class="text-slate-200 font-medium flex-1 min-w-[160px] truncate">جارٍ البحث واستخراج البيانات...</span>
-          <div class="flex flex-wrap items-center gap-2 shrink-0">
-            <span id="quadtreeCellsBadge" class="text-slate-400 font-num text-[11px]">الخلايا: 0 / 0</span>
-            <span id="progressDualEngineBadge" class="text-slate-400 font-num text-[11px]">Google: 0 | OSM: 0</span>
-            <span id="progressPercentBadge" class="text-emerald-400 font-num font-bold text-[11px]">0%</span>
-            <span id="progressRatio" class="text-slate-200 font-num font-semibold text-[11px]">0 موقع فريد</span>
-            <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-2.5 py-1 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white font-medium text-[11px] cursor-pointer transition">
+      <div id="progressContainer" class="hidden scan-progress-card">
+        <div class="scan-progress-top text-xs">
+          <span id="statusMessage" class="text-slate-100 font-semibold flex-1 min-w-[200px] leading-relaxed">جارٍ البحث واستخراج البيانات...</span>
+          <div class="scan-progress-actions">
+            <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-3.5 py-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 border border-white/10 text-slate-200 hover:text-white font-medium text-xs cursor-pointer transition">
               إيقاف مؤقت
             </button>
-            <button type="button" onclick="switchAppView('view-results')" class="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-[11px] cursor-pointer transition">
+            <button type="button" onclick="switchAppView('view-results')" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer transition">
               عرض النتائج
             </button>
           </div>
         </div>
-        <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+
+        <div class="w-full bg-[#0f172a] border border-white/[0.06] h-2 rounded-full overflow-hidden">
           <div id="progressBar" class="bg-emerald-500 h-full w-0 transition-all duration-300 rounded-full"></div>
+        </div>
+
+        <div class="scan-progress-metrics">
+          <span id="progressPercentBadge" class="scan-metric-chip text-emerald-400 font-num font-bold">0%</span>
+          <span id="progressRatio" class="scan-metric-chip text-slate-200 font-num font-semibold">0 موقع فريد</span>
+          <span id="quadtreeCellsBadge" class="scan-metric-chip text-slate-400 font-num">الخلايا: 0 / 0</span>
+          <span id="progressDualEngineBadge" class="scan-metric-chip text-slate-400 font-num">Google: 0 | OSM: 0</span>
         </div>
       </div>
 
@@ -1114,55 +1233,59 @@
               </div>
             </div>
 
-            <!-- 3. Primary Start Scan Button + Subtle Secondary Actions -->
-            <div class="flex flex-wrap items-center gap-3 pt-1">
-              <button
-                type="button"
-                id="btnStartComprehensiveScan"
-                onclick="startLocationAwareComprehensiveScan(false)"
-                class="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm flex items-center gap-2 cursor-pointer transition"
-              >
-                <i data-lucide="play" class="w-4 h-4"></i>
-                <span>بدء المسح الشامل</span>
-              </button>
+            <!-- 3. Primary Start Scan Button + Clean Secondary Controls -->
+            <div class="pt-2">
+              <div class="scan-controls-primary">
+                <button
+                  type="button"
+                  id="btnStartComprehensiveScan"
+                  onclick="startLocationAwareComprehensiveScan(false)"
+                  class="px-7 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm inline-flex items-center justify-center gap-2.5 cursor-pointer transition shadow-sm"
+                >
+                  <i data-lucide="play" class="w-4 h-4 shrink-0"></i>
+                  <span>بدء المسح الشامل</span>
+                </button>
 
-              <button
-                type="submit"
-                id="searchBtn"
-                class="px-4 py-3 rounded-xl bg-transparent hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white font-semibold text-xs flex items-center gap-2 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
-              >
-                <span id="scanSpinner" data-scan-spinner class="hidden inline-block w-3.5 h-3.5 border-2 border-slate-400/40 border-t-white rounded-full animate-spin shrink-0"></span>
-                <i data-lucide="search" class="w-3.5 h-3.5"></i>
-                <span>بحث سريع</span>
-              </button>
+                <button
+                  type="submit"
+                  id="searchBtn"
+                  class="px-5 py-3 rounded-xl bg-[#0f172a] hover:bg-slate-800 border border-white/10 text-slate-200 hover:text-white font-semibold text-xs inline-flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <span id="scanSpinner" data-scan-spinner class="hidden inline-block w-3.5 h-3.5 border-2 border-slate-400/40 border-t-emerald-400 rounded-full animate-spin shrink-0"></span>
+                  <i data-lucide="search" class="w-3.5 h-3.5 shrink-0"></i>
+                  <span>بحث سريع</span>
+                </button>
+              </div>
 
-              <button
-                type="button"
-                id="btnPauseComprehensiveScan"
-                onclick="pauseLocationAwareComprehensiveScan()"
-                class="px-3.5 py-3 rounded-xl bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer transition"
-              >
-                <span>إيقاف مؤقت</span>
-              </button>
+              <div class="scan-controls-secondary">
+                <button
+                  type="button"
+                  id="btnPauseComprehensiveScan"
+                  onclick="pauseLocationAwareComprehensiveScan()"
+                  class="px-4 py-2 rounded-xl bg-[#0f172a] hover:bg-slate-800/80 border border-white/[0.08] text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <span>إيقاف مؤقت</span>
+                </button>
 
-              <button
-                type="button"
-                id="btnResumeComprehensiveScan"
-                onclick="startLocationAwareComprehensiveScan(true)"
-                class="px-3.5 py-3 rounded-xl bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer transition"
-                title="استئناف المسح من آخر نقطة حفظ تلقائية (Checkpoint)"
-              >
-                <span>استئناف</span>
-              </button>
+                <button
+                  type="button"
+                  id="btnResumeComprehensiveScan"
+                  onclick="startLocationAwareComprehensiveScan(true)"
+                  class="px-4 py-2 rounded-xl bg-[#0f172a] hover:bg-slate-800/80 border border-white/[0.08] text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
+                  title="استئناف المسح من آخر نقطة حفظ تلقائية (Checkpoint)"
+                >
+                  <span>استئناف</span>
+                </button>
 
-              <button
-                type="button"
-                onclick="clearCategoryAndFilters()"
-                title="تفريغ وإعادة ضبط"
-                class="px-3 py-3 rounded-xl bg-transparent hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-medium cursor-pointer transition"
-              >
-                إعادة ضبط
-              </button>
+                <button
+                  type="button"
+                  onclick="clearCategoryAndFilters()"
+                  title="تفريغ وإعادة ضبط"
+                  class="px-4 py-2 rounded-xl bg-transparent hover:bg-slate-800/70 border border-white/[0.06] text-slate-400 hover:text-white text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition"
+                >
+                  <span>إعادة ضبط</span>
+                </button>
+              </div>
             </div>
 
             <!-- 4. Collapsible Advanced Settings (إعدادات متقدمة) -->

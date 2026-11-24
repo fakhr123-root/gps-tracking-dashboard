@@ -210,6 +210,74 @@
       to { transform: rotate(360deg); }
     }
 
+    /* Lock Splash / Location Pin SVG & GPS Gatekeeper Card dimensions BEFORE Tailwind CDN loads */
+    #gpsGatekeeperScreen svg,
+    #bootSplash svg,
+    .gps-pin-svg {
+      width: 48px !important;
+      height: 48px !important;
+      max-width: 64px !important;
+      max-height: 64px !important;
+      flex-shrink: 0;
+    }
+    #gpsGatekeeperScreen {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      background-color: #0b1320;
+      padding: 16px;
+      align-items: center;
+      justify-content: center;
+      overflow-y: auto;
+    }
+    #gpsGatekeeperScreen .portal-modal-card {
+      background: #131f33;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 440px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      text-align: center;
+    }
+    #gpsGatekeeperScreen .gps-pin-badge {
+      width: 64px;
+      height: 64px;
+      border-radius: 9999px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+      flex-shrink: 0;
+    }
+    #gpsRequiredLiveStatusMsg {
+      width: 100%;
+      background: #0b1320;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      border-radius: 12px;
+      padding: 10px 14px;
+      color: #10b981;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    #btnGpsRequiredRetry {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: #10b981;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 14px;
+      border: none;
+      cursor: pointer;
+    }
+
     #visitorGateModal {
       position: fixed;
       inset: 0;
@@ -840,14 +908,14 @@
   </div>
 
   <!-- Strict Mandatory GPS Gatekeeper (Persistent, un-closable full-screen shield until geolocation Allow succeeds) -->
-  <div id="gpsGatekeeperScreen" style="z-index: 99999; display: none;" class="hidden fixed inset-0 flex items-center justify-center bg-[#0b111a]/95 p-4 overflow-y-auto select-none">
+  <div id="gpsGatekeeperScreen" style="z-index: 99999; display: none;" class="hidden fixed inset-0 flex items-center justify-center bg-[#0b1320]/95 p-4 overflow-y-auto select-none">
     <!-- Legacy compatibility anchor -->
     <div id="gpsRequiredLockOverlay" class="hidden" style="display: none;"></div>
 
-    <div class="portal-modal-card max-w-md w-full p-7 sm:p-8 rounded-2xl text-center relative my-auto space-y-5">
-      <!-- Clean Location Pin SVG Icon -->
-      <div class="w-14 h-14 mx-auto rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center pointer-events-none" style="pointer-events: none;">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-7 h-7 pointer-events-none">
+    <div class="portal-modal-card max-w-[440px] w-full p-6 sm:p-7 rounded-2xl text-center relative my-auto space-y-4">
+      <!-- Clean Location Pin SVG Icon (Explicitly locked to 48x48) -->
+      <div class="gps-pin-badge pointer-events-none" style="pointer-events: none;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="gps-pin-svg pointer-events-none">
           <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
           <circle cx="12" cy="10" r="3"/>
         </svg>
@@ -1343,7 +1411,7 @@
         <div class="scan-progress-top text-xs">
           <span id="statusMessage" class="text-slate-100 font-semibold flex-1 min-w-[200px] leading-relaxed">جارٍ البحث واستخراج البيانات...</span>
           <div class="scan-progress-actions">
-            <button type="button" id="btnPauseResumeScan" onclick="togglePauseResumeActiveScan()" class="px-3.5 py-1.5 rounded-lg bg-[#0f172a] hover:bg-slate-800 border border-white/10 text-slate-200 hover:text-white font-medium text-xs cursor-pointer transition">
+            <button type="button" id="btnPauseResumeScan" translate="no" onclick="togglePauseResumeActiveScan()" class="notranslate px-3.5 py-1.5 rounded-lg bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-slate-200 hover:text-white font-medium text-xs cursor-pointer transition">
               إيقاف مؤقت
             </button>
             <button type="button" onclick="switchAppView('view-results')" class="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs cursor-pointer transition">
@@ -1352,11 +1420,11 @@
           </div>
         </div>
 
-        <div class="w-full bg-[#0f172a] border border-white/[0.06] h-2 rounded-full overflow-hidden">
+        <div class="w-full bg-[#0b1320] border border-slate-400/15 h-2 rounded-full overflow-hidden">
           <div id="progressBar" class="bg-emerald-500 h-full w-0 transition-all duration-300 rounded-full"></div>
         </div>
 
-        <div class="scan-progress-metrics">
+        <div class="scan-progress-metrics notranslate" translate="no">
           <span id="progressPercentBadge" class="scan-metric-chip text-emerald-400 font-num font-bold">0%</span>
           <span id="progressRatio" class="scan-metric-chip text-slate-200 font-num font-semibold">0 موقع فريد</span>
           <span id="quadtreeCellsBadge" class="scan-metric-chip text-slate-400 font-num">الخلايا: 0 / 0</span>
@@ -1457,12 +1525,13 @@
                 </button>
               </div>
 
-              <div class="scan-controls-secondary">
+              <div class="scan-controls-secondary notranslate" translate="no">
                 <button
                   type="button"
                   id="btnPauseComprehensiveScan"
+                  translate="no"
                   onclick="pauseLocationAwareComprehensiveScan()"
-                  class="px-4 py-2 rounded-xl bg-[#0f172a] hover:bg-slate-800/80 border border-white/[0.08] text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
+                  class="notranslate px-4 py-2 rounded-xl bg-[#0b1320] hover:bg-slate-800/80 border border-slate-400/20 text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
                 >
                   <span>إيقاف مؤقت</span>
                 </button>
@@ -1470,8 +1539,9 @@
                 <button
                   type="button"
                   id="btnResumeComprehensiveScan"
+                  translate="no"
                   onclick="startLocationAwareComprehensiveScan(true)"
-                  class="px-4 py-2 rounded-xl bg-[#0f172a] hover:bg-slate-800/80 border border-white/[0.08] text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
+                  class="notranslate px-4 py-2 rounded-xl bg-[#0b1320] hover:bg-slate-800/80 border border-slate-400/20 text-slate-300 hover:text-white font-medium text-xs inline-flex items-center gap-1.5 cursor-pointer transition"
                   title="استئناف المسح من آخر نقطة حفظ تلقائية (Checkpoint)"
                 >
                   <span>استئناف</span>
@@ -1479,9 +1549,10 @@
 
                 <button
                   type="button"
+                  translate="no"
                   onclick="clearCategoryAndFilters()"
                   title="تفريغ وإعادة ضبط"
-                  class="px-4 py-2 rounded-xl bg-transparent hover:bg-slate-800/70 border border-white/[0.06] text-slate-400 hover:text-white text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition"
+                  class="notranslate px-4 py-2 rounded-xl bg-transparent hover:bg-slate-800/70 border border-slate-400/15 text-slate-400 hover:text-white text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer transition"
                 >
                   <span>إعادة ضبط</span>
                 </button>

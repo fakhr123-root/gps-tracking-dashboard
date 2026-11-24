@@ -1,5 +1,5 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v17';
+const CACHE_NAME = 'georadar-hybrid-shell-v18';
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -61,7 +61,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Network-first for HTML/CSS/JS shell with clean fallback (prevents stale/half-cached FOUC on updates or challenge query params)
+// Network-first for HTML/CSS/JS shell with integrity checks and clean fallback (prevents partial/corrupted raw screen on reload/update)
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -79,19 +79,31 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     fetch(fetchReq)
-      .then((networkRes) => {
+      .then(async (networkRes) => {
         const isCacheableOrigin =
           url.origin === self.location.origin ||
           /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
 
+        if (isNavHtml) {
+          const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
+          // Reject non-200 or non-HTML navigation errors by falling back to clean cached shell (unless it's a challenge redirect)
+          if (!networkRes.ok || (!contentType.includes('text/html') && !hasChallengeQuery)) {
+            const fallbackHtml = await caches.match('/index.html').then((r) => r || caches.match('/'));
+            if (fallbackHtml) return fallbackHtml;
+            return networkRes;
+          }
+          if (!hasChallengeQuery && url.origin === self.location.origin) {
+            const resClone = networkRes.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(url.pathname, resClone)).catch(() => {});
+          }
+          return networkRes;
+        }
+
         if (networkRes && networkRes.ok && isCacheableOrigin && !hasChallengeQuery) {
           const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
-          // Avoid caching challenge/interstitial HTML under non-HTML asset keys
-          const validAssetResponse = isNavHtml || !contentType.includes('text/html');
-          if (validAssetResponse) {
+          if (!contentType.includes('text/html')) {
             const resClone = networkRes.clone();
-            const cacheKey = (isNavHtml && url.origin === self.location.origin) ? url.pathname : req;
-            caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, resClone)).catch(() => {});
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone)).catch(() => {});
           }
         }
         return networkRes;

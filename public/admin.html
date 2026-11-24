@@ -1222,7 +1222,6 @@
       if (!v) return '';
       const hasBatt = typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100;
       const netStr = String(v.networkType || '').trim();
-      if (!hasBatt && !netStr) return '';
 
       if (isPopup) {
         const parts = [];
@@ -1230,6 +1229,8 @@
           const bIcon = v.batteryCharging ? '⚡🔋' : '🔋';
           const bColor = v.batteryLevel <= 20 ? '#dc2626' : '#059669';
           parts.push(`<span style="background:${bColor}18; color:${bColor}; border:1px solid ${bColor}55; padding:1px 6px; border-radius:6px; font-weight:800; font-size:9px;">${bIcon} ${v.batteryLevel}%</span>`);
+        } else {
+          parts.push(`<span style="color: #6b7280; font-size: 0.85em; background:#6b728018; border:1px solid #6b728044; padding:1px 6px; border-radius:6px; font-weight:700;" title="نظام iOS/Safari لا يدعم قراءة نسبة البطارية">🔋 مخفي (iOS)</span>`);
         }
         if (netStr) {
           parts.push(`<span style="background:#0284c718; color:#0369a1; border:1px solid #0284c755; padding:1px 6px; border-radius:6px; font-weight:800; font-size:9px;" dir="ltr">📶 ${netStr}</span>`);
@@ -1244,6 +1245,8 @@
           ? 'bg-red-500/20 border-red-400/50 text-red-300'
           : 'bg-emerald-500/15 border-emerald-400/40 text-emerald-300';
         badges.push(`<span class="px-1.5 py-0.5 rounded-md border ${bClass} text-[10px] font-num font-bold" dir="ltr" title="نسبة البطارية">${bIcon} ${v.batteryLevel}%</span>`);
+      } else {
+        badges.push(`<span class="px-1.5 py-0.5 rounded-md border border-slate-600/50 bg-slate-800/60 font-bold" style="color: #6b7280; font-size: 0.85em;" title="نظام iOS/Safari لا يدعم قراءة نسبة البطارية">🔋 مخفي (iOS)</span>`);
       }
       if (netStr) {
         badges.push(`<span class="px-1.5 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/40 text-sky-300 text-[10px] font-num font-bold" dir="ltr" title="نوع اتصال الشبكة">📶 ${netStr}</span>`);
@@ -1699,7 +1702,7 @@
       const statusColor = liveMeta
         ? (liveMeta.isLive ? '#34d399' : liveMeta.markerColor)
         : (sess?.isOnline ? '#34d399' : (sess?.statusCode === 'gps_off' ? '#ef4444' : '#f59e0b'));
-      const battTag = (vis && typeof vis.batteryLevel === 'number' && vis.batteryLevel >= 0 && vis.batteryLevel <= 100) ? ` • 🔋 ${vis.batteryLevel}%` : '';
+      const battTag = (vis && typeof vis.batteryLevel === 'number' && vis.batteryLevel >= 0 && vis.batteryLevel <= 100) ? ` • 🔋 ${vis.batteryLevel}%` : ' • 🔋 مخفي (iOS)';
       const netTag = (vis && vis.networkType) ? ` • 📶 ${vis.networkType}` : '';
       const deviceText = `${(vis?.device || sess?.deviceModel || 'غير معروف')}${battTag}${netTag}`;
       const lastSeenText = sess?.lastSeen || (vis?.lastSeen ? new Date(vis.lastSeen).toLocaleString('ar-SA', { hour12: true }) : '—');
@@ -1765,7 +1768,7 @@
       const displayUser = v.visitorName || 'زائر';
       const prevCount = Array.isArray(v.previousLogs) ? v.previousLogs.length : 0;
       const liveMeta = getVisitorLiveStatusMeta(v);
-      const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : '';
+      const battTag = (typeof v.batteryLevel === 'number' && v.batteryLevel >= 0 && v.batteryLevel <= 100) ? ` • 🔋 ${v.batteryLevel}%` : ' • 🔋 مخفي (iOS)';
       const netTag = v.networkType ? ` • 📶 ${v.networkType}` : '';
       const lastSeenFormatted = v.lastSeen ? new Date(v.lastSeen).toLocaleString('ar-SA', { hour12: true }) : '—';
 

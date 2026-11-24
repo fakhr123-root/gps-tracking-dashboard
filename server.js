@@ -335,8 +335,8 @@ async function fetchWithTimeout(resource, options = {}) {
   }
 }
 
-// Async sleep helper for Relentless Retry & 3000ms Rate-Limit Cooldown
-function sleep(ms = 3000) {
+// Async sleep helper for Rate-Limit Cooldown
+function sleep(ms = 800) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -548,49 +548,119 @@ async function geocodeLocation(locationQuery) {
   };
 }
 
+// Helper: Fetch Google Place Details with explicit phone fields and OVER_QUERY_LIMIT retry/backoff
+async function fetchGooglePlaceDetailsWithRetry(placeId, apiKey, isAborted = () => false, maxRetries = 3) {
+  if (!placeId || !apiKey) return null;
+  const fields = 'name,formatted_phone_number,international_phone_number,website,opening_hours,address_components,rating,user_ratings_total,geometry,formatted_address,url';
+  const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=${fields}&language=ar&key=${encodeURIComponent(apiKey)}`;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (isAborted()) return null;
+    try {
+      const detailRes = await fetchWithTimeout(detailUrl, { timeout: 10000 });
+      if (detailRes.status === 429 || detailRes.status >= 500) {
+        if (attempt < maxRetries) {
+          await sleep(800 * Math.pow(2, attempt));
+          continue;
+        }
+        return null;
+      }
+      const detailData = await detailRes.json();
+      if (detailData.status === 'OK' && detailData.result) {
+        return detailData.result;
+      }
+      if (detailData.status === 'OVER_QUERY_LIMIT' || detailData.status === 'UNKNOWN_ERROR') {
+        if (attempt < maxRetries) {
+          await sleep(1000 * Math.pow(2, attempt));
+          continue;
+        }
+        return null;
+      }
+      // NOT_FOUND, ZERO_RESULTS, INVALID_REQUEST, REQUEST_DENIED -> do not retry
+      return null;
+    } catch (detailErr) {
+      if (attempt < maxRetries && !isAborted()) {
+        await sleep(600 * Math.pow(2, attempt));
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
+}
+
 // Google Official Places API Search (when user supplies API key)
-async function searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent) {
+async function searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent, isAborted = () => false) {
   let fetchedCount = 0;
+  let pageCount = 0;
   let pageToken = '';
 
   sendEvent('status', { message: 'جارٍ الاتصال المباشر بـ Google Places API الرسمي واستخراج كامل المنطقة...' });
 
-  const center = await geocodeLocation(location);
+  try {
+    const center = await geocodeLocation(location);
 
-  const fullQuery = `${query} ${location}`.trim();
-  let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(fullQuery)}&location=${center.lat},${center.lng}&radius=${radiusMeters}&language=ar&key=${apiKey}`;
+    const fullQuery = `${query} ${location}`.trim();
+    let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(fullQuery)}&location=${center.lat},${center.lng}&radius=${radiusMeters}&language=ar&key=${encodeURIComponent(apiKey)}`;
 
-  do {
-    try {
-      const targetUrl = pageToken ? `${url}&pagetoken=${pageToken}` : url;
-      const res = await fetchWithTimeout(targetUrl);
-      const data = await res.json();
+    const DETAIL_DELAY_MS = 350; // 350ms delay between each Place Details call to prevent OVER_QUERY_LIMIT
+    const EMIT_BATCH_SIZE = 5;
 
-      if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-        sendEvent('error', { message: `خطأ من جوجل ماب: ${data.status} - ${data.error_message || ''}` });
-        return;
-      }
+    do {
+      if (isAborted()) break;
+      try {
+        const targetUrl = pageToken ? `${url}&pagetoken=${encodeURIComponent(pageToken)}` : url;
+        let data = null;
 
-      if (!data.results || data.results.length === 0) {
-        break;
-      }
+        for (let pageAttempt = 0; pageAttempt < 3; pageAttempt++) {
+          if (isAborted()) break;
+          const res = await fetchWithTimeout(targetUrl, { timeout: 12000 });
+          data = await res.json();
+          if (data.status === 'OVER_QUERY_LIMIT' || (pageToken && data.status === 'INVALID_REQUEST')) {
+            await sleep(2000 * (pageAttempt + 1));
+            continue;
+          }
+          break;
+        }
 
-      for (const place of data.results) {
-        let phone = '';
-        let phonesList = [];
-        let website = '';
-        let city = center.city;
-        let district = center.district;
-        let isOpenNow = place.opening_hours?.open_now ?? true;
-        let workingHours = '8:00 ص - 11:00 م';
+        if (isAborted() || !data) break;
 
-        try {
-          const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_phone_number,international_phone_number,website,opening_hours,address_components,rating,user_ratings_total,geometry,formatted_address,url&language=ar&key=${apiKey}`;
-          const detailRes = await fetchWithTimeout(detailUrl);
-          const detailData = await detailRes.json();
-          if (detailData.status === 'OK' && detailData.result) {
-            const p = detailData.result;
-            const rawPhones = [p.international_phone_number, p.formatted_phone_number].filter(Boolean);
+        if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+          sendEvent('error', { message: `خطأ من جوجل ماب: ${data.status} - ${data.error_message || ''}` });
+          return;
+        }
+
+        if (!data.results || data.results.length === 0) {
+          break;
+        }
+
+        pageCount++;
+
+        // Enforce Place Details call for EVERY place returned, with 350ms throttling between calls
+        let batchBuffer = [];
+        for (let idx = 0; idx < data.results.length; idx++) {
+          if (isAborted()) break;
+          const place = data.results[idx];
+
+          let phone = '';
+          let formattedPhone = '';
+          let internationalPhone = '';
+          let phonesList = [];
+          let website = '';
+          let city = center.city;
+          let district = center.district;
+          let isOpenNow = place.opening_hours?.open_now ?? true;
+          let workingHours = '8:00 ص - 11:00 م';
+
+          const details = place.place_id
+            ? await fetchGooglePlaceDetailsWithRetry(place.place_id, apiKey, isAborted)
+            : null;
+
+          if (details) {
+            formattedPhone = details.formatted_phone_number ? String(details.formatted_phone_number).trim() : '';
+            internationalPhone = details.international_phone_number ? String(details.international_phone_number).trim() : '';
+
+            const rawPhones = [formattedPhone, internationalPhone].filter(Boolean);
             const seenPh = new Set();
             for (const rp of rawPhones) {
               const parts = String(rp).split(/[;,/|\n]+/).map(s => s.trim()).filter(Boolean);
@@ -603,20 +673,25 @@ async function searchGooglePlacesAPI(apiKey, query, location, radiusMeters, send
                 }
               }
             }
-            phone = phonesList.join(' ، ');
-            website = p.website || '';
-            if (p.opening_hours) {
-              if (typeof p.opening_hours.open_now === 'boolean') {
-                isOpenNow = p.opening_hours.open_now;
+            // Guarantee phone is mapped from formatted_phone_number / international_phone_number before pushing
+            phone = phonesList.length > 0 ? phonesList.join(' ، ') : (formattedPhone || internationalPhone || '');
+            if (phone && phonesList.length === 0) {
+              phonesList.push(phone);
+            }
+
+            website = details.website || '';
+            if (details.opening_hours) {
+              if (typeof details.opening_hours.open_now === 'boolean') {
+                isOpenNow = details.opening_hours.open_now;
               }
-              if (Array.isArray(p.opening_hours.weekday_text) && p.opening_hours.weekday_text.length > 0) {
+              if (Array.isArray(details.opening_hours.weekday_text) && details.opening_hours.weekday_text.length > 0) {
                 const todayIdx = new Date().getDay();
-                workingHours = p.opening_hours.weekday_text[todayIdx] || p.opening_hours.weekday_text[0];
+                workingHours = details.opening_hours.weekday_text[todayIdx] || details.opening_hours.weekday_text[0];
               }
             }
 
-            if (p.address_components) {
-              for (const comp of p.address_components) {
+            if (details.address_components) {
+              for (const comp of details.address_components) {
                 if (comp.types.includes('sublocality') || comp.types.includes('neighborhood') || comp.types.includes('sublocality_level_1')) {
                   district = comp.long_name;
                 }
@@ -626,49 +701,80 @@ async function searchGooglePlacesAPI(apiKey, query, location, radiusMeters, send
               }
             }
           }
-        } catch (detailErr) {
-          // fallback
+
+          const lat = details?.geometry?.location?.lat || place.geometry?.location?.lat || center.lat;
+          const lng = details?.geometry?.location?.lng || place.geometry?.location?.lng || center.lng;
+
+          const mappedPlace = {
+            id: place.place_id || `place_${Date.now()}_${idx}`,
+            place_id: place.place_id || undefined,
+            name: details?.name || place.name,
+            city: city || center.city,
+            district: district || center.district,
+            phone: phone,
+            formatted_phone_number: formattedPhone || undefined,
+            international_phone_number: internationalPhone || undefined,
+            phones: phonesList,
+            rating: (details?.rating || place.rating) ? `${(details?.rating || place.rating).toFixed(1)} ★` : 'لا يوجد تقييم',
+            reviewsCount: details?.user_ratings_total || place.user_ratings_total || 0,
+            isOpenNow: isOpenNow,
+            openStatus: isOpenNow ? 'مفتوح الآن' : 'مغلق الآن',
+            workingHours: workingHours,
+            lat: parseFloat(lat.toFixed(6)),
+            lng: parseFloat(lng.toFixed(6)),
+            locationUrl: details?.url || `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`,
+            website: website,
+            address: details?.formatted_address || place.formatted_address || `${city} - حي ${district}`,
+            source: 'Google Places API الرسمي'
+          };
+
+          batchBuffer.push(mappedPlace);
+
+          if (batchBuffer.length >= EMIT_BATCH_SIZE || idx === data.results.length - 1) {
+            fetchedCount += batchBuffer.length;
+            sendEvent('places_batch', batchBuffer);
+            sendEvent('progress', {
+              type: 'progress',
+              current: fetchedCount,
+              total: 0,
+              page: pageCount,
+              dynamicPagination: true,
+              deduplicatedTotal: fetchedCount
+            });
+            batchBuffer = [];
+          }
+
+          // Small delay between each Place Details call to avoid OVER_QUERY_LIMIT
+          if (idx < data.results.length - 1 && !isAborted()) {
+            await sleep(DETAIL_DELAY_MS);
+          }
         }
 
-        const lat = place.geometry?.location?.lat || center.lat;
-        const lng = place.geometry?.location?.lng || center.lng;
-
-        const item = {
-          id: place.place_id || `place_${Date.now()}_${fetchedCount}`,
-          name: place.name,
-          city: city || center.city,
-          district: district || center.district,
-          phone: phone,
-          rating: place.rating ? `${place.rating.toFixed(1)} ★` : 'لا يوجد تقييم',
-          reviewsCount: place.user_ratings_total || 0,
-          isOpenNow: isOpenNow,
-          openStatus: isOpenNow ? 'مفتوح الآن' : 'مغلق الآن',
-          workingHours: workingHours,
-          lat: parseFloat(lat.toFixed(6)),
-          lng: parseFloat(lng.toFixed(6)),
-          locationUrl: `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lng.toFixed(6)}`,
-          website: website,
-          address: place.formatted_address || `${city} - حي ${district}`,
-          source: 'Google Places API الرسمي'
-        };
-
-        fetchedCount++;
-        sendEvent('place', item);
-        sendEvent('progress', { type: 'progress', current: fetchedCount, total: fetchedCount });
+        pageToken = data.next_page_token;
+        if (pageToken && !isAborted()) {
+          sendEvent('status', { message: `جارٍ جلب الصفحة التالية من جوجل ماب... (تم جلب ${pageCount} صفحة)` });
+          await sleep(2000);
+        } else {
+          pageToken = '';
+        }
+      } catch (err) {
+        sendEvent('error', { message: `حدث خطأ أثناء جلب البيانات: ${err.message}` });
+        break;
       }
-
-      pageToken = data.next_page_token;
-      if (pageToken) {
-        sendEvent('status', { message: 'جارٍ جلب الصفحة التالية من جوجل ماب...' });
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        pageToken = '';
-      }
-    } catch (err) {
-      sendEvent('error', { message: `حدث خطأ أثناء جلب البيانات: ${err.message}` });
-      break;
-    }
-  } while (pageToken);
+    } while (pageToken && !isAborted());
+  } finally {
+    sendEvent('progress', {
+      type: 'progress',
+      current: fetchedCount,
+      total: Math.max(fetchedCount, 1),
+      page: pageCount,
+      percent: 100,
+      pendingCells: 0,
+      activeWorkers: 0,
+      completed: true
+    });
+    sendEvent('status', { message: '✅ تم اكتمال المسح بنجاح', completed: true });
+  }
 }
 
 // Normalize Arabic characters for reliable matching (ه <-> ة, أ/إ/آ <-> ا, ى <-> ي)
@@ -1491,7 +1597,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     googleExtractedCount++;
     sendEvent('place', item);
     if (fetchedCount % 15 === 0 || fetchedCount <= 5) {
+      const dynamicPage = Math.max(1, Math.ceil(fetchedCount / 20));
       sendEvent('progress', {
+        type: 'progress',
+        current: fetchedCount,
+        total: 0,
+        page: dynamicPage,
+        dynamicPagination: true,
         deduplicatedTotal: fetchedCount,
         googleCount: googleExtractedCount,
         osmCount: osmExtractedCount,
@@ -2634,7 +2746,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     osmExtractedCount++;
     sendEvent('place', item);
     if (fetchedCount % 20 === 0) {
+      const dynamicPage = Math.max(1, Math.ceil(fetchedCount / 20));
       sendEvent('progress', {
+        type: 'progress',
+        current: fetchedCount,
+        total: 0,
+        page: dynamicPage,
+        dynamicPagination: true,
         deduplicatedTotal: fetchedCount,
         googleCount: googleExtractedCount,
         osmCount: osmExtractedCount,
@@ -2812,9 +2930,13 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
                 .filter(x => x.name && x.pLat && x.pLng)
                 .sort((a, b) => a.dist - b.dist);
 
-              for (const item of elementsWithDist) {
+              const EMIT_CHUNK_SIZE = 15;
+              for (let i = 0; i < elementsWithDist.length; i += EMIT_CHUNK_SIZE) {
                 if (isAborted()) break;
-                await emitPlace(item.name, item.pLat, item.pLng, item.tags, 'خرائط جوجل / OSM الحية');
+                const chunk = elementsWithDist.slice(i, i + EMIT_CHUNK_SIZE);
+                await Promise.allSettled(chunk.map(item =>
+                  emitPlace(item.name, item.pLat, item.pLng, item.tags, 'خرائط جوجل / OSM الحية')
+                ));
               }
               break;
             }
@@ -3123,10 +3245,11 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           return { count: 0, failed: true };
         };
 
-        const termResults = await Promise.all(cellTerms.map(t => fetchSingleTermForCell(t)));
+        const termSettled = await Promise.allSettled(cellTerms.map(t => fetchSingleTermForCell(t)));
         let maxTermCount = 0;
         let allFailed = true;
-        for (const r of termResults) {
+        for (const s of termSettled) {
+          const r = s.status === 'fulfilled' && s.value ? s.value : { count: 0, failed: true };
           if (r.count > maxTermCount) maxTermCount = r.count;
           if (!r.failed) allFailed = false;
         }
@@ -3186,25 +3309,29 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               // Fast-Fail for Empty Cells: if 0 elements returned, exit immediately without extra work
               if (cellOsmCount === 0) break;
 
-              for (const el of elements) {
+              const OSM_EMIT_CHUNK = 15;
+              for (let i = 0; i < elements.length; i += OSM_EMIT_CHUNK) {
                 if (isAborted()) break;
-                const pLat = el.lat || el.center?.lat;
-                const pLng = el.lon || el.center?.lon;
-                const tags = el.tags || {};
-                const name = (
-                  tags['name:ar'] ||
-                  tags['name'] ||
-                  tags['brand:ar'] ||
-                  tags['brand'] ||
-                  tags['operator'] ||
-                  tags['official_name:ar'] ||
-                  tags['official_name'] ||
-                  tags['name:en'] ||
-                  ''
-                ).trim();
-                if (!name || !pLat || !pLng) continue;
-                const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
-                await emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId, true);
+                const elChunk = elements.slice(i, i + OSM_EMIT_CHUNK);
+                await Promise.allSettled(elChunk.map(el => {
+                  const pLat = el.lat || el.center?.lat;
+                  const pLng = el.lon || el.center?.lon;
+                  const tags = el.tags || {};
+                  const name = (
+                    tags['name:ar'] ||
+                    tags['name'] ||
+                    tags['brand:ar'] ||
+                    tags['brand'] ||
+                    tags['operator'] ||
+                    tags['official_name:ar'] ||
+                    tags['official_name'] ||
+                    tags['name:en'] ||
+                    ''
+                  ).trim();
+                  if (!name || !pLat || !pLng) return Promise.resolve(false);
+                  const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+                  return emitPlace(name, Number(pLat), Number(pLng), tags, 'مسح رباعي شامل (Quadtree OSM)', osmId, true);
+                }));
               }
               break;
             } catch (err) {
@@ -3215,7 +3342,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         })();
 
         const gmapsTask = queryGoogleMapsForQuadtreeCell(cell);
-        const [, gmapsRes] = await Promise.all([osmTask, gmapsTask]);
+        const [, gmapsSettled] = await Promise.allSettled([osmTask, gmapsTask]);
+        const gmapsRes = gmapsSettled && gmapsSettled.status === 'fulfilled' ? gmapsSettled.value : { count: 0, failed: true };
         const cellGoogleCount = gmapsRes?.count || 0;
         const gmapsFailed = Boolean(gmapsRes?.failed);
 
@@ -3243,10 +3371,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             subdivideQuadtreeCell(cell);
           }
 
-          // Stream real QuadTree cell progress (completedCells / totalCells) * 100
+          // Stream real QuadTree cell progress Math.floor((completedCells / totalCells) * 100)
           if (quadtreeScannedCells <= 5 || quadtreeScannedCells % 2 === 0 || quadtreeQueue.length === 0) {
             const qtTotalSafe = Math.max(quadtreeTotalCells, quadtreeScannedCells, 1);
-            const qtPercent = Math.min(99, Math.round((quadtreeScannedCells / qtTotalSafe) * 100));
+            const qtPercent = Math.min(99, Math.floor((quadtreeScannedCells / qtTotalSafe) * 100));
             sendEvent('quadtree_progress', {
               type: 'progress',
               percent: qtPercent,
@@ -3302,21 +3430,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         }
       };
 
-      // High-Concurrency Promise Pool (28 QuadTree cells processed SIMULTANEOUSLY for maximum extraction speed)
-      const QUADTREE_CONCURRENCY = 28;
-      const runQuadtreeWorker = async () => {
-        while (quadtreeQueue.length > 0 && !isAborted()) {
-          const nextCell = quadtreeQueue.shift();
-          if (!nextCell) break;
-          await processSingleQuadtreeCell(nextCell);
+      // Controlled Parallel Chunking: 12 concurrent QuadTree cells per batch with a safe 600ms inter-chunk cooldown
+      const QUADTREE_CHUNK_SIZE = 12;
+      const QUADTREE_CHUNK_DELAY_MS = 600;
+      while (quadtreeQueue.length > 0 && !isAborted()) {
+        const cellChunk = quadtreeQueue.splice(0, QUADTREE_CHUNK_SIZE);
+        if (cellChunk.length === 0) break;
+        await Promise.allSettled(cellChunk.map(cell => processSingleQuadtreeCell(cell)));
+        if (quadtreeQueue.length > 0 && !isAborted()) {
+          await sleep(QUADTREE_CHUNK_DELAY_MS);
         }
-      };
-      const workerCount = Math.min(QUADTREE_CONCURRENCY, Math.max(1, quadtreeQueue.length));
-      const workers = [];
-      for (let w = 0; w < workerCount; w++) {
-        workers.push(runQuadtreeWorker());
       }
-      await Promise.all(workers);
 
       // Save final checkpoint state (paused if client aborted mid-queue, completed if queue finished)
       saveQuadtreeCheckpoint({
@@ -3367,10 +3491,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         [-0.035, -0.035]
       ];
 
-      const tasks = [];
+      const taskFactories = [];
       for (const term of searchTerms) {
         // Photon Komoot Global API
-        tasks.push((async () => {
+        taskFactories.push(async () => {
           if (isAborted()) return;
           try {
             const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(term)}&lat=${center.lat}&lon=${center.lng}&limit=50`;
@@ -3380,29 +3504,32 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
             });
             if (!pRes.ok) return;
             const pData = await pRes.json();
-            for (const f of (pData.features || [])) {
+            const features = pData.features || [];
+            for (let i = 0; i < features.length; i += 15) {
               if (isAborted()) break;
-              const coords = f.geometry?.coordinates;
-              const props = f.properties || {};
-              if (!Array.isArray(coords) || coords.length < 2) continue;
-              const pLng = Number(coords[0]);
-              const pLat = Number(coords[1]);
-              const name = String(props.name || '').trim();
-              if (!name || isNaN(pLat) || isNaN(pLng)) continue;
-              if (normAr(name) === normAr(`${term} ${center.city}`)) continue;
-              if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) continue;
-              await emitPlace(name, pLat, pLng, {
-                shop: props.osm_value,
-                amenity: props.osm_value,
-                'addr:street': props.street || props.district || ''
-              }, 'خرائط جوجل / الرادار العالمي');
+              await Promise.allSettled(features.slice(i, i + 15).map(f => {
+                const coords = f.geometry?.coordinates;
+                const props = f.properties || {};
+                if (!Array.isArray(coords) || coords.length < 2) return Promise.resolve(false);
+                const pLng = Number(coords[0]);
+                const pLat = Number(coords[1]);
+                const name = String(props.name || '').trim();
+                if (!name || isNaN(pLat) || isNaN(pLng)) return Promise.resolve(false);
+                if (normAr(name) === normAr(`${term} ${center.city}`)) return Promise.resolve(false);
+                if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) return Promise.resolve(false);
+                return emitPlace(name, pLat, pLng, {
+                  shop: props.osm_value,
+                  amenity: props.osm_value,
+                  'addr:street': props.street || props.district || ''
+                }, 'خرائط جوجل / الرادار العالمي');
+              }));
             }
           } catch (e) {}
-        })());
+        });
 
         // ArcGIS World Geocoder POI Engine across 5 city sectors
         for (const [dLa, dLn] of gridOffsets.slice(0, isFullAreaScan ? 2 : 5)) {
-          tasks.push((async () => {
+          taskFactories.push(async () => {
             if (isAborted()) return;
             try {
               const sLat = center.lat + dLa;
@@ -3412,25 +3539,36 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
               const aRes = await fetchWithTimeout(aUrl, { timeout: 6000 });
               if (!aRes.ok) return;
               const aData = await aRes.json();
-              for (const c of (aData.candidates || [])) {
+              const candidates = aData.candidates || [];
+              for (let i = 0; i < candidates.length; i += 15) {
                 if (isAborted()) break;
-                const pLat = Number(c.location?.y);
-                const pLng = Number(c.location?.x);
-                const name = String(c.attributes?.PlaceName || c.address || '').split(',')[0].trim();
-                if (!name || isNaN(pLat) || isNaN(pLng)) continue;
-                if (normAr(name) === normAr(`${term} ${center.city}`) || normAr(name) === normAr(center.city)) continue;
-                if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) continue;
-                await emitPlace(name, pLat, pLng, {
-                  phone: c.attributes?.Phone || '',
-                  shop: c.attributes?.Type || term,
-                  'addr:street': c.attributes?.Place_addr || ''
-                }, 'خرائط جوجل / الرادار العالمي');
+                await Promise.allSettled(candidates.slice(i, i + 15).map(c => {
+                  const pLat = Number(c.location?.y);
+                  const pLng = Number(c.location?.x);
+                  const name = String(c.attributes?.PlaceName || c.address || '').split(',')[0].trim();
+                  if (!name || isNaN(pLat) || isNaN(pLng)) return Promise.resolve(false);
+                  if (normAr(name) === normAr(`${term} ${center.city}`) || normAr(name) === normAr(center.city)) return Promise.resolve(false);
+                  if (calcDistanceKm(center.lat, center.lng, pLat, pLng) > maxOriginRadiusKm) return Promise.resolve(false);
+                  return emitPlace(name, pLat, pLng, {
+                    phone: c.attributes?.Phone || '',
+                    shop: c.attributes?.Type || term,
+                    'addr:street': c.attributes?.Place_addr || ''
+                  }, 'خرائط جوجل / الرادار العالمي');
+                }));
               }
             } catch (e) {}
-          })());
+          });
         }
       }
-      await Promise.all(tasks);
+      const GLOBAL_CHUNK_SIZE = 12;
+      for (let i = 0; i < taskFactories.length; i += GLOBAL_CHUNK_SIZE) {
+        if (isAborted()) break;
+        const batch = taskFactories.slice(i, i + GLOBAL_CHUNK_SIZE);
+        await Promise.allSettled(batch.map(fn => fn()));
+        if (i + GLOBAL_CHUNK_SIZE < taskFactories.length && !isAborted()) {
+          await sleep(500);
+        }
+      }
     } catch (e) {}
   };
 
@@ -3452,7 +3590,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
         const PINPOINT_TLDS = ['www.google.com', 'maps.google.com', 'www.google.com.sa', 'www.google.ae', 'www.google.co.uk'];
         const pinpointGlParam = center.countryCode ? `&gl=${encodeURIComponent(center.countryCode.toLowerCase())}` : '';
         const pinpointHl = /[\u0600-\u06FF]/.test(stdQuery || '') ? 'ar' : (uiLang === 'ar' ? 'ar' : 'en');
-        await Promise.all(pinpointQueries.map(async (pq, idx) => {
+        await Promise.allSettled(pinpointQueries.map(async (pq, idx) => {
           if (isAborted()) return;
           try {
             const host = PINPOINT_TLDS[idx % PINPOINT_TLDS.length];
@@ -3735,16 +3873,20 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           if (!res.ok) continue;
           const data = await res.json();
           const elements = Array.isArray(data.elements) ? data.elements : [];
-          for (const el of elements) {
+          const GROCERY_EMIT_CHUNK = 15;
+          for (let i = 0; i < elements.length; i += GROCERY_EMIT_CHUNK) {
             if (isAborted()) break;
-            const pLat = el.lat || el.center?.lat;
-            const pLng = el.lon || el.center?.lon;
-            const tags = el.tags || {};
-            const rawName = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['name:en'] || '').trim();
-            const finalName = rawName || (tags.shop === 'supermarket' ? 'سوبر ماركت' : 'بقالة ومواد غذائية');
-            if (!pLat || !pLng) continue;
-            const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
-            await emitPlace(finalName, Number(pLat), Number(pLng), tags, 'OSM Overpass Boost (بقالات)', osmId);
+            const elChunk = elements.slice(i, i + GROCERY_EMIT_CHUNK);
+            await Promise.allSettled(elChunk.map(el => {
+              const pLat = el.lat || el.center?.lat;
+              const pLng = el.lon || el.center?.lon;
+              const tags = el.tags || {};
+              const rawName = (tags['name:ar'] || tags['name'] || tags['brand:ar'] || tags['brand'] || tags['name:en'] || '').trim();
+              const finalName = rawName || (tags.shop === 'supermarket' ? 'سوبر ماركت' : 'بقالة ومواد غذائية');
+              if (!pLat || !pLng) return Promise.resolve(false);
+              const osmId = (el.type && el.id) ? `${el.type}/${el.id}` : '';
+              return emitPlace(finalName, Number(pLat), Number(pLng), tags, 'OSM Overpass Boost (بقالات)', osmId);
+            }));
           }
           return;
         } catch (e) {
@@ -3761,8 +3903,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const countryGlParam = center.countryCode ? `&gl=${encodeURIComponent(center.countryCode.toLowerCase())}` : '';
     const mapHl = /[\u0600-\u06FF]/.test(stdQuery || '') ? 'ar' : (uiLang === 'ar' ? 'ar' : 'en');
     const overpassPromise = (isFullAreaScan || isCountrySearch)
-      ? Promise.all([runYemenAdaptiveQuadtreeScan(), runGlobalPhotonAndArcgisScan()])
-      : Promise.all([runOverpassGroceryCityBoost(), runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
+      ? Promise.allSettled([runYemenAdaptiveQuadtreeScan(), runGlobalPhotonAndArcgisScan()])
+      : Promise.allSettled([runOverpassGroceryCityBoost(), runOverpassCityWideScan(), runGlobalPhotonAndArcgisScan()]);
     const { namedSectors, microGridSectors } = await buildCitySectors();
     const queryTasks = [];
 
@@ -4020,7 +4162,8 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     // Sort all queryTasks by proximity to user's location (refLat, refLng) so live results stream closest-first
     queryTasks.sort((a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng));
 
-    const BATCH_CONCURRENCY = 28;
+    const BATCH_CONCURRENCY = 12;
+    const CHUNK_COOLDOWN_MS = 600;
     let activeWorkers = 0;
     let completedMapTasks = 0;
     let nextTaskIndex = 0;
@@ -4064,7 +4207,7 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       const completedCells = Math.max(quadtreeScannedCells, completedMapTasks);
       const totalCells = Math.max(quadtreeTotalCells, queryTasks.length, completedCells, 1);
       const pendingCells = Math.max(0, totalCells - completedCells);
-      const rawPct = Math.min(99, Math.round((completedCells / totalCells) * 100));
+      const rawPct = totalCells > 0 ? Math.min(99, Math.floor((completedCells / totalCells) * 100)) : 0;
       maxServerProgressPercent = Math.max(maxServerProgressPercent, rawPct);
       const payload = {
         type: 'progress',
@@ -4084,38 +4227,37 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       sendEvent('progress', payload);
     };
 
-    // High-Speed Parallel Worker Pool (28 concurrent workers with zero artificial per-task delay):
-    // Streams results & progress immediately as each worker finishes without waiting for slower peers!
-    const runWorker = async () => {
-      while (!isAborted()) {
-        if (nextTaskIndex >= queryTasks.length) {
-          // Wait briefly if sibling workers are still subdividing dense cells into queryTasks
-          if (activeWorkers > 0) {
-            await sleep(10);
-            continue;
-          }
-          break;
-        }
-        const task = queryTasks[nextTaskIndex++];
-        if (!task) continue;
-        activeWorkers++;
+    // Controlled Parallel Chunking (12 concurrent requests per batch via Promise.all, 600ms cooldown between chunks):
+    // Prevents 429 rate limits while maximizing throughput without delaying individual requests!
+    while (nextTaskIndex < queryTasks.length && !isAborted()) {
+      const chunkEnd = Math.min(nextTaskIndex + BATCH_CONCURRENCY, queryTasks.length);
+      const taskChunk = queryTasks.slice(nextTaskIndex, chunkEnd);
+      nextTaskIndex = chunkEnd;
+      activeWorkers = taskChunk.length;
+
+      await Promise.allSettled(taskChunk.map(async (task) => {
+        if (!task || isAborted()) return;
         try {
           await executeSingleMapTask(task);
         } finally {
           activeWorkers = Math.max(0, activeWorkers - 1);
           completedMapTasks++;
-          // Force immediate progress emit on the first 5 completed cells so UI jumps off 0% immediately
           emitStreamingProgress(completedMapTasks <= 5);
         }
-      }
-    };
+      }));
 
-    const workerCount = Math.min(BATCH_CONCURRENCY, Math.max(queryTasks.length, 1));
-    await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+      emitStreamingProgress(true);
+      if (nextTaskIndex < queryTasks.length && !isAborted()) {
+        await sleep(CHUNK_COOLDOWN_MS);
+      }
+    }
 
     // Non-blocking background Overpass & Pinpoint settle with strict 1500ms cap so completion is instant
-    await Promise.race([Promise.all([overpassPromise, pinpointBackgroundPromise]).catch(() => {}), sleep(1500)]);
-    const finalTotalCells = Math.max(quadtreeTotalCells, queryTasks.length, completedMapTasks, 1);
+    await Promise.race([Promise.allSettled([overpassPromise, pinpointBackgroundPromise]), sleep(1500)]);
+  } catch (gErr) {
+    console.log('Google Maps direct search notice:', gErr.message);
+  } finally {
+    const finalTotalCells = Math.max(quadtreeTotalCells, quadtreeScannedCells, 1);
     sendEvent('quadtree_progress', {
       type: 'progress',
       percent: 100,
@@ -4129,12 +4271,17 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       deduplicatedTotal: fetchedCount,
       completed: true
     });
-  } catch (gErr) {
-    console.log('Google Maps direct search notice:', gErr.message);
+    sendEvent('progress', {
+      type: 'progress',
+      current: fetchedCount,
+      total: Math.max(fetchedCount, 1),
+      percent: 100,
+      pendingCells: 0,
+      activeWorkers: 0,
+      completed: true
+    });
+    sendEvent('status', { message: '✅ تم اكتمال المسح بنجاح', completed: true });
   }
-
-  sendEvent('progress', { type: 'progress', current: fetchedCount, total: Math.max(fetchedCount, 1), percent: 100, pendingCells: 0, activeWorkers: 0, completed: true });
-  sendEvent('status', { message: `✅ اكتمل الجلب بنجاح`, completed: true });
 }
 
 // Generate authentic, strictly country-specific telephone numbers
@@ -8239,6 +8386,7 @@ const server = http.createServer(async (req, res) => {
       useOfficialApi: Boolean(apiKey)
     });
 
+    let doneEventDispatched = false;
     try {
       let customBbox = null;
       if (parsedUrl.query.bbox) {
@@ -8254,21 +8402,24 @@ const server = http.createServer(async (req, res) => {
         explicitLng: (reqLng !== null && !isNaN(reqLng)) ? reqLng : null
       };
       if (apiKey) {
-        await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent);
+        await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent, () => isClientAborted);
       } else {
         await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted, polygonFilter, uiLang, scanOptions);
       }
-      if (!isClientAborted) {
-        try {
-          res.write(`data: {"type": "done"}\n\n`);
-        } catch (e) {}
-      }
-      sendEvent('done', { type: 'done', percent: 100, message: 'اكتمل الجلب بنجاح' });
-      sendEvent('complete', { message: 'اكتمل الجلب بنجاح' });
     } catch (e) {
       sendEvent('error', { message: e.message || 'حدث خطأ غير متوقع' });
     } finally {
       clearInterval(keepAliveTimer);
+      if (!isClientAborted && !doneEventDispatched) {
+        doneEventDispatched = true;
+        sendEvent('progress', { type: 'progress', percent: 100, current: resultCount, total: Math.max(resultCount, 1), pendingCells: 0, activeWorkers: 0, completed: true });
+        sendEvent('status', { message: '✅ تم اكتمال المسح بنجاح', completed: true });
+        try {
+          res.write(`data: {"type": "done"}\n\n`);
+        } catch (e) {}
+        sendEvent('done', { type: 'done', percent: 100, message: 'تم اكتمال المسح بنجاح' });
+        sendEvent('complete', { message: 'تم اكتمال المسح بنجاح' });
+      }
       // Record search in Admin Logs for every user or visitor
       recordSearch({
         searchId: searchIdParam,
@@ -8768,16 +8919,14 @@ const server = http.createServer(async (req, res) => {
     };
 
     const enriched = [];
-    let idxCursor = 0;
-    const ENRICH_CONCURRENCY = 6;
-    const worker = async () => {
-      while (idxCursor < inputPlaces.length) {
-        const target = inputPlaces[idxCursor++];
-        if (!target) continue;
+    const ENRICH_CHUNK_SIZE = 12;
+    for (let i = 0; i < inputPlaces.length; i += ENRICH_CHUNK_SIZE) {
+      const chunk = inputPlaces.slice(i, i + ENRICH_CHUNK_SIZE);
+      const chunkSettled = await Promise.allSettled(chunk.map(async (target) => {
+        if (!target) return null;
         try {
           const result = await enrichSinglePlace(target);
           if (result && result.phone) {
-            enriched.push(result);
             // Persist real discovered phone into local index so future searches get it instantaneously
             if (isValidNonZeroCoord(target.lat, target.lng)) {
               upsertPlaceIntoPersistentDb({
@@ -8790,11 +8939,18 @@ const server = http.createServer(async (req, res) => {
                 phones: result.phones
               });
             }
+            return result;
           }
         } catch (e) {}
+        return null;
+      }));
+      for (const s of chunkSettled) {
+        if (s.status === 'fulfilled' && s.value) enriched.push(s.value);
       }
-    };
-    await Promise.all(Array.from({ length: Math.min(ENRICH_CONCURRENCY, Math.max(inputPlaces.length, 1)) }, () => worker()));
+      if (i + ENRICH_CHUNK_SIZE < inputPlaces.length) {
+        await sleep(500);
+      }
+    }
 
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({

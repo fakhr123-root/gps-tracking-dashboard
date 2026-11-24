@@ -5,16 +5,31 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <script>
     (function() {
-      // Only auto-translate if the user hasn't manually overridden it yet
-      if (document.cookie.indexOf('googtrans=') === -1) {
-        let userLang = navigator.language || navigator.userLanguage;
-        let shortLang = userLang.split('-')[0]; // Extract 'en' from 'en-US'
-        
-        // If the device language is not Arabic (the default), set the translation cookie
-        if (shortLang !== 'ar') {
-          document.cookie = "googtrans=/ar/" + shortLang + "; path=/; domain=" + window.location.hostname;
-          document.cookie = "googtrans=/ar/" + shortLang + "; path=/;"; // standard fallback
+      // Smart browser/device language detection (runs once on initial load, never loops, respects manual override)
+      function detectBrowserGoogleLangCode() {
+        var raw = (Array.isArray(navigator.languages) && navigator.languages[0]) || navigator.language || navigator.userLanguage || 'ar';
+        var lower = String(raw || 'ar').trim().toLowerCase();
+        if (lower === 'zh-tw' || lower === 'zh-hk' || lower.indexOf('zh-hant') === 0) return 'zh-TW';
+        if (lower === 'zh' || lower.indexOf('zh-') === 0) return 'zh-CN';
+        if (lower === 'he' || lower.indexOf('he-') === 0) return 'iw';
+        return lower.split('-')[0] || 'ar';
+      }
+
+      var detectedLang = detectBrowserGoogleLangCode();
+      window.__detectedBrowserLang = detectedLang;
+
+      var manualOverride = null;
+      try { manualOverride = sessionStorage.getItem('georadar_manual_lang_override'); } catch (e) {}
+
+      // Apply automatically via googtrans cookie ONLY if user has not manually overridden language
+      if (!manualOverride && document.cookie.indexOf('googtrans=') === -1 && detectedLang && detectedLang !== 'ar') {
+        var cookieVal = 'googtrans=/ar/' + detectedLang + '; path=/;';
+        document.cookie = cookieVal;
+        var host = window.location.hostname || '';
+        if (host && host !== 'localhost' && !/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+          document.cookie = cookieVal + ' domain=' + host + ';';
         }
+        try { sessionStorage.setItem('georadar_auto_lang_applied', detectedLang); } catch (e) {}
       }
     })();
   </script>
@@ -8842,6 +8857,19 @@
         combos.forEach((combo) => {
           combo.setAttribute('translate', 'no');
           combo.classList.add('notranslate');
+
+          // Track manual user selection in current session so auto-detect never overrides it
+          if (!combo.dataset.manualLangBound) {
+            combo.dataset.manualLangBound = '1';
+            combo.addEventListener('change', (ev) => {
+              if (ev && ev.isTrusted) {
+                try {
+                  sessionStorage.setItem('georadar_manual_lang_override', combo.value || 'ar');
+                } catch (e) {}
+              }
+            });
+          }
+
           Array.from(combo.options || []).forEach((opt) => {
             opt.setAttribute('translate', 'no');
             opt.classList.add('notranslate');
@@ -8850,6 +8878,25 @@
               opt.textContent = nativeLabel;
             }
           });
+
+          // Sync detected browser language ONCE when combo options are ready (no reload loop)
+          if (!window.__autoLangComboSynced && combo.options && combo.options.length > 1) {
+            let manualOverride = null;
+            try { manualOverride = sessionStorage.getItem('georadar_manual_lang_override'); } catch (e) {}
+            const targetLang = window.__detectedBrowserLang || 'ar';
+            if (!manualOverride && targetLang && targetLang !== 'ar') {
+              const matchingOpt = Array.from(combo.options).find((o) => o.value === targetLang);
+              if (matchingOpt) {
+                window.__autoLangComboSynced = true;
+                if (combo.value !== targetLang) {
+                  combo.value = targetLang;
+                  combo.dispatchEvent(new Event('change'));
+                }
+              }
+            } else {
+              window.__autoLangComboSynced = true;
+            }
+          }
         });
       }
 

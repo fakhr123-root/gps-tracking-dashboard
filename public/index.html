@@ -87,8 +87,8 @@
       }
     })();
   </script>
-  <!-- Tailwind CSS (Deferred to Unblock Render Tree) -->
-  <script src="https://cdn.tailwindcss.com" defer></script>
+  <!-- Tailwind CSS (Loaded immediately & cached by SW for instant styled paint) -->
+  <script src="https://cdn.tailwindcss.com"></script>
   <!-- Google Fonts: Cairo & Orbitron (Non-Blocking Async Load) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -8925,25 +8925,50 @@
       }
     }
 
+    function isTailwindStylesReady() {
+      try {
+        const probe = document.createElement('div');
+        probe.className = 'fixed flex rounded-2xl';
+        probe.style.visibility = 'hidden';
+        probe.style.pointerEvents = 'none';
+        document.body.appendChild(probe);
+        const cs = window.getComputedStyle(probe);
+        const ok = cs.position === 'fixed' && cs.display === 'flex';
+        probe.remove();
+        return ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
     function revealAppUiWhenStyled() {
+      let revealed = false;
       const markReady = () => {
+        if (revealed) return;
+        revealed = true;
         if (!document.documentElement.classList.contains('app-ready')) {
           document.documentElement.classList.add('app-ready');
         }
         const splash = document.getElementById('bootSplash');
         if (splash) {
-          setTimeout(() => { splash.style.display = 'none'; }, 200);
+          setTimeout(() => { splash.style.display = 'none'; }, 180);
         }
       };
-      // Wait for stylesheets / Tailwind CDN compile frame, with a strict 400ms max safety timeout
-      if (document.readyState === 'complete') {
-        requestAnimationFrame(() => requestAnimationFrame(markReady));
-      } else {
-        window.addEventListener('load', () => {
+
+      // Keep #bootSplash ("جاري التحميل...") visible until Tailwind CSS is 100% compiled & active
+      // so raw unstyled HTML or oversized icons NEVER flash on screen!
+      const checkLoop = () => {
+        if (revealed) return;
+        if (isTailwindStylesReady()) {
           requestAnimationFrame(() => requestAnimationFrame(markReady));
-        }, { once: true });
-        setTimeout(markReady, 400);
-      }
+        } else {
+          setTimeout(checkLoop, 40);
+        }
+      };
+      checkLoop();
+
+      // Generous fail-safe only if offline/CDN completely blocked
+      setTimeout(markReady, 7000);
     }
 
     window.addEventListener('DOMContentLoaded', () => {

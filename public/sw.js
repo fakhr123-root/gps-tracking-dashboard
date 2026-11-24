@@ -1,7 +1,7 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v27';
-const NAV_NETWORK_TIMEOUT_MS = 8000;
-const ASSET_NETWORK_TIMEOUT_MS = 6000;
+const CACHE_NAME = 'georadar-hybrid-shell-v28';
+const CDN_CACHE_NAME = 'georadar-cdn-static-v1';
+const NAV_NETWORK_TIMEOUT_MS = 3000;
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -33,7 +33,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys.map((k) => {
-          if (k !== CACHE_NAME) return caches.delete(k);
+          // Keep current shell cache + persistent CDN cache; purge all old shell versions
+          if (k !== CACHE_NAME && k !== CDN_CACHE_NAME) return caches.delete(k);
         })
       )
     ).then(() => self.clients.claim())
@@ -63,7 +64,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Helper: fetch with AbortController timeout so slow/waking servers never hang offline
+// Helper: fetch with AbortController timeout so slow/waking servers never hang reloads
 function fetchWithRaceTimeout(request, timeoutMs) {
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
@@ -71,7 +72,10 @@ function fetchWithRaceTimeout(request, timeoutMs) {
     .finally(() => clearTimeout(timerId));
 }
 
-// Non-blocking Network-First for HTML & assets; NEVER intercept Cloudflare /cdn-cgi/ or challenge flows
+// Fast Hybrid Strategy:
+// 1) NEVER intercept API, health, or Cloudflare /cdn-cgi/ verification flows.
+// 2) INSTANT Cache-First (Stale-While-Revalidate) for external CDN CSS/JS/Fonts (Tailwind, Lucide, Leaflet, SheetJS, Google Fonts) -> reloads in milliseconds!
+// 3) Fast Network-First (3000ms race timeout) with instant cached shell fallback + silent background update for HTML navigations.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -92,16 +96,41 @@ self.addEventListener('fetch', (event) => {
   }
 
   const isNavHtml = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/admin.html';
-  const isShellCode = /\.(css|js|mjs|html)$/i.test(url.pathname);
-  const isStyleOrScriptCdn = /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
+  const isStyleOrScriptCdn = /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|cdn\.jsdelivr\.net|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
 
+  // 1. INSTANT CACHE-FIRST for external CDN CSS/JS/Fonts (prevents 3-6s reload stall & prevents FOUC!)
+  if (isStyleOrScriptCdn) {
+    event.respondWith(
+      caches.open(CDN_CACHE_NAME).then(async (cdnCache) => {
+        const cached = await cdnCache.match(req);
+        const bgFetch = fetch(req)
+          .then((netRes) => {
+            if (netRes && (netRes.ok || netRes.type === 'opaque')) {
+              cdnCache.put(req, netRes.clone()).catch(() => {});
+            }
+            return netRes;
+          })
+          .catch(() => null);
+
+        if (cached) {
+          event.waitUntil(bgFetch);
+          return cached;
+        }
+        const netRes = await bgFetch;
+        return netRes || new Response('', { status: 503, statusText: 'Offline' });
+      })
+    );
+    return;
+  }
+
+  // 2. HTML Navigation: Fast 3s Network-First with instant cached fallback + silent background refresh
   if (isNavHtml) {
     const navReq = new Request(req, { cache: 'no-store' });
 
     event.respondWith(
       fetchWithRaceTimeout(navReq, NAV_NETWORK_TIMEOUT_MS)
         .then(async (networkRes) => {
-          // If Cloudflare returns a security challenge (403/503 or cf-mitigated header), pass it through untouched!
+          // Pass Cloudflare security challenges (403/503/cf-mitigated) straight through untouched!
           const isCfChallenge =
             networkRes.status === 403 ||
             networkRes.status === 503 ||
@@ -122,7 +151,7 @@ self.addEventListener('fetch', (event) => {
           return networkRes;
         })
         .catch(async () => {
-          // Server slow/waking or offline -> serve cached shell immediately & refresh silently in background
+          // Slow/waking server -> serve cached shell immediately & refresh silently in background
           if (url.origin === self.location.origin) {
             event.waitUntil(
               fetch(new Request(url.pathname, { cache: 'no-store' }))
@@ -145,32 +174,30 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Only intercept same-origin assets and known UI CDNs; let all other third-party scripts pass through untouched
-  if (url.origin !== self.location.origin && !isStyleOrScriptCdn) {
-    return;
-  }
+  // 3. Same-origin static assets (icons, local JS, manifest): Cache-First with background refresh
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(req, { ignoreSearch: true });
+        const bgFetch = fetch(req)
+          .then((netRes) => {
+            if (netRes && netRes.ok) {
+              const ct = String(netRes.headers.get('content-type') || '').toLowerCase();
+              if (!ct.includes('text/html')) {
+                cache.put(req, netRes.clone()).catch(() => {});
+              }
+            }
+            return netRes;
+          })
+          .catch(() => null);
 
-  const fetchReq = (isShellCode && url.origin === self.location.origin) ? new Request(req, { cache: 'no-store' }) : req;
-  const assetPromise = (isShellCode || isStyleOrScriptCdn)
-    ? fetchWithRaceTimeout(fetchReq, ASSET_NETWORK_TIMEOUT_MS)
-    : fetch(fetchReq);
-
-  event.respondWith(
-    assetPromise
-      .then((networkRes) => {
-        if (networkRes && networkRes.ok) {
-          const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
-          if (!contentType.includes('text/html')) {
-            const resClone = networkRes.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone)).catch(() => {});
-          }
+        if (cached) {
+          event.waitUntil(bgFetch);
+          return cached;
         }
-        return networkRes;
+        const netRes = await bgFetch;
+        return netRes || new Response('', { status: 503, statusText: 'Offline' });
       })
-      .catch(() => {
-        return caches.match(req, { ignoreSearch: true }).then((cachedRes) => {
-          return cachedRes || new Response('', { status: 503, statusText: 'Offline' });
-        });
-      })
-  );
+    );
+  }
 });

@@ -717,12 +717,12 @@
     </div>
   </div>
 
-  <!-- Single-Card Login / Create Account Portal (Strict Un-bypassable Full-Screen Gatekeeper; solid background, visible by default until authenticated) -->
-  <div id="visitorGateModal" class="fixed inset-0 z-[9000] flex items-center justify-center bg-[#0b111a] p-4 overflow-y-auto" onclick="event.stopPropagation()">
-    <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-2xl text-center relative my-auto space-y-5">
-      <!-- Global Google Translate Bar (Top of Login Screen) -->
-      <div id="loginTranslateSlot" class="translate-widget-box relative z-10 min-h-[42px] flex items-center justify-center">
-        <div id="google_translate_element" class="translate-widget"></div>
+  <!-- Single-Card Login / Create Account Portal (Minimal 3-Color Official 3D Mobile-First Gatekeeper) -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[9000] flex items-center justify-center bg-[#0b1320] p-4 overflow-y-auto" onclick="event.stopPropagation()">
+    <div class="portal-modal-card max-w-[440px] w-full p-5 sm:p-7 rounded-2xl text-center relative my-auto space-y-5">
+      <!-- Global Google Translate Bar (Top of Login Screen — Native Language Names Only) -->
+      <div id="loginTranslateSlot" translate="no" class="translate-widget-box notranslate relative z-10 min-h-[42px] flex items-center justify-center">
+        <div id="google_translate_element" translate="no" class="translate-widget notranslate"></div>
       </div>
 
       <!-- Hidden stub so legacy references never throw -->
@@ -730,40 +730,19 @@
 
       <!-- ==================== COMPACT FORMAL LOGIN / CREATE ACCOUNT WITH TOP TAB SWITCHER ==================== -->
       <div id="gateStep2Login" class="space-y-4 pt-1 text-right">
-        <!-- Clear Welcome & Account Guidance Banner for New Users -->
-        <div id="gateNewUserGuideBox" class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 text-right space-y-2">
-          <div id="gateGuideLoginHint" class="space-y-2">
-            <div class="text-xs font-bold text-slate-200">
-              مستخدم جديد وليس لديك حساب بعد؟
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              إذا كانت هذه أول مرة تدخل فيها إلى التطبيق، يجب عليك <strong class="text-slate-200">إنشاء حساب جديد أولاً</strong> قبل تسجيل الدخول.
-            </p>
-            <button
-              type="button"
-              onclick="setGateAuthMode('register')"
-              class="w-full py-2 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
-            >
-              إنشاء حساب جديد أولاً
-            </button>
-          </div>
-          <div id="gateGuideRegisterHint" class="hidden space-y-1.5">
-            <div class="text-xs font-bold text-emerald-400">
-              خطوات إنشاء حسابك الجديد:
-            </div>
-            <p class="text-[11px] text-slate-400 leading-relaxed">
-              اختر <strong class="text-slate-200">اسم مستخدم</strong> خاص بك (أحرف إنجليزية أو أرقام بدون مسافات) ثم اختر <strong class="text-slate-200">كلمة مرور</strong> واضغط «إنشاء الحساب والدخول».
-            </p>
-          </div>
+        <!-- Kept hidden by default for an uncluttered, calm mobile auth screen -->
+        <div id="gateNewUserGuideBox" class="hidden">
+          <div id="gateGuideLoginHint"></div>
+          <div id="gateGuideRegisterHint"></div>
         </div>
 
         <!-- Clean Top Tab Switcher Inside Card -->
-        <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-slate-900 border border-slate-800">
+        <div class="grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-[#0b1320] border border-slate-400/20">
           <button
             type="button"
             id="tabBtnLoginMode"
             onclick="setGateAuthMode('login')"
-            class="py-2 rounded-lg text-xs font-bold transition cursor-pointer bg-emerald-600 text-white"
+            class="py-2.5 rounded-lg text-xs font-bold transition cursor-pointer bg-emerald-600 text-white"
           >
             تسجيل الدخول
           </button>
@@ -771,7 +750,7 @@
             type="button"
             id="tabBtnRegisterMode"
             onclick="setGateAuthMode('register')"
-            class="py-2 rounded-lg text-xs font-semibold transition cursor-pointer text-slate-400 hover:text-white"
+            class="py-2.5 rounded-lg text-xs font-semibold transition cursor-pointer text-slate-400 hover:text-slate-100"
           >
             إنشاء حساب جديد
           </button>
@@ -779,7 +758,7 @@
 
         <h2 id="gateAuthHeaderTitle" class="sr-only">تسجيل الدخول</h2>
 
-        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-3.5" autocomplete="off">
+        <form onsubmit="handleVisitorGateEntry(event)" class="space-y-4" autocomplete="off">
           <!-- Username Input Box ("اسم المستخدم") -->
           <div class="relative">
             <input 
@@ -792,7 +771,7 @@
               data-lpignore="true"
               data-form-type="other"
               placeholder="اسم المستخدم (a-z, 0-9)"
-              class="w-full bg-slate-900 text-sm rounded-xl px-4 py-3 border border-slate-800 focus:border-emerald-500 text-white placeholder-slate-500 focus:outline-none transition font-medium text-right"
+              class="w-full bg-[#0b1320] text-sm rounded-xl px-4 py-3 border border-slate-400/20 focus:border-[#10b981] text-[#f1f5f9] placeholder-[#94a3b8] focus:outline-none transition font-medium text-right"
             />
           </div>
 
@@ -807,12 +786,12 @@
               data-lpignore="true"
               data-form-type="other"
               placeholder="كلمة المرور"
-              class="w-full bg-slate-900 text-sm rounded-xl pr-4 pl-11 py-3 border border-slate-800 focus:border-emerald-500 text-white placeholder-slate-500 focus:outline-none transition font-medium text-right"
+              class="w-full bg-[#0b1320] text-sm rounded-xl pr-4 pl-11 py-3 border border-slate-400/20 focus:border-[#10b981] text-[#f1f5f9] placeholder-[#94a3b8] focus:outline-none transition font-medium text-right"
             />
             <button
               type="button"
               onclick="toggleVisitorPasswordVisibility()"
-              class="absolute left-3.5 top-3.5 text-slate-400 hover:text-slate-200 transition cursor-pointer"
+              class="absolute left-3.5 top-3.5 text-slate-400 hover:text-slate-100 transition cursor-pointer"
               title="إظهار / إخفاء كلمة المرور"
             >
               <i id="visitorPassEyeIcon" data-lucide="eye" class="w-4 h-4"></i>
@@ -828,10 +807,10 @@
             <span id="gateApprovedCityBadge" class="text-[11px] text-emerald-400 font-medium"></span>
           </div>
 
-          <p id="usernameFormatHint" class="hidden text-[11px] text-slate-300 font-medium px-1"></p>
+          <p id="usernameFormatHint" class="hidden text-[11px] text-slate-400 font-medium px-1"></p>
 
           <!-- Error / Validation Box -->
-          <div id="loginNameError" class="hidden p-3 rounded-xl bg-red-950/60 border border-red-800/60 text-xs text-red-300 font-medium leading-relaxed text-center">
+          <div id="loginNameError" class="hidden p-3 rounded-xl bg-[#0b1320] border border-slate-400/25 text-xs text-slate-100 font-medium leading-relaxed text-center">
             يرجى إدخال اسم المستخدم وكلمة المرور
           </div>
 
@@ -840,11 +819,10 @@
             <button 
               type="submit" 
               id="gateSubmitBtn"
-              class="w-full py-3 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center justify-center gap-2 cursor-pointer"
+              class="w-full py-3.5 rounded-xl font-bold text-sm text-white bg-emerald-600 hover:bg-emerald-500 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <span id="gateSubmitBtnText">تسجيل الدخول</span>
             </button>
-            <button id="biometricBtn" type="button" style="width: 100%; margin-top: 10px; padding: 10px; background: #1f2937; border: 1px dashed #4ade80; color: #4ade80; border-radius: 5px; cursor: pointer; font-weight: bold;">☝️ الدخول السريع بالبصمة أو الوجه</button>
           </div>
         </form>
       </div>
@@ -1112,9 +1090,9 @@
             <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
             <span>إعدادات الحساب واللغة</span>
           </button>
-          <div class="pt-3">
-            <div class="text-[11px] font-medium text-slate-500 px-1 pb-1.5">لغة الواجهة</div>
-            <div id="sidebarTranslateSlot" class="translate-widget translate-widget-box"></div>
+          <div class="pt-3 notranslate" translate="no">
+            <div class="text-[11px] font-medium text-slate-400 px-1 pb-1.5">Language / اللغة</div>
+            <div id="sidebarTranslateSlot" class="translate-widget translate-widget-box notranslate" translate="no"></div>
           </div>
         </div>
       </div>
@@ -6722,6 +6700,9 @@
       if (widget && slot && widget.parentElement !== slot) {
         slot.appendChild(widget);
       }
+      if (typeof window.enforceNativeTranslateSelector === 'function') {
+        window.enforceNativeTranslateSelector();
+      }
     }
 
     function hideMainAppShellForAuth() {
@@ -7418,7 +7399,6 @@
         modal.style.display = '';
         modal.classList.remove('hidden', 'opacity-0');
       }
-      if (typeof initBiometricAuthUI === 'function') initBiometricAuthUI();
       document.getElementById('gateStep2Login')?.classList.add('hidden');
       document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
       document.getElementById('gateStep1Location')?.classList.remove('hidden');
@@ -7488,7 +7468,6 @@
         modal.style.display = '';
         modal.classList.remove('hidden', 'opacity-0');
       }
-      if (typeof initBiometricAuthUI === 'function') initBiometricAuthUI();
       document.getElementById('gateStep1Location')?.classList.add('hidden');
       document.getElementById('returningUserLocationBlockedCard')?.classList.add('hidden');
       step2El?.classList.remove('hidden');
@@ -7928,15 +7907,6 @@
         });
         updateAccountButtonsUI();
 
-        // Prompt user to register Biometric / Passkey device on first successful password login
-        if (window.PublicKeyCredential && typeof registerBiometricDevice === 'function' && !hasRegisteredBiometricForUser(visitorName)) {
-          try {
-            await registerBiometricDevice(visitorName, resolvedVisitorId, rawPassword);
-          } catch (bioErr) {
-            console.warn('Biometric device registration skipped:', bioErr);
-          }
-        }
-
         // Hide Login modal, keep main app strictly blocked behind the GPS Shield until getCurrentPosition successCallback fires
         const loginModalEl = document.getElementById('visitorGateModal');
         if (loginModalEl) {
@@ -8252,14 +8222,6 @@
         }
       } catch (e) {}
 
-      try {
-        const savedBio = typeof getSavedBiometricCredential === 'function' ? getSavedBiometricCredential() : null;
-        if (savedBio && (!session.visitorName || savedBio.username === session.visitorName)) {
-          localStorage.removeItem('georadar_biometric_cred');
-          localStorage.removeItem('biometric_credential_id');
-        }
-      } catch (e) {}
-
       closeUserSettingsModal();
       switchToAnotherAccount();
     }
@@ -8562,76 +8524,8 @@
     });
 
     // =========================================================================
-    // Persistent Auto-Login & WebAuthn Biometric Authentication (Passkeys)
+    // Persistent Auto-Login (Seamless Entry via localStorage Session)
     // =========================================================================
-    const BIOMETRIC_CRED_STORAGE_KEY = 'georadar_biometric_cred';
-    let biometricBtnListenerBound = false;
-
-    function bufferToBase64Url(buffer) {
-      const bytes = new Uint8Array(buffer);
-      let binary = '';
-      for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    }
-
-    function base64UrlToBuffer(base64url) {
-      const padLen = (4 - (base64url.length % 4)) % 4;
-      const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(padLen);
-      const binary = atob(base64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return bytes.buffer;
-    }
-
-    function getWebAuthnRpId() {
-      const host = String(window.location.hostname || '').trim();
-      if (!host) return '';
-      // Omit rpId on raw IPv4/IPv6 addresses so browsers don't reject with SecurityError
-      if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes(':')) return '';
-      return host;
-    }
-
-    function getSavedBiometricCredential() {
-      try {
-        const raw = localStorage.getItem(BIOMETRIC_CRED_STORAGE_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.credentialId && parsed.username) {
-          return parsed;
-        }
-      } catch (e) {}
-      return null;
-    }
-
-    function hasRegisteredBiometricForUser(username) {
-      const cleanUser = String(username || '').trim().replace(/^@+/, '').toLowerCase();
-      const saved = getSavedBiometricCredential();
-      return Boolean(saved && saved.credentialId && saved.username && (!cleanUser || saved.username === cleanUser));
-    }
-
-    function initBiometricAuthUI() {
-      const bioBtn = document.getElementById('biometricBtn');
-      if (!bioBtn) return;
-
-      // Proper fallback: hide biometric button if the device/browser does not support WebAuthn
-      if (!window.PublicKeyCredential || !navigator.credentials) {
-        bioBtn.style.display = 'none';
-        return;
-      }
-
-      bioBtn.style.display = 'block';
-      if (!biometricBtnListenerBound) {
-        biometricBtnListenerBound = true;
-        bioBtn.addEventListener('click', () => {
-          handleBiometricLogin();
-        });
-      }
-    }
-
     function enterMainDashboardSeamlessly() {
       window.__autoLoginSeamlessEntry = true;
 
@@ -8670,160 +8564,8 @@
       }
     }
 
-    async function registerBiometricDevice(usernameOverride = '', visitorIdOverride = '', passwordOverride = '') {
-      if (!window.PublicKeyCredential || !navigator.credentials || typeof navigator.credentials.create !== 'function') {
-        return false;
-      }
-
-      const session = getSavedVisitorSession();
-      const username = String(usernameOverride || session.visitorName || '').trim().replace(/^@+/, '').toLowerCase();
-      const visitorId = String(visitorIdOverride || session.visitorId || getOrCreateDeviceVisitorId()).trim();
-      const password = String(passwordOverride || session.accountPassword || '');
-      if (!username) return false;
-
-      // Ask user on first password login whether to save their device fingerprint/FaceID
-      const wantsBiometric = confirm('هل تريد تفعيل الدخول السريع بالبصمة أو الوجه (Passkey) على هذا الجهاز لتسجيل الدخول بضغطة واحدة في المرات القادمة؟');
-      if (!wantsBiometric) return false;
-
-      try {
-        const challenge = new Uint8Array(32);
-        crypto.getRandomValues(challenge);
-
-        const userIdBytes = new TextEncoder().encode(`${visitorId}:${username}`).slice(0, 64);
-        const rpId = getWebAuthnRpId();
-        const rpConfig = { name: 'GeoRadar 3D Studio' };
-        if (rpId) rpConfig.id = rpId;
-
-        const credential = await navigator.credentials.create({
-          publicKey: {
-            challenge,
-            rp: rpConfig,
-            user: {
-              id: userIdBytes,
-              name: username,
-              displayName: username
-            },
-            pubKeyCredParams: [
-              { alg: -7, type: 'public-key' },   // ES256
-              { alg: -257, type: 'public-key' }  // RS256
-            ],
-            authenticatorSelection: {
-              authenticatorAttachment: 'platform',
-              userVerification: 'required',
-              residentKey: 'preferred'
-            },
-            timeout: 60000,
-            attestation: 'none'
-          }
-        });
-
-        if (!credential || !credential.rawId) return false;
-
-        const credentialId = bufferToBase64Url(credential.rawId);
-        const bioPayload = {
-          credentialId,
-          username,
-          visitorId,
-          accountPassword: password,
-          registeredAt: Date.now()
-        };
-        localStorage.setItem(BIOMETRIC_CRED_STORAGE_KEY, JSON.stringify(bioPayload));
-        localStorage.setItem('biometric_credential_id', credentialId);
-        alert('✅ تم تفعيل الدخول السريع بالبصمة أو الوجه بنجاح لهذا الجهاز!');
-        return true;
-      } catch (err) {
-        console.warn('WebAuthn registerBiometricDevice failed or cancelled:', err);
-        return false;
-      }
-    }
-
-    async function handleBiometricLogin() {
-      const bioBtn = document.getElementById('biometricBtn');
-      const errEl = document.getElementById('loginNameError');
-
-      if (!window.PublicKeyCredential || !navigator.credentials || typeof navigator.credentials.get !== 'function') {
-        if (bioBtn) bioBtn.style.display = 'none';
-        if (errEl) {
-          errEl.innerText = '⚠️ هذا الجهاز أو المتصفح لا يدعم تسجيل الدخول بالبصمة أو الوجه.';
-          errEl.classList.remove('hidden');
-        }
-        return false;
-      }
-
-      const savedCred = getSavedBiometricCredential();
-      if (!savedCred || !savedCred.credentialId) {
-        if (errEl) {
-          errEl.innerText = '☝️ لم يتم ربط البصمة أو الوجه على هذا الجهاز بعد. يرجى تسجيل الدخول بكلمة المرور أولاً لتفعيل البصمة.';
-          errEl.classList.remove('hidden');
-        }
-        return false;
-      }
-
-      if (errEl) errEl.classList.add('hidden');
-      const originalBtnText = bioBtn ? bioBtn.textContent : '☝️ الدخول السريع بالبصمة أو الوجه';
-      if (bioBtn) {
-        bioBtn.disabled = true;
-        bioBtn.textContent = '⏳ جاري التحقق من البصمة أو الوجه...';
-      }
-
-      try {
-        const challenge = new Uint8Array(32);
-        crypto.getRandomValues(challenge);
-
-        const rpId = getWebAuthnRpId();
-        const publicKeyOptions = {
-          challenge,
-          allowCredentials: [
-            {
-              id: base64UrlToBuffer(savedCred.credentialId),
-              type: 'public-key',
-              transports: ['internal', 'hybrid']
-            }
-          ],
-          userVerification: 'required',
-          timeout: 60000
-        };
-        if (rpId) publicKeyOptions.rpId = rpId;
-
-        const assertion = await navigator.credentials.get({ publicKey: publicKeyOptions });
-        if (!assertion) {
-          throw new Error('Biometric assertion empty');
-        }
-
-        // Biometric verification succeeded -> restore active session and enter Main Dashboard immediately
-        saveActiveUserSession({
-          visitorId: savedCred.visitorId || getOrCreateDeviceVisitorId(),
-          username: savedCred.username,
-          password: savedCred.accountPassword || '',
-          token: `bio_${savedCred.visitorId || 'user'}_${Date.now()}`
-        });
-
-        enterMainDashboardSeamlessly();
-        return true;
-      } catch (err) {
-        console.warn('WebAuthn handleBiometricLogin failed:', err);
-        if (errEl) {
-          if (err && err.name === 'NotAllowedError') {
-            errEl.innerText = '❌ تم إلغاء التحقق بالبصمة أو انتهت المهلة. يرجى المحاولة مرة أخرى.';
-          } else {
-            errEl.innerText = '⚠️ تعذر التحقق بالبصمة أو الوجه على هذا الجهاز. يمكنك تسجيل الدخول بكلمة المرور.';
-          }
-          errEl.classList.remove('hidden');
-        }
-        return false;
-      } finally {
-        if (bioBtn) {
-          bioBtn.disabled = false;
-          bioBtn.textContent = originalBtnText;
-        }
-      }
-    }
-
     window.addEventListener('DOMContentLoaded', () => {
-      // 1. Initialize Biometric UI & fallback check (!window.PublicKeyCredential -> hide #biometricBtn)
-      initBiometricAuthUI();
-
-      // 2. Persistent Auto-Login (Seamless Entry): check localStorage for saved active user session
+      // Persistent Auto-Login (Seamless Entry): check localStorage for saved active user session
       const savedSession = getSavedVisitorSession();
       const hasPersistentSession = Boolean(
         savedSession.hasSession ||
@@ -8864,12 +8606,162 @@
     });
   </script>
   <script type="text/javascript">
-    function googleTranslateElementInit() {
-      new google.translate.TranslateElement({
-        pageLanguage: 'ar', // Base language of your HTML
-        autoDisplay: false
-      }, 'google_translate_element');
-    }
+    (function setupNativeLanguageSelectorObserver() {
+      const NATIVE_LANG_NAMES = {
+        '': '🌐 Language / اللغة',
+        'ar': 'العربية',
+        'en': 'English',
+        'zh-CN': '中文 (简体)',
+        'zh-TW': '中文 (繁體)',
+        'es': 'Español',
+        'fr': 'Français',
+        'de': 'Deutsch',
+        'tr': 'Türkçe',
+        'ru': 'Русский',
+        'ja': '日本語',
+        'ko': '한국어',
+        'hi': 'हिन्दी',
+        'pt': 'Português',
+        'it': 'Italiano',
+        'ur': 'اردو',
+        'fa': 'فارسی',
+        'id': 'Bahasa Indonesia',
+        'ms': 'Bahasa Melayu',
+        'nl': 'Nederlands',
+        'pl': 'Polski',
+        'uk': 'Українська',
+        'vi': 'Tiếng Việt',
+        'th': 'ไทย',
+        'sv': 'Svenska',
+        'el': 'Ελληνικά',
+        'he': 'עברית',
+        'iw': 'עברית',
+        'bn': 'বাংলা',
+        'sw': 'Kiswahili',
+        'ro': 'Română',
+        'cs': 'Čeština',
+        'hu': 'Magyar',
+        'da': 'Dansk',
+        'fi': 'Suomi',
+        'no': 'Norsk',
+        'az': 'Azərbaycan',
+        'ku': 'Kurdî',
+        'ps': 'پښتو',
+        'so': 'Soomaali',
+        'am': 'አማርኛ',
+        'tl': 'Tagalog',
+        'ta': 'தமிழ்',
+        'te': 'తెలుగు',
+        'ml': 'മലയാളം',
+        'mr': 'मराठी',
+        'gu': 'ગુજરાતી',
+        'pa': 'ਪੰਜਾਬੀ',
+        'bg': 'Български',
+        'sr': 'Српски',
+        'hr': 'Hrvatski',
+        'sk': 'Slovenčina',
+        'sl': 'Slovenščina',
+        'ca': 'Català',
+        'eu': 'Euskara',
+        'af': 'Afrikaans',
+        'sq': 'Shqip',
+        'hy': 'Հայերեն',
+        'ka': 'ქართული',
+        'kk': 'Қазақша',
+        'uz': 'Oʻzbekcha',
+        'ky': 'Кыргызча',
+        'tg': 'Тоҷикӣ',
+        'mn': 'Монгол',
+        'my': 'မြန်မာ',
+        'km': 'ខ្មែរ',
+        'lo': 'ລາວ',
+        'ne': 'नेपाली',
+        'si': 'සිංහල',
+        'et': 'Eesti',
+        'lv': 'Latviešu',
+        'lt': 'Lietuvių',
+        'is': 'Íslenska',
+        'ga': 'Gaeilge',
+        'cy': 'Cymraeg',
+        'mt': 'Malti'
+      };
+
+      function getNativeLanguageLabel(langCode, fallbackText) {
+        const code = String(langCode || '').trim();
+        if (Object.prototype.hasOwnProperty.call(NATIVE_LANG_NAMES, code)) {
+          return NATIVE_LANG_NAMES[code];
+        }
+        if (!code) return NATIVE_LANG_NAMES[''];
+        try {
+          if (typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function') {
+            const dn = new Intl.DisplayNames([code], { type: 'language' });
+            const resolved = dn.of(code);
+            if (resolved && resolved.toLowerCase() !== code.toLowerCase()) {
+              return resolved.charAt(0).toUpperCase() + resolved.slice(1);
+            }
+          }
+        } catch (e) {}
+        return fallbackText || code;
+      }
+
+      function enforceNativeTranslateSelector() {
+        ['loginTranslateSlot', 'sidebarTranslateSlot', 'google_translate_element'].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.setAttribute('translate', 'no');
+            el.classList.add('notranslate');
+          }
+        });
+
+        // Strip stray text nodes ("Powered by" / "ترجمة") inside .goog-te-gadget
+        document.querySelectorAll('.goog-te-gadget').forEach((gadget) => {
+          gadget.setAttribute('translate', 'no');
+          gadget.classList.add('notranslate');
+          Array.from(gadget.childNodes).forEach((node) => {
+            if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+              node.textContent = '';
+            }
+          });
+        });
+
+        const combos = document.querySelectorAll('select.goog-te-combo');
+        combos.forEach((combo) => {
+          combo.setAttribute('translate', 'no');
+          combo.classList.add('notranslate');
+          Array.from(combo.options || []).forEach((opt) => {
+            opt.setAttribute('translate', 'no');
+            opt.classList.add('notranslate');
+            const nativeLabel = getNativeLanguageLabel(opt.value, opt.textContent);
+            if (nativeLabel && opt.textContent !== nativeLabel) {
+              opt.textContent = nativeLabel;
+            }
+          });
+        });
+      }
+
+      window.enforceNativeTranslateSelector = enforceNativeTranslateSelector;
+
+      window.googleTranslateElementInit = function () {
+        new google.translate.TranslateElement({
+          pageLanguage: 'ar',
+          autoDisplay: false
+        }, 'google_translate_element');
+
+        enforceNativeTranslateSelector();
+        let tries = 0;
+        const initPoll = setInterval(() => {
+          enforceNativeTranslateSelector();
+          tries++;
+          if (tries >= 25) clearInterval(initPoll);
+        }, 300);
+
+        const targetRoot = document.getElementById('google_translate_element');
+        if (targetRoot && typeof MutationObserver === 'function') {
+          const obs = new MutationObserver(() => enforceNativeTranslateSelector());
+          obs.observe(targetRoot, { childList: true, subtree: true });
+        }
+      };
+    })();
   </script>
   <script type="text/javascript" src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 </body>

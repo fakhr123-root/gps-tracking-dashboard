@@ -4698,31 +4698,44 @@ function resolveLocalNeighborhood(lat, lng) {
   return null;
 }
 
-// Reverse geocode exact GPS coordinates into street/neighborhood name
-async function reverseGeocodeCoords(lat, lng) {
+// Normalize requested language code for Nominatim / BigDataCloud reverse-geocoding
+function normalizeGeocodeLang(rawLang) {
+  const s = String(rawLang || '').trim().split(',')[0].split(';')[0].trim();
+  if (!s) return 'ar';
+  const low = s.toLowerCase();
+  if (low === 'zh-tw' || low === 'zh-hk' || low.startsWith('zh-hant')) return 'zh-TW';
+  if (low === 'zh' || low.startsWith('zh-')) return 'zh-CN';
+  if (low === 'iw' || low === 'he' || low.startsWith('he-')) return 'he';
+  return low.split('-')[0] || 'ar';
+}
+
+// Reverse geocode exact GPS coordinates into street/neighborhood name in requested language
+async function reverseGeocodeCoords(lat, lng, rawLang = 'ar') {
+  const lang = normalizeGeocodeLang(rawLang);
+  const isArabic = lang === 'ar';
   const localMatch = resolveLocalNeighborhood(lat, lng);
   try {
-    const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`;
+    const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${encodeURIComponent(lang)}`;
     const res = await fetchWithTimeout(revUrl, { timeout: 3500 });
     if (res.ok) {
       const data = await res.json();
-      const country = data.countryName || localMatch?.country || 'اليمن';
-      const city = data.city || localMatch?.city || data.principalSubdivision || 'صنعاء';
-      const locality = data.locality || localMatch?.neighborhood || '';
-      const region = localMatch && localMatch.distanceKm < 5
+      const country = data.countryName || (isArabic ? (localMatch?.country || 'اليمن') : '');
+      const city = data.city || data.principalSubdivision || (isArabic ? (localMatch?.city || 'صنعاء') : '');
+      const locality = data.locality || (isArabic ? (localMatch?.neighborhood || '') : '');
+      const region = isArabic && localMatch && localMatch.distanceKm < 5
         ? `${localMatch.neighborhood} (${locality || city})`
-        : (locality || data.principalSubdivision || localMatch?.neighborhood || '');
+        : (locality || data.principalSubdivision || (isArabic ? (localMatch?.neighborhood || '') : ''));
       return {
         country,
         city,
         region,
-        locationName: `${city} - ${localMatch && localMatch.distanceKm < 5 ? localMatch.neighborhood : (locality || region)}`
+        locationName: city ? (region ? `${city} - ${region}` : city) : (country || '')
       };
     }
   } catch (e) {
     // Fallback to local match
   }
-  if (localMatch) {
+  if (isArabic && localMatch) {
     return {
       country: localMatch.country,
       city: localMatch.city,
@@ -4734,45 +4747,51 @@ async function reverseGeocodeCoords(lat, lng) {
 }
 
 // Resolve user's GPS coordinates (lat, lon) into City + City Bounding Box [south, west, north, east] AND Country + ISO Code + Country Bounding Box [south, west, north, east]
-async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
-  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}`;
+async function resolveLocationScopeWithBoundingBoxes(lat, lon, rawLang = 'ar') {
+  const lang = normalizeGeocodeLang(rawLang);
+  const isArabic = lang === 'ar';
+  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}_${lang}`;
   if (GEO_SCOPE_BBOX_CACHE.has(cacheKey)) {
     return GEO_SCOPE_BBOX_CACHE.get(cacheKey);
   }
 
   const localMatch = resolveLocalNeighborhood(lat, lon);
-  let city = localMatch?.city || '';
-  let country = localMatch?.country || '';
-  let countryCode = 'YE';
-  let neighborhood = localMatch?.shortHood || localMatch?.neighborhood || '';
+  let city = isArabic ? (localMatch?.city || '') : '';
+  let country = isArabic ? (localMatch?.country || '') : '';
+  let countryCode = '';
+  let neighborhood = isArabic ? (localMatch?.shortHood || localMatch?.neighborhood || '') : '';
   let cityBbox = null;
   let countryBbox = null;
 
   // Check if coordinates fall inside Yemen's bounding box [12.10, 41.80, 19.00, 54.60]
   const isInsideYemen = lat >= 12.10 && lat <= 19.00 && lon >= 41.80 && lon <= 54.60;
 
-  // 1. Query Nominatim Reverse Geocoding for official city, country, ISO code & bounding box
+  // 1. Query Nominatim Reverse Geocoding in the user's requested language
   try {
-    const nomRevUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1&accept-language=ar,en`;
+    const acceptLangHeader = isArabic ? 'ar,en' : `${lang},en`;
+    const nomRevUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1&accept-language=${encodeURIComponent(acceptLangHeader)}`;
     const nRes = await fetchWithTimeout(nomRevUrl, {
       timeout: 4500,
       headers: {
         'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Accept-Language': acceptLangHeader
       }
     });
     if (nRes.ok) {
       const nData = await nRes.json();
       const addr = nData?.address || {};
-      const detectedCity = addr.city || addr.state || addr.town || addr.county || addr.municipality || addr.province || nData?.name || '';
+      const detectedCity = addr.city || addr.town || addr.municipality || addr.state || addr.county || addr.province || nData?.name || '';
       const detectedCountry = addr.country || '';
       const detectedCode = String(addr.country_code || '').toUpperCase();
       const detectedHood = addr.suburb || addr.neighbourhood || addr.quarter || addr.district || '';
 
-      if (detectedCity && (!city || !isInsideYemen)) city = detectedCity.replace(/^محافظة\s+/i, '').trim();
+      if (detectedCity && (!isArabic || !city || !isInsideYemen)) {
+        city = isArabic ? detectedCity.replace(/^محافظة\s+/i, '').trim() : detectedCity.trim();
+      }
       if (detectedCountry) country = detectedCountry;
       if (detectedCode) countryCode = detectedCode;
-      if (detectedHood && !neighborhood) neighborhood = detectedHood;
+      if (detectedHood && (!isArabic || !neighborhood)) neighborhood = detectedHood;
 
       if (Array.isArray(nData?.boundingbox) && nData.boundingbox.length === 4) {
         const b = nData.boundingbox.map(Number); // [south, north, west, east] in Nominatim
@@ -4790,9 +4809,9 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
     }
   } catch (e) {}
 
-  // 2. Fallback to BigDataCloud / reverseGeocodeCoords if city or country still missing
+  // 2. Fallback to BigDataCloud / reverseGeocodeCoords in requested language if city or country still missing
   if (!city || !country) {
-    const rev = await reverseGeocodeCoords(lat, lon);
+    const rev = await reverseGeocodeCoords(lat, lon, lang);
     if (rev) {
       if (!city && rev.city) city = rev.city;
       if (!country && rev.country) country = rev.country;
@@ -4802,11 +4821,11 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
 
   if (isInsideYemen) {
     countryCode = 'YE';
-    country = 'اليمن';
-    if (!city) city = 'صنعاء';
+    if (isArabic) {
+      if (!country) country = 'اليمن';
+      if (!city) city = 'صنعاء';
+    }
   }
-  if (!city) city = 'صنعاء';
-  if (!country) country = 'اليمن';
 
   // 3. Look up Official City Bounding Box [south, west, north, east] from Atlas or Nominatim City Search
   for (const [cKey, bboxVal] of Object.entries(OFFICIAL_CITY_BBOX_ATLAS)) {
@@ -8709,16 +8728,17 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Reverse Geocoding endpoint (resolves live coordinates to city, cityBbox, country, countryCode, countryBbox, and neighborhood)
+  // Reverse Geocoding endpoint (resolves live coordinates worldwide in the user's active language)
   if (pathname === '/api/reverse-geocode') {
     const lat = parseFloat(parsedUrl.query.lat);
     const lon = parseFloat(parsedUrl.query.lon ?? parsedUrl.query.lng);
+    const reqLang = parsedUrl.query.lang || parsedUrl.query.language || parsedUrl.query['accept-language'] || req.headers['accept-language'] || 'ar';
     if (isNaN(lat) || isNaN(lon)) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Invalid coordinates' }));
       return;
     }
-    const scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
+    const scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon, reqLang);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(scopeInfo));
     return;

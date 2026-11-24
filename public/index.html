@@ -1411,24 +1411,24 @@
               </div>
             </div>
 
-            <!-- 2. Category Selection -->
+            <!-- 2. Category Selection (Canonical keys + Universal Multi-Language Resolution) -->
             <div class="space-y-2.5">
               <span class="block text-xs font-semibold text-slate-400">اختر فئة سريعة</span>
               <div class="flex flex-wrap items-center gap-2">
-                <button type="button" onclick="triggerCategorySearch('بقالة', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">بقالات</button>
-                <button type="button" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">صيدليات</button>
-                <button type="button" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مطاعم</button>
-                <button type="button" onclick="triggerCategorySearch('صالات وقاعات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">صالات</button>
-                <button type="button" onclick="triggerCategorySearch('محاكم ونيابات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">محاكم</button>
-                <button type="button" onclick="triggerCategorySearch('منافذ وفرز وجمارك', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">منافذ وفرز</button>
-                <button type="button" onclick="triggerCategorySearch('وزارات وجهات حكومية', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">جهات حكومية</button>
-                <button type="button" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مستشفيات</button>
-                <button type="button" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مولات</button>
-                <button type="button" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">فنادق</button>
-                <button type="button" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">تلفونات</button>
-                <button type="button" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">شركات</button>
-                <button type="button" onclick="triggerCategorySearch('بنوك وصرافة', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">بنوك وصرافة</button>
-                <button type="button" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مسابح</button>
+                <button type="button" data-cat-key="grocery" data-cat-en="Grocery" onclick="triggerCategorySearch('بقالة', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">بقالات</button>
+                <button type="button" data-cat-key="pharmacy" data-cat-en="Pharmacy" onclick="triggerCategorySearch('صيدليات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">صيدليات</button>
+                <button type="button" data-cat-key="restaurant" data-cat-en="Restaurant" onclick="triggerCategorySearch('مطاعم', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مطاعم</button>
+                <button type="button" data-cat-key="hall" data-cat-en="Event Halls" onclick="triggerCategorySearch('صالات وقاعات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">صالات</button>
+                <button type="button" data-cat-key="court" data-cat-en="Courts" onclick="triggerCategorySearch('محاكم ونيابات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">محاكم</button>
+                <button type="button" data-cat-key="customs" data-cat-en="Border & Customs" onclick="triggerCategorySearch('منافذ وفرز وجمارك', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">منافذ وفرز</button>
+                <button type="button" data-cat-key="government" data-cat-en="Government Offices" onclick="triggerCategorySearch('وزارات وجهات حكومية', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">جهات حكومية</button>
+                <button type="button" data-cat-key="hospital" data-cat-en="Hospitals & Clinics" onclick="triggerCategorySearch('مستشفيات وعيادات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مستشفيات</button>
+                <button type="button" data-cat-key="mall" data-cat-en="Shopping Malls" onclick="triggerCategorySearch('مراكز تجارية ومولات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مولات</button>
+                <button type="button" data-cat-key="hotel" data-cat-en="Hotels" onclick="triggerCategorySearch('فنادق', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">فنادق</button>
+                <button type="button" data-cat-key="phone_shop" data-cat-en="Mobile Phone Shops" onclick="triggerCategorySearch('محلات تلفونات وجوالات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">تلفونات</button>
+                <button type="button" data-cat-key="company" data-cat-en="Companies" onclick="triggerCategorySearch('شركات', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">شركات</button>
+                <button type="button" data-cat-key="bank" data-cat-en="Banks & Exchange" onclick="triggerCategorySearch('بنوك وصرافة', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">بنوك وصرافة</button>
+                <button type="button" data-cat-key="pool" data-cat-en="Swimming Pools & Clubs" onclick="triggerCategorySearch('مسابح ونوادي', this)" class="cat-pill px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer">مسابح</button>
               </div>
             </div>
 
@@ -2389,6 +2389,70 @@
       }
     }
 
+    // Universal active UI language resolver (reads Google Translate combo, googtrans cookie, or navigator.language)
+    function getActiveUiLanguageCode() {
+      try {
+        const combo = document.querySelector('select.goog-te-combo');
+        if (combo && combo.value && combo.value.trim()) {
+          return combo.value.trim();
+        }
+      } catch (e) {}
+      try {
+        const m = document.cookie.match(/(?:^|;\s*)googtrans=\/[^/]+\/([^;\s]+)/i);
+        if (m && m[1]) return decodeURIComponent(m[1]).trim();
+      } catch (e) {}
+      if (window.__detectedBrowserLang) return window.__detectedBrowserLang;
+      const raw = (Array.isArray(navigator.languages) && navigator.languages[0]) || navigator.language || 'ar';
+      const low = String(raw || 'ar').trim().toLowerCase();
+      if (low === 'zh-tw' || low === 'zh-hk' || low.startsWith('zh-hant')) return 'zh-TW';
+      if (low === 'zh' || low.startsWith('zh-')) return 'zh-CN';
+      return low.split('-')[0] || 'ar';
+    }
+    window.getActiveUiLanguageCode = getActiveUiLanguageCode;
+
+    // Multi-language dictionary for quick category chips (works instantly for major languages; all other 100+ languages fall back to live translated DOM chip text or English canonical label)
+    const QUICK_CATEGORY_LOCALIZED = {
+      grocery:    { ar: 'بقالة', en: 'Grocery', 'zh-CN': '杂货店', 'zh-TW': '雜貨店', es: 'Tienda de comestibles', fr: 'Épicerie', de: 'Lebensmittelgeschäft', tr: 'Market', ru: 'Продуктовый магазин', ja: '食料品店', ko: '식료품점', hi: 'किराना स्टोर', pt: 'Mercearia', it: 'Alimentari', ur: 'کریانہ اسٹور', fa: 'سوپرمارکت', id: 'Toko kelontong', ms: 'Kedai runcit' },
+      pharmacy:   { ar: 'صيدليات', en: 'Pharmacy', 'zh-CN': '药店', 'zh-TW': '藥局', es: 'Farmacia', fr: 'Pharmacie', de: 'Apotheke', tr: 'Eczane', ru: 'Аптека', ja: '薬局', ko: '약국', hi: 'फार्मेसी', pt: 'Farmácia', it: 'Farmacia', ur: 'فارمیسی', fa: 'داروخانه', id: 'Apotek', ms: 'Farmasi' },
+      restaurant: { ar: 'مطاعم', en: 'Restaurant', 'zh-CN': '餐厅', 'zh-TW': '餐廳', es: 'Restaurante', fr: 'Restaurant', de: 'Restaurant', tr: 'Restoran', ru: 'Ресторан', ja: 'レストラン', ko: '레스토랑', hi: 'रेस्तरां', pt: 'Restaurante', it: 'Ristorante', ur: 'ریستوران', fa: 'رستوران', id: 'Restoran', ms: 'Restoran' },
+      hall:       { ar: 'صالات وقاعات', en: 'Event Halls', 'zh-CN': '宴会厅', 'zh-TW': '宴會廳', es: 'Salones de eventos', fr: 'Salles de réception', de: 'Veranstaltungshallen', tr: 'Düğün ve Etkinlik Salonları', ru: 'Банкетные залы', ja: 'イベントホール', ko: '연회장', hi: 'इवेंट हॉल', pt: 'Salões de eventos', it: 'Sale eventi', ur: 'ایونٹ ہالز', fa: 'تالارهای پذیرایی', id: 'Gedung acara', ms: 'Dewan acara' },
+      court:      { ar: 'محاكم ونيابات', en: 'Courts', 'zh-CN': '法院', 'zh-TW': '法院', es: 'Tribunales', fr: 'Tribunaux', de: 'Gerichte', tr: 'Mahkemeler', ru: 'Суды', ja: '裁判所', ko: '법원', hi: 'न्यायालय', pt: 'Tribunais', it: 'Tribunali', ur: 'عدالتیں', fa: 'دادگاه‌ها', id: 'Pengadilan', ms: 'Mahkamah' },
+      customs:    { ar: 'منافذ وفرز وجمارك', en: 'Customs & Ports', 'zh-CN': '海关与口岸', 'zh-TW': '海關與口岸', es: 'Aduanas', fr: 'Douanes', de: 'Zoll', tr: 'Gümrük', ru: 'Таможня', ja: '税関', ko: '세관', hi: 'सीमा शुल्क', pt: 'Alfândega', it: 'Dogana', ur: 'کسٹمز', fa: 'گمرک', id: 'Bea cukai', ms: 'Kastam' },
+      government: { ar: 'وزارات وجهات حكومية', en: 'Government Offices', 'zh-CN': '政府机构', 'zh-TW': '政府機構', es: 'Oficinas gubernamentales', fr: 'Services gouvernementaux', de: 'Behörden', tr: 'Devlet Daireleri', ru: 'Госучреждения', ja: '官公庁', ko: '관공서', hi: 'सरकारी कार्यालय', pt: 'Órgãos públicos', it: 'Uffici governativi', ur: 'سرکاری دفاتر', fa: 'ادارات دولتی', id: 'Kantor pemerintah', ms: 'Pejabat kerajaan' },
+      hospital:   { ar: 'مستشفيات وعيادات', en: 'Hospitals & Clinics', 'zh-CN': '医院与诊所', 'zh-TW': '醫院與診所', es: 'Hospitales y clínicas', fr: 'Hôpitaux et cliniques', de: 'Krankenhäuser und Kliniken', tr: 'Hastaneler ve Klinikler', ru: 'Больницы и клиники', ja: '病院・クリニック', ko: '병원 및 클리닉', hi: 'अस्पताल और क्लीनिक', pt: 'Hospitais e clínicas', it: 'Ospedali e cliniche', ur: 'ہسپتال اور کلینک', fa: 'بیمارستان‌ها و کلینیک‌ها', id: 'Rumah sakit & klinik', ms: 'Hospital & klinik' },
+      mall:       { ar: 'مراكز تجارية ومولات', en: 'Shopping Malls', 'zh-CN': '购物中心', 'zh-TW': '購物中心', es: 'Centros comerciales', fr: 'Centres commerciaux', de: 'Einkaufszentren', tr: 'Alışveriş Merkezleri', ru: 'Торговые центры', ja: 'ショッピングモール', ko: '쇼핑몰', hi: 'शॉपिंग मॉल', pt: 'Shopping centers', it: 'Centri commerciali', ur: 'شاپنگ مالز', fa: 'مراکز خرید', id: 'Pusat perbelanjaan', ms: 'Pusat beli-belah' },
+      hotel:      { ar: 'فنادق', en: 'Hotels', 'zh-CN': '酒店', 'zh-TW': '飯店', es: 'Hoteles', fr: 'Hôtels', de: 'Hotels', tr: 'Oteller', ru: 'Отели', ja: 'ホテル', ko: '호텔', hi: 'होटल', pt: 'Hotéis', it: 'Hotel', ur: 'ہوٹل', fa: 'هتل‌ها', id: 'Hotel', ms: 'Hotel' },
+      phone_shop: { ar: 'محلات تلفونات وجوالات', en: 'Mobile Phone Shops', 'zh-CN': '手机店', 'zh-TW': '手機店', es: 'Tiendas de móviles', fr: 'Magasins de téléphones', de: 'Handyläden', tr: 'Telefon Mağazaları', ru: 'Магазины телефонов', ja: '携帯ショップ', ko: '휴대폰 매장', hi: 'मोबाइल की दुकानें', pt: 'Lojas de celulares', it: 'Negozi di telefonia', ur: 'موبائل شاپس', fa: 'فروشگاه‌های موبایل', id: 'Toko ponsel', ms: 'Kedai telefon' },
+      company:    { ar: 'شركات', en: 'Companies', 'zh-CN': '公司', 'zh-TW': '公司', es: 'Empresas', fr: 'Entreprises', de: 'Unternehmen', tr: 'Şirketler', ru: 'Компании', ja: '企業', ko: '회사', hi: 'कंपनियाँ', pt: 'Empresas', it: 'Aziende', ur: 'کمپنیاں', fa: 'شرکت‌ها', id: 'Perusahaan', ms: 'Syarikat' },
+      bank:       { ar: 'بنوك وصرافة', en: 'Banks & Exchange', 'zh-CN': '银行与兑换', 'zh-TW': '銀行與換匯', es: 'Bancos y cambio', fr: 'Banques et change', de: 'Banken & Wechselstuben', tr: 'Bankalar ve Döviz', ru: 'Банки и обмен валют', ja: '銀行・両替', ko: '은행 및 환전', hi: 'बैंक और एक्सचेंज', pt: 'Bancos e câmbio', it: 'Banche e cambio', ur: 'بینک اور ایکسچینج', fa: 'بانک و صرافی', id: 'Bank & penukaran', ms: 'Bank & pengurup wang' },
+      pool:       { ar: 'مسابح ونوادي', en: 'Swimming Pools & Clubs', 'zh-CN': '游泳池与俱乐部', 'zh-TW': '游泳池與俱樂部', es: 'Piscinas y clubes', fr: 'Piscines et clubs', de: 'Schwimmbäder & Clubs', tr: 'Yüzme Havuzları', ru: 'Бассейны и клубы', ja: 'プール・クラブ', ko: '수영장 및 클럽', hi: 'स्विमिंग पूल', pt: 'Piscinas e clubes', it: 'Piscine e club', ur: 'سوئمنگ پول', fa: 'استخر و باشگاه', id: 'Kolam renang', ms: 'Kolam renang' }
+    };
+
+    function resolveLocalizedCategoryText(arabicFallback, btnEl) {
+      const activeLang = getActiveUiLanguageCode();
+      const catKey = btnEl?.dataset?.catKey || '';
+      const catEn = btnEl?.dataset?.catEn || '';
+      if (activeLang === 'ar') return arabicFallback;
+
+      // 1. Exact or base-language dictionary match
+      const dictEntry = catKey ? QUICK_CATEGORY_LOCALIZED[catKey] : null;
+      if (dictEntry) {
+        if (dictEntry[activeLang]) return dictEntry[activeLang];
+        const baseLang = activeLang.split('-')[0];
+        if (dictEntry[baseLang]) return dictEntry[baseLang];
+      }
+
+      // 2. Live Google-Translated text inside the chip itself (covers all 130+ world languages!)
+      const visibleChipText = String(btnEl?.innerText || btnEl?.textContent || '').trim();
+      const hasArabicChars = /[\u0600-\u06FF]/.test(visibleChipText);
+      if (visibleChipText && !hasArabicChars) {
+        return visibleChipText;
+      }
+
+      // 3. English canonical fallback (never hardcoded Arabic when activeLang !== 'ar')
+      return catEn || arabicFallback;
+    }
+
     function triggerCategorySearch(category, btnEl) {
       const isAlreadyActive = btnEl && btnEl.classList.contains('active');
       document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
@@ -2401,7 +2465,13 @@
 
       if (isAlreadyActive) {
         // Optional toggle-off: clicking an already active category unselects it!
-        if (q) q.value = '';
+        if (q) {
+          q.value = '';
+          q.dispatchEvent(new Event('input', { bubbles: true }));
+          q.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        window.__activeQuickCategoryBtn = null;
+        window.__activeQuickCategoryArabic = '';
         lastActiveQuery = '';
         syncPrimarySearchActionButton();
         return;
@@ -2409,8 +2479,15 @@
 
       // Only select the category without starting the search automatically! User starts search when ready.
       if (btnEl) btnEl.classList.add('active');
-      if (q) q.value = category;
-      lastActiveQuery = category;
+      const localizedVal = resolveLocalizedCategoryText(category, btnEl);
+      window.__activeQuickCategoryBtn = btnEl || null;
+      window.__activeQuickCategoryArabic = category;
+      if (q) {
+        q.value = localizedVal;
+        q.dispatchEvent(new Event('input', { bubbles: true }));
+        q.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      lastActiveQuery = localizedVal;
       syncPrimarySearchActionButton();
     }
 
@@ -7783,12 +7860,15 @@
     window.lastAutoDetectedGpsCity = '';
     window.userManuallyEditedLocation = false;
     let lastReverseGeocodedCoords = null;
+    let lastReverseGeocodedLang = '';
 
     async function syncLocationInputWithUserGps(lat, lng, forceUpdate = false) {
       if (isLoginModalVisible()) return;
       if (!isValidNonZeroClientCoord(lat, lng)) return;
       try {
-        if (lastReverseGeocodedCoords && !forceUpdate) {
+        const activeLang = typeof getActiveUiLanguageCode === 'function' ? getActiveUiLanguageCode() : 'ar';
+        const langChanged = Boolean(lastReverseGeocodedLang && lastReverseGeocodedLang !== activeLang);
+        if (lastReverseGeocodedCoords && !forceUpdate && !langChanged) {
           const dLat = Math.abs(lat - lastReverseGeocodedCoords.lat);
           const dLng = Math.abs(lng - lastReverseGeocodedCoords.lng);
           if (dLat < 0.0025 && dLng < 0.0025 && window.lastAutoDetectedGpsCity) {
@@ -7801,27 +7881,31 @@
           }
         }
         lastReverseGeocodedCoords = { lat, lng };
-        const res = await fetch(`/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&lng=${encodeURIComponent(lng)}`);
+        lastReverseGeocodedLang = activeLang;
+        const res = await fetch(
+          `/api/reverse-geocode?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&lng=${encodeURIComponent(lng)}&lang=${encodeURIComponent(activeLang)}&accept-language=${encodeURIComponent(activeLang)}`
+        );
         if (!res.ok) return;
         const data = await res.json();
         const detectedCity = (data && data.city ? String(data.city).trim() : '');
-        const detectedCountry = (data && data.country ? String(data.country).trim() : '') || 'اليمن';
-        if (!detectedCity) return;
+        const detectedCountry = (data && data.country ? String(data.country).trim() : '') || (activeLang === 'ar' ? 'اليمن' : '');
+        if (!detectedCity && !detectedCountry) return;
 
+        const resolvedCityLabel = detectedCity || detectedCountry;
         window.detectedUserGeoScope = {
-          city: detectedCity,
+          city: resolvedCityLabel,
           country: detectedCountry,
-          countryCode: (data && data.countryCode ? String(data.countryCode).trim() : 'ye'),
+          countryCode: (data && data.countryCode ? String(data.countryCode).trim() : ''),
           neighborhood: (data && data.neighborhood ? String(data.neighborhood).trim() : ''),
           cityBbox: Array.isArray(data.cityBbox) && data.cityBbox.length === 4 ? data.cityBbox : [lat - 0.16, lng - 0.16, lat + 0.16, lng + 0.16],
-          countryBbox: Array.isArray(data.countryBbox) && data.countryBbox.length === 4 ? data.countryBbox : [12.10, 41.80, 19.00, 54.60],
-          cityScopeKey: data.cityScopeKey || `ye_${detectedCity}`,
-          countryScopeKey: data.countryScopeKey || `ye_${detectedCountry}`
+          countryBbox: Array.isArray(data.countryBbox) && data.countryBbox.length === 4 ? data.countryBbox : [lat - 2.0, lng - 2.0, lat + 2.0, lng + 2.0],
+          cityScopeKey: data.cityScopeKey || `${(data.countryCode || 'gl').toLowerCase()}_${resolvedCityLabel}`,
+          countryScopeKey: data.countryScopeKey || `${(data.countryCode || 'gl').toLowerCase()}_${detectedCountry || resolvedCityLabel}`
         };
 
         const prevAutoCity = window.lastAutoDetectedGpsCity;
-        window.lastAutoDetectedGpsCity = detectedCity;
-        const scopeLabel = detectedCountry ? `${detectedCity}, ${detectedCountry}` : detectedCity;
+        window.lastAutoDetectedGpsCity = resolvedCityLabel;
+        const scopeLabel = detectedCountry && detectedCountry !== resolvedCityLabel ? `${resolvedCityLabel}, ${detectedCountry}` : resolvedCityLabel;
         if (isTermsAcceptedInStorage()) {
           markLocationGranted(scopeLabel);
         }
@@ -7830,14 +7914,37 @@
         const locInput = document.getElementById('locationInput');
         if (locInput) {
           const currentVal = locInput.value.trim();
-          const targetLoc = window.selectedComprehensiveScopeMode === 'country' ? detectedCountry : detectedCity;
-          if (forceUpdate || !currentVal || !window.userManuallyEditedLocation || currentVal === prevAutoCity) {
+          const targetLoc = (window.selectedComprehensiveScopeMode === 'country' && detectedCountry) ? detectedCountry : resolvedCityLabel;
+          if (forceUpdate || langChanged || !currentVal || !window.userManuallyEditedLocation || currentVal === prevAutoCity) {
             locInput.value = targetLoc;
             window.userManuallyEditedLocation = false;
           }
         }
       } catch (e) {}
     }
+
+    // Re-localize any auto-filled location or quick-chip category when the user switches language
+    window.relocalizeAutoFilledInputsForLanguage = function () {
+      if (lastReverseGeocodedCoords && !window.userManuallyEditedLocation) {
+        syncLocationInputWithUserGps(lastReverseGeocodedCoords.lat, lastReverseGeocodedCoords.lng, true);
+      }
+      if (window.__activeQuickCategoryBtn && window.__activeQuickCategoryArabic) {
+        const applyChipReloc = () => {
+          const q = document.getElementById('queryInput');
+          if (!q || !window.__activeQuickCategoryBtn) return;
+          const newVal = resolveLocalizedCategoryText(window.__activeQuickCategoryArabic, window.__activeQuickCategoryBtn);
+          if (newVal && q.value !== newVal) {
+            q.value = newVal;
+            lastActiveQuery = newVal;
+            q.dispatchEvent(new Event('input', { bubbles: true }));
+            q.dispatchEvent(new Event('change', { bubbles: true }));
+            syncPrimarySearchActionButton();
+          }
+        };
+        applyChipReloc();
+        setTimeout(applyChipReloc, 450);
+      }
+    };
 
     // 1. First-Visit Terms & Conditions Agreement + Non-Blocking Background Location Capture
     function handleFirstVisitTermsAndGpsActivation() {
@@ -8954,7 +9061,7 @@
           combo.setAttribute('translate', 'no');
           combo.classList.add('notranslate');
 
-          // Track manual user selection in current session so auto-detect never overrides it
+          // Track manual user selection in current session & re-localize auto-filled inputs immediately
           if (!combo.dataset.manualLangBound) {
             combo.dataset.manualLangBound = '1';
             combo.addEventListener('change', (ev) => {
@@ -8962,6 +9069,9 @@
                 try {
                   sessionStorage.setItem('georadar_manual_lang_override', combo.value || 'ar');
                 } catch (e) {}
+              }
+              if (typeof window.relocalizeAutoFilledInputsForLanguage === 'function') {
+                window.relocalizeAutoFilledInputsForLanguage();
               }
             });
           }

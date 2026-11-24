@@ -1,6 +1,7 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v23';
+const CACHE_NAME = 'georadar-hybrid-shell-v24';
 const NAV_NETWORK_TIMEOUT_MS = 4000;
+const ASSET_NETWORK_TIMEOUT_MS = 3500;
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -62,7 +63,7 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Helper: fetch with AbortController timeout so slow/waking servers never cause endless reload spinners
+// Helper: fetch with AbortController timeout so slow/waking servers or stalled CDNs never hang mobile reloads
 function fetchWithRaceTimeout(request, timeoutMs) {
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
@@ -70,7 +71,7 @@ function fetchWithRaceTimeout(request, timeoutMs) {
     .finally(() => clearTimeout(timerId));
 }
 
-// Non-blocking Network-First (4000ms race timeout) for HTML navigations with silent background cache refresh
+// Non-blocking Network-First for HTML & stylesheet/JS assets with clean cached fallback
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -81,6 +82,7 @@ self.addEventListener('fetch', (event) => {
 
   const isNavHtml = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/admin.html';
   const isShellCode = /\.(css|js|mjs|html)$/i.test(url.pathname);
+  const isStyleOrScriptCdn = /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
   const hasChallengeQuery = url.searchParams.has('__cf_chl_rt_tk') || url.searchParams.has('__cf_chl_tk');
 
   if (isNavHtml) {
@@ -101,7 +103,7 @@ self.addEventListener('fetch', (event) => {
           return networkRes;
         })
         .catch(async () => {
-          // Server is slow/waking up or offline -> serve cached shell immediately & refresh cache silently in background
+          // Server slow/waking or offline -> serve cached shell immediately & refresh silently in background
           if (!hasChallengeQuery && url.origin === self.location.origin) {
             event.waitUntil(
               fetch(new Request(url.pathname, { cache: 'no-store' }))
@@ -124,15 +126,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  const fetchReq = isShellCode ? new Request(req, { cache: 'no-store' }) : req;
+  // For stylesheets, scripts, and CDN assets: race network with 3.5s timeout so mobile never stalls with broken layout
+  const fetchReq = (isShellCode && url.origin === self.location.origin) ? new Request(req, { cache: 'no-store' }) : req;
+  const assetPromise = (isShellCode || isStyleOrScriptCdn)
+    ? fetchWithRaceTimeout(fetchReq, ASSET_NETWORK_TIMEOUT_MS)
+    : fetch(fetchReq);
 
   event.respondWith(
-    fetch(fetchReq)
+    assetPromise
       .then((networkRes) => {
-        const isCacheableOrigin =
-          url.origin === self.location.origin ||
-          /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
-
+        const isCacheableOrigin = url.origin === self.location.origin || isStyleOrScriptCdn;
         if (networkRes && networkRes.ok && isCacheableOrigin && !hasChallengeQuery) {
           const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
           if (!contentType.includes('text/html')) {

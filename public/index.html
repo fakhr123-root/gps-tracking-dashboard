@@ -151,15 +151,20 @@
       min-height: 100vh;
     }
 
-    /* Anti-FOUC Boot Shield: strictly hide auth & workspace (display: none) until CSS & auto-login check finish */
-    html:not(.app-ui-ready) #visitorGateModal,
-    html:not(.app-ui-ready) #appMainContent,
-    html:not(.app-ui-ready) #gpsGatekeeperScreen {
+    /* Critical native .hidden rule so modals/banners NEVER flash unstyled before Tailwind CDN loads */
+    .hidden {
       display: none !important;
     }
 
+    /* Full-Page Anti-FOUC Boot Gate: hide EVERY body child except #bootSplash until styles & auth check finish */
+    html:not(.app-ready) body > *:not(#bootSplash) {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+
     /* Calm 3-Color Official 3D Boot Loading Overlay (shown immediately while page spins/reloads) */
-    #appBootSplashOverlay {
+    #bootSplash {
       position: fixed;
       inset: 0;
       z-index: 100005;
@@ -168,9 +173,9 @@
       justify-content: center;
       background-color: #0b1320;
       padding: 16px;
-      transition: opacity 0.2s ease, visibility 0.2s ease;
+      transition: opacity 0.18s ease, visibility 0.18s ease;
     }
-    html.app-ui-ready #appBootSplashOverlay {
+    html.app-ready #bootSplash {
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
@@ -807,8 +812,8 @@
   </style>
 </head>
 <body class="text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
-  <!-- Calm 3-Color Official 3D Boot Loading Overlay (Prevents any raw/unstyled flash while page spins or reloads) -->
-  <div id="appBootSplashOverlay" role="status" aria-live="polite">
+  <!-- Calm 3-Color Official 3D Boot Loading Overlay (Prevents any full-page raw/unstyled HTML flash on mobile reload) -->
+  <div id="bootSplash" role="status" aria-live="polite">
     <div class="app-boot-card">
       <div class="app-boot-spinner" aria-hidden="true"></div>
       <div class="app-boot-label">جاري التحميل...</div>
@@ -816,8 +821,8 @@
   </div>
   <script>
     (function () {
-      document.documentElement.classList.remove('app-ui-ready');
-      var splash = document.getElementById('appBootSplashOverlay');
+      document.documentElement.classList.remove('app-ready');
+      var splash = document.getElementById('bootSplash');
       if (splash) splash.style.display = 'flex';
     })();
   </script>
@@ -8744,23 +8749,22 @@
 
     function revealAppUiWhenStyled() {
       const markReady = () => {
-        if (!document.documentElement.classList.contains('app-ui-ready')) {
-          document.documentElement.classList.add('app-ui-ready');
+        if (!document.documentElement.classList.contains('app-ready')) {
+          document.documentElement.classList.add('app-ready');
         }
-        const splash = document.getElementById('appBootSplashOverlay');
+        const splash = document.getElementById('bootSplash');
         if (splash) {
-          setTimeout(() => { splash.style.display = 'none'; }, 220);
+          setTimeout(() => { splash.style.display = 'none'; }, 200);
         }
       };
-      // Wait for Tailwind/CSS layout frame so auth screen never flashes unstyled
+      // Wait for stylesheets / Tailwind CDN compile frame, with a strict 400ms max safety timeout
       if (document.readyState === 'complete') {
         requestAnimationFrame(() => requestAnimationFrame(markReady));
       } else {
         window.addEventListener('load', () => {
           requestAnimationFrame(() => requestAnimationFrame(markReady));
         }, { once: true });
-        // Fail-safe reveal even if an external CDN script is slow/offline
-        setTimeout(markReady, 350);
+        setTimeout(markReady, 400);
       }
     }
 

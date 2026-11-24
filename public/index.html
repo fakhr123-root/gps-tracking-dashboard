@@ -1877,6 +1877,25 @@
                   <span>إعادة ضبط</span>
                 </button>
               </div>
+
+              <!-- Subtle Network-Adaptive Speed Mode Indicator / Selector -->
+              <div class="mt-2.5 flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-[#0b1320] border border-slate-400/15 text-[11px]">
+                <div class="flex items-center gap-2 text-slate-300">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span>سرعة المسح:</span>
+                  <span id="scanNetworkSpeedBadge" class="font-num font-bold text-emerald-400">تلقائي</span>
+                </div>
+                <select
+                  id="scanSpeedModeSelect"
+                  onchange="setAdaptiveScanSpeedMode(this.value)"
+                  aria-label="وضع سرعة المسح"
+                  class="bg-[#131f33] text-[#f1f5f9] border border-slate-400/20 rounded-lg px-2.5 py-1 text-[11px] font-semibold focus:outline-none focus:border-[#10b981] cursor-pointer"
+                >
+                  <option value="auto">تلقائي (حسب الشبكة)</option>
+                  <option value="balanced">متوازن</option>
+                  <option value="fast">سريع</option>
+                </select>
+              </div>
             </div>
 
             <!-- 4. Collapsible Advanced Settings (إعدادات متقدمة) -->
@@ -5582,6 +5601,107 @@
       updateStats();
     }
 
+    // =========================================================================
+    // Safe Network-Adaptive Scan Speed Pacing (Auto / Balanced / Fast)
+    // =========================================================================
+    const SCAN_SPEED_STORAGE_KEY = 'georadar_scan_speed_mode';
+    let userScanSpeedMode = 'auto';
+    try {
+      const savedSpeed = localStorage.getItem(SCAN_SPEED_STORAGE_KEY);
+      if (savedSpeed === 'auto' || savedSpeed === 'balanced' || savedSpeed === 'fast') {
+        userScanSpeedMode = savedSpeed;
+      }
+    } catch (e) {}
+
+    function getAdaptiveScanPacing() {
+      const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection || null;
+      const effType = conn && conn.effectiveType ? String(conn.effectiveType).toLowerCase() : '';
+      const downlink = conn && typeof conn.downlink === 'number' ? conn.downlink : null;
+      const saveData = Boolean(conn && conn.saveData);
+
+      let tier = 'balanced';
+      if (userScanSpeedMode === 'fast') {
+        tier = 'fast';
+      } else if (userScanSpeedMode === 'balanced') {
+        tier = 'balanced';
+      } else {
+        // Auto mode: adapt gently based on browser network quality hints
+        if (saveData || effType === 'slow-2g' || effType === '2g' || effType === '3g' || (downlink !== null && downlink > 0 && downlink < 1.5)) {
+          tier = 'slow';
+        } else if (effType === '4g' || (downlink !== null && downlink >= 5)) {
+          tier = 'fast';
+        } else {
+          tier = 'balanced';
+        }
+      }
+
+      if (tier === 'fast') {
+        return {
+          tier: 'fast',
+          effType: effType || '4g',
+          domFlushMs: 650,
+          chunkSliceSize: 350,
+          chunkSliceDelayMs: 6,
+          phoneBatchSize: 14,
+          phoneIntervalMs: 650,
+          labelAr: userScanSpeedMode === 'auto' ? `تلقائي (${(effType || '4G').toUpperCase()} • سريع)` : 'سريع'
+        };
+      }
+      if (tier === 'slow') {
+        return {
+          tier: 'slow',
+          effType: effType || '3g',
+          domFlushMs: 1600,
+          chunkSliceSize: 150,
+          chunkSliceDelayMs: 25,
+          phoneBatchSize: 6,
+          phoneIntervalMs: 1800,
+          labelAr: `تلقائي (${(effType || '3G').toUpperCase()} • هادئ)`
+        };
+      }
+      return {
+        tier: 'balanced',
+        effType: effType || 'auto',
+        domFlushMs: 1000,
+        chunkSliceSize: 250,
+        chunkSliceDelayMs: 12,
+        phoneBatchSize: 10,
+        phoneIntervalMs: 1000,
+        labelAr: userScanSpeedMode === 'auto' ? 'تلقائي (متوازن)' : 'متوازن'
+      };
+    }
+
+    function updateAdaptiveScanSpeedUI() {
+      const pacing = getAdaptiveScanPacing();
+      const badge = document.getElementById('scanNetworkSpeedBadge');
+      if (badge) badge.innerText = pacing.labelAr;
+      const sel = document.getElementById('scanSpeedModeSelect');
+      if (sel && sel.value !== userScanSpeedMode) sel.value = userScanSpeedMode;
+    }
+
+    function setAdaptiveScanSpeedMode(mode) {
+      if (mode !== 'auto' && mode !== 'balanced' && mode !== 'fast') return;
+      userScanSpeedMode = mode;
+      try { localStorage.setItem(SCAN_SPEED_STORAGE_KEY, mode); } catch (e) {}
+      updateAdaptiveScanSpeedUI();
+      if (typeof startAutoPhoneFetchWorker === 'function' && autoPhoneFetchQueue.length > 0 && !isScanPaused) {
+        startAutoPhoneFetchWorker();
+      }
+    }
+    window.setAdaptiveScanSpeedMode = setAdaptiveScanSpeedMode;
+
+    try {
+      const navConn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+      if (navConn && typeof navConn.addEventListener === 'function') {
+        navConn.addEventListener('change', () => {
+          updateAdaptiveScanSpeedUI();
+          if (userScanSpeedMode === 'auto' && typeof startAutoPhoneFetchWorker === 'function' && autoPhoneFetchQueue.length > 0 && !isScanPaused) {
+            startAutoPhoneFetchWorker();
+          }
+        });
+      }
+    } catch (e) {}
+
     const DOM_BATCH_FLUSH_INTERVAL_MS = 1200;
 
     function scheduleBufferedUiSync(immediate = false) {
@@ -5591,12 +5711,13 @@
         return;
       }
       if (!batchUiThrottleTimer) {
+        const flushDelay = getAdaptiveScanPacing().domFlushMs || DOM_BATCH_FLUSH_INTERVAL_MS;
         batchUiThrottleTimer = setTimeout(() => {
           batchUiThrottleTimer = null;
           if (pendingUiRefreshNeeded || pendingStreamPlacesBuffer.length > 0) {
             flushBufferedUiSync(false);
           }
-        }, DOM_BATCH_FLUSH_INTERVAL_MS);
+        }, flushDelay);
       }
     }
 
@@ -5641,7 +5762,8 @@
         if (pendingUiRefreshNeeded) scheduleBufferedUiSync(false);
         return;
       }
-      const CHUNK_SLICE_SIZE = 300;
+      const pacing = typeof getAdaptiveScanPacing === 'function' ? getAdaptiveScanPacing() : { chunkSliceSize: 300, chunkSliceDelayMs: 10 };
+      const CHUNK_SLICE_SIZE = pacing.chunkSliceSize || 300;
       const slice = backgroundChunkQueue.splice(0, CHUNK_SLICE_SIZE);
       let addedCount = 0;
 
@@ -5665,7 +5787,7 @@
           backgroundSliceTimer = setTimeout(() => {
             backgroundSliceTimer = null;
             processNextBackgroundPlacesSlice();
-          }, 10);
+          }, pacing.chunkSliceDelayMs || 10);
         } else {
           if (backgroundSliceTimer) {
             clearTimeout(backgroundSliceTimer);
@@ -9116,8 +9238,10 @@
       if (navigator.onLine === false) return;
       if (autoPhoneFetchQueue.length === 0) return;
 
+      const pacing = typeof getAdaptiveScanPacing === 'function' ? getAdaptiveScanPacing() : { phoneBatchSize: AUTO_PHONE_BATCH_SIZE };
+      const adaptiveBatchCap = pacing.phoneBatchSize || AUTO_PHONE_BATCH_SIZE;
       const batch = [];
-      while (autoPhoneFetchQueue.length > 0 && batch.length < AUTO_PHONE_BATCH_SIZE) {
+      while (autoPhoneFetchQueue.length > 0 && batch.length < adaptiveBatchCap) {
         const candidate = autoPhoneFetchQueue.shift();
         if (!candidate || !candidate.id) continue;
         autoPhoneFetchQueuedIds.delete(candidate.id);
@@ -9216,6 +9340,8 @@
         autoPhoneWorkerIntervalId = null;
       }
       if (autoPhoneFetchQueue.length === 0) return;
+      const pacing = typeof getAdaptiveScanPacing === 'function' ? getAdaptiveScanPacing() : { phoneIntervalMs: AUTO_PHONE_WORKER_INTERVAL_MS };
+      const workerIntervalMs = pacing.phoneIntervalMs || AUTO_PHONE_WORKER_INTERVAL_MS;
       autoPhoneWorkerIntervalId = setInterval(() => {
         if (isLoginModalVisible() || isScanPaused) return;
         if (!isAutoPhoneWorkerBusy) {
@@ -9225,7 +9351,7 @@
             stopAutoPhoneFetchWorker();
           }
         }
-      }, AUTO_PHONE_WORKER_INTERVAL_MS);
+      }, workerIntervalMs);
     }
 
     window.addEventListener('beforeunload', () => {
@@ -9355,6 +9481,7 @@
       }
       // Smart single-button toggle initialization & Enter key routing for #queryInput
       syncPrimarySearchActionButton();
+      if (typeof updateAdaptiveScanSpeedUI === 'function') updateAdaptiveScanSpeedUI();
       const queryInputEl = document.getElementById('queryInput');
       if (queryInputEl && !queryInputEl.dataset.smartToggleBound) {
         queryInputEl.dataset.smartToggleBound = '1';

@@ -317,6 +317,107 @@
       border-color: rgba(148, 163, 184, 0.28);
     }
 
+    /* Global Dark 3-Color Baseline: NEVER allow white browser-default buttons or narrow inputs */
+    button {
+      appearance: none;
+      -webkit-appearance: none;
+      font-family: inherit;
+      background-color: transparent;
+      color: inherit;
+      border: none;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="search"],
+    textarea {
+      appearance: none;
+      -webkit-appearance: none;
+      background-color: transparent;
+      color: #f1f5f9;
+      border: none;
+      outline: none;
+    }
+
+    /* Unified 3-Color 3D Search Inputs (#queryInput & #locationInput) */
+    .search-input-box {
+      width: 100%;
+      background: #0b1320;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 12px;
+      padding: 11px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      box-shadow: inset 0 2px 6px rgba(2, 6, 23, 0.45);
+      transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .search-input-box:focus-within {
+      border-color: #10b981;
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.18), inset 0 2px 6px rgba(2, 6, 23, 0.45);
+    }
+    #queryInput,
+    #locationInput {
+      width: 100% !important;
+      min-width: 0;
+      flex: 1 1 auto;
+      background: transparent !important;
+      color: #f1f5f9 !important;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    #queryInput::placeholder,
+    #locationInput::placeholder {
+      color: #94a3b8;
+    }
+
+    /* Unified Official 3-Color 3D Secondary & Control Buttons */
+    .btn-secondary,
+    .sidebar-tool-btn,
+    .scan-controls-secondary button,
+    #btnPauseComprehensiveScan,
+    #btnResumeComprehensiveScan,
+    #btnPauseResumeScan,
+    #btnPauseScan,
+    #btnResumeScan,
+    #btnResetScan,
+    #btnRestorePreviousSession,
+    .app-main-content header button {
+      background-color: #131f33 !important;
+      color: #f1f5f9 !important;
+      border: 1px solid rgba(148, 163, 184, 0.18) !important;
+      box-shadow: 0 6px 16px rgba(2, 6, 23, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease, color 0.15s ease;
+    }
+    .btn-secondary:hover,
+    .sidebar-tool-btn:hover,
+    .scan-controls-secondary button:hover,
+    #btnPauseComprehensiveScan:hover,
+    #btnResumeComprehensiveScan:hover,
+    #btnPauseResumeScan:hover,
+    #btnPauseScan:hover,
+    #btnResumeScan:hover,
+    #btnResetScan:hover,
+    #btnRestorePreviousSession:hover,
+    .app-main-content header button:hover {
+      background-color: #182740 !important;
+      border-color: rgba(16, 185, 129, 0.45) !important;
+      color: #ffffff !important;
+    }
+    .sidebar-footer-link {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+      color: #94a3b8 !important;
+      padding: 2px 4px;
+      font-size: 11px;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+    .sidebar-footer-link:hover {
+      color: #f1f5f9 !important;
+    }
+
     /* Official 3D Primary Button Depth + Tactile Press */
     .bg-emerald-600 {
       background-color: #10b981 !important;
@@ -1302,36 +1403,36 @@
         </nav>
 
         <!-- Secondary Quick Tools inside Sidebar -->
-        <div class="pt-4 border-t border-slate-800/80 space-y-1">
-          <div class="text-[11px] font-semibold text-slate-500 px-2 pb-1">أدوات</div>
+        <div class="pt-4 border-t border-slate-800/80 space-y-2">
+          <div class="text-[11px] font-semibold text-slate-400 px-2 pb-0.5">أدوات</div>
           <button
             type="button"
             onclick="closeMobileSidebarDrawer(); openSavedProjectsModal();"
-            class="w-full px-2.5 py-2 rounded-lg bg-transparent hover:bg-slate-800/70 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-2.5 cursor-pointer transition"
+            class="sidebar-tool-btn w-full px-3 py-2.5 text-xs font-semibold flex items-center gap-2.5 cursor-pointer"
           >
-            <i data-lucide="folder" class="w-4 h-4 text-slate-400"></i>
+            <i data-lucide="folder" class="w-4 h-4 text-emerald-400 shrink-0"></i>
             <span>مشاريعي المحفوظة</span>
           </button>
           <button
             type="button"
             onclick="closeMobileSidebarDrawer(); openUserSettingsModal();"
-            class="w-full px-2.5 py-2 rounded-lg bg-transparent hover:bg-slate-800/70 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-2.5 cursor-pointer transition"
+            class="sidebar-tool-btn w-full px-3 py-2.5 text-xs font-semibold flex items-center gap-2.5 cursor-pointer"
           >
-            <i data-lucide="settings" class="w-4 h-4 text-slate-400"></i>
+            <i data-lucide="settings" class="w-4 h-4 text-emerald-400 shrink-0"></i>
             <span>إعدادات الحساب واللغة</span>
           </button>
-          <div class="pt-3 notranslate" translate="no">
+          <div class="pt-2 notranslate" translate="no">
             <div id="sidebarTranslateSlot" class="translate-widget translate-widget-box notranslate" translate="no"></div>
           </div>
         </div>
       </div>
 
       <!-- Sidebar Footer: Legal Links -->
-      <div class="px-4 py-3 border-t border-slate-800/80 text-[11px] text-slate-500">
+      <div class="px-4 py-3 border-t border-slate-800/80 text-[11px] text-slate-400">
         <div class="flex items-center justify-between">
-          <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="hover:text-slate-200 cursor-pointer transition">الشروط والأحكام</button>
+          <button type="button" onclick="openLegalInfoModal('terms_privacy')" class="sidebar-footer-link">الشروط والأحكام</button>
           <span>•</span>
-          <button type="button" onclick="openLegalInfoModal('instructions')" class="hover:text-slate-200 cursor-pointer transition">تعليمات الاستخدام</button>
+          <button type="button" onclick="openLegalInfoModal('instructions')" class="sidebar-footer-link">تعليمات الاستخدام</button>
         </div>
       </div>
     </aside>
@@ -1449,8 +1550,8 @@
             <!-- 1. Main Location & Activity Search Row -->
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
               <!-- Activity Input -->
-              <div class="sm:col-span-7 bg-[#0b1320] border border-slate-400/20 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
-                <i data-lucide="search" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="sm:col-span-7 search-input-box">
+                <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
                 <input
                   type="text"
                   id="queryInput"
@@ -1464,8 +1565,8 @@
               </div>
 
               <!-- City / Country Input -->
-              <div class="sm:col-span-5 bg-[#0b1320] border border-slate-400/20 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
-                <i data-lucide="map-pin" class="w-4 h-4 text-slate-400 shrink-0"></i>
+              <div class="sm:col-span-5 search-input-box">
+                <i data-lucide="map-pin" class="w-4 h-4 text-emerald-400 shrink-0"></i>
                 <input
                   type="text"
                   id="locationInput"

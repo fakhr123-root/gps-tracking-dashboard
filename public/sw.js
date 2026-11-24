@@ -1,5 +1,5 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v28';
+const CACHE_NAME = 'georadar-hybrid-shell-v29';
 const CDN_CACHE_NAME = 'georadar-cdn-static-v1';
 const NAV_NETWORK_TIMEOUT_MS = 3000;
 const APP_SHELL_ASSETS = [

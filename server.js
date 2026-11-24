@@ -9042,6 +9042,11 @@ const server = http.createServer(async (req, res) => {
 // Bind to PORT immediately BEFORE loading large JSON archives into memory so incoming requests never hang!
 purgeFakeHardcodedCoordsFromPersistedStore();
 
+// Extended HTTP timeouts for Render cold-start & deep comprehensive scan resilience
+server.timeout = 120000;
+server.keepAliveTimeout = 120000;
+server.headersTimeout = 125000;
+
 server.listen(PORT, () => {
   console.log(`=======================================================`);
   console.log(`🚀 تطبيق استخراج بيانات خرائط جوجل 3D يعمل الآن بنجاح!`);

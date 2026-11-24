@@ -52,43 +52,40 @@
     }
     .font-num { font-family: 'Orbitron', 'Cairo', monospace; }
     body {
-      background-color: #050912;
-      background-image:
-        radial-gradient(at 20% 15%, rgba(6, 182, 212, 0.14) 0px, transparent 45%),
-        radial-gradient(at 80% 20%, rgba(99, 102, 241, 0.14) 0px, transparent 45%),
-        radial-gradient(at 50% 85%, rgba(16, 185, 129, 0.12) 0px, transparent 50%);
+      background-color: #0b1320;
       color: #f1f5f9;
       min-height: 100vh;
       overflow-x: hidden;
     }
 
-    /* Main Framed Command Center Window matching Mockup */
+    /* Official 3-Color + Subtle 3D Command Center Frame */
     .command-frame {
-      background: linear-gradient(160deg, rgba(13, 20, 34, 0.95) 0%, rgba(7, 12, 22, 0.98) 100%);
-      border: 1px solid rgba(56, 189, 248, 0.25);
-      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      background: #0b1320;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
     }
 
-    /* 4 Distinct Color-Coded KPI Cards matching Mockup 1:1 */
-    .kpi-cyan {
-      background: linear-gradient(135deg, rgba(6, 78, 99, 0.55) 0%, rgba(11, 25, 44, 0.9) 100%);
-      border: 1px solid rgba(34, 211, 238, 0.45);
-      box-shadow: 0 10px 30px rgba(6, 182, 212, 0.18), inset 0 0 20px rgba(6, 182, 212, 0.08);
+    /* Unified Official 3-Color KPI Cards with Subtle 3D Depth (No Neon Clutter) */
+    .kpi-cyan,
+    .kpi-emerald,
+    .kpi-blue,
+    .kpi-purple {
+      background: #131f33;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      transition: border-color 0.18s ease, transform 0.12s ease;
     }
     .kpi-emerald {
-      background: linear-gradient(135deg, rgba(6, 78, 59, 0.55) 0%, rgba(10, 26, 35, 0.9) 100%);
-      border: 1px solid rgba(52, 211, 153, 0.45);
-      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.18), inset 0 0 20px rgba(16, 185, 129, 0.08);
+      border-color: rgba(16, 185, 129, 0.35);
     }
-    .kpi-blue {
-      background: linear-gradient(135deg, rgba(8, 51, 68, 0.65) 0%, rgba(10, 25, 41, 0.92) 100%);
-      border: 1px solid rgba(56, 189, 248, 0.45);
-      box-shadow: 0 10px 30px rgba(14, 165, 233, 0.16), inset 0 0 20px rgba(14, 165, 233, 0.08);
+    .kpi-cyan:hover,
+    .kpi-emerald:hover,
+    .kpi-blue:hover,
+    .kpi-purple:hover {
+      border-color: rgba(16, 185, 129, 0.45);
     }
-    .kpi-purple {
-      background: linear-gradient(135deg, rgba(17, 94, 89, 0.55) 0%, rgba(9, 24, 34, 0.92) 100%);
-      border: 1px solid rgba(45, 212, 191, 0.45);
-      box-shadow: 0 10px 30px rgba(20, 184, 166, 0.18), inset 0 0 20px rgba(20, 184, 166, 0.08);
+    button:active:not(:disabled) {
+      transform: translateY(1px);
     }
 
     /* Right Vertical Icon Sidebar Navigation Button */
@@ -146,10 +143,11 @@
     ::-webkit-scrollbar-thumb:hover { background: #10b981; }
 
     #mobileSearchesCards, #mobileVisitorsCards { display: none; }
-    @media (max-width: 767px) {
+    @media (max-width: 768px) {
       #desktopSearchesTableWrapper, #desktopVisitorsTableWrapper { display: none !important; }
-      #mobileSearchesCards, #mobileVisitorsCards { display: flex !important; }
-      main { padding-bottom: 5rem !important; }
+      #mobileSearchesCards, #mobileVisitorsCards { display: flex !important; gap: 12px !important; }
+      main { padding: 16px !important; padding-bottom: 5rem !important; gap: 12px !important; }
+      .command-frame { padding: 16px !important; }
     }
     @keyframes radarPulse {
       0% { transform: scale(0.75); opacity: 0.95; }

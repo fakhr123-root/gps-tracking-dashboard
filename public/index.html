@@ -4733,7 +4733,9 @@
         } catch (doneErr) {
           console.error('Error finalizing scan results:', doneErr);
         } finally {
-          // FORCE completion UI state regardless of any error during finalization
+          // Honest completion UI state: distinguish real success vs upstream error vs zero matches
+          const hasUpstreamErr = Boolean(window.__lastScanErrorMessage);
+          const finalTotal = extractedPlaces.length;
           maxDisplayedProgressPercent = 100;
           if (progressBar) {
             progressBar.style.width = '100%';
@@ -4741,14 +4743,25 @@
             progressBar.classList.add('from-emerald-400', 'to-teal-300');
           }
           const pctEl = document.getElementById('progressPercentBadge');
-          if (pctEl) pctEl.innerText = '100%';
+          if (pctEl) pctEl.innerText = hasUpstreamErr ? '!' : '100%';
           if (statusMessage) {
-            statusMessage.innerText = '✅ تم اكتمال المسح بنجاح';
-            statusMessage.classList.add('text-emerald-300', 'font-black');
+            if (hasUpstreamErr && finalTotal === 0) {
+              statusMessage.innerText = `⚠️ ${window.__lastScanErrorMessage}`;
+              statusMessage.classList.remove('text-emerald-300');
+              statusMessage.classList.add('text-amber-300', 'font-bold');
+            } else if (finalTotal === 0) {
+              statusMessage.innerText = 'ℹ️ لم يتم العثور على مواقع مطابقة — جرّب كلمة بحث أبسط أو نطاقاً أوسع';
+              statusMessage.classList.remove('text-emerald-300');
+              statusMessage.classList.add('text-slate-200', 'font-bold');
+            } else {
+              statusMessage.innerText = '✅ تم اكتمال المسح بنجاح';
+              statusMessage.classList.remove('text-amber-300');
+              statusMessage.classList.add('text-emerald-300', 'font-black');
+            }
           }
           hideScanLoadingSpinners();
           if (typeof showScanCompleteCelebrationToast === 'function') {
-            showScanCompleteCelebrationToast(extractedPlaces.length);
+            showScanCompleteCelebrationToast(finalTotal, hasUpstreamErr ? window.__lastScanErrorMessage : '');
           }
           if (progressHideTimer) {
             clearTimeout(progressHideTimer);
@@ -4757,16 +4770,30 @@
           progressHideTimer = setTimeout(() => {
             progressHideTimer = null;
             progressContainer.classList.add('hidden');
-          }, 2500);
+          }, hasUpstreamErr ? 4500 : 2500);
           finishSearch();
         }
       }
+
+      window.__lastScanErrorMessage = '';
+
+      currentEventSource.addEventListener('scan_error', (event) => {
+        try {
+          const data = JSON.parse(event.data || '{}');
+          window.__lastScanErrorMessage = data.message || data.error || 'تعذر الاتصال بمحرك البحث مؤقتاً.';
+        } catch (e) {
+          window.__lastScanErrorMessage = 'تعذر الاتصال بمحرك البحث مؤقتاً.';
+        }
+      });
 
       // Direct SSE default message stream handler for {"type": "progress", "percent": X} and {"type": "done"}
       currentEventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           if (!data || typeof data !== 'object') return;
+          if (data.hadError && data.errorMessage) {
+            window.__lastScanErrorMessage = data.errorMessage;
+          }
           if (data.type === 'done') {
             handleSearchDoneEvent();
           } else if (data.type === 'progress') {
@@ -4848,6 +4875,9 @@
       currentEventSource.addEventListener('error', () => {
         try {
           if (!isSearchDoneHandled) {
+            if (extractedPlaces.length === 0 && !window.__lastScanErrorMessage) {
+              window.__lastScanErrorMessage = 'انقطع الاتصال بالخادم أثناء البحث (قد يكون الخادم قيد التحديث أو الاستيقاظ) — يرجى المحاولة مرة أخرى.';
+            }
             handleSearchDoneEvent();
           }
         } finally {
@@ -5515,9 +5545,10 @@
     function ingestIncomingStreamPlace(place) {
       try {
         if (!place) return;
-        // Buffer incoming results and flush DOM once every 1.2s via DocumentFragment (prevents layout thrashing)
+        // Flush immediately on the first incoming places so counters and cards appear right away!
         pendingStreamPlacesBuffer.push(place);
-        scheduleBufferedUiSync(false);
+        const shouldFlushImmediately = extractedPlaces.length < 10;
+        scheduleBufferedUiSync(shouldFlushImmediately);
       } catch (_) {
         // Silently ignore stream ingestion error to avoid console spam
       }
@@ -5575,13 +5606,22 @@
     }
 
     let scanCompleteToastTimer = null;
-    function showScanCompleteCelebrationToast(finalNetCount = 0) {
+    function showScanCompleteCelebrationToast(finalNetCount = 0, errorReason = '') {
       const toast = document.getElementById('scanCompleteCelebrationToast');
       const titleEl = document.getElementById('scanCompleteToastTitle');
       const subEl = document.getElementById('scanCompleteToastSubtitle');
       if (!toast) return;
-      if (titleEl) titleEl.innerText = '✅ اكتمل المسح الشامل بنجاح! (100%)';
-      if (subEl) subEl.innerText = `إجمالي المواقع الصافية بدون تكرار: ${Number(finalNetCount || 0).toLocaleString()} موقع`;
+      const countNum = Number(finalNetCount || 0);
+      if (errorReason && countNum === 0) {
+        if (titleEl) titleEl.innerText = '⚠️ تعذر إتمام المسح مؤقتاً';
+        if (subEl) subEl.innerText = errorReason;
+      } else if (countNum === 0) {
+        if (titleEl) titleEl.innerText = 'ℹ️ لم يتم العثور على نتائج مطابقة';
+        if (subEl) subEl.innerText = 'جرّب كلمة بحث أبسط أو اختر مدينة/نطاقاً أوسع ثم أعد المحاولة';
+      } else {
+        if (titleEl) titleEl.innerText = '✅ اكتمل المسح الشامل بنجاح! (100%)';
+        if (subEl) subEl.innerText = `إجمالي المواقع الصافية بدون تكرار: ${countNum.toLocaleString()} موقع`;
+      }
       toast.classList.remove('hidden');
       if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);
       scanCompleteToastTimer = setTimeout(() => {

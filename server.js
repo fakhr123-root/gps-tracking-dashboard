@@ -4698,44 +4698,31 @@ function resolveLocalNeighborhood(lat, lng) {
   return null;
 }
 
-// Normalize requested language code for Nominatim / BigDataCloud reverse-geocoding
-function normalizeGeocodeLang(rawLang) {
-  const s = String(rawLang || '').trim().split(',')[0].split(';')[0].trim();
-  if (!s) return 'ar';
-  const low = s.toLowerCase();
-  if (low === 'zh-tw' || low === 'zh-hk' || low.startsWith('zh-hant')) return 'zh-TW';
-  if (low === 'zh' || low.startsWith('zh-')) return 'zh-CN';
-  if (low === 'iw' || low === 'he' || low.startsWith('he-')) return 'he';
-  return low.split('-')[0] || 'ar';
-}
-
-// Reverse geocode exact GPS coordinates into street/neighborhood name in requested language
-async function reverseGeocodeCoords(lat, lng, rawLang = 'ar') {
-  const lang = normalizeGeocodeLang(rawLang);
-  const isArabic = lang === 'ar';
+// Reverse geocode exact GPS coordinates into street/neighborhood name
+async function reverseGeocodeCoords(lat, lng) {
   const localMatch = resolveLocalNeighborhood(lat, lng);
   try {
-    const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=${encodeURIComponent(lang)}`;
+    const revUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}&localityLanguage=ar`;
     const res = await fetchWithTimeout(revUrl, { timeout: 3500 });
     if (res.ok) {
       const data = await res.json();
-      const country = data.countryName || (isArabic ? (localMatch?.country || 'اليمن') : '');
-      const city = data.city || data.principalSubdivision || (isArabic ? (localMatch?.city || 'صنعاء') : '');
-      const locality = data.locality || (isArabic ? (localMatch?.neighborhood || '') : '');
-      const region = isArabic && localMatch && localMatch.distanceKm < 5
+      const country = data.countryName || localMatch?.country || 'اليمن';
+      const city = data.city || localMatch?.city || data.principalSubdivision || 'صنعاء';
+      const locality = data.locality || localMatch?.neighborhood || '';
+      const region = localMatch && localMatch.distanceKm < 5
         ? `${localMatch.neighborhood} (${locality || city})`
-        : (locality || data.principalSubdivision || (isArabic ? (localMatch?.neighborhood || '') : ''));
+        : (locality || data.principalSubdivision || localMatch?.neighborhood || '');
       return {
         country,
         city,
         region,
-        locationName: city ? (region ? `${city} - ${region}` : city) : (country || '')
+        locationName: `${city} - ${localMatch && localMatch.distanceKm < 5 ? localMatch.neighborhood : (locality || region)}`
       };
     }
   } catch (e) {
     // Fallback to local match
   }
-  if (isArabic && localMatch) {
+  if (localMatch) {
     return {
       country: localMatch.country,
       city: localMatch.city,
@@ -4747,51 +4734,45 @@ async function reverseGeocodeCoords(lat, lng, rawLang = 'ar') {
 }
 
 // Resolve user's GPS coordinates (lat, lon) into City + City Bounding Box [south, west, north, east] AND Country + ISO Code + Country Bounding Box [south, west, north, east]
-async function resolveLocationScopeWithBoundingBoxes(lat, lon, rawLang = 'ar') {
-  const lang = normalizeGeocodeLang(rawLang);
-  const isArabic = lang === 'ar';
-  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}_${lang}`;
+async function resolveLocationScopeWithBoundingBoxes(lat, lon) {
+  const cacheKey = `${Number(lat).toFixed(3)}_${Number(lon).toFixed(3)}`;
   if (GEO_SCOPE_BBOX_CACHE.has(cacheKey)) {
     return GEO_SCOPE_BBOX_CACHE.get(cacheKey);
   }
 
   const localMatch = resolveLocalNeighborhood(lat, lon);
-  let city = isArabic ? (localMatch?.city || '') : '';
-  let country = isArabic ? (localMatch?.country || '') : '';
-  let countryCode = '';
-  let neighborhood = isArabic ? (localMatch?.shortHood || localMatch?.neighborhood || '') : '';
+  let city = localMatch?.city || '';
+  let country = localMatch?.country || '';
+  let countryCode = 'YE';
+  let neighborhood = localMatch?.shortHood || localMatch?.neighborhood || '';
   let cityBbox = null;
   let countryBbox = null;
 
   // Check if coordinates fall inside Yemen's bounding box [12.10, 41.80, 19.00, 54.60]
   const isInsideYemen = lat >= 12.10 && lat <= 19.00 && lon >= 41.80 && lon <= 54.60;
 
-  // 1. Query Nominatim Reverse Geocoding in the user's requested language
+  // 1. Query Nominatim Reverse Geocoding for official city, country, ISO code & bounding box
   try {
-    const acceptLangHeader = isArabic ? 'ar,en' : `${lang},en`;
-    const nomRevUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1&accept-language=${encodeURIComponent(acceptLangHeader)}`;
+    const nomRevUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=10&addressdetails=1&accept-language=ar,en`;
     const nRes = await fetchWithTimeout(nomRevUrl, {
       timeout: 4500,
       headers: {
         'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)',
-        'Accept': 'application/json',
-        'Accept-Language': acceptLangHeader
+        'Accept': 'application/json'
       }
     });
     if (nRes.ok) {
       const nData = await nRes.json();
       const addr = nData?.address || {};
-      const detectedCity = addr.city || addr.town || addr.municipality || addr.state || addr.county || addr.province || nData?.name || '';
+      const detectedCity = addr.city || addr.state || addr.town || addr.county || addr.municipality || addr.province || nData?.name || '';
       const detectedCountry = addr.country || '';
       const detectedCode = String(addr.country_code || '').toUpperCase();
       const detectedHood = addr.suburb || addr.neighbourhood || addr.quarter || addr.district || '';
 
-      if (detectedCity && (!isArabic || !city || !isInsideYemen)) {
-        city = isArabic ? detectedCity.replace(/^محافظة\s+/i, '').trim() : detectedCity.trim();
-      }
+      if (detectedCity && (!city || !isInsideYemen)) city = detectedCity.replace(/^محافظة\s+/i, '').trim();
       if (detectedCountry) country = detectedCountry;
       if (detectedCode) countryCode = detectedCode;
-      if (detectedHood && (!isArabic || !neighborhood)) neighborhood = detectedHood;
+      if (detectedHood && !neighborhood) neighborhood = detectedHood;
 
       if (Array.isArray(nData?.boundingbox) && nData.boundingbox.length === 4) {
         const b = nData.boundingbox.map(Number); // [south, north, west, east] in Nominatim
@@ -4809,9 +4790,9 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon, rawLang = 'ar') {
     }
   } catch (e) {}
 
-  // 2. Fallback to BigDataCloud / reverseGeocodeCoords in requested language if city or country still missing
+  // 2. Fallback to BigDataCloud / reverseGeocodeCoords if city or country still missing
   if (!city || !country) {
-    const rev = await reverseGeocodeCoords(lat, lon, lang);
+    const rev = await reverseGeocodeCoords(lat, lon);
     if (rev) {
       if (!city && rev.city) city = rev.city;
       if (!country && rev.country) country = rev.country;
@@ -4821,11 +4802,11 @@ async function resolveLocationScopeWithBoundingBoxes(lat, lon, rawLang = 'ar') {
 
   if (isInsideYemen) {
     countryCode = 'YE';
-    if (isArabic) {
-      if (!country) country = 'اليمن';
-      if (!city) city = 'صنعاء';
-    }
+    country = 'اليمن';
+    if (!city) city = 'صنعاء';
   }
+  if (!city) city = 'صنعاء';
+  if (!country) country = 'اليمن';
 
   // 3. Look up Official City Bounding Box [south, west, north, east] from Atlas or Nominatim City Search
   for (const [cKey, bboxVal] of Object.entries(OFFICIAL_CITY_BBOX_ATLAS)) {
@@ -7610,13 +7591,9 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Lightweight uptime health check endpoints (GET /healthz & /api/health — instant 200 OK to prevent Render cold sleep)
-  if (pathname === '/healthz' || pathname === '/api/health') {
-    const fastWriteHead = res._origWriteHead || res.writeHead.bind(res);
-    fastWriteHead(200, {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': 'no-store'
-    });
+  // Health check endpoint (keeps cloud instance awake 24/7)
+  if (pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       ok: true,
       status: 'alive',
@@ -8728,17 +8705,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Reverse Geocoding endpoint (resolves live coordinates worldwide in the user's active language)
+  // Reverse Geocoding endpoint (resolves live coordinates to city, cityBbox, country, countryCode, countryBbox, and neighborhood)
   if (pathname === '/api/reverse-geocode') {
     const lat = parseFloat(parsedUrl.query.lat);
     const lon = parseFloat(parsedUrl.query.lon ?? parsedUrl.query.lng);
-    const reqLang = parsedUrl.query.lang || parsedUrl.query.language || parsedUrl.query['accept-language'] || req.headers['accept-language'] || 'ar';
     if (isNaN(lat) || isNaN(lon)) {
       res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ error: 'Invalid coordinates' }));
       return;
     }
-    const scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon, reqLang);
+    const scopeInfo = await resolveLocationScopeWithBoundingBoxes(lat, lon);
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify(scopeInfo));
     return;
@@ -9038,52 +9014,25 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isHtmlOrSw = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html' || reqPath === '/sw.js';
-    const etag = `W/"${stats.size}-${Math.floor(stats.mtimeMs)}"`;
-
-    // Instant 304 Not Modified for unchanged files so reloads transfer 0 bytes
-    if (req.headers['if-none-match'] === etag && reqPath !== '/sw.js') {
-      const writeH304 = res._origWriteHead || res.writeHead.bind(res);
-      writeH304(304, {
-        'ETag': etag,
-        'Cache-Control': isHtmlOrSw
-          ? 'no-cache, must-revalidate'
-          : 'public, max-age=86400, stale-while-revalidate=604800'
-      });
-      res.end();
-      return;
-    }
-
+    const isHtmlDoc = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html' || reqPath === '/sw.js' || reqPath === '/manifest.json';
     const headers = {
       'Content-Type': contentType,
-      'ETag': etag,
-      'Cache-Control': isHtmlOrSw
-        ? 'no-cache, must-revalidate'
-        : 'public, max-age=86400, stale-while-revalidate=604800'
+      'Cache-Control': isHtmlDoc
+        ? 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        : 'public, max-age=3600',
+      ...(isHtmlDoc ? { 'Pragma': 'no-cache', 'Expires': '0' } : {})
     };
 
     const compressibleExts = new Set(['.html', '.css', '.js', '.json', '.svg']);
-    const acceptEnc = String(req.headers['accept-encoding'] || '').toLowerCase();
-    const writeH = res._origWriteHead || res.writeHead.bind(res);
-
-    if (compressibleExts.has(ext) && acceptEnc.includes('br') && typeof zlib.createBrotliCompress === 'function') {
-      res._pipedStream = true;
-      headers['Content-Encoding'] = 'br';
-      headers['Vary'] = 'Accept-Encoding';
-      writeH(200, headers);
-      fs.createReadStream(filePath)
-        .pipe(zlib.createBrotliCompress({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }))
-        .pipe(res);
-    } else if (compressibleExts.has(ext) && acceptEnc.includes('gzip')) {
+    if (res._gzipEnabled && res._origWriteHead && compressibleExts.has(ext)) {
       res._pipedStream = true;
       headers['Content-Encoding'] = 'gzip';
       headers['Vary'] = 'Accept-Encoding';
-      writeH(200, headers);
-      fs.createReadStream(filePath)
-        .pipe(zlib.createGzip({ level: 6 }))
-        .pipe(res);
+      res._origWriteHead(200, headers);
+      fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
     } else {
       res._pipedStream = true;
+      const writeH = res._origWriteHead || res.writeHead.bind(res);
       writeH(200, headers);
       fs.createReadStream(filePath).pipe(res);
     }

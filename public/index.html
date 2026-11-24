@@ -76,7 +76,7 @@
 
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js?v=6', { scope: '/' })
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
             .then(function(reg) {
               if (reg && typeof reg.update === 'function') {
                 reg.update().catch(function() {});

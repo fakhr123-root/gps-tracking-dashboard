@@ -1,5 +1,6 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v21';
+const CACHE_NAME = 'georadar-hybrid-shell-v22';
+const NAV_NETWORK_TIMEOUT_MS = 4000;
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -61,43 +62,76 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Network-first for HTML/CSS/JS shell with integrity checks and clean fallback (prevents partial/corrupted raw screen on reload/update)
+// Helper: fetch with AbortController timeout so slow/waking servers never cause endless reload spinners
+function fetchWithRaceTimeout(request, timeoutMs) {
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(request, { signal: controller.signal })
+    .finally(() => clearTimeout(timerId));
+}
+
+// Non-blocking Network-First (4000ms race timeout) for HTML navigations with silent background cache refresh
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-  // Never intercept or cache live API / SSE endpoints
-  if (url.pathname.startsWith('/api/')) return;
+  // Never intercept or cache live API / health / SSE endpoints
+  if (url.pathname.startsWith('/api/') || url.pathname === '/healthz') return;
 
   const isNavHtml = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/admin.html';
   const isShellCode = /\.(css|js|mjs|html)$/i.test(url.pathname);
   const hasChallengeQuery = url.searchParams.has('__cf_chl_rt_tk') || url.searchParams.has('__cf_chl_tk');
 
-  // Always bypass HTTP cache for HTML/CSS/JS shells so updates never mix old & new assets
-  const fetchReq = (isNavHtml || isShellCode) ? new Request(req, { cache: 'no-store' }) : req;
+  if (isNavHtml) {
+    const navReq = new Request(req, { cache: 'no-store' });
 
-  event.respondWith(
-    fetch(fetchReq)
-      .then(async (networkRes) => {
-        const isCacheableOrigin =
-          url.origin === self.location.origin ||
-          /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
-
-        if (isNavHtml) {
+    event.respondWith(
+      fetchWithRaceTimeout(navReq, NAV_NETWORK_TIMEOUT_MS)
+        .then(async (networkRes) => {
           const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
-          // Reject non-200 or non-HTML navigation errors by falling back to clean cached shell (unless it's a challenge redirect)
           if (!networkRes.ok || (!contentType.includes('text/html') && !hasChallengeQuery)) {
             const fallbackHtml = await caches.match('/index.html').then((r) => r || caches.match('/'));
-            if (fallbackHtml) return fallbackHtml;
-            return networkRes;
+            return fallbackHtml || networkRes;
           }
           if (!hasChallengeQuery && url.origin === self.location.origin) {
             const resClone = networkRes.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(url.pathname, resClone)).catch(() => {});
           }
           return networkRes;
-        }
+        })
+        .catch(async () => {
+          // Server is slow/waking up or offline -> serve cached shell immediately & refresh cache silently in background
+          if (!hasChallengeQuery && url.origin === self.location.origin) {
+            event.waitUntil(
+              fetch(new Request(url.pathname, { cache: 'no-store' }))
+                .then((bgRes) => {
+                  const ct = String(bgRes.headers.get('content-type') || '').toLowerCase();
+                  if (bgRes && bgRes.ok && ct.includes('text/html')) {
+                    return caches.open(CACHE_NAME).then((cache) => cache.put(url.pathname, bgRes.clone()));
+                  }
+                })
+                .catch(() => {})
+            );
+          }
+
+          const cachedRes = await caches.match(req, { ignoreSearch: true })
+            || await caches.match('/index.html')
+            || await caches.match('/');
+          return cachedRes || fetch(navReq).catch(() => new Response('', { status: 503, statusText: 'Offline' }));
+        })
+    );
+    return;
+  }
+
+  const fetchReq = isShellCode ? new Request(req, { cache: 'no-store' }) : req;
+
+  event.respondWith(
+    fetch(fetchReq)
+      .then((networkRes) => {
+        const isCacheableOrigin =
+          url.origin === self.location.origin ||
+          /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
 
         if (networkRes && networkRes.ok && isCacheableOrigin && !hasChallengeQuery) {
           const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
@@ -110,11 +144,7 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => {
         return caches.match(req, { ignoreSearch: true }).then((cachedRes) => {
-          if (cachedRes) return cachedRes;
-          if (isNavHtml) {
-            return caches.match('/index.html').then((idxRes) => idxRes || caches.match('/'));
-          }
-          return new Response('', { status: 503, statusText: 'Offline' });
+          return cachedRes || new Response('', { status: 503, statusText: 'Offline' });
         });
       })
   );

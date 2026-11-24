@@ -7591,9 +7591,13 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Health check endpoint (keeps cloud instance awake 24/7)
-  if (pathname === '/api/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+  // Lightweight uptime health check endpoints (GET /healthz & /api/health — instant 200 OK to prevent Render cold sleep)
+  if (pathname === '/healthz' || pathname === '/api/health') {
+    const fastWriteHead = res._origWriteHead || res.writeHead.bind(res);
+    fastWriteHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store'
+    });
     res.end(JSON.stringify({
       ok: true,
       status: 'alive',
@@ -9014,25 +9018,52 @@ const server = http.createServer(async (req, res) => {
 
     const ext = path.extname(filePath).toLowerCase();
     const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-    const isHtmlDoc = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html' || reqPath === '/sw.js' || reqPath === '/manifest.json';
+    const isHtmlOrSw = ext === '.html' || reqPath === '/index.html' || reqPath === '/admin.html' || reqPath === '/sw.js';
+    const etag = `W/"${stats.size}-${Math.floor(stats.mtimeMs)}"`;
+
+    // Instant 304 Not Modified for unchanged files so reloads transfer 0 bytes
+    if (req.headers['if-none-match'] === etag && reqPath !== '/sw.js') {
+      const writeH304 = res._origWriteHead || res.writeHead.bind(res);
+      writeH304(304, {
+        'ETag': etag,
+        'Cache-Control': isHtmlOrSw
+          ? 'no-cache, must-revalidate'
+          : 'public, max-age=86400, stale-while-revalidate=604800'
+      });
+      res.end();
+      return;
+    }
+
     const headers = {
       'Content-Type': contentType,
-      'Cache-Control': isHtmlDoc
-        ? 'no-store, no-cache, must-revalidate, proxy-revalidate'
-        : 'public, max-age=3600',
-      ...(isHtmlDoc ? { 'Pragma': 'no-cache', 'Expires': '0' } : {})
+      'ETag': etag,
+      'Cache-Control': isHtmlOrSw
+        ? 'no-cache, must-revalidate'
+        : 'public, max-age=86400, stale-while-revalidate=604800'
     };
 
     const compressibleExts = new Set(['.html', '.css', '.js', '.json', '.svg']);
-    if (res._gzipEnabled && res._origWriteHead && compressibleExts.has(ext)) {
+    const acceptEnc = String(req.headers['accept-encoding'] || '').toLowerCase();
+    const writeH = res._origWriteHead || res.writeHead.bind(res);
+
+    if (compressibleExts.has(ext) && acceptEnc.includes('br') && typeof zlib.createBrotliCompress === 'function') {
+      res._pipedStream = true;
+      headers['Content-Encoding'] = 'br';
+      headers['Vary'] = 'Accept-Encoding';
+      writeH(200, headers);
+      fs.createReadStream(filePath)
+        .pipe(zlib.createBrotliCompress({ params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 } }))
+        .pipe(res);
+    } else if (compressibleExts.has(ext) && acceptEnc.includes('gzip')) {
       res._pipedStream = true;
       headers['Content-Encoding'] = 'gzip';
       headers['Vary'] = 'Accept-Encoding';
-      res._origWriteHead(200, headers);
-      fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+      writeH(200, headers);
+      fs.createReadStream(filePath)
+        .pipe(zlib.createGzip({ level: 6 }))
+        .pipe(res);
     } else {
       res._pipedStream = true;
-      const writeH = res._origWriteHead || res.writeHead.bind(res);
       writeH(200, headers);
       fs.createReadStream(filePath).pipe(res);
     }

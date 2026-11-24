@@ -1327,7 +1327,7 @@
             <!-- 1. Main Location & Activity Search Row -->
             <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
               <!-- Activity Input -->
-              <div class="sm:col-span-7 bg-[#0b111a] border border-slate-800 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
+              <div class="sm:col-span-7 bg-[#0b1320] border border-slate-400/20 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
                 <i data-lucide="search" class="w-4 h-4 text-slate-400 shrink-0"></i>
                 <input
                   type="text"
@@ -1335,13 +1335,14 @@
                   autocomplete="off"
                   spellcheck="false"
                   oninput="onQueryInputChange(this.value)"
+                  onchange="onQueryInputChange(this.value)"
                   placeholder="ابحث عن أي نشاط (بقالة، صيدلية، مطعم، شركة...)"
-                  class="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                  class="w-full bg-transparent text-sm text-[#f1f5f9] placeholder-slate-400 focus:outline-none"
                 />
               </div>
 
               <!-- City / Country Input -->
-              <div class="sm:col-span-5 bg-[#0b111a] border border-slate-800 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
+              <div class="sm:col-span-5 bg-[#0b1320] border border-slate-400/20 focus-within:border-emerald-500 rounded-xl px-3.5 py-3 flex items-center gap-2.5 transition">
                 <i data-lucide="map-pin" class="w-4 h-4 text-slate-400 shrink-0"></i>
                 <input
                   type="text"
@@ -1351,7 +1352,7 @@
                   value=""
                   oninput="window.userManuallyEditedLocation = this.value.trim().length > 0 && this.value.trim() !== window.lastAutoDetectedGpsCity;"
                   placeholder="المدينة أو الدولة (تلقائي)"
-                  class="w-full bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
+                  class="w-full bg-transparent text-sm text-[#f1f5f9] placeholder-slate-400 focus:outline-none"
                 />
               </div>
             </div>
@@ -1377,7 +1378,7 @@
               </div>
             </div>
 
-            <!-- 3. Primary Start Scan Button + Clean Secondary Controls -->
+            <!-- 3. Smart Single Primary Action Button (Toggles between Comprehensive Scan & Quick Search) + Secondary Controls -->
             <div class="pt-2">
               <div class="scan-controls-primary">
                 <button
@@ -1393,10 +1394,11 @@
                 <button
                   type="submit"
                   id="searchBtn"
-                  class="px-5 py-3 rounded-xl bg-[#0f172a] hover:bg-slate-800 border border-white/10 text-slate-200 hover:text-white font-semibold text-xs inline-flex items-center justify-center gap-2 transition cursor-pointer disabled:opacity-60 disabled:cursor-wait"
+                  style="display: none;"
+                  class="hidden px-7 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm inline-flex items-center justify-center gap-2.5 cursor-pointer transition shadow-sm disabled:opacity-60 disabled:cursor-wait"
                 >
-                  <span id="scanSpinner" data-scan-spinner class="hidden inline-block w-3.5 h-3.5 border-2 border-slate-400/40 border-t-emerald-400 rounded-full animate-spin shrink-0"></span>
-                  <i data-lucide="search" class="w-3.5 h-3.5 shrink-0"></i>
+                  <span id="scanSpinner" data-scan-spinner class="hidden inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin shrink-0"></span>
+                  <i data-lucide="search" class="w-4 h-4 shrink-0"></i>
                   <span>بحث سريع</span>
                 </button>
               </div>
@@ -2300,8 +2302,25 @@
       document.getElementById('btnNeighborhoodToggle')?.classList.remove('active');
     }
 
+    function syncPrimarySearchActionButton() {
+      const qEl = document.getElementById('queryInput');
+      const quickBtn = document.getElementById('searchBtn');
+      const compBtn = document.getElementById('btnStartComprehensiveScan');
+      const hasQuery = Boolean(qEl && String(qEl.value || '').trim().length > 0);
+
+      if (quickBtn) {
+        quickBtn.classList.toggle('hidden', !hasQuery);
+        quickBtn.style.display = hasQuery ? '' : 'none';
+      }
+      if (compBtn) {
+        compBtn.classList.toggle('hidden', hasQuery);
+        compBtn.style.display = hasQuery ? 'none' : '';
+      }
+    }
+
     function onQueryInputChange(rawVal) {
       const val = String(rawVal || '').trim();
+      syncPrimarySearchActionButton();
       // Immediately unhighlight any category pill that doesn't match the current text
       document.querySelectorAll('.cat-pill').forEach(b => {
         const txt = b.innerText.trim();
@@ -2330,6 +2349,7 @@
         // Optional toggle-off: clicking an already active category unselects it!
         if (q) q.value = '';
         lastActiveQuery = '';
+        syncPrimarySearchActionButton();
         return;
       }
 
@@ -2337,6 +2357,7 @@
       if (btnEl) btnEl.classList.add('active');
       if (q) q.value = category;
       lastActiveQuery = category;
+      syncPrimarySearchActionButton();
     }
 
     function clearCategoryAndFilters() {
@@ -2353,6 +2374,7 @@
       if (q) q.value = '';
       const h = document.getElementById('neighborhoodInput');
       if (h) h.value = '';
+      syncPrimarySearchActionButton();
       clearDrawnCircle(false);
       renderCategorySummaryFilterBar();
       applyResultsFilter();
@@ -8709,6 +8731,25 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
       }
+      // Smart single-button toggle initialization & Enter key routing for #queryInput
+      syncPrimarySearchActionButton();
+      const queryInputEl = document.getElementById('queryInput');
+      if (queryInputEl && !queryInputEl.dataset.smartToggleBound) {
+        queryInputEl.dataset.smartToggleBound = '1';
+        queryInputEl.addEventListener('input', syncPrimarySearchActionButton);
+        queryInputEl.addEventListener('change', syncPrimarySearchActionButton);
+        queryInputEl.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            if (String(queryInputEl.value || '').trim().length > 0) {
+              handleSearch(ev);
+            } else {
+              startLocationAwareComprehensiveScan(false);
+            }
+          }
+        });
+      }
+
       updateOfflineOverlayState(navigator.onLine === false);
       initDelegatedResultsCardListeners();
       initOptionalGeolocationCheck();

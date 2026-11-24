@@ -129,11 +129,44 @@
       font-family: 'Cairo', ui-monospace, SFMono-Regular, monospace;
       font-variant-numeric: tabular-nums;
     }
-    body {
+    html, body {
       background-color: #0b1320;
       color: #f1f5f9;
       overflow-x: hidden;
       min-height: 100vh;
+    }
+
+    /* Anti-FOUC Gatekeeper: keep auth screen hidden until CSS/layout & auto-login check finish */
+    #visitorGateModal {
+      position: fixed;
+      inset: 0;
+      z-index: 9000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #0b1320;
+      padding: 16px;
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.18s ease, visibility 0.18s ease;
+    }
+    html.app-ui-ready #visitorGateModal:not(.hidden) {
+      visibility: visible;
+      opacity: 1;
+      pointer-events: auto;
+    }
+    #visitorGateModal.hidden {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
+    }
+    #visitorGateModal .portal-modal-card {
+      width: 100%;
+      max-width: 440px;
+      border-radius: 16px;
+      padding: 20px;
     }
 
     /* Official 3-Color + Subtle 3D Elevated Surface Card - 60FPS Scrolling */
@@ -8564,8 +8597,26 @@
       }
     }
 
+    function revealAppUiWhenStyled() {
+      const markReady = () => {
+        if (!document.documentElement.classList.contains('app-ui-ready')) {
+          document.documentElement.classList.add('app-ui-ready');
+        }
+      };
+      // Wait for Tailwind/CSS layout frame so auth screen never flashes unstyled
+      if (document.readyState === 'complete') {
+        requestAnimationFrame(() => requestAnimationFrame(markReady));
+      } else {
+        window.addEventListener('load', () => {
+          requestAnimationFrame(() => requestAnimationFrame(markReady));
+        }, { once: true });
+        // Fail-safe reveal even if an external CDN script is slow/offline
+        setTimeout(markReady, 320);
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-      // Persistent Auto-Login (Seamless Entry): check localStorage for saved active user session
+      // Persistent Auto-Login (Seamless Entry): check localStorage for saved active user session BEFORE revealing auth UI
       const savedSession = getSavedVisitorSession();
       const hasPersistentSession = Boolean(
         savedSession.hasSession ||
@@ -8575,6 +8626,7 @@
       if (hasPersistentSession) {
         enterMainDashboardSeamlessly();
       }
+      revealAppUiWhenStyled();
 
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});

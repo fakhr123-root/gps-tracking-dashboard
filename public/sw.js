@@ -1,5 +1,5 @@
 // GeoRadar 3D Studio - Smart Hybrid Online/Offline PWA & Background GPS Keep-Alive Service Worker
-const CACHE_NAME = 'georadar-hybrid-shell-v16';
+const CACHE_NAME = 'georadar-hybrid-shell-v17';
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -16,7 +16,9 @@ self.addEventListener('install', (event) => {
       return Promise.allSettled(
         APP_SHELL_ASSETS.map((url) =>
           fetch(url, { cache: 'reload' }).then((res) => {
-            if (res && res.ok) return cache.put(url, res);
+            if (res && res.ok && (res.type === 'basic' || res.type === 'cors')) {
+              return cache.put(url, res);
+            }
           }).catch(() => {})
         )
       );
@@ -41,6 +43,11 @@ self.addEventListener('message', (event) => {
   const data = event.data;
   if (!data || typeof data !== 'object') return;
 
+  if (data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+
   if ((data.type === 'LOCATION_HEARTBEAT_PING' || data.type === 'STATUS_TELEMETRY_PING') && data.payload) {
     const endpoint = data.type === 'STATUS_TELEMETRY_PING' ? '/api/user/status-telemetry' : '/api/user/update-location';
     event.waitUntil(
@@ -54,32 +61,45 @@ self.addEventListener('message', (event) => {
   }
 });
 
-// Network-first with instant offline cache fallback for core UI shell, icons, styles, and scripts
+// Network-first for HTML/CSS/JS shell with clean fallback (prevents stale/half-cached FOUC on updates or challenge query params)
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-  // Never cache live API or SSE endpoints
+  // Never intercept or cache live API / SSE endpoints
   if (url.pathname.startsWith('/api/')) return;
 
-  // Always bypass HTTP cache for HTML navigation so returning users never load stale Gatekeeper/Auth UI
   const isNavHtml = req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html' || url.pathname === '/admin.html';
-  const fetchReq = isNavHtml ? new Request(req, { cache: 'no-store' }) : req;
+  const isShellCode = /\.(css|js|mjs|html)$/i.test(url.pathname);
+  const hasChallengeQuery = url.searchParams.has('__cf_chl_rt_tk') || url.searchParams.has('__cf_chl_tk');
+
+  // Always bypass HTTP cache for HTML/CSS/JS shells so updates never mix old & new assets
+  const fetchReq = (isNavHtml || isShellCode) ? new Request(req, { cache: 'no-store' }) : req;
 
   event.respondWith(
     fetch(fetchReq)
       .then((networkRes) => {
-        if (networkRes && networkRes.ok && (url.origin === self.location.origin || /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname))) {
-          const resClone = networkRes.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(req, resClone)).catch(() => {});
+        const isCacheableOrigin =
+          url.origin === self.location.origin ||
+          /cdn\.tailwindcss|unpkg\.com|cdnjs\.cloudflare|fonts\.googleapis|fonts\.gstatic/i.test(url.hostname);
+
+        if (networkRes && networkRes.ok && isCacheableOrigin && !hasChallengeQuery) {
+          const contentType = String(networkRes.headers.get('content-type') || '').toLowerCase();
+          // Avoid caching challenge/interstitial HTML under non-HTML asset keys
+          const validAssetResponse = isNavHtml || !contentType.includes('text/html');
+          if (validAssetResponse) {
+            const resClone = networkRes.clone();
+            const cacheKey = (isNavHtml && url.origin === self.location.origin) ? url.pathname : req;
+            caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, resClone)).catch(() => {});
+          }
         }
         return networkRes;
       })
       .catch(() => {
-        return caches.match(req).then((cachedRes) => {
+        return caches.match(req, { ignoreSearch: true }).then((cachedRes) => {
           if (cachedRes) return cachedRes;
-          if (req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/index.html') {
+          if (isNavHtml) {
             return caches.match('/index.html').then((idxRes) => idxRes || caches.match('/'));
           }
           return new Response('', { status: 503, statusText: 'Offline' });

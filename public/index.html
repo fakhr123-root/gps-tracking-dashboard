@@ -743,6 +743,55 @@
         flex: 1 1 auto;
         text-align: center;
       }
+
+      /* Compact Mobile Result Cards (1fr readable single-column, all data/badges/buttons 100% visible) */
+      #bentoCardsWrapper {
+        grid-template-columns: 1fr !important;
+        gap: 9px !important;
+      }
+      #bentoCardsWrapper > div,
+      #bentoCardsWrapper > .studio-card {
+        padding: 10px 12px !important;
+        border-radius: 12px !important;
+        gap: 6px !important;
+        background: #131f33 !important;
+        border: 1px solid rgba(148, 163, 184, 0.16) !important;
+        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+        contain-intrinsic-size: 0 132px;
+      }
+      #bentoCardsWrapper h4 {
+        font-size: 13.5px !important;
+        line-height: 1.3 !important;
+        color: #f1f5f9 !important;
+      }
+      #bentoCardsWrapper button[data-action="focus-map"],
+      #bentoCardsWrapper button[data-action="copy-details"] {
+        padding: 4px 8px !important;
+        font-size: 10px !important;
+        border-radius: 7px !important;
+      }
+      #bentoCardsWrapper button[data-action="copy-coords"] {
+        padding: 4px 8px !important;
+        font-size: 10px !important;
+        border-radius: 7px !important;
+        background: #0b1320 !important;
+      }
+      #bentoCardsWrapper .grid.grid-cols-3 {
+        gap: 6px !important;
+        padding-top: 2px !important;
+      }
+      #bentoCardsWrapper .grid.grid-cols-3 > a,
+      #bentoCardsWrapper .grid.grid-cols-3 > button {
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+        border-radius: 8px !important;
+        min-height: 32px;
+        box-shadow: 0 4px 10px rgba(2, 6, 23, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      #bentoCardsWrapper .grid.grid-cols-3 > a:active,
+      #bentoCardsWrapper .grid.grid-cols-3 > button:active {
+        transform: translateY(1px);
+      }
     }
     body {
       top: 0px !important;

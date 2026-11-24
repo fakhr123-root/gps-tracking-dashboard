@@ -595,12 +595,12 @@
       justify-content: center;
     }
     .translate-widget-box {
-      background: #131f33;
-      border: 1px solid rgba(148, 163, 184, 0.16);
-      box-shadow: 0 6px 16px rgba(2, 6, 23, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 8px 10px;
-      overflow: hidden;
+      background: transparent;
+      border: none;
+      box-shadow: none;
+      border-radius: 0;
+      padding: 0;
+      overflow: visible;
       width: 100%;
     }
     .goog-te-gadget {
@@ -610,7 +610,7 @@
       margin: 0 !important;
       padding: 0 !important;
       width: 100%;
-      overflow: hidden;
+      overflow: visible;
     }
     .goog-te-gadget > div {
       display: block !important;
@@ -621,17 +621,19 @@
       width: 100%;
       max-width: 100%;
       margin: 0 !important;
-      padding: 7px 10px;
-      border-radius: 8px;
-      background: #0b1320;
+      padding: 9px 12px;
+      border-radius: 10px;
+      background: #131f33;
       color: #f1f5f9;
-      border: 1px solid rgba(148, 163, 184, 0.16);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
       font-family: inherit;
-      font-size: 12px !important;
+      font-size: 13px !important;
+      font-weight: 600;
       line-height: 1.4 !important;
       cursor: pointer;
       outline: none;
-      transition: border-color 0.15s ease, background-color 0.15s ease;
+      transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
     }
     .goog-te-gadget .goog-te-combo:hover,
     .goog-te-gadget .goog-te-combo:focus {
@@ -1197,7 +1199,6 @@
             <span>إعدادات الحساب واللغة</span>
           </button>
           <div class="pt-3 notranslate" translate="no">
-            <div class="text-[11px] font-medium text-slate-400 px-1 pb-1.5">Language / اللغة</div>
             <div id="sidebarTranslateSlot" class="translate-widget translate-widget-box notranslate" translate="no"></div>
           </div>
         </div>
@@ -8821,11 +8822,12 @@
           return NATIVE_LANG_NAMES[code];
         }
         if (!code) return NATIVE_LANG_NAMES[''];
+        const bcp47 = code === 'jw' ? 'jv' : (code === 'iw' ? 'he' : code);
         try {
           if (typeof Intl !== 'undefined' && typeof Intl.DisplayNames === 'function') {
-            const dn = new Intl.DisplayNames([code], { type: 'language' });
-            const resolved = dn.of(code);
-            if (resolved && resolved.toLowerCase() !== code.toLowerCase()) {
+            const dn = new Intl.DisplayNames([bcp47], { type: 'language' });
+            const resolved = dn.of(bcp47);
+            if (resolved && resolved.toLowerCase() !== bcp47.toLowerCase()) {
               return resolved.charAt(0).toUpperCase() + resolved.slice(1);
             }
           }

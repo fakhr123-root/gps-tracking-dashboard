@@ -1048,6 +1048,143 @@
         transform: translateY(1px);
       }
     }
+
+    /* Mobile UI Simplification (<= 640px): clean, lightweight, compact 3-color layout */
+    @media (max-width: 640px) {
+      .app-main-content {
+        padding: 10px !important;
+        gap: 8px !important;
+      }
+
+      /* Compact top header & Locations/Numbers counters in clean rows */
+      .app-main-content > header {
+        padding: 6px 10px !important;
+        gap: 6px !important;
+        background: #131f33;
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        border-radius: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .app-main-content > header h1 {
+        font-size: 13px !important;
+        line-height: 1.2 !important;
+      }
+      #activeViewHeaderSubtitle {
+        display: none !important;
+      }
+      .app-main-content > header > div:nth-child(2) {
+        order: 3;
+        width: 100%;
+        justify-content: center;
+        gap: 10px !important;
+        padding: 6px 10px !important;
+        font-size: 11px !important;
+        background: #0b1320;
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 8px;
+      }
+      .app-main-content > header > div:nth-child(3) {
+        gap: 4px !important;
+      }
+      .app-main-content > header button {
+        padding: 6px 8px !important;
+        font-size: 11px !important;
+        border-radius: 8px !important;
+      }
+      #mobileSidebarToggleBtn {
+        width: 32px !important;
+        height: 32px !important;
+        padding: 0 !important;
+      }
+
+      /* Compact Search & Scan card padding (12px) and tighter vertical gaps (8px) */
+      #view-search {
+        gap: 8px !important;
+      }
+      #view-search > .studio-card {
+        padding: 12px !important;
+        border-radius: 14px !important;
+      }
+      #view-search > .studio-card > * + *,
+      #searchForm > * + * {
+        margin-top: 8px !important;
+      }
+      #view-search > .studio-card h2 {
+        font-size: 14px !important;
+      }
+      #view-search > .studio-card p {
+        font-size: 11px !important;
+        margin-top: 2px !important;
+      }
+      #searchForm .grid {
+        gap: 8px !important;
+      }
+      .search-input-box {
+        padding: 8px 10px !important;
+        border-radius: 10px !important;
+      }
+      #queryInput,
+      #locationInput {
+        font-size: 13px !important;
+      }
+
+      /* Quick category chips: clean single horizontal scrollable row (no overlap or clipping) */
+      #searchForm > div:nth-child(2) {
+        margin-top: 8px !important;
+      }
+      #searchForm > div:nth-child(2) > span {
+        font-size: 11px !important;
+        margin-bottom: 4px !important;
+      }
+      #searchForm > div:nth-child(2) > div {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 6px !important;
+        white-space: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        padding: 2px 0 4px !important;
+      }
+      #searchForm > div:nth-child(2) > div::-webkit-scrollbar {
+        display: none;
+      }
+      #searchForm .cat-pill {
+        flex: 0 0 auto !important;
+        font-size: 12px !important;
+        padding: 6px 10px !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+      }
+
+      /* Prominent main green action button + compact even single-row secondary controls */
+      .scan-controls-primary {
+        gap: 8px !important;
+      }
+      .scan-controls-primary > button {
+        padding: 10px 14px !important;
+        font-size: 13px !important;
+        border-radius: 10px !important;
+      }
+      .scan-controls-secondary {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+        margin-top: 8px !important;
+        padding-top: 8px !important;
+      }
+      .scan-controls-secondary > button {
+        flex: 1 1 0 !important;
+        font-size: 12px !important;
+        padding: 6px 8px !important;
+        border-radius: 8px !important;
+        justify-content: center !important;
+        white-space: nowrap !important;
+      }
+    }
     body {
       top: 0px !important;
     }

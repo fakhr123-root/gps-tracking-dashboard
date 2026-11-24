@@ -2921,16 +2921,18 @@
       applyResultsFilter();
     }
 
-    function toggleResultsViewMode() {
+    let userManuallyToggledResultsView = false;
+    function toggleResultsViewMode(isUserAction = true) {
+      if (isUserAction) userManuallyToggledResultsView = true;
       isTableView = !isTableView;
       const bento = document.getElementById('bentoCardsWrapper');
       const table = document.getElementById('desktopResultsTableWrapper');
       if (isTableView) {
-        bento.classList.add('hidden');
-        table.classList.remove('hidden');
+        if (bento) bento.classList.add('hidden');
+        if (table) table.classList.remove('hidden');
       } else {
-        bento.classList.remove('hidden');
-        table.classList.add('hidden');
+        if (bento) bento.classList.remove('hidden');
+        if (table) table.classList.add('hidden');
       }
     }
 
@@ -3999,7 +4001,8 @@
       applyResultsFilter();
     }
 
-    const MAX_VISIBLE_DOM_ITEMS = 100;
+    // Paginate/window rendered DOM cards to 50 per page while keeping ALL extracted records in memory for instant Excel export
+    const MAX_VISIBLE_DOM_ITEMS = 50;
     const INITIAL_PAGE_SIZE = MAX_VISIBLE_DOM_ITEMS;
     const BATCH_LOAD_SIZE = MAX_VISIBLE_DOM_ITEMS;
     const MAX_PAGE_WINDOW_CARDS = MAX_VISIBLE_DOM_ITEMS;
@@ -4667,6 +4670,10 @@
       pausedBufferedPlaces = [];
       const pauseBtn = document.getElementById('btnPauseResumeScan');
       if (pauseBtn) pauseBtn.innerText = '⏸️ إيقاف مؤقت';
+
+      const activePacing = typeof getAdaptiveScanPacing === 'function' ? getAdaptiveScanPacing() : { tier: 'fast' };
+      params.set('concurrency', String(activePacing.tier === 'slow' ? 2 : 4));
+      userManuallyToggledResultsView = false;
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
@@ -5573,6 +5580,11 @@
       // Flush all buffered stream places into memory before updating DOM once via DocumentFragment
       drainPendingStreamPlacesBuffer();
 
+      // Auto-switch to lightweight Table view when results exceed 200 items (user can toggle back to Cards in one click)
+      if (extractedPlaces.length > 200 && !isTableView && !userManuallyToggledResultsView) {
+        toggleResultsViewMode(false);
+      }
+
       const filtered = getActiveFilteredPlaces();
 
       // Ensure the initial page of cards is always populated from the true extractedPlaces array
@@ -5639,7 +5651,7 @@
         return {
           tier: 'fast',
           effType: effType || '4g',
-          domFlushMs: 650,
+          domFlushMs: 600,
           chunkSliceSize: 350,
           chunkSliceDelayMs: 6,
           phoneBatchSize: 14,
@@ -5651,7 +5663,7 @@
         return {
           tier: 'slow',
           effType: effType || '3g',
-          domFlushMs: 1600,
+          domFlushMs: 900,
           chunkSliceSize: 150,
           chunkSliceDelayMs: 25,
           phoneBatchSize: 6,
@@ -5662,7 +5674,7 @@
       return {
         tier: 'balanced',
         effType: effType || 'auto',
-        domFlushMs: 1000,
+        domFlushMs: 600,
         chunkSliceSize: 250,
         chunkSliceDelayMs: 12,
         phoneBatchSize: 10,
@@ -5702,7 +5714,7 @@
       }
     } catch (e) {}
 
-    const DOM_BATCH_FLUSH_INTERVAL_MS = 1200;
+    const DOM_BATCH_FLUSH_INTERVAL_MS = 600;
 
     function scheduleBufferedUiSync(immediate = false) {
       pendingUiRefreshNeeded = true;

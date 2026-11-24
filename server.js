@@ -312,7 +312,7 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
-// Safe fetch with timeout
+// Safe fetch with timeout and HTTP keep-alive connection reuse
 async function fetchWithTimeout(resource, options = {}) {
   const { timeout = 8000 } = options;
   const controller = new AbortController();
@@ -324,6 +324,7 @@ async function fetchWithTimeout(resource, options = {}) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         'Accept-Language': 'ar,en;q=0.9',
+        'Connection': 'keep-alive',
         ...(options.headers || {})
       }
     });
@@ -4162,8 +4163,9 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     // Sort all queryTasks by proximity to user's location (refLat, refLng) so live results stream closest-first
     queryTasks.sort((a, b) => calcDistanceKm(refLat, refLng, a.lat, a.lng) - calcDistanceKm(refLat, refLng, b.lat, b.lng));
 
-    const BATCH_CONCURRENCY = 12;
-    const CHUNK_COOLDOWN_MS = 600;
+    // Bounded Worker Pool (concurrency = 4 on fast/desktop, 2 on slow 2g/3g; no unnecessary fixed sleep between requests)
+    const reqConcurrency = Number(scanOptions && scanOptions.concurrency);
+    const BATCH_CONCURRENCY = (reqConcurrency >= 2 && reqConcurrency <= 4) ? Math.round(reqConcurrency) : 4;
     let activeWorkers = 0;
     let completedMapTasks = 0;
     let nextTaskIndex = 0;
@@ -4227,16 +4229,16 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
       sendEvent('progress', payload);
     };
 
-    // Controlled Parallel Chunking (12 concurrent requests per batch via Promise.all, 600ms cooldown between chunks):
-    // Prevents 429 rate limits while maximizing throughput without delaying individual requests!
-    while (nextTaskIndex < queryTasks.length && !isAborted()) {
-      const chunkEnd = Math.min(nextTaskIndex + BATCH_CONCURRENCY, queryTasks.length);
-      const taskChunk = queryTasks.slice(nextTaskIndex, chunkEnd);
-      nextTaskIndex = chunkEnd;
-      activeWorkers = taskChunk.length;
-
-      await Promise.allSettled(taskChunk.map(async (task) => {
-        if (!task || isAborted()) return;
+    // Bounded Worker Pool: each worker immediately pulls the next task on completion (zero fixed idle cooldowns;
+    // automatic 429/503 exponential backoff is handled inside fetchWithExponentialBackoff).
+    const poolSize = Math.min(BATCH_CONCURRENCY, Math.max(queryTasks.length, 1));
+    const runPoolWorker = async () => {
+      while (!isAborted()) {
+        const idx = nextTaskIndex++;
+        if (idx >= queryTasks.length) break;
+        const task = queryTasks[idx];
+        if (!task) continue;
+        activeWorkers++;
         try {
           await executeSingleMapTask(task);
         } finally {
@@ -4244,13 +4246,10 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
           completedMapTasks++;
           emitStreamingProgress(completedMapTasks <= 5);
         }
-      }));
-
-      emitStreamingProgress(true);
-      if (nextTaskIndex < queryTasks.length && !isAborted()) {
-        await sleep(CHUNK_COOLDOWN_MS);
       }
-    }
+    };
+    await Promise.allSettled(Array.from({ length: poolSize }, () => runPoolWorker()));
+    emitStreamingProgress(true);
 
     // Non-blocking background Overpass & Pinpoint settle with strict 1500ms cap so completion is instant
     await Promise.race([Promise.allSettled([overpassPromise, pinpointBackgroundPromise]), sleep(1500)]);
@@ -8393,13 +8392,15 @@ const server = http.createServer(async (req, res) => {
         const parts = String(parsedUrl.query.bbox).split(',').map(Number);
         if (parts.length === 4 && parts.every(n => !isNaN(n))) customBbox = parts;
       }
+      const reqConcurrencyParam = parseInt(parsedUrl.query.concurrency, 10);
       const scanOptions = {
         scopeMode: String(parsedUrl.query.scopeMode || '').trim(),
         customBbox,
         resumeCheckpoint: parsedUrl.query.resumeCheckpoint === '1' || parsedUrl.query.resumeCheckpoint === 'true',
         scopeKey: String(parsedUrl.query.scopeKey || '').trim(),
         explicitLat: (reqLat !== null && !isNaN(reqLat)) ? reqLat : null,
-        explicitLng: (reqLng !== null && !isNaN(reqLng)) ? reqLng : null
+        explicitLng: (reqLng !== null && !isNaN(reqLng)) ? reqLng : null,
+        concurrency: (reqConcurrencyParam >= 2 && reqConcurrencyParam <= 4) ? reqConcurrencyParam : 4
       };
       if (apiKey) {
         await searchGooglePlacesAPI(apiKey, query, location, radiusMeters, sendEvent, () => isClientAborted);

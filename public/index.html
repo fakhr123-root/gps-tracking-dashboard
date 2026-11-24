@@ -438,7 +438,7 @@
     <button type="button" onclick="document.getElementById('scanCompleteCelebrationToast')?.classList.add('hidden')" class="mr-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/35 text-emerald-200 text-xs font-black cursor-pointer">✕</button>
   </div>
 
-  <!-- Strict Permission-Denied GPS Gatekeeper (Hidden by default; ONLY shown when geolocation permission is explicitly DENIED / error.code === 1) -->
+  <!-- Strict Mandatory GPS Gatekeeper (Persistent, un-closable full-screen shield until geolocation Allow succeeds) -->
   <div id="gpsGatekeeperScreen" style="z-index: 99999; display: none;" class="hidden fixed inset-0 flex items-center justify-center bg-slate-950/98 backdrop-blur-2xl p-4 overflow-y-auto select-none">
     <!-- Legacy compatibility anchor -->
     <div id="gpsRequiredLockOverlay" class="hidden" style="display: none;"></div>
@@ -461,16 +461,16 @@
 
       <h2 id="gpsRequiredOverlayTitle" class="text-lg sm:text-xl font-black text-white">📍 تفعيل الموقع الجغرافي (GPS) مطلوب</h2>
       <p id="gpsRequiredOverlayDesc" class="text-xs sm:text-sm text-slate-200 font-bold leading-relaxed">
-        📍 لا يمكن استخدام التطبيق بدون تفعيل الموقع (GPS). يرجى السماح بصلاحية الموقع للمتابعة.
+        يجب السماح بالوصول إلى الموقع (GPS) لاستخدام التطبيق. يرجى الضغط على 'سماح' في الأعلى.
       </p>
 
       <!-- Inline Instructions when Permission is Denied in Chrome / Browser Settings -->
       <div id="gpsDeniedSettingsGuide" class="hidden p-3 rounded-2xl bg-amber-950/60 border border-amber-400/55 text-amber-200 text-xs font-extrabold leading-relaxed text-right shadow-inner">
-        اضغط على أيقونة القفل/الإعدادات بجانب رابط الموقع في الأعلى ← فعّل (الموقع الجغرافي) ← ثم اضغط على زر "تفعيل الموقع" أدناه.
+        تم رفض صلاحية الموقع. التطبيق يتطلب هذه الصلاحية ليعمل. يرجى تفعيلها من إعدادات المتصفح (علامة القفل بجوار الرابط) وإعادة تحميل الصفحة.
       </div>
 
       <div id="gpsRequiredLiveStatusMsg" class="py-2 px-3 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-300 text-xs font-extrabold text-center">
-        📡 اضغط على الزر أدناه لتفعيل الموقع الجغرافي والدخول إلى التطبيق
+        📡 يرجى الضغط على 'سماح' في الأعلى لتفعيل الموقع الجغرافي والدخول إلى التطبيق
       </div>
 
       <button
@@ -485,8 +485,8 @@
     </div>
   </div>
 
-  <!-- Single-Card Login / Create Account Portal (Isolated Full-Screen Auth View; Hidden automatically when user session is active) -->
-  <div id="visitorGateModal" class="hidden fixed inset-0 z-[9000] flex items-center justify-center bg-[#050b14] p-4 overflow-y-auto">
+  <!-- Single-Card Login / Create Account Portal (Strict Un-bypassable Full-Screen Gatekeeper; solid background, visible by default until authenticated) -->
+  <div id="visitorGateModal" class="fixed inset-0 z-[9000] flex items-center justify-center bg-[#050b14] p-4 overflow-y-auto" onclick="event.stopPropagation()">
     <div class="portal-modal-card max-w-md w-full p-6 sm:p-8 rounded-[28px] text-center relative overflow-hidden my-auto">
       <!-- Holographic Radar Rings in Modal Header -->
       <div class="absolute -top-24 left-1/2 -translate-x-1/2 w-56 h-56 rounded-full border border-emerald-500/20 pointer-events-none" style="pointer-events: none;"></div>
@@ -7109,17 +7109,18 @@
       const rawUsername = (nameInput ? nameInput.value : '').trim().replace(/^@+/, '').toLowerCase();
       const rawPassword = (passInput ? passInput.value : '').trim();
 
-      if (!IG_USERNAME_REGEX.test(rawUsername)) {
+      if (!rawUsername || !rawPassword) {
         if (errEl) {
-          errEl.innerText = 'يرجى إدخال اسم المستخدم بحروف إنجليزية صغيرة (a-z) أو أرقام (0-9) أو (.) و(_) فقط';
+          errEl.innerText = 'يجب تعبئة جميع الحقول أولاً';
           errEl.classList.remove('hidden');
         }
+        alert('يجب تعبئة جميع الحقول أولاً');
         return;
       }
 
-      if (!rawPassword || rawPassword.length < 1) {
+      if (!IG_USERNAME_REGEX.test(rawUsername)) {
         if (errEl) {
-          errEl.innerText = 'يرجى إدخال كلمة المرور';
+          errEl.innerText = 'يرجى إدخال اسم المستخدم بحروف إنجليزية صغيرة (a-z) أو أرقام (0-9) أو (.) و(_) فقط';
           errEl.classList.remove('hidden');
         }
         return;
@@ -7183,6 +7184,13 @@
         if (resp.authError) {
           if (errEl) {
             errEl.innerText = `❌ ${resp.message}`;
+            errEl.classList.remove('hidden');
+          }
+          return;
+        }
+        if (resp.status !== 'ok') {
+          if (errEl) {
+            errEl.innerText = '⚠️ لم يتم تأكيد تسجيل الدخول من الخادم. يرجى المحاولة مرة أخرى.';
             errEl.classList.remove('hidden');
           }
           return;

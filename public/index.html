@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v32_sync_live_status_bar';
+      var CURRENT_APP_VER = 'v33_recover_unrestricted_core_pipeline';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -6118,15 +6118,9 @@
       const isQuickSearchMode = Boolean(!wasExplicitComprehensive && query && query !== '__FULL_SCAN__');
       window.__activeSearchModeType = isQuickSearchMode ? 'quick' : 'comprehensive';
 
-      // Make Quick Search genuinely fast (no 3,760-cell quadtree explosion): use compact radius & hide deep cell counter
+      // Keep real backend quadtree/adaptive cell counter visible for full unrestricted city/area scanning
       const quadBadgeEl = document.getElementById('quadtreeCellsBadge');
-      if (quadBadgeEl) quadBadgeEl.classList.toggle('hidden', isQuickSearchMode);
-      if (isQuickSearchMode) {
-        params.set('radius', String(Math.min(Math.max(Number(selectedRadius) || 12, 8), 15)));
-        params.set('maxDepth', '0');
-        params.delete('scopeMode');
-        params.delete('bbox');
-      }
+      if (quadBadgeEl) quadBadgeEl.classList.remove('hidden');
 
       if (window.__quickSearchFastCutoffTimer) {
         clearTimeout(window.__quickSearchFastCutoffTimer);
@@ -6189,331 +6183,13 @@
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
-      // Zero-Omission Adaptive Block-by-Block Grid Engine (covers Street/Neighborhood, Drawn Circle/Polygon, Full City & Country)
-      // Automatically splits any dense block (>= 28 items) into 4 overlapping micro-blocks so zero alleys or locations are missed.
-      const canRunQuickCityGrid = Boolean(isQuickSearchMode);
-      quickGridAborted = false;
-      const myQuickGridToken = window.__quickGridRunToken || 0;
-      const isThisQuickGridAborted = () => quickGridAborted || (window.__quickGridRunToken || 0) !== myQuickGridToken;
-      let quickGridStarted = false;
-      let quickGridActive = canRunQuickCityGrid;
-      let quickGridCompleted = 0;
-      let quickGridTotal = 36;
-      let quickGridSubdivided = 0;
-      let quickPrimaryStreamDone = false;
-
-      function isPointInQuickPolygon(lat, lng, poly) {
-        if (!Array.isArray(poly) || poly.length < 3) return true;
-        let inside = false;
-        for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-          const yi = Number(poly[i].lat ?? poly[i][0]);
-          const xi = Number(poly[i].lng ?? poly[i][1]);
-          const yj = Number(poly[j].lat ?? poly[j][0]);
-          const xj = Number(poly[j].lng ?? poly[j][1]);
-          const intersect = ((yi > lat) !== (yj > lat)) && (lng < ((xj - xi) * (lat - yi)) / ((yj - yi) || 1e-12) + xi);
-          if (intersect) inside = !inside;
-        }
-        return inside;
-      }
-
-      function buildCityWideQuickGrid(centerLat, centerLng, spanKm = 18) {
-        const cells = [];
-
-        // Scope 1: Custom Drawn Polygon -> cover exact polygon bounding box with block-by-block squares
-        if (Array.isArray(drawnPolygonCoords) && drawnPolygonCoords.length >= 3) {
-          let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-          for (let i = 0; i < drawnPolygonCoords.length; i++) {
-            const la = Number(drawnPolygonCoords[i].lat ?? drawnPolygonCoords[i][0]);
-            const ln = Number(drawnPolygonCoords[i].lng ?? drawnPolygonCoords[i][1]);
-            if (Number.isFinite(la) && Number.isFinite(ln)) {
-              if (la < minLat) minLat = la;
-              if (la > maxLat) maxLat = la;
-              if (ln < minLng) minLng = ln;
-              if (ln > maxLng) maxLng = ln;
-            }
-          }
-          if (Number.isFinite(minLat) && Number.isFinite(maxLat) && maxLat > minLat && maxLng > minLng) {
-            const midLat = (minLat + maxLat) / 2;
-            const midLng = (minLng + maxLng) / 2;
-            const cosLat = Math.max(0.2, Math.cos((midLat * Math.PI) / 180));
-            const heightKm = Math.max(1.5, (maxLat - minLat) * 111.32);
-            const widthKm = Math.max(1.5, (maxLng - minLng) * 111.32 * cosLat);
-            const gridSize = Math.min(6, Math.max(3, Math.ceil(Math.max(heightKm, widthKm) / 2.2)));
-            const stepLat = (maxLat - minLat) / gridSize;
-            const stepLng = (maxLng - minLng) / gridSize;
-            const stepKm = Math.max(heightKm, widthKm) / gridSize;
-            const cellRadiusKm = Number(Math.max(0.9, stepKm * 0.85).toFixed(2));
-            for (let r = 0; r < gridSize; r++) {
-              for (let c = 0; c < gridSize; c++) {
-                const cLat = Number((minLat + (r + 0.5) * stepLat).toFixed(6));
-                const cLng = Number((minLng + (c + 0.5) * stepLng).toFixed(6));
-                if (isPointInQuickPolygon(cLat, cLng, drawnPolygonCoords) || cells.length === 0) {
-                  cells.push({ lat: cLat, lng: cLng, stepLat, stepLng, radiusKm: cellRadiusKm, depth: 0, distFromCenter: Math.hypot(cLat - midLat, cLng - midLng) });
-                }
-              }
-            }
-            cells.sort((a, b) => a.distFromCenter - b.distFromCenter);
-            return cells;
-          }
-        }
-
-        // Scope 2: Custom Drawn Circle -> cover full circle area with overlapping grid squares
-        if (drawnCircleState && Number.isFinite(Number(drawnCircleState.lat)) && Number.isFinite(Number(drawnCircleState.lng)) && Number(drawnCircleState.radiusKm) > 0) {
-          const cLat0 = Number(drawnCircleState.lat);
-          const cLng0 = Number(drawnCircleState.lng);
-          const cRadKm = Number(drawnCircleState.radiusKm);
-          const cosLat = Math.max(0.2, Math.cos((cLat0 * Math.PI) / 180));
-          const gridSize = cRadKm <= 2 ? 3 : (cRadKm <= 6 ? 4 : 6);
-          const stepKm = (cRadKm * 2) / gridSize;
-          const stepLat = stepKm / 111.32;
-          const stepLng = stepKm / (111.32 * cosLat);
-          const cellRadiusKm = Number(Math.max(0.8, stepKm * 0.85).toFixed(2));
-          const half = (gridSize - 1) / 2;
-          for (let r = 0; r < gridSize; r++) {
-            for (let c = 0; c < gridSize; c++) {
-              const dyKm = (r - half) * stepKm;
-              const dxKm = (c - half) * stepKm;
-              const dist = Math.hypot(dxKm, dyKm);
-              if (dist <= cRadKm + cellRadiusKm * 0.45) {
-                cells.push({
-                  lat: Number((cLat0 + dyKm / 111.32).toFixed(6)),
-                  lng: Number((cLng0 + dxKm / (111.32 * cosLat)).toFixed(6)),
-                  stepLat,
-                  stepLng,
-                  radiusKm: cellRadiusKm,
-                  depth: 0,
-                  distFromCenter: dist
-                });
-              }
-            }
-          }
-          cells.sort((a, b) => a.distFromCenter - b.distFromCenter);
-          return cells;
-        }
-
-        // Scope 3 & 4: Specific Street/Neighborhood (dense 4x4 over 5km) OR Full City (6x6 = 36 blocks across entire city bbox)
-        const lat = Number(centerLat);
-        const lng = Number(centerLng);
-        if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return [];
-        const isSpecificHood = Boolean(neighborhood && neighborhood.trim().length > 0);
-        const gridSize = isSpecificHood ? 4 : 6;
-        const effectiveSpanKm = isSpecificHood ? 5.2 : spanKm;
-        const stepKm = effectiveSpanKm / gridSize;
-        const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
-        const stepLat = stepKm / 111.32;
-        const stepLng = stepKm / (111.32 * cosLat);
-        const cellRadiusKm = Number(Math.max(isSpecificHood ? 1.1 : 2.4, stepKm * 0.85).toFixed(2));
-        const halfSpan = (gridSize - 1) / 2;
-        for (let r = 0; r < gridSize; r++) {
-          for (let c = 0; c < gridSize; c++) {
-            const dyKm = (r - halfSpan) * stepKm;
-            const dxKm = (c - halfSpan) * stepKm;
-            const cLat = Number((lat + dyKm / 111.32).toFixed(6));
-            const cLng = Number((lng + dxKm / (111.32 * cosLat)).toFixed(6));
-            const distFromCenter = Math.hypot(dxKm, dyKm);
-            cells.push({ lat: cLat, lng: cLng, stepLat, stepLng, radiusKm: cellRadiusKm, depth: 0, distFromCenter });
-          }
-        }
-        // Spiral out from center so densest districts & blocks populate immediately
-        cells.sort((a, b) => a.distFromCenter - b.distFromCenter);
-        return cells;
-      }
-
-      function splitDenseCellIntoFourSubBlocks(cell) {
-        const subStepLat = (cell.stepLat || (cell.radiusKm / 111.32)) / 2;
-        const subStepLng = (cell.stepLng || (cell.radiusKm / 105)) / 2;
-        const subRadiusKm = Number(Math.max(0.65, cell.radiusKm * 0.58).toFixed(2));
-        const offsets = [
-          [-0.5, -0.5],
-          [-0.5, 0.5],
-          [0.5, -0.5],
-          [0.5, 0.5]
-        ];
-        return offsets.map(([dLatM, dLngM]) => ({
-          lat: Number((cell.lat + dLatM * subStepLat).toFixed(6)),
-          lng: Number((cell.lng + dLngM * subStepLng).toFixed(6)),
-          stepLat: subStepLat,
-          stepLng: subStepLng,
-          radiusKm: subRadiusKm,
-          depth: (cell.depth || 0) + 1,
-          distFromCenter: cell.distFromCenter || 0
-        }));
-      }
-
-      function fetchQuickGridCellPromise(cell) {
-        return new Promise((resolve) => {
-          if (isThisQuickGridAborted() || isSearchDoneHandled) return resolve(0);
-          const cellParams = new URLSearchParams(params.toString());
-          // Pin every grid request explicitly to this block's own coordinates
-          cellParams.set('lat', String(cell.lat));
-          cellParams.set('lng', String(cell.lng));
-          cellParams.set('userLat', String(cell.lat));
-          cellParams.set('userLng', String(cell.lng));
-          cellParams.set('circleLat', String(cell.lat));
-          cellParams.set('circleLng', String(cell.lng));
-          cellParams.set('circleRadiusKm', String(cell.radiusKm));
-          cellParams.set('radius', String(Math.ceil(cell.radiusKm)));
-          cellParams.set('maxDepth', '0');
-          cellParams.set('concurrency', '2');
-          cellParams.delete('neighborhood');
-          cellParams.delete('scopeMode');
-          cellParams.delete('bbox');
-
-          let es = null;
-          let settled = false;
-          let cellItems = 0;
-          let timer = null;
-
-          const finishCell = () => {
-            if (settled) return;
-            settled = true;
-            if (timer) clearTimeout(timer);
-            if (es) {
-              try { es.close(); } catch (_) {}
-              if (window.__activeQuickSectorStreams) window.__activeQuickSectorStreams.delete(es);
-            }
-            resolve(cellItems);
-          };
-
-          const resetTimer = (ms) => {
-            if (timer) clearTimeout(timer);
-            timer = setTimeout(finishCell, ms);
-            if (Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers.push(timer);
-          };
-
-          try {
-            es = new EventSource(`/api/search?${cellParams.toString()}`);
-            if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
-            window.__activeQuickSectorStreams.add(es);
-
-            const handleIncomingCellItems = (items) => {
-              if (!Array.isArray(items) || items.length === 0 || isThisQuickGridAborted() || isSearchDoneHandled) return;
-              if (isScanPaused) {
-                pausedBufferedPlaces.push(...items);
-                return;
-              }
-              cellItems += items.length;
-              if (items.length <= 5) {
-                for (let i = 0; i < items.length; i++) ingestIncomingStreamPlace(items[i]);
-              } else {
-                enqueueBackgroundPlacesChunk(items);
-              }
-              if (typeof scheduleBufferedUiSync === 'function') scheduleBufferedUiSync(false);
-              // Keep cell open while streaming new places; settle 5s after last item
-              resetTimer(5000);
-            };
-
-            es.addEventListener('place', (ev) => {
-              if (isLoginModalVisible() || isSearchDoneHandled) return;
-              try {
-                const p = JSON.parse(ev.data);
-                if (p && typeof p === 'object') handleIncomingCellItems([p]);
-              } catch (_) {}
-            });
-            es.addEventListener('places_batch', (ev) => {
-              if (isLoginModalVisible() || isSearchDoneHandled) return;
-              try {
-                const batch = JSON.parse(ev.data);
-                if (Array.isArray(batch)) handleIncomingCellItems(batch);
-              } catch (_) {}
-            });
-            es.onmessage = (ev) => {
-              if (isLoginModalVisible() || isSearchDoneHandled) return;
-              try {
-                const d = JSON.parse(ev.data);
-                if (!d || typeof d !== 'object') return;
-                if (d.type === 'done') finishCell();
-                else if (d.type === 'place' && d.place) handleIncomingCellItems([d.place]);
-                else if (d.type === 'places_batch' && Array.isArray(d.places)) handleIncomingCellItems(d.places);
-              } catch (_) {}
-            };
-            es.addEventListener('done', finishCell);
-            es.addEventListener('complete', finishCell);
-            es.addEventListener('error', finishCell);
-            resetTimer(16000);
-          } catch (_) {
-            finishCell();
-          }
-        });
-      }
-
-      async function runQuickCityGridBatches(centerLat, centerLng) {
-        if (quickGridStarted || isThisQuickGridAborted() || isSearchDoneHandled) return;
-        quickGridStarted = true;
-        quickGridActive = true;
-        if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
-        if (!Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers = [];
-
-        const spanKm = Math.min(Math.max((Number(selectedRadius) || 14) * 1.5, 16), 26);
-        const queue = buildCityWideQuickGrid(centerLat, centerLng, spanKm);
-        quickGridTotal = queue.length;
-        quickGridCompleted = 0;
-        quickGridSubdivided = 0;
-        const BATCH_SIZE = 5;
-        const MAX_SUB_DEPTH = 1; // Fast adaptive splitting of dense blocks into 4 micro-squares
-        const MAX_TOTAL_CELLS = 120;
-        const DENSE_SPLIT_THRESHOLD = 28;
-        let cursor = 0;
-
-        while (cursor < queue.length) {
-          if (isThisQuickGridAborted() || isSearchDoneHandled) break;
-          while (isScanPaused && !isThisQuickGridAborted() && !isSearchDoneHandled) {
-            await new Promise((r) => setTimeout(r, 400));
-          }
-          if (isThisQuickGridAborted() || isSearchDoneHandled) break;
-          const batch = queue.slice(cursor, cursor + BATCH_SIZE);
-          cursor += batch.length;
-
-          await Promise.all(batch.map(async (cell) => {
-            const foundInCell = await fetchQuickGridCellPromise(cell);
-            quickGridCompleted++;
-            // Adaptive Recursive Sub-Cell Subdivision: if a block hits density threshold, split into 4 micro-blocks
-            if (
-              foundInCell >= DENSE_SPLIT_THRESHOLD &&
-              (cell.depth || 0) < MAX_SUB_DEPTH &&
-              queue.length + 4 <= MAX_TOTAL_CELLS &&
-              !isThisQuickGridAborted() &&
-              !isSearchDoneHandled
-            ) {
-              const subBlocks = splitDenseCellIntoFourSubBlocks(cell);
-              queue.push(...subBlocks);
-              quickGridSubdivided += 1;
-              quickGridTotal = queue.length;
-            }
-            const pct = Math.min(98, Math.round((quickGridCompleted / Math.max(1, quickGridTotal)) * 96));
-            applyDirectProgressPercent(pct);
-            if (statusMessage && !isSearchDoneHandled) {
-              const splitSuffix = quickGridSubdivided > 0 ? ` • تقسيم تلقائي: ${quickGridSubdivided}` : '';
-              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل للمدينة${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} نقطة${splitSuffix})...`;
-            }
-            const qtBadge = document.getElementById('quadtreeCellsBadge');
-            if (qtBadge && quickGridSubdivided > 0) {
-              qtBadge.classList.remove('hidden');
-              qtBadge.innerText = `🔲 الخلايا: ${quickGridCompleted} / ${quickGridTotal} (تفرع: ${quickGridSubdivided})`;
-            }
-            // Immediately flush newly discovered places & live counters (المواقع، الأرقام، Google، OSM، صافي بدون تكرار) after EVERY single cell resolves
-            if (typeof flushBufferedUiSync === 'function' && !isSearchDoneHandled) {
-              flushBufferedUiSync(false);
-            } else if (typeof updateStats === 'function' && !isSearchDoneHandled) {
-              updateStats();
-            }
-          }));
-        }
-
-        quickGridActive = false;
-        if (!isThisQuickGridAborted() && !isSearchDoneHandled) {
-          closeAllQuickSearchSectorStreams();
-          handleSearchDoneEvent();
-        }
-      }
+      // Pure, unrestricted single-stream /api/search SSE pipeline:
+      // Both Quick Search and Comprehensive Scan run directly on server.js's full adaptive quadtree + multi-wave Google Maps + OSM Overpass engine
+      // with zero artificial cell caps, zero premature client cutoffs, and zero competing client streams.
 
       currentEventSource.addEventListener('status', (event) => {
         if (isLoginModalVisible()) return;
         const data = JSON.parse(event.data);
-        // Never let primary single-point completion overwrite the active city-wide grid headline while grid cells are still running
-        if (quickGridActive && quickGridStarted && (data.completed || /اكتمال|لم يتم العثور/i.test(String(data.message || '')))) {
-          return;
-        }
         statusMessage.innerText = formatModeAwareStatusBanner(data.message);
       });
 
@@ -6580,11 +6256,7 @@
 
         const strictNetCount = extractedPlaces.length;
         const isDoneSignal = Boolean(data.type === 'done' || data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
-        if (quickGridActive) {
-          // While full-city Quick Search grid is running, percentage is driven strictly by completedCells / totalScheduledCells (never premature 100%)
-          const gridPct = quickGridStarted ? Math.min(98, Math.round((quickGridCompleted / Math.max(1, quickGridTotal)) * 96)) : Math.min(maxDisplayedProgressPercent, 8);
-          if (gridPct > maxDisplayedProgressPercent) applyDirectProgressPercent(gridPct);
-        } else if (isDoneSignal) {
+        if (isDoneSignal) {
           applyDirectProgressPercent(100);
         } else {
           let computedPercent = null;
@@ -6622,12 +6294,10 @@
       }
 
       function scheduleThrottledProgressUi(data) {
-        if (!quickGridActive) {
-          if (data && (data.completed === true || data.type === 'done' || data.percent === 100)) {
-            applyDirectProgressPercent(100);
-          } else if (data && typeof data.percent === 'number' && isFinite(data.percent) && data.percent > 0) {
-            applyDirectProgressPercent(Math.min(data.percent, 99));
-          }
+        if (data && (data.completed === true || data.type === 'done' || data.percent === 100)) {
+          applyDirectProgressPercent(100);
+        } else if (data && typeof data.percent === 'number' && isFinite(data.percent) && data.percent > 0) {
+          applyDirectProgressPercent(Math.min(data.percent, 99));
         }
         pendingProgressData = Object.assign({}, pendingProgressData || {}, data);
         const now = Date.now();
@@ -6805,14 +6475,13 @@
             window.__lastScanErrorMessage = data.errorMessage;
           }
           if (data.type === 'done') {
-            quickPrimaryStreamDone = true;
-            if (!quickGridActive) handleSearchDoneEvent();
+            handleSearchDoneEvent();
           } else if (data.type === 'place' && data.place) {
             ingestIncomingStreamPlace(data.place);
           } else if (data.type === 'places_batch' && Array.isArray(data.places)) {
             enqueueBackgroundPlacesChunk(data.places);
           } else if (data.type === 'progress') {
-            if (!quickGridActive && typeof data.percent === 'number' && data.percent > 0) {
+            if (typeof data.percent === 'number' && data.percent > 0) {
               applyDirectProgressPercent(data.percent);
             }
             scheduleThrottledProgressUi(data);
@@ -6833,19 +6502,7 @@
       });
 
       currentEventSource.addEventListener('done', () => {
-        quickPrimaryStreamDone = true;
-        if (canRunQuickCityGrid && !quickGridStarted) {
-          // If primary finished before center/place triggered the grid, start grid from extracted place or user GPS; otherwise finish cleanly
-          const refP = extractedPlaces[0];
-          const fbLat = refP ? Number(refP.lat) : Number(cachedOptionalGps?.lat);
-          const fbLng = refP ? Number(refP.lng) : Number(cachedOptionalGps?.lng);
-          if (Number.isFinite(fbLat) && Number.isFinite(fbLng) && (fbLat !== 0 || fbLng !== 0)) {
-            runQuickCityGridBatches(fbLat, fbLng);
-            return;
-          }
-          quickGridActive = false;
-        }
-        if (!quickGridActive) handleSearchDoneEvent();
+        handleSearchDoneEvent();
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -6853,10 +6510,6 @@
         const data = JSON.parse(event.data);
         if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
           leafletMap.setView([data.lat, data.lng], 12);
-        }
-        // Trigger 36-cell city-wide Promise.all grid batches around the resolved city center for Quick Search
-        if (canRunQuickCityGrid && !quickGridStarted && data && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
-          runQuickCityGridBatches(data.lat, data.lng);
         }
       });
 
@@ -6868,10 +6521,6 @@
           return;
         }
         ingestIncomingStreamPlace(place);
-        // Fallback trigger for city-wide grid if center event wasn't emitted before first place
-        if (canRunQuickCityGrid && !quickGridStarted && place && Number.isFinite(Number(place.lat)) && Number.isFinite(Number(place.lng))) {
-          runQuickCityGridBatches(place.lat, place.lng);
-        }
         if (!hasKnownTotal && (extractedPlaces.length === 1 || extractedPlaces.length % 20 === 0)) {
           applyDynamicPageCounter(Math.max(1, Math.ceil(extractedPlaces.length / 20)));
         }
@@ -6904,21 +6553,12 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
-        quickPrimaryStreamDone = true;
-        if (!quickGridActive) handleSearchDoneEvent();
+        handleSearchDoneEvent();
       });
 
       currentEventSource.addEventListener('error', (errEv) => {
         try {
           console.error('[SearchPipeline] Primary SSE stream error:', errEv);
-          quickPrimaryStreamDone = true;
-          if (quickGridActive && !isSearchDoneHandled) {
-            if (currentEventSource) {
-              try { currentEventSource.close(); } catch (_) {}
-              currentEventSource = null;
-            }
-            return;
-          }
           if (!isSearchDoneHandled) {
             if (extractedPlaces.length === 0 && !window.__lastScanErrorMessage) {
               window.__lastScanErrorMessage = 'انقطع الاتصال بالخادم أثناء البحث (قد يكون الخادم قيد التحديث أو الاستيقاظ) — يرجى المحاولة مرة أخرى.';
@@ -6926,10 +6566,8 @@
             handleSearchDoneEvent();
           }
         } finally {
-          if (!quickGridActive || isSearchDoneHandled) {
-            hideScanLoadingSpinners();
-            finishSearch();
-          }
+          hideScanLoadingSpinners();
+          finishSearch();
         }
       });
       } catch (startupErr) {

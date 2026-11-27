@@ -1489,8 +1489,8 @@
     tabindex="0"
     onclick="handleSmartNotificationClick(event)"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleSmartNotificationClick(event);}"
-    style="z-index: 100002;"
-    class="hidden smart-clickable-toast fixed top-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
+    style="z-index: 100002; top: 76px;"
+    class="hidden smart-clickable-toast fixed left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
   >
     <span id="scanCompleteToastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
     <div class="flex flex-col min-w-0 flex-1 text-right">
@@ -5035,50 +5035,64 @@
       return '';
     }
 
-    // Universal 100% Parity Relevance & Exclusion Engine (identical across Quick Search & Comprehensive Scan)
+    // Balanced Universal Relevance Engine (keeps valid matches across name/category/address/types/synonyms, excludes clear cross-sector noise)
     function evaluateUniversalCoreRelevance(place, rawQuery) {
       const q = normalizeUniversalCatText(rawQuery || '');
       if (!q || q === '__full_scan__') return { relevant: true, score: 1 };
 
       const expectedCat = getExpectedCategoryKeyForQuery(q);
       const rawName = normalizeUniversalCatText(place?.name || '');
-      const rawCats = normalizeUniversalCatText(`${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''}`);
+      const typesStr = Array.isArray(place?.types) ? place.types.join(' ') : '';
+      const tagsStr = place?.tags && typeof place.tags === 'object' ? Object.values(place.tags).join(' ') : String(place?.tags || '');
+      const rawCats = normalizeUniversalCatText(`${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''} ${typesStr} ${tagsStr}`);
+      const rawAddr = normalizeUniversalCatText(`${place?.address || ''} ${place?.district || ''}`);
       const rawPlace = `${rawName} ${rawCats}`.trim();
-      if (!rawPlace) return { relevant: false, score: 0 };
+      const rawAll = `${rawPlace} ${rawAddr}`.trim();
+      if (!rawPlace && !rawAddr) return { relevant: false, score: 0 };
 
       if (expectedCat) {
         const directRx = STRICT_SECTOR_SYNONYM_REGEX[expectedCat];
-        const hasDirectMatch = Boolean(directRx && directRx.test(rawPlace));
-        if (!hasDirectMatch) {
-          if (expectedCat !== 'companies' && /^(شركه|شركات|مؤسسه|مؤسسات|مجموعه)\b/.test(rawName)) {
-            return { relevant: false, score: 0 };
-          }
-          if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
-            return { relevant: false, score: 0 };
-          }
-          const catMatch = classifyExtractedPlaceCategoryKey(place) === expectedCat;
-          return { relevant: catMatch, score: catMatch ? 1 : 0 };
-        }
+        const hasDirectMatch = Boolean(directRx && (directRx.test(rawPlace) || directRx.test(rawAddr)));
+
         // Strict separation between pharma companies/warehouses and retail pharmacies
         if (expectedCat === 'pharmacies' && STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) {
           return { relevant: false, score: 0 };
         }
-        if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) {
+        if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawAll)) {
           return { relevant: false, score: 0 };
         }
-        return { relevant: true, score: 2 };
+
+        if (hasDirectMatch) return { relevant: true, score: 2 };
+
+        const placeCat = classifyExtractedPlaceCategoryKey(place);
+        if (placeCat === expectedCat) return { relevant: true, score: 2 };
+
+        // Reject clearly unrelated cross-sector entities (e.g. generic companies, offices, government, schools when searching groceries/pharmacies)
+        if (expectedCat !== 'companies' && /^(شركه|شركات|مؤسسه|مؤسسات|مجموعه)\b/.test(rawName)) {
+          return { relevant: false, score: 0 };
+        }
+        if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
+          return { relevant: false, score: 0 };
+        }
+        // If classified into a different known sector, exclude it; otherwise keep brand-named live search results (placeCat === 'other')
+        if (placeCat && placeCat !== 'other' && !placeCat.startsWith('dyn_') && placeCat !== expectedCat) {
+          return { relevant: false, score: 0 };
+        }
+        return { relevant: true, score: 1 };
       }
 
-      // Arbitrary custom user-typed query in any language: normalized token + stem matching with cross-domain guard
+      // Arbitrary custom user-typed query in any language: normalized token + stem matching across name/category/address/tags
       const rawTokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and|for|to|at)$/i.test(t));
       if (rawTokens.length === 0) return { relevant: true, score: 1 };
       const stemmedTokens = rawTokens.map(stemCoreQueryToken).filter(t => t.length >= 2);
-      const placeWords = rawPlace.split(/\s+/);
-      const placeStemmed = placeWords.map(stemCoreQueryToken).join(' ');
+      const placeStemmed = rawAll.split(/\s+/).map(stemCoreQueryToken).join(' ');
 
-      const hasTokenHit = rawTokens.some(tok => rawPlace.includes(tok)) || stemmedTokens.some(st => placeStemmed.includes(st));
-      if (!hasTokenHit) return { relevant: false, score: 0 };
-      return { relevant: true, score: 2 };
+      const hasTokenHit = rawTokens.some(tok => rawAll.includes(tok)) || stemmedTokens.some(st => placeStemmed.includes(st));
+      if (hasTokenHit) return { relevant: true, score: 2 };
+
+      // Avoid false zero-results for live query-scoped results that use proper/brand names without repeating the query word
+      if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) return { relevant: false, score: 0 };
+      return { relevant: true, score: 1 };
     }
 
     function doesPlaceStrictlyMatchActiveQuery(place, rawQuery) {
@@ -6090,8 +6104,8 @@
           }
           const elapsedMs = Date.now() - quickStartMs;
           const strictCount = getActiveFilteredPlaces().length;
-          // Complete quickly: either >= 80 strict-matched results after 4s, or >= 1 result after 12s, or hard cap at 18s
-          if ((strictCount >= 80 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000) || elapsedMs >= 18000) {
+          // Complete quickly once real results arrive (>=60 after 4s or >=1 after 12s), while allowing up to 45s if server is waking up
+          if ((strictCount >= 60 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000) || elapsedMs >= 45000) {
             clearInterval(window.__quickSearchFastCutoffTimer);
             window.__quickSearchFastCutoffTimer = null;
             handleSearchDoneEvent();
@@ -7421,6 +7435,16 @@
       }
 
       toast.classList.toggle('is-warning', variant === 'warning');
+      // Position toast cleanly below the sticky top header so it never overlaps navigation tabs
+      const topHeaderEl = document.getElementById('appTopHeader');
+      let safeTopPx = 76;
+      if (topHeaderEl && !topHeaderEl.classList.contains('header-auto-hidden')) {
+        const rect = topHeaderEl.getBoundingClientRect();
+        if (rect && rect.bottom > 0 && rect.bottom < 220) {
+          safeTopPx = Math.max(76, Math.round(rect.bottom) + 10);
+        }
+      }
+      toast.style.top = `${safeTopPx}px`;
       toast.classList.remove('hidden');
 
       if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);

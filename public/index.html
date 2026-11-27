@@ -2006,6 +2006,14 @@
               onchange="handleUserAvatarFileChange(event)"
               class="hidden"
             />
+            <input
+              type="file"
+              id="userAvatarCameraInput"
+              accept="image/*"
+              capture="environment"
+              onchange="handleUserAvatarFileChange(event)"
+              class="hidden"
+            />
 
             <!-- Google-Style Profile & Quick Settings Popover -->
             <div id="userAvatarPopover" class="hidden user-avatar-popover space-y-3" onclick="event.stopPropagation()">
@@ -2024,14 +2032,15 @@
                 </div>
               </div>
 
-              <!-- Avatar Change Trigger (Opens App-Style Photo Permission Sheet) -->
+              <!-- Avatar View / Change / Reset Actions -->
               <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="openAvatarFullPreviewModal()" class="btn-secondary min-h-[40px] px-2.5 py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                  <i data-lucide="eye" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>عرض الصورة</span>
+                </button>
                 <button type="button" onclick="openPhotoAccessPromptModal()" class="btn-secondary min-h-[40px] px-2.5 py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
                   <i data-lucide="camera" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>تغيير الصورة</span>
-                </button>
-                <button type="button" onclick="resetCustomUserAvatar()" class="btn-secondary min-h-[40px] px-2.5 py-1.5 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
-                  <span>الافتراضي</span>
                 </button>
               </div>
 
@@ -2075,17 +2084,58 @@
           </div>
 
           <div class="space-y-2">
-            <button type="button" onclick="chooseAvatarPhotoAccess('selected')" class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition">
+            <button type="button" onclick="chooseAvatarPhotoAccess('camera')" class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition">
+              <i data-lucide="camera" class="w-4 h-4"></i>
+              <span>التقاط صورة</span>
+            </button>
+            <button type="button" onclick="chooseAvatarPhotoAccess('selected')" class="btn-secondary w-full min-h-[44px] px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer">
               <span>السماح بصور محددة</span>
             </button>
             <button type="button" onclick="chooseAvatarPhotoAccess('all')" class="btn-secondary w-full min-h-[44px] px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer">
               <span>السماح بالكل</span>
             </button>
-            <button type="button" id="btnRemoveCurrentAvatarPhoto" onclick="resetCustomUserAvatar(); closePhotoAccessPromptModal();" class="hidden btn-secondary w-full min-h-[42px] px-4 py-2 text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 cursor-pointer">
+            <button type="button" id="btnRemoveCurrentAvatarPhoto" onclick="resetCustomUserAvatar(); closePhotoAccessPromptModal();" class="hidden btn-secondary w-full min-h-[44px] px-4 py-2 text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 cursor-pointer">
               <span>إزالة الصورة الحالية</span>
             </button>
-            <button type="button" onclick="closePhotoAccessPromptModal()" class="w-full min-h-[40px] px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-medium cursor-pointer transition">
+            <button type="button" onclick="closePhotoAccessPromptModal()" class="w-full min-h-[44px] px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-medium cursor-pointer transition">
               إلغاء
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Full Avatar Image Preview Modal ("عرض الصورة") -->
+      <div id="avatarFullPreviewModal" class="hidden fixed inset-0 z-[100012] bg-[#0b1320]/85 flex items-center justify-center p-4" onclick="closeAvatarFullPreviewModal()">
+        <div class="w-full max-w-[420px] bg-[#131f33] border border-slate-400/20 rounded-2xl p-5 space-y-4 shadow-2xl text-center" onclick="event.stopPropagation()">
+          <div class="flex items-center justify-between pb-2 border-b border-slate-400/15">
+            <h3 class="text-sm font-bold text-[#f1f5f9]">صورة الملف الشخصي</h3>
+            <button type="button" onclick="closeAvatarFullPreviewModal()" aria-label="إغلاق" class="btn-secondary w-10 h-10 rounded-xl text-xs font-bold flex items-center justify-center cursor-pointer">✕</button>
+          </div>
+
+          <div class="flex items-center justify-center py-2">
+            <img id="avatarFullPreviewImg" alt="صورة الملف الشخصي" class="hidden w-56 h-56 sm:w-64 sm:h-64 rounded-2xl object-cover border-2 border-emerald-500/45 shadow-xl bg-[#0b1320]" />
+            <div id="avatarFullPreviewEmpty" class="hidden flex flex-col items-center gap-3 py-6 px-4 rounded-2xl bg-[#0b1320] border border-slate-400/15 w-full">
+              <div class="w-20 h-20 rounded-full bg-[#131f33] border border-slate-400/20 flex items-center justify-center text-slate-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
+                </svg>
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed max-w-[260px]">
+                لم تقم بتعيين صورة شخصية بعد. يمكنك اختيار صورة من جهازك أو التقاط صورة مباشرة بالكاميرا.
+              </p>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" onclick="closeAvatarFullPreviewModal(); openPhotoAccessPromptModal();" class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition">
+              <i data-lucide="camera" class="w-4 h-4"></i>
+              <span>تغيير الصورة</span>
+            </button>
+            <button type="button" id="btnPreviewRemoveAvatar" onclick="resetCustomUserAvatar(); closeAvatarFullPreviewModal();" class="hidden btn-secondary w-full min-h-[44px] px-4 py-2.5 text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 cursor-pointer">
+              <span>إزالة الصورة الحالية</span>
+            </button>
+            <button type="button" onclick="closeAvatarFullPreviewModal()" class="btn-secondary w-full min-h-[44px] px-4 py-2 text-xs font-semibold text-slate-300 flex items-center justify-center cursor-pointer">
+              <span>إغلاق</span>
             </button>
           </div>
         </div>
@@ -10927,13 +10977,47 @@
       if (modal) modal.classList.add('hidden');
     }
 
+    function openAvatarFullPreviewModal() {
+      closeUserAvatarPopover();
+      let savedUrl = '';
+      try { savedUrl = localStorage.getItem(USER_AVATAR_STORAGE_KEY) || ''; } catch (e) {}
+      const modal = document.getElementById('avatarFullPreviewModal');
+      const img = document.getElementById('avatarFullPreviewImg');
+      const emptyBox = document.getElementById('avatarFullPreviewEmpty');
+      const removeBtn = document.getElementById('btnPreviewRemoveAvatar');
+      if (savedUrl && img) {
+        img.src = savedUrl;
+        img.classList.remove('hidden');
+        if (emptyBox) emptyBox.classList.add('hidden');
+        if (removeBtn) removeBtn.classList.remove('hidden');
+      } else {
+        if (img) { img.removeAttribute('src'); img.classList.add('hidden'); }
+        if (emptyBox) emptyBox.classList.remove('hidden');
+        if (removeBtn) removeBtn.classList.add('hidden');
+      }
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeAvatarFullPreviewModal() {
+      const modal = document.getElementById('avatarFullPreviewModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
     function chooseAvatarPhotoAccess(mode) {
       try { localStorage.setItem(USER_PHOTO_ACCESS_MODE_KEY, mode); } catch (e) {}
+      closePhotoAccessPromptModal();
+      if (mode === 'camera') {
+        const camInp = document.getElementById('userAvatarCameraInput');
+        if (camInp) {
+          camInp.value = '';
+          camInp.click();
+        }
+        return;
+      }
       const inp = document.getElementById('userAvatarUploadInput');
       if (!inp) return;
       inp.value = '';
       inp.multiple = (mode === 'selected');
-      closePhotoAccessPromptModal();
       inp.click();
     }
 
@@ -10965,7 +11049,14 @@
     }
 
     async function handleUserAvatarFileChange(ev) {
-      const files = ev && ev.target && ev.target.files ? Array.from(ev.target.files).filter(f => f.type && f.type.startsWith('image/')) : [];
+      const rawFiles = ev && ev.target && ev.target.files ? Array.from(ev.target.files) : [];
+      const files = rawFiles.filter(f => f && f.type && f.type.startsWith('image/') && f.size <= 15 * 1024 * 1024);
+      if (rawFiles.length > 0 && files.length === 0) {
+        if (typeof showSmartNotification === 'function') {
+          showSmartNotification('⚠️ صيغة أو حجم الصورة غير مدعوم', 'يرجى اختيار صورة صالحة بحجم أقل من 15 ميجابايت', { target: 'settings', variant: 'warning', durationMs: 5000 });
+        }
+        return;
+      }
       if (files.length === 0) return;
       const compressedList = [];
       for (const f of files.slice(0, 6)) {
@@ -10996,6 +11087,8 @@
     window.closeUserAvatarPopover = closeUserAvatarPopover;
     window.openPhotoAccessPromptModal = openPhotoAccessPromptModal;
     window.closePhotoAccessPromptModal = closePhotoAccessPromptModal;
+    window.openAvatarFullPreviewModal = openAvatarFullPreviewModal;
+    window.closeAvatarFullPreviewModal = closeAvatarFullPreviewModal;
     window.chooseAvatarPhotoAccess = chooseAvatarPhotoAccess;
     window.selectAvatarFromGallery = selectAvatarFromGallery;
     window.handleUserAvatarFileChange = handleUserAvatarFileChange;
@@ -11012,7 +11105,11 @@
     });
 
     document.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Escape') closeUserAvatarPopover();
+      if (ev.key === 'Escape') {
+        closeUserAvatarPopover();
+        closePhotoAccessPromptModal();
+        closeAvatarFullPreviewModal();
+      }
     });
 
     // Smart single-button toggle initialization & Enter key routing for #queryInput

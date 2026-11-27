@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v28_fullcity_grid_and_strict_company_filter';
+      var CURRENT_APP_VER = 'v29_quick_36pt_city_grid';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -6169,16 +6169,22 @@
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
-      // Full-City Multi-Cell Quick Search Grid (6x6 = 36 well-distributed cells across the entire city, Promise.all batches of 4, maxDepth=0)
+      // Full-City Multi-Cell Quick Search Grid (6x6 = 36 evenly spaced points across the entire city, Promise.all batches of 5, maxDepth=0, no result cap)
+      const canRunQuickCityGrid = Boolean(
+        isQuickSearchMode &&
+        !drawnCircleState &&
+        (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
+      );
       let quickGridStarted = false;
-      let quickGridActive = false;
+      let quickGridActive = canRunQuickCityGrid;
       let quickGridCompleted = 0;
-      let quickGridTotal = 0;
+      let quickGridTotal = 36;
       let quickPrimaryStreamDone = false;
       let quickGridAborted = false;
 
       function closeAllQuickSearchSectorStreams() {
         quickGridAborted = true;
+        quickGridActive = false;
         if (window.__activeQuickSectorStreams && window.__activeQuickSectorStreams.size > 0) {
           window.__activeQuickSectorStreams.forEach((es) => {
             try { es.close(); } catch (_) {}
@@ -6192,20 +6198,13 @@
       }
       window.closeAllQuickSearchSectorStreams = closeAllQuickSearchSectorStreams;
 
-      const canRunQuickCityGrid = Boolean(
-        isQuickSearchMode &&
-        !neighborhood &&
-        !drawnCircleState &&
-        (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
-      );
-
-      function buildCityWideQuickGrid(centerLat, centerLng, spanKm = 16) {
+      function buildCityWideQuickGrid(centerLat, centerLng, spanKm = 18) {
         const lat = Number(centerLat);
         const lng = Number(centerLng);
         if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return [];
-        const gridSize = 6; // 6x6 = 36 cells spanning ~16km x 16km across all city districts
+        const gridSize = 6; // 6x6 = 36 evenly spaced grid coordinates spanning ~18km x 18km across all city districts
         const stepKm = spanKm / gridSize;
-        const cellRadiusKm = Number(Math.max(1.8, stepKm * 0.72).toFixed(2));
+        const cellRadiusKm = Number(Math.max(2.4, stepKm * 0.85).toFixed(2));
         const halfSpan = (gridSize - 1) / 2;
         const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
         const cells = [];
@@ -6219,7 +6218,7 @@
             cells.push({ lat: cLat, lng: cLng, radiusKm: cellRadiusKm, distFromCenter });
           }
         }
-        // Spiral out from city center so densest districts populate first
+        // Spiral out from city center so densest districts populate immediately
         cells.sort((a, b) => a.distFromCenter - b.distFromCenter);
         return cells;
       }
@@ -6228,12 +6227,18 @@
         return new Promise((resolve) => {
           if (quickGridAborted || isSearchDoneHandled) return resolve(0);
           const cellParams = new URLSearchParams(params.toString());
+          // Pin every grid request explicitly to this cell's own coordinates (override any single user GPS or neighborhood pin)
+          cellParams.set('lat', String(cell.lat));
+          cellParams.set('lng', String(cell.lng));
+          cellParams.set('userLat', String(cell.lat));
+          cellParams.set('userLng', String(cell.lng));
           cellParams.set('circleLat', String(cell.lat));
           cellParams.set('circleLng', String(cell.lng));
           cellParams.set('circleRadiusKm', String(cell.radiusKm));
           cellParams.set('radius', String(Math.ceil(cell.radiusKm)));
           cellParams.set('maxDepth', '0');
           cellParams.set('concurrency', '2');
+          cellParams.delete('neighborhood');
           cellParams.delete('scopeMode');
           cellParams.delete('bbox');
 
@@ -6277,8 +6282,8 @@
                 enqueueBackgroundPlacesChunk(items);
               }
               if (typeof scheduleBufferedUiSync === 'function') scheduleBufferedUiSync(false);
-              // Shorten idle timer once cell starts streaming places
-              resetTimer(4500);
+              // Keep cell open while streaming new places; settle 5s after last item
+              resetTimer(5000);
             };
 
             es.addEventListener('place', (ev) => {
@@ -6295,10 +6300,20 @@
                 if (Array.isArray(batch)) handleIncomingCellItems(batch);
               } catch (_) {}
             });
+            es.onmessage = (ev) => {
+              if (isLoginModalVisible() || isSearchDoneHandled) return;
+              try {
+                const d = JSON.parse(ev.data);
+                if (!d || typeof d !== 'object') return;
+                if (d.type === 'done') finishCell();
+                else if (d.type === 'place' && d.place) handleIncomingCellItems([d.place]);
+                else if (d.type === 'places_batch' && Array.isArray(d.places)) handleIncomingCellItems(d.places);
+              } catch (_) {}
+            };
             es.addEventListener('done', finishCell);
             es.addEventListener('complete', finishCell);
             es.addEventListener('error', finishCell);
-            resetTimer(14000);
+            resetTimer(16000);
           } catch (_) {
             finishCell();
           }
@@ -6312,11 +6327,11 @@
         if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
         if (!Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers = [];
 
-        const spanKm = Math.min(Math.max((Number(selectedRadius) || 12) * 1.4, 14), 24);
+        const spanKm = Math.min(Math.max((Number(selectedRadius) || 14) * 1.5, 16), 26);
         const cells = buildCityWideQuickGrid(centerLat, centerLng, spanKm);
         quickGridTotal = cells.length;
         quickGridCompleted = 0;
-        const BATCH_SIZE = 4;
+        const BATCH_SIZE = 5;
 
         for (let i = 0; i < cells.length; i += BATCH_SIZE) {
           if (quickGridAborted || isSearchDoneHandled) break;
@@ -6331,7 +6346,7 @@
             const pct = Math.min(98, Math.round((quickGridCompleted / Math.max(1, quickGridTotal)) * 96));
             applyDirectProgressPercent(pct);
             if (statusMessage && !isSearchDoneHandled) {
-              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل للمدينة${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} نطاق)...`;
+              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل للمدينة${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} نقطة)...`;
             }
           }));
           if (typeof flushBufferedUiSync === 'function' && !isSearchDoneHandled) {
@@ -6663,6 +6678,17 @@
 
       currentEventSource.addEventListener('done', () => {
         quickPrimaryStreamDone = true;
+        if (canRunQuickCityGrid && !quickGridStarted) {
+          // If primary finished before center/place triggered the grid, start grid from extracted place or user GPS; otherwise finish cleanly
+          const refP = extractedPlaces[0];
+          const fbLat = refP ? Number(refP.lat) : Number(cachedOptionalGps?.lat);
+          const fbLng = refP ? Number(refP.lng) : Number(cachedOptionalGps?.lng);
+          if (Number.isFinite(fbLat) && Number.isFinite(fbLng) && (fbLat !== 0 || fbLng !== 0)) {
+            runQuickCityGridBatches(fbLat, fbLng);
+            return;
+          }
+          quickGridActive = false;
+        }
         if (!quickGridActive) handleSearchDoneEvent();
       });
 

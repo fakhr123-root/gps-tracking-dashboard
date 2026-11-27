@@ -9,7 +9,7 @@
       color: #f1f5f9 !important;
       margin: 0 !important;
       padding: 0 !important;
-      overflow-x: hidden !important;
+      overflow-x: clip !important;
       min-height: 100vh;
     }
     .hidden {
@@ -228,7 +228,7 @@
     html, body {
       background-color: #0b1320;
       color: #f1f5f9;
-      overflow-x: hidden;
+      overflow-x: clip;
       min-height: 100vh;
     }
 
@@ -653,6 +653,23 @@
       outline: 2px solid #f59e0b !important;
       outline-offset: 2px;
       animation: smartNavPulseAmber 0.85s ease-in-out 2;
+    }
+
+    /* Smart Auto-Hide Sticky Top Header (Hide on scroll down, reveal immediately on scroll up) */
+    #appTopHeader {
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      background: #0b1320;
+      padding-top: 8px;
+      transition: transform 0.25s ease-in-out, box-shadow 0.2s ease;
+      will-change: transform;
+    }
+    #appTopHeader.header-scrolled {
+      box-shadow: 0 8px 20px rgba(2, 6, 23, 0.48);
+    }
+    #appTopHeader.header-auto-hidden {
+      transform: translateY(-105%);
     }
 
     /* Customizable Circular User Avatar & Google-Style Profile Popover */
@@ -1915,8 +1932,8 @@
     <!-- Main Workspace Area -->
     <main class="app-main-content max-w-[1320px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 flex flex-col gap-5">
 
-      <!-- CLEAN TOP APP BAR (Single Top-Right Back + Quick Section Tabs + Counters + Refresh + User Avatar) -->
-      <header class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 relative">
+      <!-- CLEAN TOP APP BAR (Smart Auto-Hide Sticky Header: Single Back + Tabs + Counters + Refresh + User Avatar) -->
+      <header id="appTopHeader" class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 relative">
         <!-- Far Right (RTL): Single Clean Back Button (+ Mobile Drawer Button on < 900px) -->
         <div class="flex items-center gap-2">
           <button
@@ -11111,6 +11128,51 @@
         closeAvatarFullPreviewModal();
       }
     });
+
+    // Smart Auto-Hide Sticky Header Controller (hide on >12px downscroll past 60px, reveal on >6px upscroll)
+    (function initSmartAutoHideHeader() {
+      let lastScrollY = window.scrollY || 0;
+      let scrollTicking = false;
+
+      function isAnyHeaderMenuOpen() {
+        const ids = ['userAvatarPopover', 'photoAccessPromptModal', 'avatarFullPreviewModal', 'userSettingsModal'];
+        for (let i = 0; i < ids.length; i++) {
+          const el = document.getElementById(ids[i]);
+          if (el && !el.classList.contains('hidden')) return true;
+        }
+        return false;
+      }
+
+      function onScrollFrame() {
+        scrollTicking = false;
+        const header = document.getElementById('appTopHeader');
+        if (!header) return;
+        const currentY = Math.max(0, window.scrollY || window.pageYOffset || 0);
+        header.classList.toggle('header-scrolled', currentY > 12);
+
+        if (currentY <= 60 || isAnyHeaderMenuOpen()) {
+          header.classList.remove('header-auto-hidden');
+          lastScrollY = currentY;
+          return;
+        }
+
+        const delta = currentY - lastScrollY;
+        if (delta > 12) {
+          header.classList.add('header-auto-hidden');
+          lastScrollY = currentY;
+        } else if (delta < -6) {
+          header.classList.remove('header-auto-hidden');
+          lastScrollY = currentY;
+        }
+      }
+
+      window.addEventListener('scroll', () => {
+        if (!scrollTicking) {
+          scrollTicking = true;
+          requestAnimationFrame(onScrollFrame);
+        }
+      }, { passive: true });
+    })();
 
     // Smart single-button toggle initialization & Enter key routing for #queryInput
       syncPrimarySearchActionButton();

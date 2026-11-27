@@ -1915,17 +1915,17 @@
     <!-- Main Workspace Area -->
     <main class="app-main-content max-w-[1320px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 flex flex-col gap-5">
 
-      <!-- CLEAN TOP APP BAR (Top-Right Back + Title + Quick Section Tabs + Counters + User Avatar Settings Trigger) -->
+      <!-- CLEAN TOP APP BAR (Single Top-Right Back + Quick Section Tabs + Counters + Refresh + User Avatar) -->
       <header class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 relative">
-        <!-- Far Right (RTL): Back Button + Sidebar Toggle + Brand Title -->
-        <div class="flex items-center gap-2 sm:gap-2.5">
+        <!-- Far Right (RTL): Single Clean Back Button (+ Mobile Drawer Button on < 900px) -->
+        <div class="flex items-center gap-2">
           <button
             type="button"
             id="topHeaderBackBtn"
             onclick="navigateBack()"
             aria-label="رجوع"
             title="العودة للخطوة السابقة"
-            class="min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+            class="min-h-[40px] px-3.5 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
           >
             <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
             <span>رجوع</span>
@@ -1935,29 +1935,12 @@
             id="mobileSidebarToggleBtn"
             onclick="toggleMobileSidebarDrawer()"
             aria-label="فتح القائمة الجانبية"
-            title="تصغير / فتح القائمة الجانبية"
+            title="فتح القائمة الجانبية"
             class="mobile-hamburger-btn w-10 h-10 rounded-xl bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white items-center justify-center text-sm cursor-pointer transition"
           >
             <i class="fas fa-bars"></i>
           </button>
-          <button
-            type="button"
-            id="sidebarToggleBtn"
-            onclick="toggleDesktopSidebarCollapse()"
-            aria-label="تصغير أو فتح القائمة الجانبية"
-            aria-expanded="true"
-            title="تصغير / فتح القائمة الجانبية"
-            class="desktop-sidebar-toggle-btn w-9 h-9 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white items-center justify-center text-xs cursor-pointer transition shrink-0"
-          >
-            <i id="sidebarToggleIcon" class="fas fa-chevron-right"></i>
-          </button>
-          <div class="min-w-0">
-            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
-              <span>مستخرج خرائط جوجل</span>
-              <span class="text-emerald-400 font-num text-xs font-semibold">GeoRadar</span>
-            </h1>
-            <p id="activeViewHeaderSubtitle" class="text-[11px] text-slate-400 truncate">البحث والمسح الشامل</p>
-          </div>
+          <span id="activeViewHeaderSubtitle" class="sr-only">البحث والمسح الشامل</span>
         </div>
 
         <!-- Center: Quick Section Tabs (Search / Results / Map) -->
@@ -1976,7 +1959,7 @@
           </button>
         </nav>
 
-        <!-- Left: Clean Counters + Compact Utility Icons + Circular User Avatar Settings Trigger -->
+        <!-- Left: Clean Counters + Refresh + Circular User Avatar Settings Trigger -->
         <div class="flex flex-wrap items-center gap-2 relative">
           <div class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-[#0b1320] border border-slate-400/15 text-xs text-slate-300 min-h-[40px]">
             <div onclick="switchAppView('view-results')" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لعرض النتائج والجدول">
@@ -1997,22 +1980,23 @@
           <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" aria-label="تحديث الصفحة" class="w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0">
             <i data-lucide="refresh-cw" class="w-4 h-4"></i>
           </button>
-          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" aria-label="موقعي على الخريطة" class="w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0">
-            <i data-lucide="locate-fixed" class="w-4 h-4 text-emerald-400"></i>
-          </button>
 
-          <!-- Customizable Circular User Avatar Trigger (Google-style Settings/Account Menu) -->
+          <!-- Customizable Circular User Avatar Trigger (Standard Vector Silhouette Fallback + Custom Photo) -->
           <div class="relative">
             <button
               type="button"
               id="userAvatarSettingsBtn"
               onclick="toggleUserAvatarPopover(event)"
               aria-label="ملف المستخدم والإعدادات"
-              title="حسابك والإعدادات (اضغط لتغيير الصورة أو فتح الإعدادات)"
+              title="حسابك والإعدادات"
               class="user-avatar-trigger"
             >
-              <img id="userAvatarImg" alt="صورة المستخدم" class="hidden" />
-              <span id="userAvatarInitials" class="text-xs font-black text-emerald-400 select-none">U</span>
+              <img id="userAvatarImg" alt="صورة المستخدم" class="hidden w-full h-full object-cover" />
+              <span id="userAvatarDefaultIcon" class="flex items-center justify-center text-slate-300" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
+                </svg>
+              </span>
             </button>
 
             <input
@@ -2026,29 +2010,37 @@
             <!-- Google-Style Profile & Quick Settings Popover -->
             <div id="userAvatarPopover" class="hidden user-avatar-popover space-y-3" onclick="event.stopPropagation()">
               <div class="flex items-center gap-3 pb-3 border-b border-slate-400/15">
-                <div onclick="triggerUserAvatarUpload()" title="تغيير صورة الملف الشخصي" class="w-12 h-12 rounded-full bg-[#0b1320] border-2 border-emerald-500/50 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer relative group">
+                <div onclick="openPhotoAccessPromptModal()" title="تغيير صورة الملف الشخصي" class="w-12 h-12 rounded-full bg-[#0b1320] border-2 border-emerald-500/50 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer relative">
                   <img id="userAvatarPopoverImg" alt="صورة المستخدم" class="hidden w-full h-full object-cover" />
-                  <span id="userAvatarPopoverInitials" class="text-base font-black text-emerald-400">U</span>
+                  <span id="userAvatarPopoverDefaultIcon" class="flex items-center justify-center text-slate-300" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v2h20v-2c0-3.33-6.67-5-10-5z"/>
+                    </svg>
+                  </span>
                 </div>
                 <div class="min-w-0 flex-1">
-                  <div id="topBarAccountLabel" class="text-sm font-bold text-[#f1f5f9] truncate">الإعدادات</div>
+                  <div id="topBarAccountLabel" class="text-sm font-bold text-[#f1f5f9] truncate">الحساب والإعدادات</div>
                   <div class="text-[11px] text-slate-400">اضغط على الصورة لتخصيصها</div>
                 </div>
               </div>
 
-              <!-- Avatar Upload / Reset Row -->
+              <!-- Avatar Change Trigger (Opens App-Style Photo Permission Sheet) -->
               <div class="grid grid-cols-2 gap-2">
-                <button type="button" onclick="triggerUserAvatarUpload()" class="btn-secondary min-h-[38px] px-2.5 py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                <button type="button" onclick="openPhotoAccessPromptModal()" class="btn-secondary min-h-[40px] px-2.5 py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
                   <i data-lucide="camera" class="w-3.5 h-3.5 text-emerald-400"></i>
                   <span>تغيير الصورة</span>
                 </button>
-                <button type="button" onclick="resetCustomUserAvatar()" class="btn-secondary min-h-[38px] px-2.5 py-1.5 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
+                <button type="button" onclick="resetCustomUserAvatar()" class="btn-secondary min-h-[40px] px-2.5 py-1.5 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
                   <span>الافتراضي</span>
                 </button>
               </div>
 
-              <!-- Quick Settings & Account Actions -->
+              <!-- Quick Settings, GPS & Account Actions -->
               <div class="space-y-1.5 pt-1">
+                <button type="button" id="settingsMenuGpsBtn" onclick="closeUserAvatarPopover(); centerMapOnUserGps();" class="btn-secondary w-full min-h-[40px] px-3 py-2 text-xs font-semibold flex items-center gap-2.5 cursor-pointer">
+                  <i data-lucide="locate-fixed" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                  <span>موقعي على الخريطة (GPS)</span>
+                </button>
                 <button type="button" onclick="closeUserAvatarPopover(); openUserSettingsModal();" class="btn-secondary w-full min-h-[40px] px-3 py-2 text-xs font-semibold flex items-center gap-2.5 cursor-pointer">
                   <i data-lucide="settings" class="w-4 h-4 text-emerald-400 shrink-0"></i>
                   <span>إعدادات الحساب واللغة</span>
@@ -2062,6 +2054,42 @@
           </div>
         </div>
       </header>
+
+      <!-- App-Style Photo Access Permission Sheet ("السماح بصور محددة" / "السماح بالكل") -->
+      <div id="photoAccessPromptModal" class="hidden fixed inset-0 z-[100010] bg-[#0b1320]/80 flex items-end sm:items-center justify-center p-3 sm:p-4" onclick="closePhotoAccessPromptModal()">
+        <div class="w-full max-w-[400px] bg-[#131f33] border border-slate-400/20 rounded-2xl p-5 space-y-4 shadow-2xl text-right" onclick="event.stopPropagation()">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-500/35 flex items-center justify-center shrink-0 text-emerald-400">
+              <i data-lucide="image" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-[#f1f5f9]">السماح بالوصول إلى الصور</h3>
+              <p class="text-[11px] text-slate-400 mt-0.5">اختر طريقة اختيار صورة ملفك الشخصي بأمان على جهازك</p>
+            </div>
+          </div>
+
+          <!-- Selected Photos Quick Switcher (when user previously chose specific photos) -->
+          <div id="selectedAvatarGalleryRow" class="hidden space-y-1.5">
+            <div class="text-[11px] font-semibold text-slate-300">الصور المحددة مؤخراً:</div>
+            <div id="selectedAvatarGalleryThumbs" class="flex items-center gap-2 overflow-x-auto py-1"></div>
+          </div>
+
+          <div class="space-y-2">
+            <button type="button" onclick="chooseAvatarPhotoAccess('selected')" class="w-full min-h-[44px] px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer transition">
+              <span>السماح بصور محددة</span>
+            </button>
+            <button type="button" onclick="chooseAvatarPhotoAccess('all')" class="btn-secondary w-full min-h-[44px] px-4 py-2.5 text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer">
+              <span>السماح بالكل</span>
+            </button>
+            <button type="button" id="btnRemoveCurrentAvatarPhoto" onclick="resetCustomUserAvatar(); closePhotoAccessPromptModal();" class="hidden btn-secondary w-full min-h-[42px] px-4 py-2 text-xs font-semibold text-amber-300 flex items-center justify-center gap-2 cursor-pointer">
+              <span>إزالة الصورة الحالية</span>
+            </button>
+            <button type="button" onclick="closePhotoAccessPromptModal()" class="w-full min-h-[40px] px-4 py-2 rounded-xl text-slate-400 hover:text-white text-xs font-medium cursor-pointer transition">
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Global Live Progress Indicator (Visible across views whenever an active scan is running) -->
       <div id="progressContainer" class="hidden scan-progress-card">
@@ -10790,37 +10818,33 @@
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
       }
     // =========================================================================
-    // Customizable User Avatar & Google-Style Profile Popover (localStorage)
+    // Customizable User Avatar (Vector Silhouette Fallback + Photo Access Sheet)
     // =========================================================================
     const USER_AVATAR_STORAGE_KEY = 'georadar_user_avatar_dataurl';
-
-    function getUserAvatarInitials() {
-      const labelEl = document.getElementById('topBarAccountLabel');
-      const rawName = (localStorage.getItem('currentUser') || (labelEl ? labelEl.innerText : '') || 'U').replace(/^@+/, '').trim();
-      if (!rawName || rawName === 'الإعدادات') return 'U';
-      return rawName.slice(0, 2).toUpperCase();
-    }
+    const USER_AVATAR_GALLERY_KEY = 'georadar_selected_avatar_gallery';
+    const USER_PHOTO_ACCESS_MODE_KEY = 'georadar_photo_access_mode';
 
     function applySavedUserAvatarUI() {
       let savedUrl = '';
       try { savedUrl = localStorage.getItem(USER_AVATAR_STORAGE_KEY) || ''; } catch (e) {}
-      const initials = getUserAvatarInitials();
       const pairs = [
-        ['userAvatarImg', 'userAvatarInitials'],
-        ['userAvatarPopoverImg', 'userAvatarPopoverInitials']
+        ['userAvatarImg', 'userAvatarDefaultIcon'],
+        ['userAvatarPopoverImg', 'userAvatarPopoverDefaultIcon']
       ];
-      pairs.forEach(([imgId, initId]) => {
+      pairs.forEach(([imgId, iconId]) => {
         const img = document.getElementById(imgId);
-        const init = document.getElementById(initId);
+        const icon = document.getElementById(iconId);
         if (savedUrl && img) {
           img.src = savedUrl;
           img.classList.remove('hidden');
-          if (init) init.classList.add('hidden');
+          if (icon) icon.classList.add('hidden');
         } else {
           if (img) { img.removeAttribute('src'); img.classList.add('hidden'); }
-          if (init) { init.innerText = initials; init.classList.remove('hidden'); }
+          if (icon) icon.classList.remove('hidden');
         }
       });
+      const removeBtn = document.getElementById('btnRemoveCurrentAvatarPhoto');
+      if (removeBtn) removeBtn.classList.toggle('hidden', !savedUrl);
     }
 
     function toggleUserAvatarPopover(ev) {
@@ -10837,42 +10861,106 @@
       if (pop) pop.classList.add('hidden');
     }
 
-    function triggerUserAvatarUpload() {
-      const inp = document.getElementById('userAvatarUploadInput');
-      if (inp) {
-        inp.value = '';
-        inp.click();
+    function renderSelectedAvatarGallery() {
+      const row = document.getElementById('selectedAvatarGalleryRow');
+      const thumbs = document.getElementById('selectedAvatarGalleryThumbs');
+      if (!row || !thumbs) return;
+      let gallery = [];
+      try { gallery = JSON.parse(localStorage.getItem(USER_AVATAR_GALLERY_KEY) || '[]'); } catch (e) {}
+      if (!Array.isArray(gallery) || gallery.length === 0) {
+        row.classList.add('hidden');
+        thumbs.innerHTML = '';
+        return;
       }
+      row.classList.remove('hidden');
+      thumbs.innerHTML = gallery.map((src, idx) => `
+        <button type="button" onclick="selectAvatarFromGallery(${idx})" class="w-11 h-11 rounded-full overflow-hidden border-2 border-slate-500/40 hover:border-emerald-400 shrink-0 cursor-pointer p-0 bg-[#0b1320]">
+          <img src="${src}" alt="صورة ${idx + 1}" class="w-full h-full object-cover" />
+        </button>
+      `).join('');
     }
 
-    function handleUserAvatarFileChange(ev) {
-      const file = ev && ev.target && ev.target.files ? ev.target.files[0] : null;
-      if (!file || !file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = new Image();
-        img.onload = () => {
-          try {
-            const size = 160;
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            const minSide = Math.min(img.width, img.height);
-            const sx = (img.width - minSide) / 2;
-            const sy = (img.height - minSide) / 2;
-            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
-            const compressed = canvas.toDataURL('image/jpeg', 0.82);
-            localStorage.setItem(USER_AVATAR_STORAGE_KEY, compressed);
-            applySavedUserAvatarUI();
-            if (typeof showSmartNotification === 'function') {
-              showSmartNotification('✅ تم تحديث صورة الملف الشخصي', 'تم حفظ صورتك بنجاح على هذا الجهاز', { target: 'settings', variant: 'success', durationMs: 4500 });
-            }
-          } catch (e) {}
+    function selectAvatarFromGallery(idx) {
+      try {
+        const gallery = JSON.parse(localStorage.getItem(USER_AVATAR_GALLERY_KEY) || '[]');
+        if (Array.isArray(gallery) && gallery[idx]) {
+          localStorage.setItem(USER_AVATAR_STORAGE_KEY, gallery[idx]);
+          applySavedUserAvatarUI();
+          closePhotoAccessPromptModal();
+        }
+      } catch (e) {}
+    }
+
+    function openPhotoAccessPromptModal() {
+      closeUserAvatarPopover();
+      applySavedUserAvatarUI();
+      renderSelectedAvatarGallery();
+      const modal = document.getElementById('photoAccessPromptModal');
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closePhotoAccessPromptModal() {
+      const modal = document.getElementById('photoAccessPromptModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function chooseAvatarPhotoAccess(mode) {
+      try { localStorage.setItem(USER_PHOTO_ACCESS_MODE_KEY, mode); } catch (e) {}
+      const inp = document.getElementById('userAvatarUploadInput');
+      if (!inp) return;
+      inp.value = '';
+      inp.multiple = (mode === 'selected');
+      closePhotoAccessPromptModal();
+      inp.click();
+    }
+
+    function compressAvatarImageFile(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const size = 160;
+              const canvas = document.createElement('canvas');
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext('2d');
+              const minSide = Math.min(img.width, img.height);
+              const sx = (img.width - minSide) / 2;
+              const sy = (img.height - minSide) / 2;
+              ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+              resolve(canvas.toDataURL('image/jpeg', 0.82));
+            } catch (e) { resolve(''); }
+          };
+          img.onerror = () => resolve('');
+          img.src = reader.result;
         };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleUserAvatarFileChange(ev) {
+      const files = ev && ev.target && ev.target.files ? Array.from(ev.target.files).filter(f => f.type && f.type.startsWith('image/')) : [];
+      if (files.length === 0) return;
+      const compressedList = [];
+      for (const f of files.slice(0, 6)) {
+        const dataUrl = await compressAvatarImageFile(f);
+        if (dataUrl) compressedList.push(dataUrl);
+      }
+      if (compressedList.length === 0) return;
+      try {
+        localStorage.setItem(USER_AVATAR_STORAGE_KEY, compressedList[0]);
+        let prevGallery = [];
+        try { prevGallery = JSON.parse(localStorage.getItem(USER_AVATAR_GALLERY_KEY) || '[]'); } catch (e) {}
+        const merged = Array.from(new Set([...compressedList, ...(Array.isArray(prevGallery) ? prevGallery : [])])).slice(0, 6);
+        localStorage.setItem(USER_AVATAR_GALLERY_KEY, JSON.stringify(merged));
+      } catch (e) {}
+      applySavedUserAvatarUI();
+      if (typeof showSmartNotification === 'function') {
+        showSmartNotification('✅ تم تحديث صورة الملف الشخصي', 'تم حفظ صورتك بنجاح على هذا الجهاز', { target: 'settings', variant: 'success', durationMs: 4500 });
+      }
     }
 
     function resetCustomUserAvatar() {
@@ -10883,7 +10971,10 @@
 
     window.toggleUserAvatarPopover = toggleUserAvatarPopover;
     window.closeUserAvatarPopover = closeUserAvatarPopover;
-    window.triggerUserAvatarUpload = triggerUserAvatarUpload;
+    window.openPhotoAccessPromptModal = openPhotoAccessPromptModal;
+    window.closePhotoAccessPromptModal = closePhotoAccessPromptModal;
+    window.chooseAvatarPhotoAccess = chooseAvatarPhotoAccess;
+    window.selectAvatarFromGallery = selectAvatarFromGallery;
     window.handleUserAvatarFileChange = handleUserAvatarFileChange;
     window.resetCustomUserAvatar = resetCustomUserAvatar;
     window.applySavedUserAvatarUI = applySavedUserAvatarUI;

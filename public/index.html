@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v24_universal_core_engine';
+      var CURRENT_APP_VER = 'v25_fix_tdz_premature_100';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -6152,6 +6152,18 @@
       strictQueryRelevanceEnabled = Boolean(query && query !== '__FULL_SCAN__');
       window.__categoryPillsExpanded = false;
 
+      // Core progress & completion state (hoisted before any SSE or parallel sector launcher to prevent TDZ ReferenceError)
+      let pendingProgressData = null;
+      let lastProgressUiPaintMs = 0;
+      if (progressUiPaintTimer) {
+        clearTimeout(progressUiPaintTimer);
+        progressUiPaintTimer = null;
+      }
+      let maxDisplayedProgressPercent = 0;
+      let fetchedPagesCount = 0;
+      let hasKnownTotal = false;
+      let isSearchDoneHandled = false;
+
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
       // Fast Parallel Multi-District / Multi-Sector Quick Search Engine (12-16 sectors, bounded concurrency = 4)
@@ -6349,19 +6361,14 @@
         startNextSector();
       }
 
-      // Kick off multi-district parallel pass immediately for Quick Search when city-level search has no manual polygon/circle/single-district
+      // Kick off multi-district parallel pass (scheduled right after all primary SSE listeners are attached)
       const canRunQuickMultiSector = Boolean(
         isQuickSearchMode &&
         !neighborhood &&
         !drawnCircleState &&
         (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
       );
-      if (canRunQuickMultiSector) {
-        const knownDistricts = resolveQuickSearchDistrictNames(location);
-        if (knownDistricts && knownDistricts.length > 0) {
-          launchQuickSearchParallelSectorPool(knownDistricts.map((name) => ({ type: 'district', label: name })));
-        }
-      }
+      const initialQuickDistricts = canRunQuickMultiSector ? resolveQuickSearchDistrictNames(location) : null;
 
       // Quick Search fast-pass guard: allow multi-district pass to gather hundreds of results rapidly, with a clean global safety cap
       if (isQuickSearchMode) {
@@ -6424,18 +6431,7 @@
         }
       }
 
-      // UI Progress: bind CSS width directly to SSE percent with smooth monotonic updates
-      let pendingProgressData = null;
-      let lastProgressUiPaintMs = 0;
-      if (progressUiPaintTimer) {
-        clearTimeout(progressUiPaintTimer);
-        progressUiPaintTimer = null;
-      }
-      let maxDisplayedProgressPercent = 0;
-      let fetchedPagesCount = 0;
-      let hasKnownTotal = false;
-      let isSearchDoneHandled = false;
-
+      // UI Progress helpers: bind CSS width directly to SSE percent with smooth monotonic updates
       function hideScanLoadingSpinners() {
         document.querySelectorAll('#progressContainer .animate-spin, #searchForm .animate-spin, [data-scan-spinner], #scanSpinner').forEach(el => {
           el.classList.add('hidden');
@@ -6787,8 +6783,17 @@
         handleSearchDoneEvent();
       });
 
-      currentEventSource.addEventListener('error', () => {
+      currentEventSource.addEventListener('error', (errEv) => {
         try {
+          console.error('[SearchPipeline] Primary SSE stream error:', errEv);
+          quickPrimaryDone = true;
+          if (quickMultiSectorActive && quickSectorCompletedCount < quickSectorTotalCount && !isSearchDoneHandled) {
+            if (currentEventSource) {
+              try { currentEventSource.close(); } catch (_) {}
+              currentEventSource = null;
+            }
+            return;
+          }
           if (!isSearchDoneHandled) {
             if (extractedPlaces.length === 0 && !window.__lastScanErrorMessage) {
               window.__lastScanErrorMessage = 'انقطع الاتصال بالخادم أثناء البحث (قد يكون الخادم قيد التحديث أو الاستيقاظ) — يرجى المحاولة مرة أخرى.';
@@ -6796,25 +6801,34 @@
             handleSearchDoneEvent();
           }
         } finally {
-          hideScanLoadingSpinners();
-          finishSearch();
+          if (!quickMultiSectorActive || quickSectorCompletedCount >= quickSectorTotalCount || isSearchDoneHandled) {
+            hideScanLoadingSpinners();
+            finishSearch();
+          }
         }
       });
+
+      // Launch parallel multi-district Quick Search pool AFTER all primary SSE listeners & progress helpers are initialized
+      if (canRunQuickMultiSector && Array.isArray(initialQuickDistricts) && initialQuickDistricts.length > 0) {
+        launchQuickSearchParallelSectorPool(initialQuickDistricts.map((name) => ({ type: 'district', label: name })));
+      }
       } catch (startupErr) {
-        console.error('Scan startup error:', startupErr);
+        console.error('[SearchPipeline] Scan startup error:', startupErr);
         try {
-          if (typeof handleSearchDoneEvent === 'function' && !isSearchDoneHandled) {
-            handleSearchDoneEvent();
-          }
-        } finally {
+          window.__lastScanErrorMessage = (startupErr && startupErr.message) ? `تعذر بدء البحث: ${startupErr.message}` : 'تعذر بدء البحث — يرجى المحاولة مرة أخرى.';
           const pBar = document.getElementById('progressBar');
           const pPct = document.getElementById('progressPercentBadge');
           const sMsg = document.getElementById('statusMessage');
-          if (pBar) pBar.style.width = '100%';
-          if (pPct) pPct.innerText = '100%';
-          if (sMsg) sMsg.innerText = '✅ تم اكتمال المسح بنجاح';
-          hideScanLoadingSpinners();
-          finishSearch();
+          if (pBar) pBar.style.width = '0%';
+          if (pPct) pPct.innerText = '!';
+          if (sMsg) {
+            sMsg.innerText = `⚠️ ${window.__lastScanErrorMessage}`;
+            sMsg.classList.remove('text-emerald-300');
+            sMsg.classList.add('text-amber-300', 'font-bold');
+          }
+        } finally {
+          if (typeof hideScanLoadingSpinners === 'function') hideScanLoadingSpinners();
+          if (typeof finishSearch === 'function') finishSearch();
         }
       }
       };

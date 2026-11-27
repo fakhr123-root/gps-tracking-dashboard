@@ -2440,47 +2440,55 @@
       <!-- ==================== VIEW 3: RESULTS & TABLE (#view-results) ==================== -->
       <section id="view-results" class="app-view-panel w-full space-y-4">
         <div id="resultsSectionAnchor" class="w-full space-y-4">
-          <!-- Clean Grouped Results & Export Toolbar (single clear Back action + primary Excel export) -->
+          <!-- Clean Grouped Results & Export Toolbar (Relies on top-right Back & top tabs for navigation) -->
           <div class="results-toolbar-card">
             <div class="flex flex-wrap items-center gap-2.5">
               <span class="text-sm font-bold text-[#f1f5f9] flex items-center gap-2 ml-1">
                 <i data-lucide="list-filter" class="w-4 h-4 text-emerald-400"></i>
                 <span>النتائج والجدول</span>
               </span>
-              <button type="button" onclick="toggleResultsViewMode()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+              <button type="button" onclick="toggleResultsViewMode()" class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
                 <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>جدول / بطاقات</span>
               </button>
               <button
                 type="button"
+                id="btnToggleStrictRelevance"
+                onclick="toggleStrictQueryRelevanceFilter()"
+                title="إخفاء المنشآت غير المرتبطة بكلمة البحث الحالية"
+                class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <i data-lucide="filter" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>مطابق للبحث فقط</span>
+                <span id="strictRelevanceCountBadge" class="hidden px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-num text-[10px] font-bold"></span>
+              </button>
+              <button
+                type="button"
                 id="btnToggleSubLabelRefinement"
                 onclick="toggleSubLabelRefinementPanel()"
-                class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>خيارات الغربلة وترتيب المسميات</span>
                 <span id="subLabelRefinementActiveBadge" class="hidden px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-num text-[10px] font-bold">مفعّل</span>
               </button>
-              <button type="button" onclick="switchAppView('view-map')" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+              <button type="button" onclick="switchAppView('view-map')" class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
                 <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>الخريطة</span>
               </button>
             </div>
 
             <div class="flex flex-wrap items-center gap-2.5">
-              <button type="button" onclick="exportToExcel()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition">
+              <button type="button" onclick="exportToExcel()" class="min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition">
                 <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>تصدير Excel فوري</span>
               </button>
-              <button type="button" onclick="copyAllPhones()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+              <button type="button" onclick="copyAllPhones()" class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
                 <i data-lucide="copy" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>نسخ الأرقام</span>
               </button>
-              <button type="button" onclick="switchAppView('view-export')" class="btn-secondary px-3.5 py-2 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer">
+              <button type="button" onclick="switchAppView('view-export')" class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer">
                 <span>خيارات التصدير</span>
-              </button>
-              <button type="button" onclick="navigateBack()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
-                <span>🔙 رجوع للبحث</span>
               </button>
             </div>
           </div>
@@ -4807,14 +4815,31 @@
         indicator.innerText = `المعروض: ${activeMeta.label} (${activeCount.toLocaleString()})`;
       }
 
-      container.innerHTML = groups
-        .filter(g => g.key === 'all' || (counts[g.key] || 0) > 0)
+      const visibleNonAllGroups = groups
+        .filter(g => g.key !== 'all' && (counts[g.key] || 0) > 0)
+        .sort((a, b) => (counts[b.key] || 0) - (counts[a.key] || 0));
+
+      const MAX_PRIMARY_CATEGORY_PILLS = 6;
+      const showAllPills = Boolean(window.__categoryPillsExpanded);
+      const primaryGroups = showAllPills
+        ? visibleNonAllGroups
+        : visibleNonAllGroups.slice(0, MAX_PRIMARY_CATEGORY_PILLS);
+      // Always keep the currently active category visible even when collapsed
+      if (!showAllPills && activeCategorySummaryFilter !== 'all' && !primaryGroups.some(g => g.key === activeCategorySummaryFilter)) {
+        const activeGrp = visibleNonAllGroups.find(g => g.key === activeCategorySummaryFilter);
+        if (activeGrp) primaryGroups.push(activeGrp);
+      }
+      const hiddenOverflowCount = Math.max(0, visibleNonAllGroups.length - primaryGroups.length);
+      const allGroup = groups.find(g => g.key === 'all') || { key: 'all', label: 'الكل' };
+      const finalRenderedGroups = [allGroup, ...primaryGroups];
+
+      let pillsMarkup = finalRenderedGroups
         .map(g => {
           const c = counts[g.key] || 0;
           const isActive = g.key === activeCategorySummaryFilter;
           const btnClass = isActive
-            ? 'px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm cursor-pointer transition inline-flex items-center gap-1.5'
-            : 'px-3 py-1.5 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-[#f1f5f9] font-semibold text-xs cursor-pointer transition inline-flex items-center gap-1.5';
+            ? 'px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm cursor-pointer transition inline-flex items-center gap-1.5 min-h-[36px]'
+            : 'px-3 py-1.5 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-[#f1f5f9] font-semibold text-xs cursor-pointer transition inline-flex items-center gap-1.5 min-h-[36px]';
           const badgeClass = isActive
             ? 'px-1.5 py-0.5 rounded-md bg-black/20 text-white font-num font-bold text-[10px]'
             : 'px-1.5 py-0.5 rounded-md bg-[#131f33] text-emerald-400 font-num font-bold text-[10px]';
@@ -4827,7 +4852,95 @@
           `;
         })
         .join('');
+
+      if (hiddenOverflowCount > 0 || (showAllPills && visibleNonAllGroups.length > MAX_PRIMARY_CATEGORY_PILLS)) {
+        pillsMarkup += `
+          <button type="button" onclick="toggleExtraCategoryPills()" class="px-3 py-1.5 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-emerald-500/35 text-emerald-400 font-bold text-xs cursor-pointer transition inline-flex items-center gap-1 min-h-[36px]">
+            <span>${showAllPills ? 'إخفاء الفئات الإضافية ▴' : `المزيد من الفئات ▾ (+${hiddenOverflowCount})`}</span>
+          </button>
+        `;
+      }
+
+      container.innerHTML = pillsMarkup;
     }
+
+    function toggleExtraCategoryPills() {
+      window.__categoryPillsExpanded = !window.__categoryPillsExpanded;
+      renderCategorySummaryFilterBar();
+    }
+    window.toggleExtraCategoryPills = toggleExtraCategoryPills;
+
+    // =========================================================================
+    // Strict Query Relevance Filter Toggle ("مطابق للبحث فقط")
+    // =========================================================================
+    let strictQueryRelevanceEnabled = false;
+
+    function getExpectedCategoryKeyForQuery(rawQuery) {
+      const q = normalizeUniversalCatText(rawQuery || '');
+      if (!q || q === '__full_scan__') return '';
+      if (/(شركه ادويه|شركات ادويه|مستودع ادويه|فارما|مستلزمات طبيه|\bpharma\b)/i.test(q)) return 'pharma_companies';
+      if (/(صيدل|\bpharmacy\b)/i.test(q)) return 'pharmacies';
+      if (/(مستشفي|مستشفيات|عياد|طبي|مختبر|\bhospital\b|\bclinic\b)/i.test(q)) return 'hospitals';
+      if (/(بقال|تموين|سوبر|ماركت|غذائ|\bgrocery\b|\bsupermarket\b)/i.test(q)) return 'groceries';
+      if (/(مطعم|مطاعم|بوفيه|مطبخ|كافيه|مقهي|\brestaurant\b|\bcafe\b)/i.test(q)) return 'restaurants';
+      if (/(بنك|مصرف|صراف|\bbank\b|\bexchange\b)/i.test(q)) return 'banks';
+      if (/(فندق|فنادق|منتجع|شقق|\bhotel\b|\bresort\b)/i.test(q)) return 'hotels';
+      if (/(جامعه|كليه|مدرسه|مدارس|معهد|اكاديميه|\bschool\b|\buniversity\b)/i.test(q)) return 'education';
+      if (/(عقار|مقاولات|هندس|real estate|construction)/i.test(q)) return 'realestate';
+      if (/(سيارات|ورشه|قطع غيار|بنشر|\bcar\b|\bauto\b)/i.test(q)) return 'automotive';
+      if (/(جوال|تلفون|هاتف|الكترونيات|كمبيوتر|\bmobile\b|\belectronics\b)/i.test(q)) return 'electronics';
+      if (/(ملابس|ازياء|احذيه|عبايات|\bfashion\b)/i.test(q)) return 'fashion';
+      if (/(اثاث|مفروشات|ديكور|\bfurniture\b)/i.test(q)) return 'furniture';
+      if (/(صاله|نادي|جيم|مسبح|رياضه|\bgym\b|\bfitness\b)/i.test(q)) return 'sports';
+      if (/(صالون|حلاق|تجميل|سبا|\bsalon\b|\bbarber\b)/i.test(q)) return 'beauty';
+      if (/(مول|مركز تجاري|\bmall\b)/i.test(q)) return 'malls';
+      if (/(محكم|نياب|وزار|حكوم|منفذ|جمارك|\bcourt\b|\bgovernment\b)/i.test(q)) return 'government';
+      if (/(شركه|شركات|مؤسس|\bcompany\b)/i.test(q)) return 'companies';
+      return '';
+    }
+
+    function doesPlaceStrictlyMatchActiveQuery(place, rawQuery) {
+      const q = normalizeUniversalCatText(rawQuery || '');
+      if (!q || q === '__full_scan__') return true;
+      const expectedCat = getExpectedCategoryKeyForQuery(q);
+      const placeCat = classifyExtractedPlaceCategoryKey(place);
+      if (expectedCat && placeCat === expectedCat) return true;
+      const rawPlace = normalizeUniversalCatText(`${place?.name || ''} ${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''}`);
+      const tokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and)$/i.test(t));
+      if (tokens.length === 0) return true;
+      return tokens.some(tok => rawPlace.includes(tok));
+    }
+
+    function updateStrictRelevanceToggleUI(matchedCount, totalCount) {
+      const btn = document.getElementById('btnToggleStrictRelevance');
+      const badge = document.getElementById('strictRelevanceCountBadge');
+      const activeQ = String(document.getElementById('queryInput')?.value || lastActiveQuery || '').trim();
+      const hasSpecificQ = Boolean(activeQ && activeQ !== '__FULL_SCAN__');
+      if (btn) {
+        btn.classList.toggle('hidden', !hasSpecificQ);
+        if (strictQueryRelevanceEnabled && hasSpecificQ) {
+          btn.style.borderColor = '#10b981';
+          btn.style.backgroundColor = 'rgba(16, 185, 129, 0.16)';
+        } else {
+          btn.style.borderColor = '';
+          btn.style.backgroundColor = '';
+        }
+      }
+      if (badge) {
+        if (hasSpecificQ && totalCount > 0) {
+          badge.innerText = strictQueryRelevanceEnabled ? `${matchedCount}/${totalCount}` : `${totalCount}`;
+          badge.classList.remove('hidden');
+        } else {
+          badge.classList.add('hidden');
+        }
+      }
+    }
+
+    function toggleStrictQueryRelevanceFilter() {
+      strictQueryRelevanceEnabled = !strictQueryRelevanceEnabled;
+      refreshVisibleResultsView(true);
+    }
+    window.toggleStrictQueryRelevanceFilter = toggleStrictQueryRelevanceFilter;
 
     // =========================================================================
     // Dynamic Sub-Label Detection, Isolation & Priority Grouping Engine
@@ -5220,6 +5333,8 @@
     function getActiveFilteredPlaces() {
       const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all';
       const hasSubLabelFilter = subLabelSelectedSet && subLabelSelectedSet.size > 0;
+      const activeSearchQ = String(document.getElementById('queryInput')?.value || lastActiveQuery || '').trim();
+      const applyStrictRelevance = Boolean(strictQueryRelevanceEnabled && activeSearchQ && activeSearchQ !== '__FULL_SCAN__');
       const hasSearch = Boolean(inResultsSearchQuery && inResultsSearchQuery.trim().length > 0);
       const hasLetter = Boolean(resultsLetterFilter && resultsLetterFilter !== 'all');
       const hasSort = Boolean(resultsSortMode && resultsSortMode !== 'default');
@@ -5229,8 +5344,11 @@
       const searchDigits = hasSearch ? inResultsSearchQuery.replace(/\D/g, '') : '';
 
       let resultList = extractedPlaces;
-      if (filterOnlyPhone || filterOnlyOpen || hasCatFilter || hasSubLabelFilter || hasSearch || hasLetter) {
+      if (filterOnlyPhone || filterOnlyOpen || hasCatFilter || hasSubLabelFilter || applyStrictRelevance || hasSearch || hasLetter) {
         resultList = extractedPlaces.filter(p => {
+          if (applyStrictRelevance && !doesPlaceStrictlyMatchActiveQuery(p, activeSearchQ)) {
+            return false;
+          }
           if (hasCatFilter && classifyExtractedPlaceCategoryKey(p) !== activeCategorySummaryFilter) {
             return false;
           }
@@ -5292,6 +5410,9 @@
       }
 
       updateInResultsFilterCountBadge(resultList.length);
+      if (typeof updateStrictRelevanceToggleUI === 'function') {
+        updateStrictRelevanceToggleUI(resultList.length, extractedPlaces.length);
+      }
       return resultList;
     }
 
@@ -5673,6 +5794,8 @@
         subLabelPriorityOrder = [];
         subLabelPriorityActive = false;
       }
+      strictQueryRelevanceEnabled = Boolean(query && query !== '__FULL_SCAN__');
+      window.__categoryPillsExpanded = false;
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 

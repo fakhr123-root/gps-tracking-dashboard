@@ -2151,10 +2151,22 @@ async function searchFreeEngine(query, location, neighborhood, radiusMeters, sen
     const q = normAr(rawUserQuery);
     const startsWithDirectionalLandmark = /^(جوار|بجوار|امام|خلف|تحت|فوق|قرب|بالقرب من)\s+/.test(nName);
 
-    // For live scraping workers (Google Maps / Overpass OSM / Photon / ArcGIS),
-    // trust the worker's query-scoped results directly instead of aggressively blocking unknown/global terms.
+    // For live scraping workers (Google Maps / Overpass OSM / Photon / ArcGIS):
+    // Keep global custom terms open, BUT reject obvious cross-sector unrelated noise
+    // (e.g. accountants, web designers, architects, lawyers when searching groceries/pharmacies/restaurants).
     if (isLiveWorkerResult) {
       if (startsWithDirectionalLandmark && catsNorm.length === 0) return false;
+      const obviousOfficeNoise = ['محاسب', 'محاسبه', 'مصمم مواقع', 'تصميم مواقع', 'مهندس معماري', 'مكتب هندسي', 'استشارات هندسيه', 'محامي', 'محاماه', 'برمجيات', 'تطوير برمجيات', 'accountant', 'web design', 'architect', 'lawyer'];
+      if (q.includes('بقال') || q.includes('تموين') || q.includes('سوبر') || q.includes('ماركت') || q.includes('grocery') || q.includes('supermarket')) {
+        const isGroceryWord = /(بقال|تموين|سوبر|ماركت|غذائ|دكان|كشك|خضار|فواكه|grocery|supermarket|minimart|convenience|market|mart|food)/i.test(combinedText);
+        if (!isGroceryWord && obviousOfficeNoise.some(n => combinedText.includes(normAr(n)))) return false;
+      } else if (q.includes('صيدل') || q.includes('pharmacy')) {
+        const isPharmWord = /(صيدل|فارما|دواء|ادويه|طبي|pharmacy|pharma|drug|medical)/i.test(combinedText);
+        if (!isPharmWord && obviousOfficeNoise.some(n => combinedText.includes(normAr(n)))) return false;
+      } else if (q.includes('مطعم') || q.includes('مطاعم') || q.includes('كافيه') || q.includes('restaurant') || q.includes('cafe')) {
+        const isFoodWord = /(مطعم|مطاعم|بوفيه|مطبخ|شوايه|كافيه|مقهي|كوفي|مخبز|حلويات|restaurant|cafe|coffee|food|grill|bakery)/i.test(combinedText);
+        if (!isFoodWord && obviousOfficeNoise.some(n => combinedText.includes(normAr(n)))) return false;
+      }
       return true;
     }
 

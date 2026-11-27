@@ -616,6 +616,45 @@
       animation: floatPin 3s ease-in-out infinite;
     }
 
+    /* Clickable Smart Notifications & Target Pulse Highlight */
+    .smart-clickable-toast {
+      background: #131f33 !important;
+      border: 1px solid rgba(16, 185, 129, 0.45) !important;
+      box-shadow: 0 12px 28px rgba(2, 6, 23, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+      cursor: pointer;
+      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .smart-clickable-toast:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 14px 32px rgba(16, 185, 129, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+      transform: translate(-50%, -2px);
+    }
+    .smart-clickable-toast.is-warning {
+      border-color: rgba(245, 158, 11, 0.55) !important;
+    }
+    .smart-clickable-toast.is-warning:hover {
+      border-color: #f59e0b !important;
+      box-shadow: 0 14px 32px rgba(245, 158, 11, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    }
+    @keyframes smartNavPulseEmerald {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
+      50% { box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.18); }
+    }
+    @keyframes smartNavPulseAmber {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.65); }
+      50% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0.18); }
+    }
+    .smart-nav-highlight {
+      outline: 2px solid #10b981 !important;
+      outline-offset: 2px;
+      animation: smartNavPulseEmerald 0.85s ease-in-out 2;
+    }
+    .smart-nav-highlight-warn {
+      outline: 2px solid #f59e0b !important;
+      outline-offset: 2px;
+      animation: smartNavPulseAmber 0.85s ease-in-out 2;
+    }
+
     /* Clean Official 3D Modal Card */
     .portal-modal-card {
       background: #131f33;
@@ -1372,14 +1411,28 @@
 
   <!-- Network/offline warning banners disabled -->
 
-  <!-- Celebratory 100% Scan Completion Toast Notification -->
-  <div id="scanCompleteCelebrationToast" style="z-index: 100002;" class="hidden fixed top-5 left-1/2 -translate-x-1/2 px-5 py-3.5 rounded-xl bg-slate-900 border border-emerald-500/40 text-slate-100 text-xs sm:text-sm font-semibold shadow-xl flex items-center gap-3 max-w-[94vw]">
-    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
-    <div class="flex flex-col">
-      <span id="scanCompleteToastTitle" class="text-emerald-400 font-bold">اكتمل المسح الشامل بنجاح (100%)</span>
-      <span id="scanCompleteToastSubtitle" class="text-[11px] text-slate-300 font-medium">إجمالي المواقع الصافية بدون تكرار: 0 موقع</span>
+  <!-- Clickable Smart Toast Notification (Auto-navigates to relevant section on click; ✕ dismisses independently) -->
+  <div
+    id="scanCompleteCelebrationToast"
+    role="button"
+    tabindex="0"
+    onclick="handleSmartNotificationClick(event)"
+    onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleSmartNotificationClick(event);}"
+    style="z-index: 100002;"
+    class="hidden smart-clickable-toast fixed top-5 left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
+  >
+    <span id="scanCompleteToastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
+    <div class="flex flex-col min-w-0 flex-1 text-right">
+      <span id="scanCompleteToastTitle" class="text-emerald-400 font-bold leading-snug">اكتمل المسح الشامل بنجاح (100%)</span>
+      <span id="scanCompleteToastSubtitle" class="text-[11px] text-slate-300 font-medium leading-snug">إجمالي المواقع الصافية بدون تكرار: 0 موقع</span>
     </div>
-    <button type="button" onclick="document.getElementById('scanCompleteCelebrationToast')?.classList.add('hidden')" class="mr-1 px-2 py-0.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white text-xs font-bold cursor-pointer">✕</button>
+    <span id="scanCompleteToastNavHint" class="text-[10px] px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold shrink-0 whitespace-nowrap">انتقال ↗</span>
+    <button
+      type="button"
+      onclick="event.stopPropagation(); dismissSmartNotificationToast();"
+      aria-label="إغلاق الإشعار"
+      class="w-8 h-8 rounded-lg bg-[#0b1320]/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition"
+    >✕</button>
   </div>
 
   <!-- Strict Mandatory GPS Gatekeeper (Persistent, un-closable full-screen shield until geolocation Allow succeeds) -->
@@ -6709,28 +6762,145 @@
     }
 
     let scanCompleteToastTimer = null;
-    function showScanCompleteCelebrationToast(finalNetCount = 0, errorReason = '') {
+    let activeSmartToastTarget = 'results';
+    let activeSmartToastVariant = 'success';
+
+    function dismissSmartNotificationToast() {
+      const toast = document.getElementById('scanCompleteCelebrationToast');
+      if (toast) toast.classList.add('hidden');
+      if (scanCompleteToastTimer) {
+        clearTimeout(scanCompleteToastTimer);
+        scanCompleteToastTimer = null;
+      }
+    }
+
+    function pulseHighlightElement(el, isWarn = false) {
+      if (!el) return;
+      const cls = isWarn ? 'smart-nav-highlight-warn' : 'smart-nav-highlight';
+      el.classList.remove('smart-nav-highlight', 'smart-nav-highlight-warn');
+      void el.offsetWidth;
+      el.classList.add(cls);
+      setTimeout(() => {
+        el.classList.remove('smart-nav-highlight', 'smart-nav-highlight-warn');
+      }, 1900);
+    }
+
+    function inferSmartNotificationTarget(title = '', subtitle = '') {
+      const text = `${title} ${subtitle}`.toLowerCase();
+      if (/(إعدادات|حساب|كلمة المرور|سرعة المسح|settings|account|speed)/i.test(text)) return 'settings';
+      if (/(خريطة|gps|موقعك|إحداثيات|دائرة|map|location)/i.test(text)) return 'map';
+      if (/(excel|تصدير|نسخ|أرقام|vcf|export|copy)/i.test(text)) return 'export';
+      if (/(تعذر|انقطع|خطأ|إيقاف|استئناف|لم يتم العثور|مهلة|error|retry|pause|resume|rate)/i.test(text)) return 'search';
+      return 'results';
+    }
+
+    function navigateToSmartNotificationTarget(target = 'results', isWarn = false) {
+      const dest = target || 'results';
+      if (dest === 'settings') {
+        if (typeof openUserSettingsModal === 'function') openUserSettingsModal();
+        return;
+      }
+      if (dest === 'map') {
+        switchAppView('view-map');
+        setTimeout(() => {
+          const vp = document.getElementById('visualizerPanel');
+          if (vp) {
+            vp.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            pulseHighlightElement(vp, false);
+          }
+        }, 120);
+        return;
+      }
+      if (dest === 'search') {
+        switchAppView('view-search');
+        setTimeout(() => {
+          const primaryRow = document.querySelector('#view-search .scan-controls-primary') || document.getElementById('btnStartComprehensiveScan');
+          if (primaryRow) {
+            primaryRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            pulseHighlightElement(primaryRow, isWarn);
+          }
+        }, 100);
+        return;
+      }
+      // 'results' or 'export'
+      switchAppView('view-results');
+      setTimeout(() => {
+        const toolbar = document.querySelector('#resultsSectionAnchor .results-toolbar-card') || document.getElementById('resultsSectionAnchor');
+        if (toolbar) {
+          toolbar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          pulseHighlightElement(toolbar, false);
+        }
+      }, 100);
+    }
+
+    function handleSmartNotificationClick(ev) {
+      if (ev && ev.target && ev.target.closest('button')) return;
+      const target = activeSmartToastTarget || 'results';
+      const isWarn = activeSmartToastVariant === 'warning';
+      dismissSmartNotificationToast();
+      navigateToSmartNotificationTarget(target, isWarn);
+    }
+
+    function showSmartNotification(title, subtitle = '', opts = {}) {
       const toast = document.getElementById('scanCompleteCelebrationToast');
       const titleEl = document.getElementById('scanCompleteToastTitle');
       const subEl = document.getElementById('scanCompleteToastSubtitle');
+      const dotEl = document.getElementById('scanCompleteToastDot');
+      const hintEl = document.getElementById('scanCompleteToastNavHint');
       if (!toast) return;
-      const countNum = Number(finalNetCount || 0);
-      if (errorReason && countNum === 0) {
-        if (titleEl) titleEl.innerText = '⚠️ تعذر إتمام المسح مؤقتاً';
-        if (subEl) subEl.innerText = errorReason;
-      } else if (countNum === 0) {
-        if (titleEl) titleEl.innerText = 'ℹ️ لم يتم العثور على نتائج مطابقة';
-        if (subEl) subEl.innerText = 'جرّب كلمة بحث أبسط أو اختر مدينة/نطاقاً أوسع ثم أعد المحاولة';
-      } else {
-        if (titleEl) titleEl.innerText = '✅ اكتمل المسح الشامل بنجاح! (100%)';
-        if (subEl) subEl.innerText = `إجمالي المواقع الصافية بدون تكرار: ${countNum.toLocaleString()} موقع`;
+
+      const variant = opts.variant || 'success';
+      const target = opts.target || inferSmartNotificationTarget(title, subtitle);
+      activeSmartToastTarget = target;
+      activeSmartToastVariant = variant;
+
+      const targetHintMap = {
+        search: 'للبحث ↗',
+        results: 'للنتائج ↗',
+        export: 'للتصدير ↗',
+        map: 'للخريطة ↗',
+        settings: 'للإعدادات ↗'
+      };
+
+      if (titleEl) {
+        titleEl.innerText = title || '';
+        titleEl.className = variant === 'warning'
+          ? 'text-amber-400 font-bold leading-snug'
+          : 'text-emerald-400 font-bold leading-snug';
       }
+      if (subEl) subEl.innerText = subtitle || '';
+      if (dotEl) {
+        dotEl.className = variant === 'warning'
+          ? 'w-2.5 h-2.5 rounded-full bg-amber-400 shrink-0'
+          : 'w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0';
+      }
+      if (hintEl) {
+        hintEl.innerText = targetHintMap[target] || 'انتقال ↗';
+        hintEl.className = variant === 'warning'
+          ? 'text-[10px] px-2 py-1 rounded-lg bg-amber-500/15 text-amber-300 font-bold shrink-0 whitespace-nowrap'
+          : 'text-[10px] px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-300 font-bold shrink-0 whitespace-nowrap';
+      }
+
+      toast.classList.toggle('is-warning', variant === 'warning');
       toast.classList.remove('hidden');
+
       if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);
       scanCompleteToastTimer = setTimeout(() => {
         scanCompleteToastTimer = null;
         toast.classList.add('hidden');
-      }, 9000);
+      }, opts.durationMs || 8000);
+    }
+    window.showSmartNotification = showSmartNotification;
+
+    function showScanCompleteCelebrationToast(finalNetCount = 0, errorReason = '') {
+      const countNum = Number(finalNetCount || 0);
+      if (errorReason && countNum === 0) {
+        showSmartNotification('⚠️ تعذر إتمام المسح مؤقتاً', errorReason, { target: 'search', variant: 'warning', durationMs: 9500 });
+      } else if (countNum === 0) {
+        showSmartNotification('ℹ️ لم يتم العثور على نتائج مطابقة', 'اضغط للعودة إلى البحث وتعديل الكلمة أو توسيع النطاق', { target: 'search', variant: 'warning', durationMs: 8500 });
+      } else {
+        showSmartNotification('✅ اكتمل المسح الشامل بنجاح! (100%)', `إجمالي المواقع الصافية بدون تكرار: ${countNum.toLocaleString()} موقع`, { target: 'results', variant: 'success', durationMs: 9000 });
+      }
     }
 
     function finishSearch() {
@@ -6980,7 +7150,9 @@
       }
       if (phones.length === 0) return alert('لا توجد أرقام هواتف في النتائج الحالية!');
       navigator.clipboard.writeText(phones.join('\n'));
-      alert(`تم نسخ ${phones.length} رقم هاتف حقيقي بنجاح!`);
+      if (typeof showSmartNotification === 'function') {
+        showSmartNotification('✅ تم نسخ أرقام الهواتف بنجاح', `تم نسخ ${phones.length.toLocaleString()} رقم هاتف حقيقي إلى الحافظة`, { target: 'export', variant: 'success', durationMs: 5000 });
+      }
     }
 
     function copySingleDetails(id) {

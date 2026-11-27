@@ -2560,12 +2560,8 @@
                 class="flex-1 sm:flex-none min-h-[42px] bg-[#0b1320] text-[#f1f5f9] border border-slate-400/20 focus:border-[#10b981] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
               >
                 <option value="default">الترتيب: الافتراضي</option>
-                <option value="alpha_asc_auto">أبجدي تلقائي (أ-ي / A-Z)</option>
-                <option value="alpha_desc_auto">أبجدي عكسي (ي-أ / Z-A)</option>
-                <option value="alpha_asc_ar">عربي: أ - ي</option>
-                <option value="alpha_desc_ar">عربي: ي - أ</option>
-                <option value="alpha_asc_en">English: A - Z</option>
-                <option value="alpha_desc_en">English: Z - A</option>
+                <option value="alpha_asc">أبجدي (تصاعدي)</option>
+                <option value="alpha_desc">أبجدي (تنازلي)</option>
               </select>
 
               <select
@@ -5182,7 +5178,7 @@
     }
 
     // =========================================================================
-    // Instant In-Results Search & Language-Aware Alphabetical Sort / Letter Filter
+    // Instant In-Results Search & Universal Auto-Language Alphabetical Sort / Letter Filter
     // =========================================================================
     let inResultsSearchQuery = '';
     let inResultsSearchDebounceTimer = null;
@@ -5191,8 +5187,22 @@
 
     const ARABIC_ALPHABET_LETTERS = ['أ','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي'];
     const LATIN_ALPHABET_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-    const arAlphaCollator = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('ar', { sensitivity: 'base', numeric: true }) : null;
-    const enAlphaCollator = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('en', { sensitivity: 'base', numeric: true }) : null;
+    const universalCollatorCache = new Map();
+
+    function getUniversalCollator(locale = 'ar') {
+      const key = String(locale || 'ar');
+      if (universalCollatorCache.has(key)) return universalCollatorCache.get(key);
+      let col = null;
+      try {
+        if (typeof Intl !== 'undefined' && typeof Intl.Collator === 'function') {
+          col = new Intl.Collator(key, { sensitivity: 'base', numeric: true });
+        }
+      } catch (e) {
+        try { col = new Intl.Collator('en', { sensitivity: 'base', numeric: true }); } catch (e2) {}
+      }
+      universalCollatorCache.set(key, col);
+      return col;
+    }
 
     function normalizeAlphaSortKey(str = '') {
       return String(str || '')
@@ -5200,43 +5210,84 @@
         .replace(/[أإآ]/g, 'ا')
         .replace(/ة/g, 'ه')
         .replace(/ى/g, 'ي')
-        .replace(/^[^\u0600-\u06FFa-zA-Z0-9]+/, '')
-        .trim()
-        .toLowerCase();
+        .replace(/^[^\p{L}\p{N}]+/u, '')
+        .trim();
     }
 
     function getNormalizedStartingLetter(name = '') {
       const cleaned = String(name || '')
         .replace(/[\u064B-\u065F\u0670]/g, '')
-        .replace(/^[^\u0600-\u06FFa-zA-Z0-9]+/, '')
+        .replace(/^[^\p{L}\p{N}]+/u, '')
         .trim();
       if (!cleaned) return '';
-      const ch = cleaned[0];
+      const ch = Array.from(cleaned)[0] || '';
+      if (!ch) return '';
       if (/[أإآا]/.test(ch)) return 'أ';
       if (ch === 'ة') return 'ه';
       if (ch === 'ى') return 'ي';
       if (/[\u0621-\u064A]/.test(ch)) return ch;
-      if (/[a-zA-Z]/.test(ch)) return ch.toUpperCase();
-      if (/[0-9]/.test(ch)) return '0-9';
-      return '';
+      if (/[0-9\u0660-\u0669]/.test(ch)) return '0-9';
+      // Normalize accented Latin characters (e.g. Portuguese ã/á/ç -> A/C) while preserving non-Latin scripts (Chinese/Japanese/Korean/Cyrillic/etc.)
+      const stripped = ch.normalize ? ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : ch;
+      if (/^[a-zA-Z]$/.test(stripped)) return stripped.toUpperCase();
+      return ch.toUpperCase();
     }
 
     function detectPredominantResultsLocale(list) {
-      const activeLang = typeof getActiveUiLanguageCode === 'function' ? getActiveUiLanguageCode() : 'ar';
-      if (!Array.isArray(list) || list.length === 0) {
-        return activeLang === 'ar' ? 'ar' : 'en';
+      const activeLang = typeof getActiveUiLanguageCode === 'function' ? String(getActiveUiLanguageCode() || '').trim() : '';
+      const activeQuery = String(document.getElementById('queryInput')?.value || lastActiveQuery || '').trim();
+      const samples = [];
+      if (activeQuery && activeQuery !== '__FULL_SCAN__') samples.push(activeQuery);
+      if (Array.isArray(list)) {
+        const sampleLen = Math.min(list.length, 50);
+        for (let i = 0; i < sampleLen; i++) {
+          if (list[i]?.name) samples.push(String(list[i].name));
+        }
       }
-      let arCount = 0;
-      let latinCount = 0;
-      const sampleLen = Math.min(list.length, 40);
-      for (let i = 0; i < sampleLen; i++) {
-        const nm = String(list[i]?.name || '');
-        if (/[\u0600-\u06FF]/.test(nm)) arCount++;
-        else if (/[a-zA-Z]/.test(nm)) latinCount++;
+      const combined = samples.join(' ');
+      if (!combined.trim()) {
+        return activeLang || navigator.language || 'ar';
       }
-      if (arCount === 0 && latinCount > 0) return 'en';
-      if (latinCount === 0 && arCount > 0) return 'ar';
-      return activeLang === 'ar' ? 'ar' : 'en';
+
+      const countMatches = (rx) => (combined.match(rx) || []).length;
+      const hanCount = countMatches(/[\u4E00-\u9FFF]/g);
+      const jpKanaCount = countMatches(/[\u3040-\u30FF]/g);
+      const koCount = countMatches(/[\uAC00-\uD7AF]/g);
+      const arCount = countMatches(/[\u0600-\u06FF]/g);
+      const cyrCount = countMatches(/[\u0400-\u04FF]/g);
+      const devCount = countMatches(/[\u0900-\u097F]/g);
+      const thaiCount = countMatches(/[\u0E00-\u0E7F]/g);
+      const grCount = countMatches(/[\u0370-\u03FF]/g);
+      const heCount = countMatches(/[\u0590-\u05FF]/g);
+      const latinCount = countMatches(/[a-zA-Z\u00C0-\u024F]/g);
+
+      const scriptScores = [
+        ['ja', jpKanaCount * 2],
+        ['ko', koCount * 2],
+        [activeLang.toLowerCase() === 'zh-tw' ? 'zh-TW' : 'zh-CN', hanCount * 2],
+        ['ar', arCount],
+        ['ru', cyrCount],
+        ['hi', devCount],
+        ['th', thaiCount],
+        ['el', grCount],
+        ['he', heCount],
+        ['latin', latinCount]
+      ].sort((a, b) => b[1] - a[1]);
+
+      const topScript = scriptScores[0];
+      if (!topScript || topScript[1] === 0) {
+        return activeLang || navigator.language || 'ar';
+      }
+      if (topScript[0] !== 'latin') return topScript[0];
+
+      // Latin script: detect Brazilian Portuguese / Turkish / Spanish / French / German or default to active UI / en-US
+      if (/[ãõç]/i.test(combined) || /^pt/i.test(activeLang)) return 'pt-BR';
+      if (/[ğış]/i.test(combined) || /^tr/i.test(activeLang)) return 'tr';
+      if (/[ñ¿¡]/i.test(combined) || /^es/i.test(activeLang)) return 'es';
+      if (/[œæ]/i.test(combined) || /^fr/i.test(activeLang)) return 'fr';
+      if (/[ß]/i.test(combined) || /^de/i.test(activeLang)) return 'de';
+      if (activeLang && !/^ar/i.test(activeLang)) return activeLang;
+      return (navigator.language && !/^ar/i.test(navigator.language)) ? navigator.language : 'en-US';
     }
 
     function syncResultsLetterFilterOptions() {
@@ -5244,20 +5295,28 @@
       if (!sel) return;
       const list = Array.isArray(extractedPlaces) ? extractedPlaces : [];
       const locale = detectPredominantResultsLocale(list);
+      const collator = getUniversalCollator(locale);
       const countsByLetter = new Map();
       for (let i = 0; i < list.length; i++) {
         const l = getNormalizedStartingLetter(list[i]?.name || '');
         if (l) countsByLetter.set(l, (countsByLetter.get(l) || 0) + 1);
       }
 
-      const alphabet = locale === 'ar' ? ARABIC_ALPHABET_LETTERS : LATIN_ALPHABET_LETTERS;
       const prevVal = resultsLetterFilter || 'all';
       let optsHtml = '<option value="all">الحرف: الكل</option>';
-      for (const letter of alphabet) {
+
+      let orderedLetters = [];
+      if (list.length === 0) {
+        orderedLetters = /^ar/i.test(locale) ? ARABIC_ALPHABET_LETTERS : (/^(en|pt|es|fr|de|tr|it|nl|pl|sv)/i.test(locale) ? LATIN_ALPHABET_LETTERS : []);
+      } else {
+        orderedLetters = Array.from(countsByLetter.keys())
+          .filter(k => k !== '0-9')
+          .sort((a, b) => collator ? collator.compare(a, b) : a.localeCompare(b, locale));
+      }
+
+      for (const letter of orderedLetters) {
         const cnt = countsByLetter.get(letter) || 0;
-        if (list.length === 0 || cnt > 0) {
-          optsHtml += `<option value="${letter}">${letter}${cnt > 0 ? ` (${cnt})` : ''}</option>`;
-        }
+        optsHtml += `<option value="${letter}">${letter}${cnt > 0 ? ` (${cnt})` : ''}</option>`;
       }
       if (countsByLetter.get('0-9') > 0) {
         optsHtml += `<option value="0-9">0-9 (${countsByLetter.get('0-9')})</option>`;
@@ -5383,11 +5442,9 @@
         if (hasPrioritySort) {
           subLabelPriorityOrder.forEach((k, idx) => prioRankMap.set(k, idx));
         }
-        const locale = (resultsSortMode.endsWith('_ar'))
-          ? 'ar'
-          : (resultsSortMode.endsWith('_en') ? 'en' : detectPredominantResultsLocale(resultList));
-        const desc = resultsSortMode.includes('_desc_');
-        const collator = locale === 'ar' ? arAlphaCollator : enAlphaCollator;
+        const locale = detectPredominantResultsLocale(resultList);
+        const desc = resultsSortMode === 'alpha_desc';
+        const collator = getUniversalCollator(locale);
 
         resultList = [...resultList].sort((a, b) => {
           if (hasPrioritySort) {

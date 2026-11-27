@@ -4338,45 +4338,168 @@
 
     const FALLBACK_SCAN_CATEGORY_GROUPS = [
       { key: 'all', label: 'الكل', shortFileTag: 'الكل' },
-      { key: 'groceries', label: '🛒 بقالات وسوبرماركت', shortFileTag: 'بقالات_وسوبرماركت' },
-      { key: 'hospitals', label: '🏥 مستشفيات ومراكز طبية', shortFileTag: 'مستشفيات_ومراكز_طبية' },
+      { key: 'pharma_companies', label: '🏭 شركات ومستودعات أدوية', shortFileTag: 'شركات_ومستودعات_أدوية' },
       { key: 'pharmacies', label: '💊 صيدليات', shortFileTag: 'صيدليات' },
+      { key: 'hospitals', label: '🏥 مستشفيات ومراكز طبية', shortFileTag: 'مستشفيات_ومراكز_طبية' },
+      { key: 'groceries', label: '🛒 بقالات وتموينات', shortFileTag: 'بقالات_وتموينات' },
       { key: 'restaurants', label: '🍽️ مطاعم وكافيهات', shortFileTag: 'مطاعم_وكافيهات' },
+      { key: 'education', label: '🎓 مدارس وجامعات وتعليم', shortFileTag: 'مدارس_وجامعات_وتعليم' },
       { key: 'banks', label: '🏦 بنوك وصرافة', shortFileTag: 'بنوك_وصرافة' },
-      { key: 'hotels', label: '🏨 فنادق وشقق مفروشة', shortFileTag: 'فنادق_وشقق_مفروشة' },
-      { key: 'malls', label: '🛍️ مولات ومتاجر', shortFileTag: 'مولات_ومتاجر' },
-      { key: 'companies', label: '🏢 شركات ومؤسسات', shortFileTag: 'شركات_ومؤسسات' },
+      { key: 'hotels', label: '🏨 فنادق وإقامة', shortFileTag: 'فنادق_وإقامة' },
+      { key: 'realestate', label: '🏗️ عقارات ومقاولات وهندسة', shortFileTag: 'عقارات_ومقاولات_وهندسة' },
+      { key: 'sports', label: '🏋️ صالات ورياضة', shortFileTag: 'صالات_ورياضة' },
+      { key: 'beauty', label: '💈 حلاقة وتجميل', shortFileTag: 'حلاقة_وتجميل' },
+      { key: 'automotive', label: '🚗 سيارات وصيانة وقطع غيار', shortFileTag: 'سيارات_وصيانة_وقطع_غيار' },
+      { key: 'electronics', label: '📱 إلكترونيات واتصالات', shortFileTag: 'إلكترونيات_واتصالات' },
+      { key: 'fashion', label: '👕 ملابس وأزياء', shortFileTag: 'ملابس_وأزياء' },
+      { key: 'furniture', label: '🛋️ أثاث ومفروشات', shortFileTag: 'أثاث_ومفروشات' },
+      { key: 'malls', label: '🛍️ مولات ومراكز تجارية', shortFileTag: 'مولات_ومراكز_تجارية' },
       { key: 'government', label: '🏛️ جهات حكومية ومحاكم', shortFileTag: 'جهات_حكومية_ومحاكم' },
+      { key: 'companies', label: '🏢 شركات ومؤسسات تجارية', shortFileTag: 'شركات_ومؤسسات_تجارية' },
       { key: 'other', label: '📍 أخرى', shortFileTag: 'أخرى' }
     ];
 
+    const dynamicCategoryMetaMap = new Map();
+
+    function normalizeUniversalCatText(str = '') {
+      return String(str || '')
+        .toLowerCase()
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
     function getScanCategoryGroupsList() {
-      return Array.isArray(window.SCAN_CATEGORY_GROUPS) && window.SCAN_CATEGORY_GROUPS.length > 0
+      const base = Array.isArray(window.SCAN_CATEGORY_GROUPS) && window.SCAN_CATEGORY_GROUPS.length > 0
         ? window.SCAN_CATEGORY_GROUPS
         : FALLBACK_SCAN_CATEGORY_GROUPS;
+      if (dynamicCategoryMetaMap.size === 0) return base;
+      const otherIdx = base.findIndex(g => g.key === 'other');
+      const dynList = Array.from(dynamicCategoryMetaMap.values());
+      if (otherIdx === -1) return [...base, ...dynList];
+      return [...base.slice(0, otherIdx), ...dynList, ...base.slice(otherIdx)];
+    }
+
+    function registerDynamicCategoryLabel(rawLabel) {
+      const cleanLabel = String(rawLabel || '').trim().replace(/\s+/g, ' ');
+      const norm = normalizeUniversalCatText(cleanLabel);
+      if (!norm || norm.length < 2) return 'other';
+      const genericIgnore = new Set(['عام', 'موقع', 'محل', 'متجر', 'اخري', 'اخرى', 'place', 'other', 'general', 'point_of_interest', 'establishment', 'business', 'store', 'shop']);
+      if (genericIgnore.has(norm)) return 'other';
+      const key = 'dyn_' + norm.replace(/[^a-z0-9\u0600-\u06FF]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 32);
+      if (!key || key === 'dyn_') return 'other';
+      if (!dynamicCategoryMetaMap.has(key)) {
+        dynamicCategoryMetaMap.set(key, {
+          key,
+          label: `🏷️ ${cleanLabel.slice(0, 28)}`,
+          shortFileTag: cleanLabel.replace(/\s+/g, '_').slice(0, 28)
+        });
+      }
+      return key;
     }
 
     function classifyExtractedPlaceCategoryKey(place) {
       if (!place || typeof place !== 'object') return 'other';
-      if (place._summaryCatKey) return place._summaryCatKey;
-      if (typeof window.classifyPlaceIntoSummaryGroup === 'function') {
-        return window.classifyPlaceIntoSummaryGroup(place);
+      const activeQueryRaw = String(document.getElementById('queryInput')?.value || lastActiveQuery || '').trim();
+      const cacheSig = activeQueryRaw ? normalizeUniversalCatText(activeQueryRaw) : '_all';
+      if (place._summaryCatKey && place._summaryCatSig === cacheSig) return place._summaryCatKey;
+
+      const raw = normalizeUniversalCatText(`${place.name || ''} ${place.categoryAr || ''} ${place.category || ''} ${place.type || ''}`);
+      const setCat = (k) => {
+        place._summaryCatKey = k;
+        place._summaryCatSig = cacheSig;
+        return k;
+      };
+
+      // 1. STRICT SECTOR SEPARATION (Never mix pharmaceutical companies/warehouses with retail pharmacies or generic companies)
+      const isPharmaCompanyOrWarehouse = /(شركه ادويه|شركات ادويه|مستودع ادويه|مستودعات ادويه|مخازن ادويه|مخزن ادويه|توزيع ادويه|للتجاره الدوائيه|للادويه|دوائيه|فارما|مستلزمات طبيه|معدات طبيه|تجهيزات طبيه|\bpharma\b|pharmaceutical|medical supplies|drug distributor)/i.test(raw);
+      if (isPharmaCompanyOrWarehouse) return setCat('pharma_companies');
+
+      if (/(صيدليه|صيدليات|\bpharmacy\b|drugstore|chemist)/i.test(raw)) return setCat('pharmacies');
+
+      if (/(مستشفي|مستشفيات|مجمع طبي|مركز طبي|عياده|عيادات|مستوصف|مختبر|مختبرات|اشعه|اسنان|دكتور|طبيب|\bhospital\b|\bclinic\b|medical center|medical|dentist|lab)/i.test(raw)) {
+        return setCat('hospitals');
       }
-      const raw = String(`${place.name || ''} ${place.categoryAr || ''} ${place.category || ''} ${place.type || ''}`)
-        .toLowerCase()
-        .replace(/[أإآ]/g, 'ا')
-        .replace(/ة/g, 'ه')
-        .replace(/ى/g, 'ي');
-      if (/(صيدليه|صيدليات|فارما|دواء|pharmacy|drugstore)/i.test(raw)) return (place._summaryCatKey = 'pharmacies');
-      if (/(مستشفي|مستشفيات|عياده|عيادات|مستوصف|مركز طبي|مختبر|اشعه|اسنان|دكتور|طبيب|hospital|clinic|dentist|medical)/i.test(raw)) return (place._summaryCatKey = 'hospitals');
-      if (/(بقاله|بقالات|سوبرماركت|سوبر ماركت|تموينات|ميني ماركت|هايبر|ماركت|supermarket|grocery|convenience)/i.test(raw)) return (place._summaryCatKey = 'groceries');
-      if (/(مطعم|مطاعم|مطبخ|كافيه|مقهي|قهوه|كافتيريا|بوفيه|مخبز|حلويات|restaurant|cafe|coffee|bakery|fast_food)/i.test(raw)) return (place._summaryCatKey = 'restaurants');
-      if (/(بنك|بنوك|مصرف|صرافه|تحويلات|كريمي|امتياز|سويد|النجم|bank|atm|exchange)/i.test(raw)) return (place._summaryCatKey = 'banks');
-      if (/(فندق|فنادق|اجنحه|شقق مفروشه|منتجع|استراحه|لوكنده|hotel|motel|apartments|resort)/i.test(raw)) return (place._summaryCatKey = 'hotels');
-      if (/(محكمه|محاكم|نيابه|وزاره|هيئه|مصلحه|بلديه|امانه|شرطه|مرور|جوازات|حكوم|سفاره|منفذ|جمارك|courthouse|government|ministry|police)/i.test(raw)) return (place._summaryCatKey = 'government');
-      if (/(مول|مركز تجاري|سوق|معرض|متجر|محل|ملابس|احذيه|عطور|مفروشات|اثاث|جوالات|هواتف|الكترونيات|mall|shop|store|electronics)/i.test(raw)) return (place._summaryCatKey = 'malls');
-      if (/(شركه|شركات|مؤسسه|مكتب|وكاله|تجاره|مقاولات|مصنع|عقارات|محاماه|سفريات|office|company|agency|factory)/i.test(raw)) return (place._summaryCatKey = 'companies');
-      return (place._summaryCatKey = 'other');
+
+      if (/(جامعه|جامعات|كليه|كليات|مدرسه|مدارس|معهد|معاهد|اكاديميه|روضه|تعليم|\bschool\b|\buniversity\b|\bcollege\b|\binstitute\b|academy)/i.test(raw)) {
+        return setCat('education');
+      }
+
+      if (/(بنك|بنوك|مصرف|مصارف|صرافه|تحويلات|كريمي|امتياز|النجم|\bbank\b|\bexchange\b|\batm\b)/i.test(raw)) {
+        return setCat('banks');
+      }
+
+      if (/(فندق|فنادق|منتجع|شقق مفروشه|اجنحه|استراحه|لوكنده|\bhotel\b|\bresort\b|\bapartments\b|\bmotel\b)/i.test(raw)) {
+        return setCat('hotels');
+      }
+
+      if (/(عقار|عقارات|عقاريه|مقاولات|هندسه|استشارات هندسيه|تطوير عقاري|مكتب هندسي|real estate|construction|engineering|contractor)/i.test(raw)) {
+        return setCat('realestate');
+      }
+
+      if (/(محكمه|محاكم|نيابه|وزاره|هيئه|مصلحه|بلديه|امانه|شرطه|مرور|جوازات|حكوم|سفاره|منفذ|جمارك|\bcourt\b|courthouse|government|ministry|police)/i.test(raw)) {
+        return setCat('government');
+      }
+
+      // 2. UNIFIED SYNONYM GROUPING (Merge true equivalents under one clear label)
+      if (/(بقاله|بقالات|تموينات|سوبرماركت|سوبر ماركت|ميني ماركت|هايبر|مواد غذائيه|\bgrocery\b|\bsupermarket\b|\bminimart\b|convenience)/i.test(raw)) {
+        return setCat('groceries');
+      }
+
+      if (/(مطعم|مطاعم|بوفيه|مطبخ|شوايه|كافيه|مقهي|كوفي|كافتيريا|قهوه|\brestaurant\b|\bcafe\b|\bcoffee\b|fast_food)/i.test(raw)) {
+        return setCat('restaurants');
+      }
+
+      if (/(صاله رياضيه|نادي رياضي|جيم|رياضه|مسبح|مسابح|\bgym\b|\bfitness\b|sport)/i.test(raw)) {
+        return setCat('sports');
+      }
+
+      if (/(صالون|حلاق|حلاقه|كوافير|تجميل|سبا|\bsalon\b|\bbarber\b|\bbeauty\b|\bspa\b)/i.test(raw)) {
+        return setCat('beauty');
+      }
+
+      if (/(سيارات|معرض سيارات|ورشه|ميكانيكي|كهربائي سيارات|قطع غيار|بنشر|غسيل سيارات|اطارات|\bauto\b|\bcar\b|\bgarage\b|mechanic)/i.test(raw)) {
+        return setCat('automotive');
+      }
+
+      if (/(جوال|جوالات|تلفونات|هواتف|الكترونيات|كمبيوتر|لابتوب|صيانه جوالات|\bmobile\b|\belectronics\b|computer|laptop)/i.test(raw)) {
+        return setCat('electronics');
+      }
+
+      if (/(ملابس|ازياء|احذيه|عبايات|بوتيك|\bfashion\b|\bclothing\b|\bshoes\b|boutique|apparel)/i.test(raw)) {
+        return setCat('fashion');
+      }
+
+      if (/(اثاث|مفروشات|كنب|مطابخ|ديكور|ستائر|\bfurniture\b|decor|upholstery)/i.test(raw)) {
+        return setCat('furniture');
+      }
+
+      if (/(مول|مولات|مركز تجاري|مجمع تجاري|\bmall\b|shopping center)/i.test(raw)) {
+        return setCat('malls');
+      }
+
+      // Commercial Companies & Enterprises (evaluated after specialized sectors so it never swallows pharma/banks/realestate)
+      if (/(شركه|شركات|مؤسسه|مؤسسات|مجموعه|القابضه|للتجاره|للاستيراد|وكاله|\bcompany\b|\bcorp\b|\btrading\b|enterprise|group)/i.test(raw)) {
+        return setCat('companies');
+      }
+
+      // 3. SMART DYNAMIC FALLBACK FOR ANY UNLISTED SEARCH QUERY (e.g., محاماة، مخابز، مزارع، طباعة)
+      if (activeQueryRaw && activeQueryRaw !== '__FULL_SCAN__') {
+        const qTokens = normalizeUniversalCatText(activeQueryRaw).split(/\s+/).filter(t => t.length >= 3);
+        if (qTokens.length > 0 && qTokens.some(tok => raw.includes(tok))) {
+          return setCat(registerDynamicCategoryLabel(activeQueryRaw));
+        }
+      }
+
+      const rawTypeLabel = String(place.categoryAr || place.category || place.type || '').trim();
+      if (rawTypeLabel) {
+        return setCat(registerDynamicCategoryLabel(rawTypeLabel));
+      }
+
+      return setCat('other');
     }
 
     function getActiveCategoryFilterMeta() {
@@ -4398,15 +4521,12 @@
       }
 
       const counts = { all: allResults.length };
-      const groups = getScanCategoryGroupsList();
-      groups.forEach(g => {
-        if (g.key !== 'all') counts[g.key] = 0;
-      });
-
       for (let i = 0; i < allResults.length; i++) {
         const k = classifyExtractedPlaceCategoryKey(allResults[i]);
         counts[k] = (counts[k] || 0) + 1;
       }
+
+      const groups = getScanCategoryGroupsList();
 
       // If currently selected category has 0 items in a new scan, reset to 'all'
       if (activeCategorySummaryFilter !== 'all' && !counts[activeCategorySummaryFilter]) {
@@ -4420,33 +4540,22 @@
         indicator.innerText = `المعروض: ${activeMeta.label} (${activeCount.toLocaleString()})`;
       }
 
-      const activeStrictProfile = typeof resolveStrictQueryCategoryProfile === 'function'
-        ? resolveStrictQueryCategoryProfile(typeof getActiveSearchQueryForRelevance === 'function' ? getActiveSearchQueryForRelevance() : '')
-        : null;
-
       container.innerHTML = groups
-        .filter(g => {
-          if (g.key === 'all') return true;
-          if ((counts[g.key] || 0) <= 0) return false;
-          // When a specific category keyword search is active (e.g. "بقالة"), hide unrelated industry pills
-          if (activeStrictProfile && activeStrictProfile.groupKey && g.key !== activeStrictProfile.groupKey) {
-            return false;
-          }
-          return true;
-        })
+        .filter(g => g.key === 'all' || (counts[g.key] || 0) > 0)
         .map(g => {
           const c = counts[g.key] || 0;
           const isActive = g.key === activeCategorySummaryFilter;
           const btnClass = isActive
-            ? 'px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-400 text-slate-950 font-black text-[10px] sm:text-[11px] shadow-[0_0_14px_rgba(16,185,129,0.45)] cursor-pointer transition flex items-center gap-1'
-            : 'px-2.5 py-1 rounded-xl bg-slate-950/90 hover:bg-emerald-500/20 border border-emerald-500/35 text-slate-200 font-bold text-[10px] sm:text-[11px] cursor-pointer transition flex items-center gap-1';
+            ? 'px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold text-xs shadow-sm cursor-pointer transition inline-flex items-center gap-1.5'
+            : 'px-3 py-1.5 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-[#f1f5f9] font-semibold text-xs cursor-pointer transition inline-flex items-center gap-1.5';
           const badgeClass = isActive
-            ? 'px-1.5 py-0.2 rounded-full bg-slate-950/25 text-slate-950 font-num font-black text-[10px]'
-            : 'px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-300 font-num font-bold text-[10px]';
+            ? 'px-1.5 py-0.5 rounded-md bg-black/20 text-white font-num font-bold text-[10px]'
+            : 'px-1.5 py-0.5 rounded-md bg-[#131f33] text-emerald-400 font-num font-bold text-[10px]';
+          const safeKey = String(g.key).replace(/'/g, "\\'");
           return `
-            <button type="button" onclick="selectCategorySummaryFilter('${g.key}')" class="${btnClass}">
+            <button type="button" onclick="selectCategorySummaryFilter('${safeKey}')" class="${btnClass}">
               <span>${g.label}</span>
-              <span class="${badgeClass}">(${c.toLocaleString()})</span>
+              <span class="${badgeClass}">${c.toLocaleString()}</span>
             </button>
           `;
         })

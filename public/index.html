@@ -5835,6 +5835,7 @@
         params.set('userLng', cachedOptionalGps.lng);
       }
 
+      const wasExplicitComprehensive = Boolean(window.__activeComprehensiveScanOptions);
       if (drawnPolygonCoords && drawnPolygonCoords.length >= 3) {
         params.set('polygon', JSON.stringify(drawnPolygonCoords));
       } else if (drawnCircleState && drawnCircleState.lat && drawnCircleState.lng && drawnCircleState.radiusKm > 0) {
@@ -5856,6 +5857,31 @@
           }
         }
         window.__activeComprehensiveScanOptions = null;
+      }
+
+      const isQuickSearchMode = Boolean(!wasExplicitComprehensive && query && query !== '__FULL_SCAN__');
+      window.__activeSearchModeType = isQuickSearchMode ? 'quick' : 'comprehensive';
+      const activeModeAreaLabel = [location, neighborhood].filter(Boolean).join(' - ') || 'نطاقك الحالي';
+      const activeModeQueryLabel = (query && query !== '__FULL_SCAN__') ? `«${query}»` : '';
+
+      function formatModeAwareStatusBanner(rawMessage = '') {
+        const msg = String(rawMessage || '').trim();
+        if (isQuickSearchMode) {
+          if (!msg || /جار[ٍِ]?\s*(المسح الشامل|تحديد الإحداثيات|تجهيز)/i.test(msg)) {
+            return `🔍 جارِ البحث السريع${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel}...`;
+          }
+          return msg
+            .replace(/جار[ٍِ]?\s*المسح الشامل/g, 'جارِ البحث السريع')
+            .replace(/المسح الشامل/g, 'البحث السريع');
+        }
+        if (!msg || /جار[ٍِ]?\s*(تحديد الإحداثيات|تجهيز)/i.test(msg)) {
+          return `📡 جارِ المسح الشامل${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel}...`;
+        }
+        return msg.replace(/جارٍ\s*المسح الشامل/g, 'جارِ المسح الشامل');
+      }
+
+      if (statusMessage) {
+        statusMessage.innerText = formatModeAwareStatusBanner('');
       }
 
       isScanPaused = false;
@@ -5882,7 +5908,7 @@
       currentEventSource.addEventListener('status', (event) => {
         if (isLoginModalVisible()) return;
         const data = JSON.parse(event.data);
-        statusMessage.innerText = data.message;
+        statusMessage.innerText = formatModeAwareStatusBanner(data.message);
       });
 
       function updateDualEngineScanTelemetry(data) {
@@ -6119,7 +6145,9 @@
               statusMessage.classList.remove('text-emerald-300');
               statusMessage.classList.add('text-slate-200', 'font-bold');
             } else {
-              statusMessage.innerText = '✅ تم اكتمال المسح بنجاح';
+              statusMessage.innerText = window.__activeSearchModeType === 'quick'
+                ? '✅ تم اكتمال البحث السريع بنجاح'
+                : '✅ تم اكتمال المسح الشامل بنجاح';
               statusMessage.classList.remove('text-amber-300');
               statusMessage.classList.add('text-emerald-300', 'font-black');
             }

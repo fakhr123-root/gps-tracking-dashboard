@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v22_fresh_search_pipeline';
+      var CURRENT_APP_VER = 'v23_quick_multidistrict_strict';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -637,17 +637,22 @@
       border: 1px solid rgba(16, 185, 129, 0.45) !important;
       box-shadow: 0 12px 28px rgba(2, 6, 23, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
       cursor: pointer;
-      transition: top 0.22s ease, opacity 0.2s ease, transform 0.2s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+      top: auto !important;
+      bottom: 20px;
+      left: 20px;
+      right: auto;
+      max-width: 440px;
+      transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.16s ease, box-shadow 0.16s ease;
     }
     .smart-clickable-toast.smart-toast-dismissing {
       opacity: 0;
-      transform: translate(-50%, -10px) !important;
+      transform: translateY(12px) !important;
       pointer-events: none;
     }
     .smart-clickable-toast:hover {
       border-color: #10b981 !important;
       box-shadow: 0 14px 32px rgba(16, 185, 129, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
-      transform: translate(-50%, -2px);
+      transform: translateY(-2px);
     }
     .smart-clickable-toast.is-warning {
       border-color: rgba(245, 158, 11, 0.55) !important;
@@ -658,8 +663,11 @@
     }
     @media (max-width: 768px) {
       .smart-clickable-toast {
-        width: calc(100vw - 24px);
-        max-width: 460px;
+        bottom: 16px;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        max-width: none;
       }
     }
     @keyframes smartNavPulseEmerald {
@@ -1509,8 +1517,8 @@
     tabindex="0"
     onclick="handleSmartNotificationClick(event)"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleSmartNotificationClick(event);}"
-    style="z-index: 100002; top: 76px;"
-    class="hidden smart-clickable-toast fixed left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
+    style="z-index: 100002;"
+    class="hidden smart-clickable-toast fixed px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 min-h-[48px]"
   >
     <span id="scanCompleteToastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
     <div class="flex flex-col min-w-0 flex-1 text-right">
@@ -2576,7 +2584,9 @@
                 type="button"
                 id="btnToggleStrictRelevance"
                 onclick="toggleStrictQueryRelevanceFilter()"
+                aria-pressed="true"
                 title="إخفاء المنشآت غير المرتبطة بكلمة البحث الحالية"
+                style="border-color: #10b981; background-color: rgba(16, 185, 129, 0.16);"
                 class="btn-secondary min-h-[40px] px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
               >
                 <i data-lucide="filter" class="w-3.5 h-3.5 text-emerald-400"></i>
@@ -5087,8 +5097,10 @@
         const placeCat = classifyExtractedPlaceCategoryKey(place);
         if (placeCat === expectedCat) return { relevant: true, score: 2 };
 
-        // Reject clearly unrelated cross-sector entities (e.g. generic companies, offices, government, schools when searching groceries/pharmacies)
-        if (expectedCat !== 'companies' && /^(شركه|شركات|مؤسسه|مؤسسات|مجموعه)\b/.test(rawName)) {
+        // Reject clearly unrelated commercial entities (e.g. "شركة سفن سيز التجارية", generic trading/holding companies, offices, government, schools)
+        // Note: JS \b does not work on Arabic letters, so use explicit Arabic-safe word boundaries (?:^|\s) ... (?:$|\s)
+        const GENERIC_COMMERCIAL_ENTITY_RX = /(?:^|\s)(شركه|شركات|مؤسسه|مؤسسات|مجموعه|القابضه|التجاريه|التجاري|للتجاره|للاستيراد|للتصدير|للمقاولات|الاستثماريه|للتطوير|جروب|قروب|مكتب)(?:$|\s)|\b(company|corp|corporation|trading|enterprise|group|holding|llc|ltd|inc)\b/i;
+        if (expectedCat !== 'companies' && GENERIC_COMMERCIAL_ENTITY_RX.test(rawName)) {
           return { relevant: false, score: 0 };
         }
         if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
@@ -5126,6 +5138,7 @@
       const hasSpecificQ = Boolean(activeQ && activeQ !== '__FULL_SCAN__');
       if (btn) {
         btn.classList.toggle('hidden', !hasSpecificQ);
+        btn.setAttribute('aria-pressed', strictQueryRelevanceEnabled ? 'true' : 'false');
         if (strictQueryRelevanceEnabled && hasSpecificQ) {
           btn.style.borderColor = '#10b981';
           btn.style.backgroundColor = 'rgba(16, 185, 129, 0.16)';
@@ -5939,6 +5952,9 @@
         currentEventSource.close();
         currentEventSource = null;
       }
+      if (typeof closeAllQuickSearchSectorStreams === 'function') {
+        closeAllQuickSearchSectorStreams();
+      }
       clearAllScanTimers(true);
       pendingPlacesBatch = [];
       liveExtractedPhonesTotal = 0;
@@ -6126,22 +6142,241 @@
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
-      // Quick Search fast-pass guard: finalize promptly once results arrive instead of grinding thousands of deep cells
+      // Fast Parallel Multi-District / Multi-Sector Quick Search Engine (12-16 sectors, bounded concurrency = 4)
+      let quickSectorPoolStarted = false;
+      let quickSectorTotalCount = 0;
+      let quickSectorCompletedCount = 0;
+      let quickPrimaryDone = false;
+      let quickMultiSectorActive = false;
+
+      function closeAllQuickSearchSectorStreams() {
+        if (window.__activeQuickSectorStreams && window.__activeQuickSectorStreams.size > 0) {
+          window.__activeQuickSectorStreams.forEach((es) => {
+            try { es.close(); } catch (_) {}
+          });
+          window.__activeQuickSectorStreams.clear();
+        }
+        if (Array.isArray(window.__quickSearchSectorTimers)) {
+          window.__quickSearchSectorTimers.forEach((t) => clearTimeout(t));
+          window.__quickSearchSectorTimers = [];
+        }
+      }
+      window.closeAllQuickSearchSectorStreams = closeAllQuickSearchSectorStreams;
+
+      const QUICK_SEARCH_CITY_DISTRICTS = {
+        sanaa: ['السبعين', 'حدة', 'الأصبحي', 'بيت بوس', 'شعوب', 'التحرير', 'معين', 'الصافية', 'الوحدة', 'آزال', 'الثورة', 'بني الحارث', 'الستين', 'الزبيري', 'السنينة', 'سعوان'],
+        aden: ['كريتر', 'المعلا', 'التواهي', 'خور مكسر', 'الشيخ عثمان', 'المنصورة', 'دار سعد', 'البريقة', 'إنماء', 'الممدارة', 'القاهرة', 'ريمي'],
+        taiz: ['صالة', 'المظفر', 'القاهرة', 'الحوبان', 'التحرير الأسفل', 'الجمهوري', 'المسبح', 'عصيفرة', 'بئر باشا', 'وادي القاضي', 'المغتربين', 'الضبوعة'],
+        ibb: ['الظهار', 'المشنة', 'العدين', 'الدائري', 'شارع تعز', 'الصلبة', 'جبل ربي', 'المعاين', 'السحول', 'المحافظة', 'الاستاد', 'السبل'],
+        hudaydah: ['الحوك', 'الحالي', 'الميناء', 'شارع صنعاء', 'شارع جمال', 'شارع زايد', 'الكورنيش', 'الربصة', 'البيضاء', 'غليل', '7 يوليو', 'العمال'],
+        mukalla: ['المكلا القديمة', 'فوة', 'الديس', 'الشرج', 'بويش', 'خلف', 'روكب', 'المنقد', 'أربعين شقة', 'الانشاءات', 'المتضررين', 'الغويزي'],
+        riyadh: ['العليا', 'الملز', 'النخيل', 'الياسمين', 'الملقا', 'النسيم', 'الروضة', 'السليمانية', 'الشفا', 'العزيزية', 'ظهرة لبن', 'اليرموك', 'الرمال', 'السويدي'],
+        jeddah: ['الحمراء', 'الروضة', 'السلامة', 'الصفا', 'الزهراء', 'النعيم', 'أبحر', 'المروة', 'الفيصلية', 'السامر', 'النسيم', 'البوادي'],
+        dammam: ['الشاطئ', 'الفيصلية', 'الجامعيين', 'المزروعية', 'الندى', 'طيبة', 'بدر', 'أحد', 'الزهور', 'المنار', 'الريان', 'الحمراء'],
+        makkah: ['العزيزية', 'الشوقية', 'الشرائع', 'العوالي', 'الرصيفة', 'النسيم', 'النوارية', 'الزاهر', 'الحمراء', 'بطحاء قريش', 'المسفلة', 'جرول'],
+        dubai: ['ديرة', 'بر دبي', 'الجميرا', 'البرشاء', 'المارينا', 'القصيص', 'النهدة', 'القوز', 'الراشدية', 'مردف', 'الكرامة', 'السطوة'],
+        cairo: ['مدينة نصر', 'المعادي', 'مصر الجديدة', 'الزمالك', 'المهندسين', 'الدقي', 'شبرا', 'التجمع الخامس', 'حلوان', 'عين شمس', 'الهرم', 'فيصل'],
+        amman: ['عبدون', 'الشميساني', 'تلاع العلي', 'خلدا', 'الجبيهة', 'ماركا', 'الوحدات', 'الصويفية', 'دير غبار', 'مرج الحمام', 'الهاشمي', 'طبربور'],
+        doha: ['السد', 'الدفنة', 'الغرافة', 'الوكرة', 'الريان', 'معيذر', 'النجمة', 'المنصورة', 'المرخية', 'الخريطيات', 'أبو هامور', 'أم صلال']
+      };
+
+      function resolveQuickSearchDistrictNames(locStr) {
+        const norm = normalizeUniversalCatText(locStr || '');
+        if (!norm) return null;
+        if (/(صنعاء|sanaa|sana)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.sanaa;
+        if (/(عدن|aden)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.aden;
+        if (/(تعز|taiz|taizz)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.taiz;
+        if (/(اب\b|إب|ibb)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.ibb;
+        if (/(الحديده|حديده|hudaydah|hodeidah)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.hudaydah;
+        if (/(المكلا|مكلا|mukalla)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.mukalla;
+        if (/(الرياض|riyadh)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.riyadh;
+        if (/(جده|jeddah)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.jeddah;
+        if (/(الدمام|dammam)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.dammam;
+        if (/(مكه|makkah|mecca)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.makkah;
+        if (/(دبي|dubai)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.dubai;
+        if (/(القاهره|cairo)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.cairo;
+        if (/(عمان|amman)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.amman;
+        if (/(الدوحه|doha)/i.test(norm)) return QUICK_SEARCH_CITY_DISTRICTS.doha;
+        return null;
+      }
+
+      function buildSpatialQuickSectors(centerLat, centerLng) {
+        const lat = Number(centerLat);
+        const lng = Number(centerLng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return [];
+        const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+        const sectors = [];
+        // 4 inner sectors (~2.6km offset) + 8 outer sectors (~5.6km offset) = 12 well-spaced sectors
+        const rings = [
+          { count: 4, distKm: 2.6, radiusKm: 3.2, angleOffset: 45 },
+          { count: 8, distKm: 5.6, radiusKm: 3.6, angleOffset: 0 }
+        ];
+        rings.forEach((ring) => {
+          for (let i = 0; i < ring.count; i++) {
+            const deg = ring.angleOffset + (360 / ring.count) * i;
+            const rad = (deg * Math.PI) / 180;
+            const dLat = (ring.distKm * Math.cos(rad)) / 111.32;
+            const dLng = (ring.distKm * Math.sin(rad)) / (111.32 * cosLat);
+            sectors.push({
+              type: 'circle',
+              label: `قطاع ${sectors.length + 1}`,
+              circleLat: Number((lat + dLat).toFixed(6)),
+              circleLng: Number((lng + dLng).toFixed(6)),
+              circleRadiusKm: ring.radiusKm
+            });
+          }
+        });
+        return sectors;
+      }
+
+      function launchQuickSearchParallelSectorPool(sectorList) {
+        if (quickSectorPoolStarted || isSearchDoneHandled || !Array.isArray(sectorList) || sectorList.length === 0) return;
+        quickSectorPoolStarted = true;
+        quickMultiSectorActive = true;
+        if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
+        if (!Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers = [];
+
+        const queue = sectorList.slice(0, 16);
+        quickSectorTotalCount = queue.length;
+        quickSectorCompletedCount = 0;
+        const MAX_PARALLEL = 4;
+        let activeCount = 0;
+        let nextIdx = 0;
+
+        function maybeFinishMultiSectorQuickPass() {
+          const pct = Math.min(98, Math.round((quickSectorCompletedCount / Math.max(1, quickSectorTotalCount)) * 96));
+          applyDirectProgressPercent(pct);
+          if (statusMessage && !isSearchDoneHandled) {
+            statusMessage.innerText = `🔍 جارِ البحث السريع المتوازي${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (قطاع ${quickSectorCompletedCount} / ${quickSectorTotalCount})...`;
+          }
+          if (quickSectorCompletedCount >= quickSectorTotalCount && !isSearchDoneHandled) {
+            closeAllQuickSearchSectorStreams();
+            handleSearchDoneEvent();
+          }
+        }
+
+        function startNextSector() {
+          while (activeCount < MAX_PARALLEL && nextIdx < queue.length && !isSearchDoneHandled) {
+            const sector = queue[nextIdx++];
+            activeCount++;
+            const sParams = new URLSearchParams(params.toString());
+            sParams.set('concurrency', '2');
+            sParams.delete('scopeMode');
+            sParams.delete('bbox');
+            if (sector.type === 'circle') {
+              sParams.set('circleLat', String(sector.circleLat));
+              sParams.set('circleLng', String(sector.circleLng));
+              sParams.set('circleRadiusKm', String(sector.circleRadiusKm));
+              sParams.set('radius', String(Math.ceil(sector.circleRadiusKm)));
+            } else {
+              sParams.set('neighborhood', sector.label);
+              sParams.set('radius', '6');
+            }
+
+            let es = null;
+            let sectorSettled = false;
+            let sectorItemCount = 0;
+            let sectorCapTimer = null;
+
+            const settleSector = () => {
+              if (sectorSettled) return;
+              sectorSettled = true;
+              if (sectorCapTimer) clearTimeout(sectorCapTimer);
+              if (es) {
+                try { es.close(); } catch (_) {}
+                window.__activeQuickSectorStreams.delete(es);
+              }
+              activeCount = Math.max(0, activeCount - 1);
+              quickSectorCompletedCount++;
+              maybeFinishMultiSectorQuickPass();
+              if (!isSearchDoneHandled) startNextSector();
+            };
+
+            try {
+              es = new EventSource(`/api/search?${sParams.toString()}`);
+              window.__activeQuickSectorStreams.add(es);
+              es.addEventListener('place', (ev) => {
+                if (isLoginModalVisible() || isSearchDoneHandled) return;
+                try {
+                  const p = JSON.parse(ev.data);
+                  if (isScanPaused) {
+                    pausedBufferedPlaces.push(p);
+                    return;
+                  }
+                  sectorItemCount++;
+                  ingestIncomingStreamPlace(p);
+                  if (sectorItemCount >= 55) settleSector();
+                } catch (_) {}
+              });
+              es.addEventListener('places_batch', (ev) => {
+                if (isLoginModalVisible() || isSearchDoneHandled) return;
+                try {
+                  const batch = JSON.parse(ev.data);
+                  if (!Array.isArray(batch) || batch.length === 0) return;
+                  if (isScanPaused) {
+                    pausedBufferedPlaces.push(...batch);
+                    return;
+                  }
+                  sectorItemCount += batch.length;
+                  enqueueBackgroundPlacesChunk(batch);
+                  if (sectorItemCount >= 55) settleSector();
+                } catch (_) {}
+              });
+              es.addEventListener('done', settleSector);
+              es.addEventListener('complete', settleSector);
+              es.addEventListener('error', settleSector);
+              // Per-sector fast cap (9.5s) so no single district stalls the multi-district Quick Search pass
+              sectorCapTimer = setTimeout(settleSector, 9500);
+              window.__quickSearchSectorTimers.push(sectorCapTimer);
+            } catch (_) {
+              settleSector();
+            }
+          }
+        }
+
+        startNextSector();
+      }
+
+      // Kick off multi-district parallel pass immediately for Quick Search when city-level search has no manual polygon/circle/single-district
+      const canRunQuickMultiSector = Boolean(
+        isQuickSearchMode &&
+        !neighborhood &&
+        !drawnCircleState &&
+        (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
+      );
+      if (canRunQuickMultiSector) {
+        const knownDistricts = resolveQuickSearchDistrictNames(location);
+        if (knownDistricts && knownDistricts.length > 0) {
+          launchQuickSearchParallelSectorPool(knownDistricts.map((name) => ({ type: 'district', label: name })));
+        }
+      }
+
+      // Quick Search fast-pass guard: allow multi-district pass to gather hundreds of results rapidly, with a clean global safety cap
       if (isQuickSearchMode) {
         const quickStartMs = Date.now();
         window.__quickSearchFastCutoffTimer = setInterval(() => {
-          if (isSearchDoneHandled || !currentEventSource || isScanPaused) {
+          if (isSearchDoneHandled || (!currentEventSource && (!window.__activeQuickSectorStreams || window.__activeQuickSectorStreams.size === 0)) || isScanPaused) {
             clearInterval(window.__quickSearchFastCutoffTimer);
             window.__quickSearchFastCutoffTimer = null;
             return;
           }
           const elapsedMs = Date.now() - quickStartMs;
           const strictCount = Math.max(extractedPlaces.length, getActiveFilteredPlaces().length);
-          // Complete quickly ONLY once real results arrive (>=60 after 4s or >=1 after 12s); never abort early while 0 so server fallback finishes cleanly
-          if ((strictCount >= 60 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000)) {
-            clearInterval(window.__quickSearchFastCutoffTimer);
-            window.__quickSearchFastCutoffTimer = null;
-            handleSearchDoneEvent();
+          if (quickMultiSectorActive) {
+            // Let the parallel 12-16 district pool collect hundreds of results; cap cleanly at 35s once results exist (or 450+ results after 18s)
+            if ((strictCount >= 450 && elapsedMs >= 18000) || (strictCount >= 1 && elapsedMs >= 35000)) {
+              clearInterval(window.__quickSearchFastCutoffTimer);
+              window.__quickSearchFastCutoffTimer = null;
+              closeAllQuickSearchSectorStreams();
+              handleSearchDoneEvent();
+            }
+          } else {
+            // Single-district or drawn-shape Quick Search: complete promptly once real results arrive
+            if ((strictCount >= 120 && elapsedMs >= 6000) || (strictCount >= 1 && elapsedMs >= 16000)) {
+              clearInterval(window.__quickSearchFastCutoffTimer);
+              window.__quickSearchFastCutoffTimer = null;
+              handleSearchDoneEvent();
+            }
           }
         }, 1000);
       }
@@ -6445,7 +6680,10 @@
             window.__lastScanErrorMessage = data.errorMessage;
           }
           if (data.type === 'done') {
-            handleSearchDoneEvent();
+            quickPrimaryDone = true;
+            if (!quickMultiSectorActive || quickSectorCompletedCount >= quickSectorTotalCount) {
+              handleSearchDoneEvent();
+            }
           } else if (data.type === 'place' && data.place) {
             ingestIncomingStreamPlace(data.place);
           } else if (data.type === 'places_batch' && Array.isArray(data.places)) {
@@ -6472,6 +6710,8 @@
       });
 
       currentEventSource.addEventListener('done', () => {
+        quickPrimaryDone = true;
+        if (quickMultiSectorActive && quickSectorCompletedCount < quickSectorTotalCount) return;
         handleSearchDoneEvent();
       });
 
@@ -6480,6 +6720,13 @@
         const data = JSON.parse(event.data);
         if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
           leafletMap.setView([data.lat, data.lng], 12);
+        }
+        // For cities outside the named district map, automatically fan out 12 spatial circle sectors around the resolved center
+        if (canRunQuickMultiSector && !quickSectorPoolStarted && data && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+          const spatialSectors = buildSpatialQuickSectors(data.lat, data.lng);
+          if (spatialSectors.length > 0) {
+            launchQuickSearchParallelSectorPool(spatialSectors);
+          }
         }
       });
 
@@ -6523,6 +6770,8 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
+        quickPrimaryDone = true;
+        if (quickMultiSectorActive && quickSectorCompletedCount < quickSectorTotalCount) return;
         handleSearchDoneEvent();
       });
 
@@ -7400,7 +7649,7 @@
     function repositionSmartToastIfVisible() {
       const toast = document.getElementById('scanCompleteCelebrationToast');
       if (!toast || toast.classList.contains('hidden')) return;
-      toast.style.top = `${computeSafeToastTopPx()}px`;
+      toast.style.top = '';
     }
 
     function dismissSmartNotificationToast() {
@@ -7532,8 +7781,8 @@
         clearTimeout(scanCompleteToastHideAnimTimer);
         scanCompleteToastHideAnimTimer = null;
       }
-      // Position toast cleanly below the sticky top header & navigation tabs on desktop and mobile
-      toast.style.top = `${computeSafeToastTopPx()}px`;
+      // Keep toast anchored cleanly at bottom-left (CSS) so it never overlaps header tabs or results action buttons
+      toast.style.top = '';
       toast.classList.remove('hidden');
 
       if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);
@@ -7567,6 +7816,9 @@
       if (currentEventSource) {
         currentEventSource.close();
         currentEventSource = null;
+      }
+      if (typeof closeAllQuickSearchSectorStreams === 'function') {
+        closeAllQuickSearchSectorStreams();
       }
       clearAllScanTimers(false);
       clearActiveScanGridCellOnMap();
@@ -9984,6 +10236,9 @@
       if (currentEventSource) {
         currentEventSource.close();
         currentEventSource = null;
+      }
+      if (typeof closeAllQuickSearchSectorStreams === 'function') {
+        closeAllQuickSearchSectorStreams();
       }
       closeUserSettingsModal();
       updateAccountButtonsUI();

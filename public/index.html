@@ -4149,6 +4149,10 @@
     }
 
     function startLocationAwareComprehensiveScan(resumeFromCheckpoint = false) {
+      if (window.__quickSearchFastCutoffTimer) {
+        clearInterval(window.__quickSearchFastCutoffTimer);
+        window.__quickSearchFastCutoffTimer = null;
+      }
       if (pendingSearchStartTimer) {
         clearTimeout(pendingSearchStartTimer);
         pendingSearchStartTimer = null;
@@ -4287,6 +4291,10 @@
     }
 
     function scanAllActivitiesInDrawnCircle() {
+      if (window.__quickSearchFastCutoffTimer) {
+        clearInterval(window.__quickSearchFastCutoffTimer);
+        window.__quickSearchFastCutoffTimer = null;
+      }
       if (pendingSearchStartTimer) {
         clearTimeout(pendingSearchStartTimer);
         pendingSearchStartTimer = null;
@@ -4957,9 +4965,32 @@
     window.toggleExtraCategoryPills = toggleExtraCategoryPills;
 
     // =========================================================================
-    // Strict Query Relevance Filter Toggle ("مطابق للبحث فقط")
+    // Strict Query Relevance Filter Toggle ("مطابق للبحث فقط" — enabled by default)
     // =========================================================================
-    let strictQueryRelevanceEnabled = false;
+    let strictQueryRelevanceEnabled = true;
+
+    const STRICT_SECTOR_SYNONYM_REGEX = {
+      groceries: /(بقال|بقاله|بقالات|تموين|تموينات|سوبر\s*ماركت|سوبرماركت|ميني\s*ماركت|هايبر|مواد\s*غذائ|غذائيات|دكان|كشك|خضار|فواكه|\bgrocery\b|\bsupermarket\b|\bminimart\b|\bconvenience\b|\bfood\s*store\b)/i,
+      pharmacies: /(صيدل|صيدليه|صيدليات|\bpharmacy\b|\bdrugstore\b|\bchemist\b)/i,
+      pharma_companies: /(شركه\s*ادويه|شركات\s*ادويه|مستودع\s*ادويه|مستودعات\s*ادويه|مخازن\s*ادويه|توزيع\s*ادويه|للتجاره\s*الدوائيه|فارما|مستلزمات\s*طبيه|\bpharma\b|\bpharmaceutical\b)/i,
+      hospitals: /(مستشفي|مستشفيات|عياد|مجمع\s*طبي|مركز\s*طبي|مستوصف|مختبر|اشعه|اسنان|دكتور|طبيب|\bhospital\b|\bclinic\b|\bmedical\b|\bdentist\b)/i,
+      restaurants: /(مطعم|مطاعم|بوفيه|مطبخ|شوايه|كافيه|مقهي|كوفي|كافتيريا|مندي|مضغوط|\brestaurant\b|\bcafe\b|\bcoffee\b|\bfast[_\s]*food\b|\bgrill\b)/i,
+      banks: /(بنك|بنوك|مصرف|صراف|تحويلات|كريمي|امتياز|النجم|\bbank\b|\bexchange\b|\batm\b)/i,
+      hotels: /(فندق|فنادق|منتجع|شقق\s*مفروش|اجنحه|استراحه|\bhotel\b|\bresort\b|\bapartments\b|\bmotel\b)/i,
+      education: /(جامعه|كليه|مدرسه|مدارس|معهد|اكاديميه|روضه|\bschool\b|\buniversity\b|\bcollege\b|\binstitute\b|\bacademy\b)/i,
+      realestate: /(عقار|عقارات|عقاريه|مقاولات|هندس|تطوير\s*عقاري|real\s*estate|construction|engineering)/i,
+      government: /(محكم|محاكم|نياب|وزار|هيئه|مصلحه|بلديه|امانه|شرطه|مرور|جوازات|حكوم|منفذ|جمارك|\bcourt\b|\bgovernment\b|\bministry\b|\bpolice\b)/i,
+      automotive: /(سيارات|معرض\s*سيارات|ورشه|ميكانيكي|قطع\s*غيار|بنشر|غسيل\s*سيارات|\bcar\b|\bauto\b|\bgarage\b|\bmechanic\b)/i,
+      electronics: /(جوال|جوالات|تلفون|هواتف|الكترونيات|كمبيوتر|لابتوب|\bmobile\b|\belectronics\b|\bcomputer\b)/i,
+      fashion: /(ملابس|ازياء|احذيه|عبايات|بوتيك|\bfashion\b|\bclothing\b|\bshoes\b|\bboutique\b)/i,
+      furniture: /(اثاث|مفروشات|كنب|مطابخ|ديكور|\bfurniture\b|\bdecor\b)/i,
+      sports: /(صاله\s*رياض|نادي\s*رياض|جيم|مسبح|مسابح|رياضه|\bgym\b|\bfitness\b|\bsport\b)/i,
+      beauty: /(صالون|حلاق|حلاقه|كوافير|تجميل|سبا|\bsalon\b|\bbarber\b|\bbeauty\b|\bspa\b)/i,
+      malls: /(مول|مولات|مركز\s*تجاري|مجمع\s*تجاري|\bmall\b|\bshopping\b)/i,
+      companies: /(شركه|شركات|مؤسس|مجموعه|القابضه|للتجاره|للاستيراد|\bcompany\b|\bcorp\b|\btrading\b)/i
+    };
+
+    const UNRELATED_GENERIC_ENTITY_REGEX = /(محاسب|محاسبه|مصمم\s*مواقع|تصميم\s*مواقع|مهندس\s*معماري|مكتب\s*هندسي|استشارات\s*هندس|محامي|محاماه|برمجيات|مقاول|مقاولات|مكتب\s*عقار|عقارات|جهات\s*حكوميه|وزاره|محكمه|نيابه|مستشفي|مدرسه|جامعه|معهد|بنك|صرافه|فندق|ورشه|بنشر|حلاق|صالون|\baccountant\b|\bweb\s*design\b|\barchitect\b|\blawyer\b|\bcontractor\b|\breal\s*estate\b)/i;
 
     function getExpectedCategoryKeyForQuery(rawQuery) {
       const q = normalizeUniversalCatText(rawQuery || '');
@@ -4989,10 +5020,30 @@
       const q = normalizeUniversalCatText(rawQuery || '');
       if (!q || q === '__full_scan__') return true;
       const expectedCat = getExpectedCategoryKeyForQuery(q);
-      const placeCat = classifyExtractedPlaceCategoryKey(place);
-      if (expectedCat && placeCat === expectedCat) return true;
-      const rawPlace = normalizeUniversalCatText(`${place?.name || ''} ${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''}`);
-      const tokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and)$/i.test(t));
+      const rawName = normalizeUniversalCatText(place?.name || '');
+      const rawCats = normalizeUniversalCatText(`${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''}`);
+      const rawPlace = `${rawName} ${rawCats}`.trim();
+
+      if (expectedCat) {
+        const directRx = STRICT_SECTOR_SYNONYM_REGEX[expectedCat];
+        const hasDirectMatch = Boolean(directRx && directRx.test(rawPlace));
+        // Actively exclude generic companies/institutions/unrelated sectors unless the place explicitly confirms the searched business type
+        if (!hasDirectMatch) {
+          if (expectedCat !== 'companies' && /^(شركه|شركات|مؤسسه|مؤسسات|مجموعه)\b/.test(rawName)) {
+            return false;
+          }
+          if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
+            return false;
+          }
+          return classifyExtractedPlaceCategoryKey(place) === expectedCat;
+        }
+        // Even if direct match exists, block pharma company from retail pharmacies & vice versa
+        if (expectedCat === 'pharmacies' && STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) return false;
+        if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) return false;
+        return true;
+      }
+
+      const tokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and|for)$/i.test(t));
       if (tokens.length === 0) return true;
       return tokens.some(tok => rawPlace.includes(tok));
     }
@@ -5784,6 +5835,10 @@
     function handleSearch(e, opts = {}) {
       if (e && e.preventDefault) e.preventDefault();
 
+      if (window.__quickSearchFastCutoffTimer) {
+        clearInterval(window.__quickSearchFastCutoffTimer);
+        window.__quickSearchFastCutoffTimer = null;
+      }
       if (pendingSearchStartTimer) {
         clearTimeout(pendingSearchStartTimer);
         pendingSearchStartTimer = null;
@@ -5928,6 +5983,19 @@
 
       const isQuickSearchMode = Boolean(!wasExplicitComprehensive && query && query !== '__FULL_SCAN__');
       window.__activeSearchModeType = isQuickSearchMode ? 'quick' : 'comprehensive';
+
+      // Make Quick Search genuinely fast (no 3,760-cell quadtree explosion): use compact radius & clean time/batch cap
+      if (isQuickSearchMode) {
+        params.set('radius', String(Math.min(Number(selectedRadius) || 8, 8)));
+        params.delete('scopeMode');
+        params.delete('bbox');
+      }
+
+      if (window.__quickSearchFastCutoffTimer) {
+        clearTimeout(window.__quickSearchFastCutoffTimer);
+        window.__quickSearchFastCutoffTimer = null;
+      }
+
       const activeModeAreaLabel = [location, neighborhood].filter(Boolean).join(' - ') || 'نطاقك الحالي';
       const activeModeQueryLabel = (query && query !== '__FULL_SCAN__') ? `«${query}»` : '';
 
@@ -5971,6 +6039,26 @@
       window.__categoryPillsExpanded = false;
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
+
+      // Quick Search fast-pass guard: finalize promptly once results arrive instead of grinding thousands of deep cells
+      if (isQuickSearchMode) {
+        const quickStartMs = Date.now();
+        window.__quickSearchFastCutoffTimer = setInterval(() => {
+          if (isSearchDoneHandled || !currentEventSource || isScanPaused) {
+            clearInterval(window.__quickSearchFastCutoffTimer);
+            window.__quickSearchFastCutoffTimer = null;
+            return;
+          }
+          const elapsedMs = Date.now() - quickStartMs;
+          const strictCount = getActiveFilteredPlaces().length;
+          // Complete quickly: either >= 80 strict-matched results after 4s, or >= 1 result after 12s, or hard cap at 18s
+          if ((strictCount >= 80 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000) || elapsedMs >= 18000) {
+            clearInterval(window.__quickSearchFastCutoffTimer);
+            window.__quickSearchFastCutoffTimer = null;
+            handleSearchDoneEvent();
+          }
+        }, 1000);
+      }
 
       currentEventSource.addEventListener('status', (event) => {
         if (isLoginModalVisible()) return;
@@ -7316,6 +7404,10 @@
     }
 
     function finishSearch() {
+      if (window.__quickSearchFastCutoffTimer) {
+        clearInterval(window.__quickSearchFastCutoffTimer);
+        window.__quickSearchFastCutoffTimer = null;
+      }
       if (pendingSearchStartTimer) {
         clearTimeout(pendingSearchStartTimer);
         pendingSearchStartTimer = null;

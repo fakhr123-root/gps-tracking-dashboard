@@ -120,18 +120,16 @@
   <title>GeoRadar 3D Studio - مستخرج خرائط جوجل</title>
   <script>
     (function() {
-      // Force Service Worker update check & clear legacy cached shell/flags on version upgrade
-      var CURRENT_APP_VER = 'v6_gatekeeper_compat';
+      // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
+      var CURRENT_APP_VER = 'v22_fresh_search_pipeline';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
           localStorage.setItem('georadar_app_schema_ver', CURRENT_APP_VER);
-          // Clear outdated legacy location/terms flags that could interfere with the new GPS Gatekeeper
           ['termsAccepted', 'termsAcceptedOnce', 'gmaps_terms_accepted', 'gpsLockBypass', 'locationPromptSkipped', 'geo_permission_cached'].forEach(function(k) {
             try { localStorage.removeItem(k); } catch (e) {}
             try { sessionStorage.removeItem(k); } catch (e) {}
           });
-          // Purge any invalid/hardcoded cached GPS coordinates from old versions
           try {
             var rawGps = localStorage.getItem('gmaps_last_valid_gps');
             if (rawGps) {
@@ -145,27 +143,38 @@
           } catch (e) {
             try { localStorage.removeItem('gmaps_last_valid_gps'); } catch (e2) {}
           }
-          if ('caches' in window) {
-            caches.keys().then(function(keys) {
-              keys.forEach(function(k) {
-                if (k !== 'georadar-hybrid-shell-v6') caches.delete(k).catch(function() {});
+
+          var hadActiveController = Boolean('serviceWorker' in navigator && navigator.serviceWorker.controller);
+          var cleanupPromises = [];
+          if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
+            cleanupPromises.push(
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                return Promise.all(regs.map(function(reg) {
+                  return reg.unregister().catch(function() { return false; });
+                }));
+              }).catch(function() {})
+            );
+          }
+          if ('caches' in window && typeof caches.keys === 'function') {
+            cleanupPromises.push(
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) {
+                  return caches.delete(k).catch(function() { return false; });
+                }));
+              }).catch(function() {})
+            );
+          }
+          if (hadActiveController && cleanupPromises.length > 0) {
+            var reloadGuardKey = 'georadar_sw_purged_' + CURRENT_APP_VER;
+            if (!sessionStorage.getItem(reloadGuardKey)) {
+              sessionStorage.setItem(reloadGuardKey, '1');
+              Promise.all(cleanupPromises).finally(function() {
+                window.location.reload();
               });
-            }).catch(function() {});
+            }
           }
         }
       } catch (e) {}
-
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function() {
-          navigator.serviceWorker.register('/sw.js', { scope: '/' })
-            .then(function(reg) {
-              if (reg && typeof reg.update === 'function') {
-                reg.update().catch(function() {});
-              }
-            })
-            .catch(function() {});
-        });
-      }
     })();
   </script>
   <!-- Tailwind CSS (Loaded immediately & cached by SW for instant styled paint) -->
@@ -1500,7 +1509,7 @@
     tabindex="0"
     onclick="handleSmartNotificationClick(event)"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleSmartNotificationClick(event);}"
-    style="z-index: 100002; top: 84px;"
+    style="z-index: 100002; top: 76px;"
     class="hidden smart-clickable-toast fixed left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
   >
     <span id="scanCompleteToastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -6063,7 +6072,7 @@
       const quadBadgeEl = document.getElementById('quadtreeCellsBadge');
       if (quadBadgeEl) quadBadgeEl.classList.toggle('hidden', isQuickSearchMode);
       if (isQuickSearchMode) {
-        params.set('radius', String(Math.min(Math.max(Number(selectedRadius) || 10, 5), 12)));
+        params.set('radius', String(Math.min(Math.max(Number(selectedRadius) || 15, 10), 20)));
         params.delete('scopeMode');
         params.delete('bbox');
       }
@@ -6128,8 +6137,8 @@
           }
           const elapsedMs = Date.now() - quickStartMs;
           const strictCount = Math.max(extractedPlaces.length, getActiveFilteredPlaces().length);
-          // Complete quickly once real results arrive (>=60 after 4s or >=1 after 12s), while allowing up to 45s if server is waking up
-          if ((strictCount >= 60 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000) || elapsedMs >= 45000) {
+          // Complete quickly ONLY once real results arrive (>=60 after 4s or >=1 after 12s); never abort early while 0 so server fallback finishes cleanly
+          if ((strictCount >= 60 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000)) {
             clearInterval(window.__quickSearchFastCutoffTimer);
             window.__quickSearchFastCutoffTimer = null;
             handleSearchDoneEvent();
@@ -6437,6 +6446,10 @@
           }
           if (data.type === 'done') {
             handleSearchDoneEvent();
+          } else if (data.type === 'place' && data.place) {
+            ingestIncomingStreamPlace(data.place);
+          } else if (data.type === 'places_batch' && Array.isArray(data.places)) {
+            enqueueBackgroundPlacesChunk(data.places);
           } else if (data.type === 'progress') {
             if (typeof data.percent === 'number' && data.percent > 0) {
               applyDirectProgressPercent(data.percent);
@@ -7373,15 +7386,15 @@
     function computeSafeToastTopPx() {
       const topHeaderEl = document.getElementById('appTopHeader');
       const isMobile = window.innerWidth <= 768;
-      if (!topHeaderEl) return isMobile ? 96 : 84;
+      if (!topHeaderEl) return isMobile ? 96 : 76;
       if (topHeaderEl.classList.contains('header-auto-hidden')) {
         return 18;
       }
       const rect = topHeaderEl.getBoundingClientRect();
       const headerHeight = topHeaderEl.offsetHeight || 0;
       const visibleBottom = Math.max(rect && rect.bottom > 0 ? Math.round(rect.bottom) : 0, headerHeight);
-      const minSafe = isMobile ? 96 : 84;
-      return Math.max(minSafe, visibleBottom + 14);
+      const minSafe = isMobile ? 96 : 76;
+      return Math.max(minSafe, visibleBottom + 12);
     }
 
     function repositionSmartToastIfVisible() {
@@ -11144,8 +11157,11 @@
       }
       revealAppUiWhenStyled();
 
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+      // Ensure any lingering outdated Service Worker stays unregistered so fresh index.html always loads
+      if ('serviceWorker' in navigator && typeof navigator.serviceWorker.getRegistrations === 'function') {
+        navigator.serviceWorker.getRegistrations().then(regs => {
+          regs.forEach(r => r.unregister().catch(() => {}));
+        }).catch(() => {});
       }
     // =========================================================================
     // Customizable User Avatar (Vector Silhouette Fallback + Photo Access Sheet)

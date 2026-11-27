@@ -2308,6 +2308,61 @@
             </div>
           </div>
 
+          <!-- Instant In-Results Search + Language-Aware Alphabetical Sort & Starting-Letter Filter Bar -->
+          <div class="bg-[#131f33] border border-slate-400/20 rounded-xl p-3 sm:p-3.5 flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+            <!-- Instant Search Box (Debounced ~180ms) -->
+            <div class="relative flex-1 min-w-0 flex items-center bg-[#0b1320] border border-slate-400/20 focus-within:border-[#10b981] rounded-xl px-3 min-h-[42px] gap-2 transition">
+              <i data-lucide="search" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+              <input
+                type="text"
+                id="inResultsSearchInput"
+                autocomplete="off"
+                spellcheck="false"
+                oninput="onInResultsSearchInput(this.value)"
+                placeholder="ابحث داخل النتائج بالاسم، الحي، أو الرقم..."
+                class="w-full bg-transparent text-xs sm:text-sm text-[#f1f5f9] placeholder-slate-400 focus:outline-none py-2"
+              />
+              <button
+                type="button"
+                id="btnClearInResultsSearch"
+                onclick="clearInResultsSearch()"
+                title="مسح البحث"
+                class="hidden shrink-0 w-7 h-7 rounded-lg bg-[#131f33] hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center cursor-pointer transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- Sort & Starting-Letter Controls -->
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
+              <select
+                id="resultsSortSelect"
+                onchange="onResultsSortModeChange(this.value)"
+                aria-label="الترتيب الأبجدي للنتائج"
+                class="flex-1 sm:flex-none min-h-[42px] bg-[#0b1320] text-[#f1f5f9] border border-slate-400/20 focus:border-[#10b981] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="default">الترتيب: الافتراضي</option>
+                <option value="alpha_asc_auto">أبجدي تلقائي (أ-ي / A-Z)</option>
+                <option value="alpha_desc_auto">أبجدي عكسي (ي-أ / Z-A)</option>
+                <option value="alpha_asc_ar">عربي: أ - ي</option>
+                <option value="alpha_desc_ar">عربي: ي - أ</option>
+                <option value="alpha_asc_en">English: A - Z</option>
+                <option value="alpha_desc_en">English: Z - A</option>
+              </select>
+
+              <select
+                id="resultsLetterSelect"
+                onchange="onResultsLetterFilterChange(this.value)"
+                aria-label="تصفية حسب الحرف الأول"
+                class="min-h-[42px] min-w-[96px] bg-[#0b1320] text-[#f1f5f9] border border-slate-400/20 focus:border-[#10b981] rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none cursor-pointer"
+              >
+                <option value="all">الحرف: الكل</option>
+              </select>
+
+              <span id="inResultsFilterCountBadge" class="hidden px-2.5 py-1.5 rounded-lg bg-[#0b1320] border border-emerald-500/30 text-emerald-400 font-num font-bold text-xs whitespace-nowrap"></span>
+            </div>
+          </div>
+
           <!-- Live Category Breakdown & Interactive Filter Bar (#categorySummaryFilterBar) -->
           <div id="categorySummaryFilterBar" class="hidden bg-[#131f33] border border-slate-400/20 rounded-xl px-4 py-3 space-y-2.5">
             <div class="flex items-center justify-between gap-2 text-xs">
@@ -4534,6 +4589,7 @@
       }
 
       bar.classList.remove('hidden');
+      if (typeof syncResultsLetterFilterOptions === 'function') syncResultsLetterFilterOptions();
       const activeMeta = getActiveCategoryFilterMeta();
       if (indicator) {
         const activeCount = counts[activeMeta.key] || 0;
@@ -4562,6 +4618,149 @@
         .join('');
     }
 
+    // =========================================================================
+    // Instant In-Results Search & Language-Aware Alphabetical Sort / Letter Filter
+    // =========================================================================
+    let inResultsSearchQuery = '';
+    let inResultsSearchDebounceTimer = null;
+    let resultsSortMode = 'default';
+    let resultsLetterFilter = 'all';
+
+    const ARABIC_ALPHABET_LETTERS = ['أ','ب','ت','ث','ج','ح','خ','د','ذ','ر','ز','س','ش','ص','ض','ط','ظ','ع','غ','ف','ق','ك','ل','م','ن','ه','و','ي'];
+    const LATIN_ALPHABET_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    const arAlphaCollator = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('ar', { sensitivity: 'base', numeric: true }) : null;
+    const enAlphaCollator = typeof Intl !== 'undefined' && Intl.Collator ? new Intl.Collator('en', { sensitivity: 'base', numeric: true }) : null;
+
+    function normalizeAlphaSortKey(str = '') {
+      return String(str || '')
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ة/g, 'ه')
+        .replace(/ى/g, 'ي')
+        .replace(/^[^\u0600-\u06FFa-zA-Z0-9]+/, '')
+        .trim()
+        .toLowerCase();
+    }
+
+    function getNormalizedStartingLetter(name = '') {
+      const cleaned = String(name || '')
+        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/^[^\u0600-\u06FFa-zA-Z0-9]+/, '')
+        .trim();
+      if (!cleaned) return '';
+      const ch = cleaned[0];
+      if (/[أإآا]/.test(ch)) return 'أ';
+      if (ch === 'ة') return 'ه';
+      if (ch === 'ى') return 'ي';
+      if (/[\u0621-\u064A]/.test(ch)) return ch;
+      if (/[a-zA-Z]/.test(ch)) return ch.toUpperCase();
+      if (/[0-9]/.test(ch)) return '0-9';
+      return '';
+    }
+
+    function detectPredominantResultsLocale(list) {
+      const activeLang = typeof getActiveUiLanguageCode === 'function' ? getActiveUiLanguageCode() : 'ar';
+      if (!Array.isArray(list) || list.length === 0) {
+        return activeLang === 'ar' ? 'ar' : 'en';
+      }
+      let arCount = 0;
+      let latinCount = 0;
+      const sampleLen = Math.min(list.length, 40);
+      for (let i = 0; i < sampleLen; i++) {
+        const nm = String(list[i]?.name || '');
+        if (/[\u0600-\u06FF]/.test(nm)) arCount++;
+        else if (/[a-zA-Z]/.test(nm)) latinCount++;
+      }
+      if (arCount === 0 && latinCount > 0) return 'en';
+      if (latinCount === 0 && arCount > 0) return 'ar';
+      return activeLang === 'ar' ? 'ar' : 'en';
+    }
+
+    function syncResultsLetterFilterOptions() {
+      const sel = document.getElementById('resultsLetterSelect');
+      if (!sel) return;
+      const list = Array.isArray(extractedPlaces) ? extractedPlaces : [];
+      const locale = detectPredominantResultsLocale(list);
+      const countsByLetter = new Map();
+      for (let i = 0; i < list.length; i++) {
+        const l = getNormalizedStartingLetter(list[i]?.name || '');
+        if (l) countsByLetter.set(l, (countsByLetter.get(l) || 0) + 1);
+      }
+
+      const alphabet = locale === 'ar' ? ARABIC_ALPHABET_LETTERS : LATIN_ALPHABET_LETTERS;
+      const prevVal = resultsLetterFilter || 'all';
+      let optsHtml = '<option value="all">الحرف: الكل</option>';
+      for (const letter of alphabet) {
+        const cnt = countsByLetter.get(letter) || 0;
+        if (list.length === 0 || cnt > 0) {
+          optsHtml += `<option value="${letter}">${letter}${cnt > 0 ? ` (${cnt})` : ''}</option>`;
+        }
+      }
+      if (countsByLetter.get('0-9') > 0) {
+        optsHtml += `<option value="0-9">0-9 (${countsByLetter.get('0-9')})</option>`;
+      }
+      sel.innerHTML = optsHtml;
+      if (Array.from(sel.options).some(o => o.value === prevVal)) {
+        sel.value = prevVal;
+      } else {
+        resultsLetterFilter = 'all';
+        sel.value = 'all';
+      }
+    }
+
+    function updateInResultsFilterCountBadge(filteredLen) {
+      const badge = document.getElementById('inResultsFilterCountBadge');
+      if (!badge) return;
+      const total = Array.isArray(extractedPlaces) ? extractedPlaces.length : 0;
+      const isFiltered = Boolean(
+        inResultsSearchQuery ||
+        (resultsLetterFilter && resultsLetterFilter !== 'all') ||
+        (activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all') ||
+        resultsSortMode !== 'default'
+      );
+      if (total > 0 && isFiltered) {
+        badge.innerText = `${filteredLen.toLocaleString()} / ${total.toLocaleString()}`;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
+    function onInResultsSearchInput(rawVal) {
+      const val = String(rawVal || '');
+      const clearBtn = document.getElementById('btnClearInResultsSearch');
+      if (clearBtn) clearBtn.classList.toggle('hidden', val.trim().length === 0);
+      if (inResultsSearchDebounceTimer) clearTimeout(inResultsSearchDebounceTimer);
+      inResultsSearchDebounceTimer = setTimeout(() => {
+        inResultsSearchDebounceTimer = null;
+        inResultsSearchQuery = val.trim();
+        refreshVisibleResultsView(true);
+      }, 180);
+    }
+
+    function clearInResultsSearch() {
+      const inp = document.getElementById('inResultsSearchInput');
+      if (inp) inp.value = '';
+      const clearBtn = document.getElementById('btnClearInResultsSearch');
+      if (clearBtn) clearBtn.classList.add('hidden');
+      if (inResultsSearchDebounceTimer) {
+        clearTimeout(inResultsSearchDebounceTimer);
+        inResultsSearchDebounceTimer = null;
+      }
+      inResultsSearchQuery = '';
+      refreshVisibleResultsView(true);
+    }
+
+    function onResultsSortModeChange(mode) {
+      resultsSortMode = mode || 'default';
+      refreshVisibleResultsView(true);
+    }
+
+    function onResultsLetterFilterChange(letter) {
+      resultsLetterFilter = letter || 'all';
+      refreshVisibleResultsView(true);
+    }
+
     function selectCategorySummaryFilter(categoryKey = 'all') {
       activeCategorySummaryFilter = categoryKey || 'all';
       renderCategorySummaryFilterBar();
@@ -4570,23 +4769,57 @@
 
     function getActiveFilteredPlaces() {
       const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all';
-      if (!filterOnlyPhone && !filterOnlyOpen && !hasCatFilter) {
-        return extractedPlaces;
+      const hasSearch = Boolean(inResultsSearchQuery && inResultsSearchQuery.trim().length > 0);
+      const hasLetter = Boolean(resultsLetterFilter && resultsLetterFilter !== 'all');
+      const hasSort = Boolean(resultsSortMode && resultsSortMode !== 'default');
+
+      const normSearch = hasSearch ? normalizeUniversalCatText(inResultsSearchQuery) : '';
+      const searchDigits = hasSearch ? inResultsSearchQuery.replace(/\D/g, '') : '';
+
+      let resultList = extractedPlaces;
+      if (filterOnlyPhone || filterOnlyOpen || hasCatFilter || hasSearch || hasLetter) {
+        resultList = extractedPlaces.filter(p => {
+          if (hasCatFilter && classifyExtractedPlaceCategoryKey(p) !== activeCategorySummaryFilter) {
+            return false;
+          }
+          if (filterOnlyPhone) {
+            const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
+            if (!hasPhone) return false;
+          }
+          if (filterOnlyOpen) {
+            const isOpen = p.isOpenNow !== false;
+            if (!isOpen) return false;
+          }
+          if (hasLetter) {
+            if (getNormalizedStartingLetter(p.name || '') !== resultsLetterFilter) return false;
+          }
+          if (hasSearch) {
+            const phonesStr = Array.isArray(p.phones) ? p.phones.join(' ') : String(p.phone || '');
+            const hay = normalizeUniversalCatText(`${p.name || ''} ${p.district || ''} ${p.city || ''} ${p.address || ''} ${p.category || ''} ${phonesStr}`);
+            const textMatch = normSearch && hay.includes(normSearch);
+            const phoneMatch = searchDigits.length >= 3 && phonesStr.replace(/\D/g, '').includes(searchDigits);
+            if (!textMatch && !phoneMatch) return false;
+          }
+          return true;
+        });
       }
-      return extractedPlaces.filter(p => {
-        if (hasCatFilter && classifyExtractedPlaceCategoryKey(p) !== activeCategorySummaryFilter) {
-          return false;
-        }
-        if (filterOnlyPhone) {
-          const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
-          if (!hasPhone) return false;
-        }
-        if (filterOnlyOpen) {
-          const isOpen = p.isOpenNow !== false;
-          if (!isOpen) return false;
-        }
-        return true;
-      });
+
+      if (hasSort && resultList.length > 1) {
+        const locale = (resultsSortMode.endsWith('_ar'))
+          ? 'ar'
+          : (resultsSortMode.endsWith('_en') ? 'en' : detectPredominantResultsLocale(resultList));
+        const desc = resultsSortMode.includes('_desc_');
+        const collator = locale === 'ar' ? arAlphaCollator : enAlphaCollator;
+        resultList = [...resultList].sort((a, b) => {
+          const ka = normalizeAlphaSortKey(a?.name || '');
+          const kb = normalizeAlphaSortKey(b?.name || '');
+          const cmp = collator ? collator.compare(ka, kb) : ka.localeCompare(kb, locale);
+          return desc ? -cmp : cmp;
+        });
+      }
+
+      updateInResultsFilterCountBadge(resultList.length);
+      return resultList;
     }
 
     function initDelegatedResultsCardListeners() {

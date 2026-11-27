@@ -199,14 +199,20 @@
       font-family: 'Cairo', system-ui, -apple-system, sans-serif;
       -webkit-tap-highlight-color: transparent;
       -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
     }
     html, body {
       -webkit-overflow-scrolling: touch;
+      user-select: none;
+      -webkit-user-select: none;
     }
-    input, textarea, select, .font-num {
+    input, textarea, select {
+      color-scheme: dark;
+    }
+    input, textarea, [contenteditable="true"], [data-phone-display="1"], .allow-select {
       user-select: text;
       -webkit-user-select: text;
-      color-scheme: dark;
     }
     input:-webkit-autofill,
     input:-webkit-autofill:hover,

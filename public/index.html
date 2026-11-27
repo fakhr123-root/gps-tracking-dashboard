@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v31_zero_omission_adaptive_grid';
+      var CURRENT_APP_VER = 'v32_sync_live_status_bar';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -6484,12 +6484,20 @@
             applyDirectProgressPercent(pct);
             if (statusMessage && !isSearchDoneHandled) {
               const splitSuffix = quickGridSubdivided > 0 ? ` • تقسيم تلقائي: ${quickGridSubdivided}` : '';
-              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} مربع${splitSuffix})...`;
+              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل للمدينة${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} نقطة${splitSuffix})...`;
+            }
+            const qtBadge = document.getElementById('quadtreeCellsBadge');
+            if (qtBadge && quickGridSubdivided > 0) {
+              qtBadge.classList.remove('hidden');
+              qtBadge.innerText = `🔲 الخلايا: ${quickGridCompleted} / ${quickGridTotal} (تفرع: ${quickGridSubdivided})`;
+            }
+            // Immediately flush newly discovered places & live counters (المواقع، الأرقام، Google، OSM، صافي بدون تكرار) after EVERY single cell resolves
+            if (typeof flushBufferedUiSync === 'function' && !isSearchDoneHandled) {
+              flushBufferedUiSync(false);
+            } else if (typeof updateStats === 'function' && !isSearchDoneHandled) {
+              updateStats();
             }
           }));
-          if (typeof flushBufferedUiSync === 'function' && !isSearchDoneHandled) {
-            flushBufferedUiSync(false);
-          }
         }
 
         quickGridActive = false;
@@ -6502,6 +6510,10 @@
       currentEventSource.addEventListener('status', (event) => {
         if (isLoginModalVisible()) return;
         const data = JSON.parse(event.data);
+        // Never let primary single-point completion overwrite the active city-wide grid headline while grid cells are still running
+        if (quickGridActive && quickGridStarted && (data.completed || /اكتمال|لم يتم العثور/i.test(String(data.message || '')))) {
+          return;
+        }
         statusMessage.innerText = formatModeAwareStatusBanner(data.message);
       });
 
@@ -6568,7 +6580,11 @@
 
         const strictNetCount = extractedPlaces.length;
         const isDoneSignal = Boolean(data.type === 'done' || data.completed === true || data.percent === 100 || (typeof data.pendingCells === 'number' && data.pendingCells === 0 && typeof data.activeWorkers === 'number' && data.activeWorkers === 0));
-        if (isDoneSignal) {
+        if (quickGridActive) {
+          // While full-city Quick Search grid is running, percentage is driven strictly by completedCells / totalScheduledCells (never premature 100%)
+          const gridPct = quickGridStarted ? Math.min(98, Math.round((quickGridCompleted / Math.max(1, quickGridTotal)) * 96)) : Math.min(maxDisplayedProgressPercent, 8);
+          if (gridPct > maxDisplayedProgressPercent) applyDirectProgressPercent(gridPct);
+        } else if (isDoneSignal) {
           applyDirectProgressPercent(100);
         } else {
           let computedPercent = null;
@@ -6606,10 +6622,12 @@
       }
 
       function scheduleThrottledProgressUi(data) {
-        if (data && (data.completed === true || data.type === 'done' || data.percent === 100)) {
-          applyDirectProgressPercent(100);
-        } else if (data && typeof data.percent === 'number' && isFinite(data.percent) && data.percent > 0) {
-          applyDirectProgressPercent(Math.min(data.percent, 99));
+        if (!quickGridActive) {
+          if (data && (data.completed === true || data.type === 'done' || data.percent === 100)) {
+            applyDirectProgressPercent(100);
+          } else if (data && typeof data.percent === 'number' && isFinite(data.percent) && data.percent > 0) {
+            applyDirectProgressPercent(Math.min(data.percent, 99));
+          }
         }
         pendingProgressData = Object.assign({}, pendingProgressData || {}, data);
         const now = Date.now();
@@ -6794,7 +6812,7 @@
           } else if (data.type === 'places_batch' && Array.isArray(data.places)) {
             enqueueBackgroundPlacesChunk(data.places);
           } else if (data.type === 'progress') {
-            if (typeof data.percent === 'number' && data.percent > 0) {
+            if (!quickGridActive && typeof data.percent === 'number' && data.percent > 0) {
               applyDirectProgressPercent(data.percent);
             }
             scheduleThrottledProgressUi(data);

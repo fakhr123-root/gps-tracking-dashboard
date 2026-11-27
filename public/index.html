@@ -628,7 +628,12 @@
       border: 1px solid rgba(16, 185, 129, 0.45) !important;
       box-shadow: 0 12px 28px rgba(2, 6, 23, 0.62), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
       cursor: pointer;
-      transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+      transition: top 0.22s ease, opacity 0.2s ease, transform 0.2s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+    }
+    .smart-clickable-toast.smart-toast-dismissing {
+      opacity: 0;
+      transform: translate(-50%, -10px) !important;
+      pointer-events: none;
     }
     .smart-clickable-toast:hover {
       border-color: #10b981 !important;
@@ -641,6 +646,12 @@
     .smart-clickable-toast.is-warning:hover {
       border-color: #f59e0b !important;
       box-shadow: 0 14px 32px rgba(245, 158, 11, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+    }
+    @media (max-width: 768px) {
+      .smart-clickable-toast {
+        width: calc(100vw - 24px);
+        max-width: 460px;
+      }
     }
     @keyframes smartNavPulseEmerald {
       0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.65); }
@@ -1489,7 +1500,7 @@
     tabindex="0"
     onclick="handleSmartNotificationClick(event)"
     onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();handleSmartNotificationClick(event);}"
-    style="z-index: 100002; top: 76px;"
+    style="z-index: 100002; top: 84px;"
     class="hidden smart-clickable-toast fixed left-1/2 -translate-x-1/2 px-4 py-3 rounded-xl text-[#f1f5f9] text-xs sm:text-sm font-semibold flex items-center gap-3 max-w-[94vw] min-h-[48px]"
   >
     <span id="scanCompleteToastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>
@@ -1502,7 +1513,7 @@
       type="button"
       onclick="event.stopPropagation(); dismissSmartNotificationToast();"
       aria-label="إغلاق الإشعار"
-      class="w-8 h-8 rounded-lg bg-[#0b1320]/80 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold flex items-center justify-center shrink-0 cursor-pointer transition"
+      class="w-11 h-11 min-w-[44px] min-h-[44px] rounded-lg bg-[#0b1320]/80 hover:bg-slate-800 text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center shrink-0 cursor-pointer transition"
     >✕</button>
   </div>
 
@@ -4989,7 +5000,7 @@
     let strictQueryRelevanceEnabled = true;
 
     const STRICT_SECTOR_SYNONYM_REGEX = {
-      groceries: /(بقال|بقاله|بقالات|تموين|تموينات|سوبر\s*ماركت|سوبرماركت|ميني\s*ماركت|هايبر|مواد\s*غذائ|غذائيات|دكان|كشك|خضار|فواكه|\bgrocery\b|\bsupermarket\b|\bminimart\b|\bconvenience\b|\bfood\s*store\b)/i,
+      groceries: /(بقال|بقاله|بقالات|تموين|تموينات|سوبر\s*ماركت|سوبرماركت|ميني\s*ماركت|هايبر|ماركت|مواد\s*غذائ|غذائيات|غذائيه|استهلاك|ارزاق|دكان|كشك|خضار|فواكه|عطاره|بهارات|البان|مكسرات|عسل|تمور|متجر|\bgrocery\b|\bgroceries\b|\bsupermarket\b|\bminimart\b|\bconvenience(?:_store)?\b|\bgrocery_or_supermarket\b|\bgeneral_store\b|\bfood\s*store\b|\bmart\b|\bmarket\b)/i,
       pharmacies: /(صيدل|صيدليه|صيدليات|\bpharmacy\b|\bdrugstore\b|\bchemist\b)/i,
       pharma_companies: /(شركه\s*ادويه|شركات\s*ادويه|مستودع\s*ادويه|مستودعات\s*ادويه|مخازن\s*ادويه|توزيع\s*ادويه|للتجاره\s*الدوائيه|فارما|مستلزمات\s*طبيه|\bpharma\b|\bpharmaceutical\b)/i,
       hospitals: /(مستشفي|مستشفيات|عياد|مجمع\s*طبي|مركز\s*طبي|مستوصف|مختبر|اشعه|اسنان|دكتور|طبيب|\bhospital\b|\bclinic\b|\bmedical\b|\bdentist\b)/i,
@@ -5045,7 +5056,7 @@
       const typesStr = Array.isArray(place?.types) ? place.types.join(' ') : '';
       const tagsStr = place?.tags && typeof place.tags === 'object' ? Object.values(place.tags).join(' ') : String(place?.tags || '');
       const rawCats = normalizeUniversalCatText(`${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''} ${typesStr} ${tagsStr}`);
-      const rawAddr = normalizeUniversalCatText(`${place?.address || ''} ${place?.district || ''}`);
+      const rawAddr = normalizeUniversalCatText(`${place?.address || ''} ${place?.district || ''} ${place?.city || ''}`);
       const rawPlace = `${rawName} ${rawCats}`.trim();
       const rawAll = `${rawPlace} ${rawAddr}`.trim();
       if (!rawPlace && !rawAddr) return { relevant: false, score: 0 };
@@ -5627,6 +5638,19 @@
           }
           return true;
         });
+
+        // Safe fallback: if strict query relevance alone wiped out all extracted places despite non-empty candidates, retain closest candidates
+        if (resultList.length === 0 && extractedPlaces.length > 0 && applyStrictRelevance && !hasCatFilter && !hasSubLabelFilter && !filterOnlyPhone && !filterOnlyOpen && !hasLetter && !hasSearch) {
+          const warnKey = `${activeSearchQ}_${extractedPlaces.length}`;
+          if (window.__lastStrictDisplayFallbackWarnKey !== warnKey) {
+            window.__lastStrictDisplayFallbackWarnKey = warnKey;
+            console.warn('[SearchPipeline] Strict display filter yielded 0 results despite non-empty extracted places; retaining closest candidates:', {
+              query: activeSearchQ,
+              extractedCount: extractedPlaces.length
+            });
+          }
+          resultList = extractedPlaces;
+        }
       }
 
       if ((hasPrioritySort || hasSort) && resultList.length > 1) {
@@ -6039,7 +6063,7 @@
       const quadBadgeEl = document.getElementById('quadtreeCellsBadge');
       if (quadBadgeEl) quadBadgeEl.classList.toggle('hidden', isQuickSearchMode);
       if (isQuickSearchMode) {
-        params.set('radius', String(Math.min(Number(selectedRadius) || 8, 8)));
+        params.set('radius', String(Math.min(Math.max(Number(selectedRadius) || 10, 5), 12)));
         params.delete('scopeMode');
         params.delete('bbox');
       }
@@ -6103,7 +6127,7 @@
             return;
           }
           const elapsedMs = Date.now() - quickStartMs;
-          const strictCount = getActiveFilteredPlaces().length;
+          const strictCount = Math.max(extractedPlaces.length, getActiveFilteredPlaces().length);
           // Complete quickly once real results arrive (>=60 after 4s or >=1 after 12s), while allowing up to 45s if server is waking up
           if ((strictCount >= 60 && elapsedMs >= 4000) || (strictCount >= 1 && elapsedMs >= 12000) || elapsedMs >= 45000) {
             clearInterval(window.__quickSearchFastCutoffTimer);
@@ -6262,6 +6286,22 @@
           // 1. Drain any remaining buffered background batches synchronously so extractedPlaces has 100% of results
           if (typeof drainAllBackgroundPlacesSynchronously === 'function') {
             drainAllBackgroundPlacesSynchronously();
+          }
+          // 1b. Safe fallback: if strict/domain pre-filtering yielded 0 results despite non-empty raw candidates, restore closest candidates
+          if (extractedPlaces.length === 0 && Array.isArray(window.__rawSearchCandidatesBuffer) && window.__rawSearchCandidatesBuffer.length > 0) {
+            console.warn('[SearchPipeline] Zero results after strict filtering despite non-empty raw candidates; activating safe fallback:', {
+              query: query || lastActiveQuery || '',
+              rawCandidates: window.__rawSearchCandidatesBuffer.length,
+              stats: window.__searchPipelineDropStats || {}
+            });
+            const fallbackList = window.__rawSearchCandidatesBuffer.slice(0, 250);
+            for (let fi = 0; fi < fallbackList.length; fi++) {
+              try {
+                const cand = fallbackList[fi];
+                if (typeof cand.distanceKm !== 'number') resolvePlaceDistanceFromUser(cand);
+                upsertOrMergeDeduplicatedPlace(cand, { bypassStrictRelevance: true });
+              } catch (_) {}
+            }
           }
           // Sort final extracted results strictly by proximity to user's location (closest first)
           if (extractedPlaces.length > 1) {
@@ -6601,29 +6641,22 @@
 
     function isClientGhostOrSpamPlace(place) {
       if (!place || typeof place !== 'object') return true;
+      // Normalize alternate coordinate fields if present
+      if (place.lat == null && place.latitude != null) place.lat = place.latitude;
+      if (place.lng == null && place.longitude != null) place.lng = place.longitude;
       const pLat = Number(place.lat);
       const pLng = Number(place.lng);
       if (!Number.isFinite(pLat) || !Number.isFinite(pLng) || (pLat === 0 && pLng === 0)) return true;
 
-      const cleanName = String(place.name || '').trim();
+      const cleanName = String(place.name || place.title || '').trim();
+      if (!place.name && cleanName) place.name = cleanName;
       const norm = normalizeClientPoiName(cleanName);
       if (!norm || norm.length < 2) return true;
       if (/^(unknown|unnamed|null|undefined|test|fake|ghost|بدون اسم|غير معروف|موقع غير مسمى|\d+)$/i.test(norm)) {
         return true;
       }
 
-      const hasPhone = (Array.isArray(place.phones) && place.phones.length > 0) ||
-        (place.phone && place.phone !== 'غير متوفر' && String(place.phone).trim().length >= 5);
-      const hasWebsite = Boolean(place.website && place.website !== 'غير متوفر' && String(place.website).trim().length > 4);
-      const parsedRating = parseFloat(String(place.rating || '').replace(/[^\d.]/g, ''));
-      const hasReviewsOrRating = Number(place.reviews || place.reviewsCount || 0) > 0 || (Number.isFinite(parsedRating) && parsedRating > 0);
-      const hasMeaningfulCategory = Boolean(place.category && place.category !== 'غير مصنف' && place.category !== 'أخرى');
-      const hasMeaningfulAddress = Boolean(place.address && place.address !== 'غير متوفر' && String(place.address).trim().length > 3);
-      const hasLocationMeta = Boolean((place.city && String(place.city).trim().length > 1) || (place.district && String(place.district).trim().length > 1));
-
-      if (!hasPhone && !hasWebsite && !hasReviewsOrRating && !hasMeaningfulCategory && !hasMeaningfulAddress && !hasLocationMeta) {
-        return true;
-      }
+      // Valid named place with valid coordinates is never dropped as ghost solely due to missing optional fields
       return false;
     }
 
@@ -6866,10 +6899,28 @@
       return isRelevantToQuery(place, getActiveSearchQueryForRelevance());
     }
 
-    function upsertOrMergeDeduplicatedPlace(place) {
-      if (isClientGhostOrSpamPlace(place)) return null;
+    function upsertOrMergeDeduplicatedPlace(place, opts = {}) {
+      if (!window.__searchPipelineDropStats) {
+        window.__searchPipelineDropStats = { received: 0, ghost: 0, relevance: 0, duplicate: 0 };
+      }
+      if (!opts.bypassStrictRelevance) {
+        window.__searchPipelineDropStats.received++;
+      }
+      if (isClientGhostOrSpamPlace(place)) {
+        if (!opts.bypassStrictRelevance) window.__searchPipelineDropStats.ghost++;
+        return null;
+      }
+      if (!opts.bypassStrictRelevance) {
+        if (!Array.isArray(window.__rawSearchCandidatesBuffer)) window.__rawSearchCandidatesBuffer = [];
+        if (window.__rawSearchCandidatesBuffer.length < 500) {
+          window.__rawSearchCandidatesBuffer.push(place);
+        }
+      }
       // Strict Pre-Insertion Category & Keyword Relevance Filter (discards unrelated industries when a specific search is active)
-      if (!isPlaceStrictlyRelevantToActiveQuery(place)) return null;
+      if (!opts.bypassStrictRelevance && !isPlaceStrictlyRelevantToActiveQuery(place)) {
+        window.__searchPipelineDropStats.relevance++;
+        return null;
+      }
 
       const DUPLICATE_MAX_DISTANCE_METERS = 50;
       const DUPLICATE_MIN_NAME_SIMILARITY = 0.80;
@@ -7315,16 +7366,44 @@
     }
 
     let scanCompleteToastTimer = null;
+    let scanCompleteToastHideAnimTimer = null;
     let activeSmartToastTarget = 'results';
     let activeSmartToastVariant = 'success';
 
+    function computeSafeToastTopPx() {
+      const topHeaderEl = document.getElementById('appTopHeader');
+      const isMobile = window.innerWidth <= 768;
+      if (!topHeaderEl) return isMobile ? 96 : 84;
+      if (topHeaderEl.classList.contains('header-auto-hidden')) {
+        return 18;
+      }
+      const rect = topHeaderEl.getBoundingClientRect();
+      const headerHeight = topHeaderEl.offsetHeight || 0;
+      const visibleBottom = Math.max(rect && rect.bottom > 0 ? Math.round(rect.bottom) : 0, headerHeight);
+      const minSafe = isMobile ? 96 : 84;
+      return Math.max(minSafe, visibleBottom + 14);
+    }
+
+    function repositionSmartToastIfVisible() {
+      const toast = document.getElementById('scanCompleteCelebrationToast');
+      if (!toast || toast.classList.contains('hidden')) return;
+      toast.style.top = `${computeSafeToastTopPx()}px`;
+    }
+
     function dismissSmartNotificationToast() {
       const toast = document.getElementById('scanCompleteCelebrationToast');
-      if (toast) toast.classList.add('hidden');
       if (scanCompleteToastTimer) {
         clearTimeout(scanCompleteToastTimer);
         scanCompleteToastTimer = null;
       }
+      if (!toast || toast.classList.contains('hidden')) return;
+      toast.classList.add('smart-toast-dismissing');
+      if (scanCompleteToastHideAnimTimer) clearTimeout(scanCompleteToastHideAnimTimer);
+      scanCompleteToastHideAnimTimer = setTimeout(() => {
+        scanCompleteToastHideAnimTimer = null;
+        toast.classList.add('hidden');
+        toast.classList.remove('smart-toast-dismissing');
+      }, 210);
     }
 
     function pulseHighlightElement(el, isWarn = false) {
@@ -7435,22 +7514,19 @@
       }
 
       toast.classList.toggle('is-warning', variant === 'warning');
-      // Position toast cleanly below the sticky top header so it never overlaps navigation tabs
-      const topHeaderEl = document.getElementById('appTopHeader');
-      let safeTopPx = 76;
-      if (topHeaderEl && !topHeaderEl.classList.contains('header-auto-hidden')) {
-        const rect = topHeaderEl.getBoundingClientRect();
-        if (rect && rect.bottom > 0 && rect.bottom < 220) {
-          safeTopPx = Math.max(76, Math.round(rect.bottom) + 10);
-        }
+      toast.classList.remove('smart-toast-dismissing');
+      if (scanCompleteToastHideAnimTimer) {
+        clearTimeout(scanCompleteToastHideAnimTimer);
+        scanCompleteToastHideAnimTimer = null;
       }
-      toast.style.top = `${safeTopPx}px`;
+      // Position toast cleanly below the sticky top header & navigation tabs on desktop and mobile
+      toast.style.top = `${computeSafeToastTopPx()}px`;
       toast.classList.remove('hidden');
 
       if (scanCompleteToastTimer) clearTimeout(scanCompleteToastTimer);
       scanCompleteToastTimer = setTimeout(() => {
         scanCompleteToastTimer = null;
-        toast.classList.add('hidden');
+        dismissSmartNotificationToast();
       }, opts.durationMs || 8000);
     }
     window.showSmartNotification = showSmartNotification;
@@ -8333,11 +8409,20 @@
       if (resetArray) {
         if (typeof cancelAsyncPlacesRestore === 'function') cancelAsyncPlacesRestore();
         extractedPlaces = [];
+        window.__rawSearchCandidatesBuffer = [];
+        window.__searchPipelineDropStats = { received: 0, ghost: 0, relevance: 0, duplicate: 0 };
+        window.__lastStrictDisplayFallbackWarnKey = '';
         liveExtractedPhonesTotal = 0;
         uniqueExtractedPhonesSet.clear();
         resetAutoPhoneFetchQueue();
         pendingPlacesBatch = [];
         activeCategorySummaryFilter = 'all';
+        inResultsSearchQuery = '';
+        resultsLetterFilter = 'all';
+        filterOnlyPhone = false;
+        filterOnlyOpen = false;
+        const inResSearchInput = document.getElementById('inResultsSearchInput');
+        if (inResSearchInput) inResSearchInput.value = '';
         if (typeof resetClientSpatialDedupeIndex === 'function') {
           resetClientSpatialDedupeIndex();
         }
@@ -11308,6 +11393,7 @@
         if (currentY <= 60 || isAnyHeaderMenuOpen()) {
           header.classList.remove('header-auto-hidden');
           lastScrollY = currentY;
+          if (typeof repositionSmartToastIfVisible === 'function') repositionSmartToastIfVisible();
           return;
         }
 
@@ -11315,9 +11401,11 @@
         if (delta > 12) {
           header.classList.add('header-auto-hidden');
           lastScrollY = currentY;
+          if (typeof repositionSmartToastIfVisible === 'function') repositionSmartToastIfVisible();
         } else if (delta < -6) {
           header.classList.remove('header-auto-hidden');
           lastScrollY = currentY;
+          if (typeof repositionSmartToastIfVisible === 'function') repositionSmartToastIfVisible();
         }
       }
 
@@ -11326,6 +11414,9 @@
           scrollTicking = true;
           requestAnimationFrame(onScrollFrame);
         }
+      }, { passive: true });
+      window.addEventListener('resize', () => {
+        if (typeof repositionSmartToastIfVisible === 'function') repositionSmartToastIfVisible();
       }, { passive: true });
     })();
 

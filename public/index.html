@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v29_quick_36pt_city_grid';
+      var CURRENT_APP_VER = 'v30_fix_quickgrid_tdz';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -5943,6 +5943,25 @@
       if (l) l.innerText = `${selectedRadius} كم (المنطقة كاملة)`;
     }
 
+    let quickGridAborted = false;
+    window.__quickGridRunToken = 0;
+
+    function closeAllQuickSearchSectorStreams() {
+      quickGridAborted = true;
+      window.__quickGridRunToken = (window.__quickGridRunToken || 0) + 1;
+      if (window.__activeQuickSectorStreams && window.__activeQuickSectorStreams.size > 0) {
+        window.__activeQuickSectorStreams.forEach((es) => {
+          try { es.close(); } catch (_) {}
+        });
+        window.__activeQuickSectorStreams.clear();
+      }
+      if (Array.isArray(window.__quickSearchSectorTimers)) {
+        window.__quickSearchSectorTimers.forEach((t) => clearTimeout(t));
+        window.__quickSearchSectorTimers = [];
+      }
+    }
+    window.closeAllQuickSearchSectorStreams = closeAllQuickSearchSectorStreams;
+
     function handleSearch(e, opts = {}) {
       if (e && e.preventDefault) e.preventDefault();
 
@@ -6175,28 +6194,14 @@
         !drawnCircleState &&
         (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
       );
+      quickGridAborted = false;
+      const myQuickGridToken = window.__quickGridRunToken || 0;
+      const isThisQuickGridAborted = () => quickGridAborted || (window.__quickGridRunToken || 0) !== myQuickGridToken;
       let quickGridStarted = false;
       let quickGridActive = canRunQuickCityGrid;
       let quickGridCompleted = 0;
       let quickGridTotal = 36;
       let quickPrimaryStreamDone = false;
-      let quickGridAborted = false;
-
-      function closeAllQuickSearchSectorStreams() {
-        quickGridAborted = true;
-        quickGridActive = false;
-        if (window.__activeQuickSectorStreams && window.__activeQuickSectorStreams.size > 0) {
-          window.__activeQuickSectorStreams.forEach((es) => {
-            try { es.close(); } catch (_) {}
-          });
-          window.__activeQuickSectorStreams.clear();
-        }
-        if (Array.isArray(window.__quickSearchSectorTimers)) {
-          window.__quickSearchSectorTimers.forEach((t) => clearTimeout(t));
-          window.__quickSearchSectorTimers = [];
-        }
-      }
-      window.closeAllQuickSearchSectorStreams = closeAllQuickSearchSectorStreams;
 
       function buildCityWideQuickGrid(centerLat, centerLng, spanKm = 18) {
         const lat = Number(centerLat);
@@ -6225,7 +6230,7 @@
 
       function fetchQuickGridCellPromise(cell) {
         return new Promise((resolve) => {
-          if (quickGridAborted || isSearchDoneHandled) return resolve(0);
+          if (isThisQuickGridAborted() || isSearchDoneHandled) return resolve(0);
           const cellParams = new URLSearchParams(params.toString());
           // Pin every grid request explicitly to this cell's own coordinates (override any single user GPS or neighborhood pin)
           cellParams.set('lat', String(cell.lat));
@@ -6270,7 +6275,7 @@
             window.__activeQuickSectorStreams.add(es);
 
             const handleIncomingCellItems = (items) => {
-              if (!Array.isArray(items) || items.length === 0 || quickGridAborted || isSearchDoneHandled) return;
+              if (!Array.isArray(items) || items.length === 0 || isThisQuickGridAborted() || isSearchDoneHandled) return;
               if (isScanPaused) {
                 pausedBufferedPlaces.push(...items);
                 return;
@@ -6321,7 +6326,7 @@
       }
 
       async function runQuickCityGridBatches(centerLat, centerLng) {
-        if (quickGridStarted || quickGridAborted || isSearchDoneHandled) return;
+        if (quickGridStarted || isThisQuickGridAborted() || isSearchDoneHandled) return;
         quickGridStarted = true;
         quickGridActive = true;
         if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
@@ -6334,11 +6339,11 @@
         const BATCH_SIZE = 5;
 
         for (let i = 0; i < cells.length; i += BATCH_SIZE) {
-          if (quickGridAborted || isSearchDoneHandled) break;
-          while (isScanPaused && !quickGridAborted && !isSearchDoneHandled) {
+          if (isThisQuickGridAborted() || isSearchDoneHandled) break;
+          while (isScanPaused && !isThisQuickGridAborted() && !isSearchDoneHandled) {
             await new Promise((r) => setTimeout(r, 400));
           }
-          if (quickGridAborted || isSearchDoneHandled) break;
+          if (isThisQuickGridAborted() || isSearchDoneHandled) break;
           const batch = cells.slice(i, i + BATCH_SIZE);
           await Promise.all(batch.map(async (cell) => {
             await fetchQuickGridCellPromise(cell);
@@ -6355,7 +6360,7 @@
         }
 
         quickGridActive = false;
-        if (!quickGridAborted && !isSearchDoneHandled) {
+        if (!isThisQuickGridAborted() && !isSearchDoneHandled) {
           closeAllQuickSearchSectorStreams();
           handleSearchDoneEvent();
         }

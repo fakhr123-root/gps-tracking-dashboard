@@ -957,8 +957,163 @@
       border-top: 1px solid rgba(148, 163, 184, 0.14);
     }
 
+    /* ==================== CLEAN LAPTOP & MOBILE REDESIGN (3-COLOR OFFICIAL PALETTE) ==================== */
+    .top-section-tabs {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 12px;
+      background: #0b1320;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+    }
+    .top-section-tab-btn {
+      padding: 7px 14px !important;
+      border-radius: 8px !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      color: #94a3b8 !important;
+      background: transparent !important;
+      border: 1px solid transparent !important;
+      box-shadow: none !important;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    }
+    .top-section-tab-btn:hover {
+      color: #f1f5f9 !important;
+      background: rgba(148, 163, 184, 0.08) !important;
+    }
+    .top-section-tab-btn.active {
+      background: #10b981 !important;
+      color: #ffffff !important;
+      border-color: rgba(16, 185, 129, 0.45) !important;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25) !important;
+    }
+
+    .results-toolbar-card {
+      background: #131f33;
+      border: 1px solid rgba(148, 163, 184, 0.16);
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 14px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    /* Comfortable Laptop/Desktop Table Typography & Spacing */
+    #desktopResultsTableWrapper {
+      background: #131f33 !important;
+      border: 1px solid rgba(148, 163, 184, 0.16) !important;
+      box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
+      border-radius: 14px;
+    }
+    #desktopResultsTableWrapper table {
+      font-size: 13.5px;
+      line-height: 1.5;
+    }
+    #desktopResultsTableWrapper thead {
+      background: #0b1320 !important;
+      color: #94a3b8 !important;
+      font-size: 12.5px;
+    }
+    #desktopResultsTableWrapper th,
+    #desktopResultsTableWrapper td {
+      padding: 12px 14px !important;
+      vertical-align: middle;
+    }
+    #desktopResultsTableWrapper tbody tr {
+      border-color: rgba(148, 163, 184, 0.12) !important;
+      transition: background-color 0.14s ease;
+    }
+    #desktopResultsTableWrapper tbody tr:hover {
+      background-color: rgba(16, 185, 129, 0.08) !important;
+    }
+
     /* Mobile-First Responsive Layout Optimization (<= 768px) */
     @media (max-width: 768px) {
+      .top-section-tabs {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .top-section-tab-btn {
+        flex: 1 1 0;
+        justify-content: center;
+        min-height: 40px;
+        font-size: 12.5px !important;
+        padding: 8px 10px !important;
+      }
+      .results-toolbar-card {
+        padding: 12px !important;
+        gap: 10px !important;
+      }
+      .results-toolbar-card button {
+        min-height: 40px;
+        padding: 8px 12px !important;
+      }
+      #searchForm .cat-pill {
+        min-height: 38px;
+        display: inline-flex;
+        align-items: center;
+      }
+      /* Stack Table Rows into Readable Mobile Cards (zero cramped horizontal table scrolling!) */
+      #desktopResultsTableWrapper {
+        overflow-x: visible !important;
+        max-height: none !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+      }
+      #desktopResultsTableWrapper table,
+      #desktopResultsTableWrapper tbody {
+        display: block !important;
+        width: 100% !important;
+      }
+      #desktopResultsTableWrapper thead {
+        display: none !important;
+      }
+      #desktopResultsTableWrapper tbody tr {
+        display: flex !important;
+        flex-direction: column;
+        gap: 6px;
+        padding: 12px 14px !important;
+        margin-bottom: 10px;
+        background: #131f33 !important;
+        border: 1px solid rgba(148, 163, 184, 0.16) !important;
+        border-radius: 12px;
+        box-shadow: 0 8px 18px rgba(2, 6, 23, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      #desktopResultsTableWrapper tbody td {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 2px 0 !important;
+        border: none !important;
+        font-size: 12.5px !important;
+        text-align: right;
+        word-break: break-word;
+      }
+      #desktopResultsTableWrapper tbody td:first-child {
+        display: none !important;
+      }
+      #desktopResultsTableWrapper tbody td:nth-child(2) {
+        font-size: 14px !important;
+        font-weight: 800;
+        color: #f1f5f9;
+        padding-bottom: 4px !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12) !important;
+      }
+      #desktopResultsTableWrapper tbody td a {
+        min-height: 36px;
+        padding: 6px 12px !important;
+      }
       .app-main-content {
         padding: 16px !important;
         gap: 12px !important;
@@ -1659,9 +1814,9 @@
     <!-- Main Workspace Area -->
     <main class="app-main-content max-w-[1320px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 flex flex-col gap-5">
 
-      <!-- CLEAN TOP APP BAR -->
-      <header class="pb-4 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-        <!-- Right: Sidebar Toggle Button + Brand & Active View Title -->
+      <!-- CLEAN TOP APP BAR (Title + Quick Section Tabs + Clean Counters + Utility Controls) -->
+      <header class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+        <!-- Right: Sidebar Toggle Button + Brand Title -->
         <div class="flex items-center gap-3">
           <button
             type="button"
@@ -1669,7 +1824,7 @@
             onclick="toggleMobileSidebarDrawer()"
             aria-label="فتح القائمة الجانبية"
             title="تصغير / فتح القائمة الجانبية"
-            class="mobile-hamburger-btn w-9 h-9 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white items-center justify-center text-sm cursor-pointer transition"
+            class="mobile-hamburger-btn w-10 h-10 rounded-xl bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white items-center justify-center text-sm cursor-pointer transition"
           >
             <i class="fas fa-bars"></i>
           </button>
@@ -1693,34 +1848,49 @@
           </div>
         </div>
 
-        <!-- Center: Minimal Live Stats -->
-        <div class="flex items-center gap-4 text-xs text-slate-400">
-          <div onclick="switchAppView('view-results')" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لعرض النتائج والجدول">
-            <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span>المواقع:</span>
-            <strong id="statTotal" class="text-white font-num font-bold">0</strong>
+        <!-- Center: Quick Section Tabs (Search / Results / Map) -->
+        <nav class="top-section-tabs" aria-label="التنقل السريع بين الأقسام">
+          <button type="button" id="topTab_view-search" onclick="switchAppView('view-search')" class="top-section-tab-btn active">
+            <i data-lucide="search" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>البحث</span>
+          </button>
+          <button type="button" id="topTab_view-results" onclick="switchAppView('view-results')" class="top-section-tab-btn">
+            <i data-lucide="table-2" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>النتائج</span>
+          </button>
+          <button type="button" id="topTab_view-map" onclick="switchAppView('view-map')" class="top-section-tab-btn">
+            <i data-lucide="map" class="w-3.5 h-3.5 shrink-0"></i>
+            <span>الخريطة</span>
+          </button>
+        </nav>
+
+        <!-- Left: Clean Counters + Subtle Utility Controls -->
+        <div class="flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-[#0b1320] border border-slate-400/15 text-xs text-slate-300">
+            <div onclick="switchAppView('view-results')" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لعرض النتائج والجدول">
+              <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>المواقع:</span>
+              <strong id="statTotal" class="text-white font-num font-bold">0</strong>
+            </div>
+
+            <span class="text-slate-600">|</span>
+
+            <div onclick="copyAllPhones()" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لنسخ جميع الأرقام">
+              <i data-lucide="phone" class="w-3.5 h-3.5 text-emerald-400"></i>
+              <span>الأرقام:</span>
+              <strong id="statPhones" class="text-white font-num font-bold">0</strong>
+            </div>
           </div>
 
-          <span class="text-slate-700">|</span>
-
-          <div onclick="copyAllPhones()" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لنسخ جميع الأرقام">
-            <i data-lucide="phone" class="w-3.5 h-3.5 text-slate-400"></i>
-            <span>الأرقام:</span>
-            <strong id="statPhones" class="text-white font-num font-bold">0</strong>
-          </div>
-        </div>
-
-        <!-- Left: Subtle Secondary Controls -->
-        <div class="flex items-center gap-1.5">
-          <button type="button" onclick="openUserSettingsModal()" title="إعدادات الحساب وكلمة السر والمستخرج" class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-slate-800/80 border border-slate-800 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-            <i data-lucide="settings" class="w-3.5 h-3.5 text-slate-400"></i>
+          <button type="button" onclick="openUserSettingsModal()" title="إعدادات الحساب وكلمة السر والمستخرج" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+            <i data-lucide="settings" class="w-3.5 h-3.5 text-emerald-400"></i>
             <span id="topBarAccountLabel">الإعدادات</span>
           </button>
-          <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" class="px-2.5 py-1.5 rounded-lg bg-transparent hover:bg-slate-800/80 text-slate-400 hover:text-white text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+          <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
             <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
             <span class="hidden sm:inline">تحديث</span>
           </button>
-          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" class="w-8 h-8 rounded-lg bg-transparent hover:bg-slate-800/80 text-slate-400 hover:text-white flex items-center justify-center transition cursor-pointer">
+          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" class="w-9 h-9 rounded-lg flex items-center justify-center transition cursor-pointer">
             <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
           </button>
         </div>
@@ -2102,42 +2272,44 @@
 
       <!-- ==================== VIEW 3: RESULTS & TABLE (#view-results) ==================== -->
       <section id="view-results" class="app-view-panel w-full space-y-4">
-        <div class="panel-back-bar">
-          <button type="button" onclick="navigateBack()" class="btn-back">← رجوع</button>
-        </div>
         <div id="resultsSectionAnchor" class="w-full space-y-4">
-          <!-- Results View Toolbar -->
-          <div class="studio-card rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-2">
-              <span class="text-sm font-bold text-white flex items-center gap-2 ml-2">
-                <i data-lucide="list-filter" class="w-4 h-4 text-slate-400"></i>
+          <!-- Clean Grouped Results & Export Toolbar (single clear Back action + primary Excel export) -->
+          <div class="results-toolbar-card">
+            <div class="flex flex-wrap items-center gap-2.5">
+              <span class="text-sm font-bold text-[#f1f5f9] flex items-center gap-2 ml-1">
+                <i data-lucide="list-filter" class="w-4 h-4 text-emerald-400"></i>
                 <span>النتائج والجدول</span>
               </span>
-              <button type="button" onclick="toggleResultsViewMode()" class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-700 text-xs font-medium text-slate-300 hover:text-white cursor-pointer transition">
-                تبديل: جدول / بطاقات
+              <button type="button" onclick="toggleResultsViewMode()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>جدول / بطاقات</span>
               </button>
-              <button type="button" onclick="switchAppView('view-map')" class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 hover:text-white cursor-pointer transition">
-                عرض على الخريطة
-              </button>
-              <button type="button" onclick="switchAppView('view-export')" class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-800 text-xs font-medium text-slate-300 hover:text-white cursor-pointer transition">
-                خيارات التصدير
+              <button type="button" onclick="switchAppView('view-map')" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>الخريطة</span>
               </button>
             </div>
 
-            <div class="flex flex-wrap items-center gap-2">
-              <button type="button" onclick="navigateBack()" class="btn-back" style="background: transparent; border: 1px solid #4ade80; color: #4ade80; padding: 5px 10px; border-radius: 5px; cursor: pointer; margin-right: 10px;">🔙 رجوع للبحث</button>
-              <button type="button" onclick="exportToExcel()" class="px-3.5 py-1.5 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-700 text-slate-200 hover:text-white text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition">
-                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <div class="flex flex-wrap items-center gap-2.5">
+              <button type="button" onclick="exportToExcel()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer transition">
+                <i data-lucide="file-spreadsheet" class="w-3.5 h-3.5"></i>
                 <span>تصدير Excel فوري</span>
               </button>
-              <button type="button" onclick="copyAllPhones()" class="px-3 py-1.5 rounded-lg bg-transparent hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-medium cursor-pointer transition">
-                نسخ الأرقام
+              <button type="button" onclick="copyAllPhones()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="copy" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>نسخ الأرقام</span>
+              </button>
+              <button type="button" onclick="switchAppView('view-export')" class="btn-secondary px-3.5 py-2 text-xs font-medium inline-flex items-center gap-1.5 cursor-pointer">
+                <span>خيارات التصدير</span>
+              </button>
+              <button type="button" onclick="navigateBack()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                <span>🔙 رجوع للبحث</span>
               </button>
             </div>
           </div>
 
           <!-- Live Category Breakdown & Interactive Filter Bar (#categorySummaryFilterBar) -->
-          <div id="categorySummaryFilterBar" class="hidden bg-[#111827] border border-slate-800 rounded-xl px-4 py-3 space-y-2">
+          <div id="categorySummaryFilterBar" class="hidden bg-[#131f33] border border-slate-400/20 rounded-xl px-4 py-3 space-y-2.5">
             <div class="flex items-center justify-between gap-2 text-xs">
               <span class="font-semibold text-slate-300">تصنيف النتائج المستخرجة (اضغط للفلترة):</span>
               <span id="activeCategoryFilterIndicator" class="text-[11px] font-medium text-emerald-400">المعروض: الكل</span>
@@ -2483,12 +2655,16 @@
       APP_VIEW_IDS.forEach(id => {
         const panel = document.getElementById(id);
         const navBtn = document.getElementById(`navBtn_${id}`);
+        const topTab = document.getElementById(`topTab_${id}`);
         const isActive = id === targetViewId;
         if (panel) {
           panel.classList.toggle('active-view', isActive);
         }
         if (navBtn) {
           navBtn.classList.toggle('active', isActive);
+        }
+        if (topTab) {
+          topTab.classList.toggle('active', isActive);
         }
       });
 

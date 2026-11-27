@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v27_unified_real_extraction';
+      var CURRENT_APP_VER = 'v28_fullcity_grid_and_strict_company_filter';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -5094,7 +5094,15 @@
 
       if (expectedCat) {
         const directRx = STRICT_SECTOR_SYNONYM_REGEX[expectedCat];
+        const hasNameDirectMatch = Boolean(directRx && directRx.test(rawName));
         const hasDirectMatch = Boolean(directRx && (directRx.test(rawPlace) || directRx.test(rawAddr)));
+
+        // Strict exclusion of generic commercial entities (e.g. "شركة سفن سيز التجارية") BEFORE fallback/echoed category checks:
+        // Unless searching for companies OR the place NAME itself explicitly confirms the queried activity/synonyms, exclude generic companies.
+        const GENERIC_COMMERCIAL_ENTITY_RX = /(?:^|\s)(شركه|شركات|مؤسسه|مؤسسات|مجموعه|القابضه|التجاريه|التجاري|للتجاره|للاستيراد|للتصدير|للمقاولات|الاستثماريه|للتطوير|جروب|قروب|مكتب)(?:$|\s)|\b(company|corp|corporation|trading|enterprise|group|holding|llc|ltd|inc)\b/i;
+        if (expectedCat !== 'companies' && expectedCat !== 'pharma_companies' && GENERIC_COMMERCIAL_ENTITY_RX.test(rawName) && !hasNameDirectMatch) {
+          return { relevant: false, score: 0 };
+        }
 
         // Separate corporate pharmaceutical companies from retail pharmacies while keeping drug depots aligned with pharmacies
         if (expectedCat === 'pharmacies' && /(شركه\s*ادويه|شركات\s*ادويه|للتجاره\s*الدوائيه|مستلزمات\s*طبيه)/i.test(rawPlace)) {
@@ -5109,12 +5117,6 @@
         const placeCat = classifyExtractedPlaceCategoryKey(place);
         if (placeCat === expectedCat) return { relevant: true, score: 2 };
 
-        // Reject clearly unrelated commercial entities (e.g. "شركة سفن سيز التجارية", generic trading/holding companies, offices, government, schools)
-        // Note: JS \b does not work on Arabic letters, so use explicit Arabic-safe word boundaries (?:^|\s) ... (?:$|\s)
-        const GENERIC_COMMERCIAL_ENTITY_RX = /(?:^|\s)(شركه|شركات|مؤسسه|مؤسسات|مجموعه|القابضه|التجاريه|التجاري|للتجاره|للاستيراد|للتصدير|للمقاولات|الاستثماريه|للتطوير|جروب|قروب|مكتب)(?:$|\s)|\b(company|corp|corporation|trading|enterprise|group|holding|llc|ltd|inc)\b/i;
-        if (expectedCat !== 'companies' && GENERIC_COMMERCIAL_ENTITY_RX.test(rawName)) {
-          return { relevant: false, score: 0 };
-        }
         if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
           return { relevant: false, score: 0 };
         }
@@ -6167,26 +6169,181 @@
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 
-      // Unified Real Backend Extraction Pipeline:
-      // Both Quick Search ("بحث سريع") and Comprehensive Scan ("مسح شامل") run on the exact same /api/search SSE engine.
-      // Quick Search differentiates strictly via config params (compact radius, maxDepth=0, no country bbox) + a clean post-results stop guard.
-      if (isQuickSearchMode) {
-        const quickStartMs = Date.now();
-        window.__quickSearchFastCutoffTimer = setInterval(() => {
-          if (isSearchDoneHandled || !currentEventSource || isScanPaused) {
-            clearInterval(window.__quickSearchFastCutoffTimer);
-            window.__quickSearchFastCutoffTimer = null;
-            return;
+      // Full-City Multi-Cell Quick Search Grid (6x6 = 36 well-distributed cells across the entire city, Promise.all batches of 4, maxDepth=0)
+      let quickGridStarted = false;
+      let quickGridActive = false;
+      let quickGridCompleted = 0;
+      let quickGridTotal = 0;
+      let quickPrimaryStreamDone = false;
+      let quickGridAborted = false;
+
+      function closeAllQuickSearchSectorStreams() {
+        quickGridAborted = true;
+        if (window.__activeQuickSectorStreams && window.__activeQuickSectorStreams.size > 0) {
+          window.__activeQuickSectorStreams.forEach((es) => {
+            try { es.close(); } catch (_) {}
+          });
+          window.__activeQuickSectorStreams.clear();
+        }
+        if (Array.isArray(window.__quickSearchSectorTimers)) {
+          window.__quickSearchSectorTimers.forEach((t) => clearTimeout(t));
+          window.__quickSearchSectorTimers = [];
+        }
+      }
+      window.closeAllQuickSearchSectorStreams = closeAllQuickSearchSectorStreams;
+
+      const canRunQuickCityGrid = Boolean(
+        isQuickSearchMode &&
+        !neighborhood &&
+        !drawnCircleState &&
+        (!drawnPolygonCoords || drawnPolygonCoords.length < 3)
+      );
+
+      function buildCityWideQuickGrid(centerLat, centerLng, spanKm = 16) {
+        const lat = Number(centerLat);
+        const lng = Number(centerLng);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return [];
+        const gridSize = 6; // 6x6 = 36 cells spanning ~16km x 16km across all city districts
+        const stepKm = spanKm / gridSize;
+        const cellRadiusKm = Number(Math.max(1.8, stepKm * 0.72).toFixed(2));
+        const halfSpan = (gridSize - 1) / 2;
+        const cosLat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+        const cells = [];
+        for (let r = 0; r < gridSize; r++) {
+          for (let c = 0; c < gridSize; c++) {
+            const dyKm = (r - halfSpan) * stepKm;
+            const dxKm = (c - halfSpan) * stepKm;
+            const cLat = Number((lat + dyKm / 111.32).toFixed(6));
+            const cLng = Number((lng + dxKm / (111.32 * cosLat)).toFixed(6));
+            const distFromCenter = Math.hypot(dxKm, dyKm);
+            cells.push({ lat: cLat, lng: cLng, radiusKm: cellRadiusKm, distFromCenter });
           }
-          const elapsedMs = Date.now() - quickStartMs;
-          const strictCount = Math.max(extractedPlaces.length, getActiveFilteredPlaces().length);
-          // Finish promptly ONLY after real places have arrived; never abort while 0 so backend primary + fallback extraction completes
-          if ((strictCount >= 180 && elapsedMs >= 10000) || (strictCount >= 1 && elapsedMs >= 25000)) {
-            clearInterval(window.__quickSearchFastCutoffTimer);
-            window.__quickSearchFastCutoffTimer = null;
-            handleSearchDoneEvent();
+        }
+        // Spiral out from city center so densest districts populate first
+        cells.sort((a, b) => a.distFromCenter - b.distFromCenter);
+        return cells;
+      }
+
+      function fetchQuickGridCellPromise(cell) {
+        return new Promise((resolve) => {
+          if (quickGridAborted || isSearchDoneHandled) return resolve(0);
+          const cellParams = new URLSearchParams(params.toString());
+          cellParams.set('circleLat', String(cell.lat));
+          cellParams.set('circleLng', String(cell.lng));
+          cellParams.set('circleRadiusKm', String(cell.radiusKm));
+          cellParams.set('radius', String(Math.ceil(cell.radiusKm)));
+          cellParams.set('maxDepth', '0');
+          cellParams.set('concurrency', '2');
+          cellParams.delete('scopeMode');
+          cellParams.delete('bbox');
+
+          let es = null;
+          let settled = false;
+          let cellItems = 0;
+          let timer = null;
+
+          const finishCell = () => {
+            if (settled) return;
+            settled = true;
+            if (timer) clearTimeout(timer);
+            if (es) {
+              try { es.close(); } catch (_) {}
+              if (window.__activeQuickSectorStreams) window.__activeQuickSectorStreams.delete(es);
+            }
+            resolve(cellItems);
+          };
+
+          const resetTimer = (ms) => {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(finishCell, ms);
+            if (Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers.push(timer);
+          };
+
+          try {
+            es = new EventSource(`/api/search?${cellParams.toString()}`);
+            if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
+            window.__activeQuickSectorStreams.add(es);
+
+            const handleIncomingCellItems = (items) => {
+              if (!Array.isArray(items) || items.length === 0 || quickGridAborted || isSearchDoneHandled) return;
+              if (isScanPaused) {
+                pausedBufferedPlaces.push(...items);
+                return;
+              }
+              cellItems += items.length;
+              if (items.length <= 5) {
+                for (let i = 0; i < items.length; i++) ingestIncomingStreamPlace(items[i]);
+              } else {
+                enqueueBackgroundPlacesChunk(items);
+              }
+              if (typeof scheduleBufferedUiSync === 'function') scheduleBufferedUiSync(false);
+              // Shorten idle timer once cell starts streaming places
+              resetTimer(4500);
+            };
+
+            es.addEventListener('place', (ev) => {
+              if (isLoginModalVisible() || isSearchDoneHandled) return;
+              try {
+                const p = JSON.parse(ev.data);
+                if (p && typeof p === 'object') handleIncomingCellItems([p]);
+              } catch (_) {}
+            });
+            es.addEventListener('places_batch', (ev) => {
+              if (isLoginModalVisible() || isSearchDoneHandled) return;
+              try {
+                const batch = JSON.parse(ev.data);
+                if (Array.isArray(batch)) handleIncomingCellItems(batch);
+              } catch (_) {}
+            });
+            es.addEventListener('done', finishCell);
+            es.addEventListener('complete', finishCell);
+            es.addEventListener('error', finishCell);
+            resetTimer(14000);
+          } catch (_) {
+            finishCell();
           }
-        }, 1000);
+        });
+      }
+
+      async function runQuickCityGridBatches(centerLat, centerLng) {
+        if (quickGridStarted || quickGridAborted || isSearchDoneHandled) return;
+        quickGridStarted = true;
+        quickGridActive = true;
+        if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
+        if (!Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers = [];
+
+        const spanKm = Math.min(Math.max((Number(selectedRadius) || 12) * 1.4, 14), 24);
+        const cells = buildCityWideQuickGrid(centerLat, centerLng, spanKm);
+        quickGridTotal = cells.length;
+        quickGridCompleted = 0;
+        const BATCH_SIZE = 4;
+
+        for (let i = 0; i < cells.length; i += BATCH_SIZE) {
+          if (quickGridAborted || isSearchDoneHandled) break;
+          while (isScanPaused && !quickGridAborted && !isSearchDoneHandled) {
+            await new Promise((r) => setTimeout(r, 400));
+          }
+          if (quickGridAborted || isSearchDoneHandled) break;
+          const batch = cells.slice(i, i + BATCH_SIZE);
+          await Promise.all(batch.map(async (cell) => {
+            await fetchQuickGridCellPromise(cell);
+            quickGridCompleted++;
+            const pct = Math.min(98, Math.round((quickGridCompleted / Math.max(1, quickGridTotal)) * 96));
+            applyDirectProgressPercent(pct);
+            if (statusMessage && !isSearchDoneHandled) {
+              statusMessage.innerText = `🔍 جارِ البحث السريع الشامل للمدينة${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (${quickGridCompleted} / ${quickGridTotal} نطاق)...`;
+            }
+          }));
+          if (typeof flushBufferedUiSync === 'function' && !isSearchDoneHandled) {
+            flushBufferedUiSync(false);
+          }
+        }
+
+        quickGridActive = false;
+        if (!quickGridAborted && !isSearchDoneHandled) {
+          closeAllQuickSearchSectorStreams();
+          handleSearchDoneEvent();
+        }
       }
 
       currentEventSource.addEventListener('status', (event) => {
@@ -6477,7 +6634,8 @@
             window.__lastScanErrorMessage = data.errorMessage;
           }
           if (data.type === 'done') {
-            handleSearchDoneEvent();
+            quickPrimaryStreamDone = true;
+            if (!quickGridActive) handleSearchDoneEvent();
           } else if (data.type === 'place' && data.place) {
             ingestIncomingStreamPlace(data.place);
           } else if (data.type === 'places_batch' && Array.isArray(data.places)) {
@@ -6504,7 +6662,8 @@
       });
 
       currentEventSource.addEventListener('done', () => {
-        handleSearchDoneEvent();
+        quickPrimaryStreamDone = true;
+        if (!quickGridActive) handleSearchDoneEvent();
       });
 
       currentEventSource.addEventListener('center', (event) => {
@@ -6512,6 +6671,10 @@
         const data = JSON.parse(event.data);
         if (leafletMap && !drawnCircleState && (!drawnPolygonCoords || drawnPolygonCoords.length === 0)) {
           leafletMap.setView([data.lat, data.lng], 12);
+        }
+        // Trigger 36-cell city-wide Promise.all grid batches around the resolved city center for Quick Search
+        if (canRunQuickCityGrid && !quickGridStarted && data && Number.isFinite(Number(data.lat)) && Number.isFinite(Number(data.lng))) {
+          runQuickCityGridBatches(data.lat, data.lng);
         }
       });
 
@@ -6523,6 +6686,10 @@
           return;
         }
         ingestIncomingStreamPlace(place);
+        // Fallback trigger for city-wide grid if center event wasn't emitted before first place
+        if (canRunQuickCityGrid && !quickGridStarted && place && Number.isFinite(Number(place.lat)) && Number.isFinite(Number(place.lng))) {
+          runQuickCityGridBatches(place.lat, place.lng);
+        }
         if (!hasKnownTotal && (extractedPlaces.length === 1 || extractedPlaces.length % 20 === 0)) {
           applyDynamicPageCounter(Math.max(1, Math.ceil(extractedPlaces.length / 20)));
         }
@@ -6555,12 +6722,21 @@
       });
 
       currentEventSource.addEventListener('complete', () => {
-        handleSearchDoneEvent();
+        quickPrimaryStreamDone = true;
+        if (!quickGridActive) handleSearchDoneEvent();
       });
 
       currentEventSource.addEventListener('error', (errEv) => {
         try {
           console.error('[SearchPipeline] Primary SSE stream error:', errEv);
+          quickPrimaryStreamDone = true;
+          if (quickGridActive && !isSearchDoneHandled) {
+            if (currentEventSource) {
+              try { currentEventSource.close(); } catch (_) {}
+              currentEventSource = null;
+            }
+            return;
+          }
           if (!isSearchDoneHandled) {
             if (extractedPlaces.length === 0 && !window.__lastScanErrorMessage) {
               window.__lastScanErrorMessage = 'انقطع الاتصال بالخادم أثناء البحث (قد يكون الخادم قيد التحديث أو الاستيقاظ) — يرجى المحاولة مرة أخرى.';
@@ -6568,8 +6744,10 @@
             handleSearchDoneEvent();
           }
         } finally {
-          hideScanLoadingSpinners();
-          finishSearch();
+          if (!quickGridActive || isSearchDoneHandled) {
+            hideScanLoadingSpinners();
+            finishSearch();
+          }
         }
       });
       } catch (startupErr) {

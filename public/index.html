@@ -655,6 +655,54 @@
       animation: smartNavPulseAmber 0.85s ease-in-out 2;
     }
 
+    /* Customizable Circular User Avatar & Google-Style Profile Popover */
+    .user-avatar-trigger {
+      width: 40px !important;
+      height: 40px !important;
+      min-width: 40px !important;
+      min-height: 40px !important;
+      padding: 0 !important;
+      border-radius: 9999px !important;
+      background: #131f33 !important;
+      border: 2px solid rgba(16, 185, 129, 0.55) !important;
+      box-shadow: 0 6px 16px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    }
+    .user-avatar-trigger:hover {
+      border-color: #10b981 !important;
+      box-shadow: 0 8px 20px rgba(16, 185, 129, 0.22) !important;
+    }
+    .user-avatar-trigger img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .user-avatar-popover {
+      position: absolute;
+      top: calc(100% + 10px);
+      left: 0;
+      width: 280px;
+      max-width: calc(100vw - 24px);
+      background: #131f33;
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      box-shadow: 0 20px 44px rgba(2, 6, 23, 0.72), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 14px;
+      z-index: 9500;
+      text-align: right;
+    }
+    html[dir="ltr"] .user-avatar-popover {
+      left: auto;
+      right: 0;
+    }
+
     /* Clean Official 3D Modal Card */
     .portal-modal-card {
       background: #131f33;
@@ -1867,10 +1915,21 @@
     <!-- Main Workspace Area -->
     <main class="app-main-content max-w-[1320px] mx-auto w-full px-4 sm:px-6 lg:px-8 py-4 sm:py-6 flex-1 flex flex-col gap-5">
 
-      <!-- CLEAN TOP APP BAR (Title + Quick Section Tabs + Clean Counters + Utility Controls) -->
-      <header class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
-        <!-- Right: Sidebar Toggle Button + Brand Title -->
-        <div class="flex items-center gap-3">
+      <!-- CLEAN TOP APP BAR (Top-Right Back + Title + Quick Section Tabs + Counters + User Avatar Settings Trigger) -->
+      <header class="pb-3.5 border-b border-slate-800/80 flex flex-wrap items-center justify-between gap-3 relative">
+        <!-- Far Right (RTL): Back Button + Sidebar Toggle + Brand Title -->
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <button
+            type="button"
+            id="topHeaderBackBtn"
+            onclick="navigateBack()"
+            aria-label="رجوع"
+            title="العودة للخطوة السابقة"
+            class="min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shrink-0"
+          >
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5 text-emerald-400 shrink-0"></i>
+            <span>رجوع</span>
+          </button>
           <button
             type="button"
             id="mobileSidebarToggleBtn"
@@ -1892,12 +1951,12 @@
           >
             <i id="sidebarToggleIcon" class="fas fa-chevron-right"></i>
           </button>
-          <div>
-            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-2">
+          <div class="min-w-0">
+            <h1 class="text-sm sm:text-base font-bold tracking-tight text-white flex items-center gap-1.5 truncate">
               <span>مستخرج خرائط جوجل</span>
               <span class="text-emerald-400 font-num text-xs font-semibold">GeoRadar</span>
             </h1>
-            <p id="activeViewHeaderSubtitle" class="text-[11px] text-slate-400">البحث والمسح الشامل</p>
+            <p id="activeViewHeaderSubtitle" class="text-[11px] text-slate-400 truncate">البحث والمسح الشامل</p>
           </div>
         </div>
 
@@ -1917,9 +1976,9 @@
           </button>
         </nav>
 
-        <!-- Left: Clean Counters + Subtle Utility Controls -->
-        <div class="flex flex-wrap items-center gap-2">
-          <div class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-[#0b1320] border border-slate-400/15 text-xs text-slate-300">
+        <!-- Left: Clean Counters + Compact Utility Icons + Circular User Avatar Settings Trigger -->
+        <div class="flex flex-wrap items-center gap-2 relative">
+          <div class="flex items-center gap-3 px-3 py-1.5 rounded-xl bg-[#0b1320] border border-slate-400/15 text-xs text-slate-300 min-h-[40px]">
             <div onclick="switchAppView('view-results')" class="flex items-center gap-1.5 hover:text-white cursor-pointer transition" title="اضغط لعرض النتائج والجدول">
               <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
               <span>المواقع:</span>
@@ -1935,17 +1994,72 @@
             </div>
           </div>
 
-          <button type="button" onclick="openUserSettingsModal()" title="إعدادات الحساب وكلمة السر والمستخرج" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-            <i data-lucide="settings" class="w-3.5 h-3.5 text-emerald-400"></i>
-            <span id="topBarAccountLabel">الإعدادات</span>
+          <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" aria-label="تحديث الصفحة" class="w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
           </button>
-          <button type="button" onclick="optionalRefreshPage()" title="تحديث الصفحة" class="px-2.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
-            <span class="hidden sm:inline">تحديث</span>
+          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" aria-label="موقعي على الخريطة" class="w-10 h-10 rounded-xl flex items-center justify-center transition cursor-pointer shrink-0">
+            <i data-lucide="locate-fixed" class="w-4 h-4 text-emerald-400"></i>
           </button>
-          <button type="button" onclick="centerMapOnUserGps()" title="موقعي على الخريطة" class="w-9 h-9 rounded-lg flex items-center justify-center transition cursor-pointer">
-            <i data-lucide="locate-fixed" class="w-3.5 h-3.5"></i>
-          </button>
+
+          <!-- Customizable Circular User Avatar Trigger (Google-style Settings/Account Menu) -->
+          <div class="relative">
+            <button
+              type="button"
+              id="userAvatarSettingsBtn"
+              onclick="toggleUserAvatarPopover(event)"
+              aria-label="ملف المستخدم والإعدادات"
+              title="حسابك والإعدادات (اضغط لتغيير الصورة أو فتح الإعدادات)"
+              class="user-avatar-trigger"
+            >
+              <img id="userAvatarImg" alt="صورة المستخدم" class="hidden" />
+              <span id="userAvatarInitials" class="text-xs font-black text-emerald-400 select-none">U</span>
+            </button>
+
+            <input
+              type="file"
+              id="userAvatarUploadInput"
+              accept="image/*"
+              onchange="handleUserAvatarFileChange(event)"
+              class="hidden"
+            />
+
+            <!-- Google-Style Profile & Quick Settings Popover -->
+            <div id="userAvatarPopover" class="hidden user-avatar-popover space-y-3" onclick="event.stopPropagation()">
+              <div class="flex items-center gap-3 pb-3 border-b border-slate-400/15">
+                <div onclick="triggerUserAvatarUpload()" title="تغيير صورة الملف الشخصي" class="w-12 h-12 rounded-full bg-[#0b1320] border-2 border-emerald-500/50 overflow-hidden flex items-center justify-center shrink-0 cursor-pointer relative group">
+                  <img id="userAvatarPopoverImg" alt="صورة المستخدم" class="hidden w-full h-full object-cover" />
+                  <span id="userAvatarPopoverInitials" class="text-base font-black text-emerald-400">U</span>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <div id="topBarAccountLabel" class="text-sm font-bold text-[#f1f5f9] truncate">الإعدادات</div>
+                  <div class="text-[11px] text-slate-400">اضغط على الصورة لتخصيصها</div>
+                </div>
+              </div>
+
+              <!-- Avatar Upload / Reset Row -->
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" onclick="triggerUserAvatarUpload()" class="btn-secondary min-h-[38px] px-2.5 py-1.5 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer">
+                  <i data-lucide="camera" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <span>تغيير الصورة</span>
+                </button>
+                <button type="button" onclick="resetCustomUserAvatar()" class="btn-secondary min-h-[38px] px-2.5 py-1.5 text-xs font-medium text-slate-300 flex items-center justify-center gap-1.5 cursor-pointer">
+                  <span>الافتراضي</span>
+                </button>
+              </div>
+
+              <!-- Quick Settings & Account Actions -->
+              <div class="space-y-1.5 pt-1">
+                <button type="button" onclick="closeUserAvatarPopover(); openUserSettingsModal();" class="btn-secondary w-full min-h-[40px] px-3 py-2 text-xs font-semibold flex items-center gap-2.5 cursor-pointer">
+                  <i data-lucide="settings" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                  <span>إعدادات الحساب واللغة</span>
+                </button>
+                <button type="button" onclick="closeUserAvatarPopover(); openSavedProjectsModal();" class="btn-secondary w-full min-h-[40px] px-3 py-2 text-xs font-semibold flex items-center gap-2.5 cursor-pointer">
+                  <i data-lucide="folder" class="w-4 h-4 text-emerald-400 shrink-0"></i>
+                  <span>مشاريعي المحفوظة</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -10495,9 +10609,122 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
       }
-      // Smart single-button toggle initialization & Enter key routing for #queryInput
+    // =========================================================================
+    // Customizable User Avatar & Google-Style Profile Popover (localStorage)
+    // =========================================================================
+    const USER_AVATAR_STORAGE_KEY = 'georadar_user_avatar_dataurl';
+
+    function getUserAvatarInitials() {
+      const labelEl = document.getElementById('topBarAccountLabel');
+      const rawName = (localStorage.getItem('currentUser') || (labelEl ? labelEl.innerText : '') || 'U').replace(/^@+/, '').trim();
+      if (!rawName || rawName === 'الإعدادات') return 'U';
+      return rawName.slice(0, 2).toUpperCase();
+    }
+
+    function applySavedUserAvatarUI() {
+      let savedUrl = '';
+      try { savedUrl = localStorage.getItem(USER_AVATAR_STORAGE_KEY) || ''; } catch (e) {}
+      const initials = getUserAvatarInitials();
+      const pairs = [
+        ['userAvatarImg', 'userAvatarInitials'],
+        ['userAvatarPopoverImg', 'userAvatarPopoverInitials']
+      ];
+      pairs.forEach(([imgId, initId]) => {
+        const img = document.getElementById(imgId);
+        const init = document.getElementById(initId);
+        if (savedUrl && img) {
+          img.src = savedUrl;
+          img.classList.remove('hidden');
+          if (init) init.classList.add('hidden');
+        } else {
+          if (img) { img.removeAttribute('src'); img.classList.add('hidden'); }
+          if (init) { init.innerText = initials; init.classList.remove('hidden'); }
+        }
+      });
+    }
+
+    function toggleUserAvatarPopover(ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      const pop = document.getElementById('userAvatarPopover');
+      if (!pop) return;
+      const willShow = pop.classList.contains('hidden');
+      pop.classList.toggle('hidden', !willShow);
+      if (willShow) applySavedUserAvatarUI();
+    }
+
+    function closeUserAvatarPopover() {
+      const pop = document.getElementById('userAvatarPopover');
+      if (pop) pop.classList.add('hidden');
+    }
+
+    function triggerUserAvatarUpload() {
+      const inp = document.getElementById('userAvatarUploadInput');
+      if (inp) {
+        inp.value = '';
+        inp.click();
+      }
+    }
+
+    function handleUserAvatarFileChange(ev) {
+      const file = ev && ev.target && ev.target.files ? ev.target.files[0] : null;
+      if (!file || !file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const size = 160;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            const minSide = Math.min(img.width, img.height);
+            const sx = (img.width - minSide) / 2;
+            const sy = (img.height - minSide) / 2;
+            ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+            const compressed = canvas.toDataURL('image/jpeg', 0.82);
+            localStorage.setItem(USER_AVATAR_STORAGE_KEY, compressed);
+            applySavedUserAvatarUI();
+            if (typeof showSmartNotification === 'function') {
+              showSmartNotification('✅ تم تحديث صورة الملف الشخصي', 'تم حفظ صورتك بنجاح على هذا الجهاز', { target: 'settings', variant: 'success', durationMs: 4500 });
+            }
+          } catch (e) {}
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function resetCustomUserAvatar() {
+      try { localStorage.removeItem(USER_AVATAR_STORAGE_KEY); } catch (e) {}
+      applySavedUserAvatarUI();
+      closeUserAvatarPopover();
+    }
+
+    window.toggleUserAvatarPopover = toggleUserAvatarPopover;
+    window.closeUserAvatarPopover = closeUserAvatarPopover;
+    window.triggerUserAvatarUpload = triggerUserAvatarUpload;
+    window.handleUserAvatarFileChange = handleUserAvatarFileChange;
+    window.resetCustomUserAvatar = resetCustomUserAvatar;
+    window.applySavedUserAvatarUI = applySavedUserAvatarUI;
+
+    document.addEventListener('click', (ev) => {
+      const pop = document.getElementById('userAvatarPopover');
+      const btn = document.getElementById('userAvatarSettingsBtn');
+      if (!pop || pop.classList.contains('hidden')) return;
+      if (!pop.contains(ev.target) && (!btn || !btn.contains(ev.target))) {
+        closeUserAvatarPopover();
+      }
+    });
+
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') closeUserAvatarPopover();
+    });
+
+    // Smart single-button toggle initialization & Enter key routing for #queryInput
       syncPrimarySearchActionButton();
       if (typeof updateAdaptiveScanSpeedUI === 'function') updateAdaptiveScanSpeedUI();
+      applySavedUserAvatarUI();
       const queryInputEl = document.getElementById('queryInput');
       if (queryInputEl && !queryInputEl.dataset.smartToggleBound) {
         queryInputEl.dataset.smartToggleBound = '1';

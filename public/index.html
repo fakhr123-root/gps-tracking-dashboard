@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v25_fix_tdz_premature_100';
+      var CURRENT_APP_VER = 'v26_wire_sector_live_counters';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -6253,6 +6253,22 @@
         return sectors;
       }
 
+      function extractPlacesFromEventPayload(raw) {
+        if (!raw) return [];
+        if (Array.isArray(raw)) return raw.filter(it => it && typeof it === 'object');
+        if (typeof raw !== 'object') return [];
+        const nestedKeys = ['places', 'results', 'items', 'data', 'elements'];
+        for (let i = 0; i < nestedKeys.length; i++) {
+          const val = raw[nestedKeys[i]];
+          if (Array.isArray(val) && val.length > 0) {
+            return val.filter(it => it && typeof it === 'object');
+          }
+        }
+        if (raw.place && typeof raw.place === 'object') return [raw.place];
+        if (raw.name || raw.title || raw.lat != null || raw.latitude != null) return [raw];
+        return [];
+      }
+
       function launchQuickSearchParallelSectorPool(sectorList) {
         if (quickSectorPoolStarted || isSearchDoneHandled || !Array.isArray(sectorList) || sectorList.length === 0) return;
         quickSectorPoolStarted = true;
@@ -6260,10 +6276,10 @@
         if (!window.__activeQuickSectorStreams) window.__activeQuickSectorStreams = new Set();
         if (!Array.isArray(window.__quickSearchSectorTimers)) window.__quickSearchSectorTimers = [];
 
-        const queue = sectorList.slice(0, 16);
+        const queue = sectorList.slice(0, 12);
         quickSectorTotalCount = queue.length;
         quickSectorCompletedCount = 0;
-        const MAX_PARALLEL = 4;
+        const MAX_PARALLEL = 2;
         let activeCount = 0;
         let nextIdx = 0;
 
@@ -6302,7 +6318,13 @@
             let sectorItemCount = 0;
             let sectorCapTimer = null;
 
-            const settleSector = () => {
+            const scheduleSectorTimer = (delayMs, reason) => {
+              if (sectorCapTimer) clearTimeout(sectorCapTimer);
+              sectorCapTimer = setTimeout(() => settleSector(reason), delayMs);
+              window.__quickSearchSectorTimers.push(sectorCapTimer);
+            };
+
+            const settleSector = (reason = 'done') => {
               if (sectorSettled) return;
               sectorSettled = true;
               if (sectorCapTimer) clearTimeout(sectorCapTimer);
@@ -6310,50 +6332,87 @@
                 try { es.close(); } catch (_) {}
                 window.__activeQuickSectorStreams.delete(es);
               }
+              if (sectorItemCount === 0 && (reason === 'timeout' || reason === 'error')) {
+                console.warn('[QuickSector] Sector finished with 0 items:', { sector: sector.label, reason });
+              }
               activeCount = Math.max(0, activeCount - 1);
               quickSectorCompletedCount++;
               maybeFinishMultiSectorQuickPass();
               if (!isSearchDoneHandled) startNextSector();
             };
 
+            const ingestSectorPayload = (rawPayload) => {
+              const items = extractPlacesFromEventPayload(rawPayload);
+              if (!items.length) return;
+              if (isScanPaused) {
+                pausedBufferedPlaces.push(...items);
+                return;
+              }
+              sectorItemCount += items.length;
+              if (items.length <= 5) {
+                for (let k = 0; k < items.length; k++) {
+                  ingestIncomingStreamPlace(items[k]);
+                }
+              } else {
+                enqueueBackgroundPlacesChunk(items);
+              }
+              // Immediately flush early sector items so Google/OSM/المواقع counters & cards update live
+              if (extractedPlaces.length < 30 && typeof flushBufferedUiSync === 'function') {
+                flushBufferedUiSync(false);
+              } else if (typeof scheduleBufferedUiSync === 'function') {
+                scheduleBufferedUiSync(false);
+              }
+              if (sectorItemCount >= 60) {
+                settleSector('cap');
+              } else {
+                // Once items are streaming, settle cleanly 5.5s after last item
+                scheduleSectorTimer(5500, 'idle');
+              }
+            };
+
             try {
               es = new EventSource(`/api/search?${sParams.toString()}`);
               window.__activeQuickSectorStreams.add(es);
+
               es.addEventListener('place', (ev) => {
                 if (isLoginModalVisible() || isSearchDoneHandled) return;
-                try {
-                  const p = JSON.parse(ev.data);
-                  if (isScanPaused) {
-                    pausedBufferedPlaces.push(p);
-                    return;
-                  }
-                  sectorItemCount++;
-                  ingestIncomingStreamPlace(p);
-                  if (sectorItemCount >= 55) settleSector();
-                } catch (_) {}
+                try { ingestSectorPayload(JSON.parse(ev.data)); } catch (_) {}
               });
               es.addEventListener('places_batch', (ev) => {
                 if (isLoginModalVisible() || isSearchDoneHandled) return;
+                try { ingestSectorPayload(JSON.parse(ev.data)); } catch (_) {}
+              });
+              es.onmessage = (ev) => {
+                if (isLoginModalVisible() || isSearchDoneHandled) return;
                 try {
-                  const batch = JSON.parse(ev.data);
-                  if (!Array.isArray(batch) || batch.length === 0) return;
-                  if (isScanPaused) {
-                    pausedBufferedPlaces.push(...batch);
-                    return;
+                  const data = JSON.parse(ev.data);
+                  if (!data || typeof data !== 'object') return;
+                  if (data.type === 'done') {
+                    settleSector('done');
+                  } else if (data.type === 'progress') {
+                    // Keep live Google/OSM badges responsive even while first batch buffers
+                    if (typeof updateStats === 'function' && extractedPlaces.length > 0) updateStats();
+                  } else {
+                    ingestSectorPayload(data);
                   }
-                  sectorItemCount += batch.length;
-                  enqueueBackgroundPlacesChunk(batch);
-                  if (sectorItemCount >= 55) settleSector();
+                } catch (_) {}
+              };
+              es.addEventListener('progress', (ev) => {
+                if (isLoginModalVisible() || isSearchDoneHandled) return;
+                try {
+                  const pData = JSON.parse(ev.data);
+                  if (pData && extractedPlaces.length === 0 && (Number(pData.googleCount || 0) > 0 || Number(pData.osmCount || 0) > 0)) {
+                    updateDualEngineScanTelemetry(pData);
+                  }
                 } catch (_) {}
               });
-              es.addEventListener('done', settleSector);
-              es.addEventListener('complete', settleSector);
-              es.addEventListener('error', settleSector);
-              // Per-sector fast cap (9.5s) so no single district stalls the multi-district Quick Search pass
-              sectorCapTimer = setTimeout(settleSector, 9500);
-              window.__quickSearchSectorTimers.push(sectorCapTimer);
+              es.addEventListener('done', () => settleSector('done'));
+              es.addEventListener('complete', () => settleSector('complete'));
+              es.addEventListener('error', () => settleSector('error'));
+              // Generous initial wait (22s) so slow/cold sectors deliver real Google/OSM results before settling
+              scheduleSectorTimer(22000, 'timeout');
             } catch (_) {
-              settleSector();
+              settleSector('error');
             }
           }
         }
@@ -6382,8 +6441,8 @@
           const elapsedMs = Date.now() - quickStartMs;
           const strictCount = Math.max(extractedPlaces.length, getActiveFilteredPlaces().length);
           if (quickMultiSectorActive) {
-            // Let the parallel 12-16 district pool collect hundreds of results; cap cleanly at 35s once results exist (or 450+ results after 18s)
-            if ((strictCount >= 450 && elapsedMs >= 18000) || (strictCount >= 1 && elapsedMs >= 35000)) {
+            // Let the parallel 12-district pool collect hundreds of results; cap cleanly at 55s once results exist (or 350+ results after 20s)
+            if ((strictCount >= 350 && elapsedMs >= 20000) || (strictCount >= 1 && elapsedMs >= 55000)) {
               clearInterval(window.__quickSearchFastCutoffTimer);
               window.__quickSearchFastCutoffTimer = null;
               closeAllQuickSearchSectorStreams();
@@ -6391,7 +6450,7 @@
             }
           } else {
             // Single-district or drawn-shape Quick Search: complete promptly once real results arrive
-            if ((strictCount >= 120 && elapsedMs >= 6000) || (strictCount >= 1 && elapsedMs >= 16000)) {
+            if ((strictCount >= 120 && elapsedMs >= 8000) || (strictCount >= 1 && elapsedMs >= 22000)) {
               clearInterval(window.__quickSearchFastCutoffTimer);
               window.__quickSearchFastCutoffTimer = null;
               handleSearchDoneEvent();
@@ -8012,23 +8071,25 @@
         let gLive = 0;
         let oLive = 0;
         for (let i = 0; i < extractedPlaces.length; i++) {
-          const src = String(extractedPlaces[i]?.source || '').toLowerCase();
-          if (src.includes('google') || src.includes('جوجل')) gLive++;
-          else if (src.includes('osm') || src.includes('overpass') || src.includes('photon') || src.includes('nominatim')) oLive++;
+          const item = extractedPlaces[i];
+          const src = String(item?.source || '').toLowerCase();
+          if (item?.osmId || item?.osm_id || src.includes('osm') || src.includes('overpass') || src.includes('photon') || src.includes('nominatim') || src.includes('openstreetmap')) {
+            oLive++;
+          } else {
+            gLive++;
+          }
         }
-        if (gLive > 0 || oLive > 0) {
-          const gFmt = gLive.toLocaleString();
-          const oFmt = oLive.toLocaleString();
-          const dualTxt = `🌐 Google: ${gFmt} | 🗺️ OSM: ${oFmt}`;
-          const tDual = document.getElementById('telemetryDualEngineBadge');
-          if (tDual) tDual.innerText = dualTxt;
-          const pDual = document.getElementById('progressDualEngineBadge');
-          if (pDual) pDual.innerText = dualTxt;
-          const dqG = document.getElementById('dqGoogleCount');
-          if (dqG) dqG.innerText = gFmt;
-          const dqO = document.getElementById('dqOsmCount');
-          if (dqO) dqO.innerText = oFmt;
-        }
+        const gFmt = gLive.toLocaleString();
+        const oFmt = oLive.toLocaleString();
+        const dualTxt = `🌐 Google: ${gFmt} | 🗺️ OSM: ${oFmt}`;
+        const tDual = document.getElementById('telemetryDualEngineBadge');
+        if (tDual) tDual.innerText = dualTxt;
+        const pDual = document.getElementById('progressDualEngineBadge');
+        if (pDual) pDual.innerText = dualTxt;
+        const dqG = document.getElementById('dqGoogleCount');
+        if (dqG) dqG.innerText = gFmt;
+        const dqO = document.getElementById('dqOsmCount');
+        if (dqO) dqO.innerText = oFmt;
       }
 
       const dqBar = document.getElementById('dataQualitySummaryBar');

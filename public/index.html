@@ -4959,6 +4959,9 @@
       const activePacing = typeof getAdaptiveScanPacing === 'function' ? getAdaptiveScanPacing() : { tier: 'fast' };
       params.set('concurrency', String(activePacing.tier === 'slow' ? 2 : 4));
       userManuallyToggledResultsView = false;
+      if (typeof dynamicCategoryMetaMap !== 'undefined' && dynamicCategoryMetaMap.clear) {
+        dynamicCategoryMetaMap.clear();
+      }
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
 

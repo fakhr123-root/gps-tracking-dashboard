@@ -8358,21 +8358,49 @@ const server = http.createServer(async (req, res) => {
       isClientAborted = true;
       clearInterval(keepAliveTimer);
     });
+    // Field normalizer for streamed places: cleans whitespace/coords/phones while NEVER fabricating missing data
+    function normalizeExtractedPlaceFields(rawPlace) {
+      if (!rawPlace || typeof rawPlace !== 'object') return rawPlace;
+      const cleanStr = (v) => String(v || '').replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim();
+      const rawPhone = cleanStr(rawPlace.phone);
+      const safePhone = rawPhone && !isFakeOrPlaceholderPhone(rawPhone) ? rawPhone : '';
+      const rawPhones = Array.isArray(rawPlace.phones)
+        ? Array.from(new Set(rawPlace.phones.map(cleanStr).filter(ph => ph && !isFakeOrPlaceholderPhone(ph))))
+        : (safePhone ? [safePhone] : []);
+      const latNum = Number(rawPlace.lat);
+      const lngNum = Number(rawPlace.lng);
+      return {
+        ...rawPlace,
+        name: cleanStr(rawPlace.name),
+        category: cleanStr(rawPlace.category),
+        city: cleanStr(rawPlace.city),
+        district: cleanStr(rawPlace.district),
+        address: cleanStr(rawPlace.address),
+        phone: rawPhones[0] || '',
+        phones: rawPhones,
+        lat: Number.isFinite(latNum) ? Number(latNum.toFixed(6)) : rawPlace.lat,
+        lng: Number.isFinite(lngNum) ? Number(lngNum.toFixed(6)) : rawPlace.lng
+      };
+    }
+
     const sendEvent = (event, data) => {
       if (isClientAborted) return;
-      if (event === 'place') {
+      let payload = data;
+      if (event === 'place' && data && typeof data === 'object') {
+        payload = normalizeExtractedPlaceFields(data);
         resultCount++;
-        if (searchSampleCache.length < 300) searchSampleCache.push(data);
+        if (searchSampleCache.length < 300) searchSampleCache.push(payload);
       } else if (event === 'places_batch' && Array.isArray(data)) {
-        resultCount += data.length;
-        for (let i = 0; i < data.length && searchSampleCache.length < 300; i++) {
-          searchSampleCache.push(data[i]);
+        payload = data.map(normalizeExtractedPlaceFields);
+        resultCount += payload.length;
+        for (let i = 0; i < payload.length && searchSampleCache.length < 300; i++) {
+          searchSampleCache.push(payload[i]);
         }
       }
       try {
-        res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-        if (event === 'progress' && data && typeof data.percent === 'number' && isFinite(data.percent)) {
-          res.write(`data: ${JSON.stringify({ type: 'progress', percent: data.percent })}\n\n`);
+        res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+        if (event === 'progress' && payload && typeof payload.percent === 'number' && isFinite(payload.percent)) {
+          res.write(`data: ${JSON.stringify({ type: 'progress', percent: payload.percent })}\n\n`);
         }
       } catch (e) {}
     };
@@ -8386,11 +8414,15 @@ const server = http.createServer(async (req, res) => {
     });
 
     let doneEventDispatched = false;
+    let searchErrorMessage = '';
     try {
       let customBbox = null;
       if (parsedUrl.query.bbox) {
-        const parts = String(parsedUrl.query.bbox).split(',').map(Number);
-        if (parts.length === 4 && parts.every(n => !isNaN(n))) customBbox = parts;
+        try {
+          const rawBbox = String(parsedUrl.query.bbox).trim();
+          const parts = rawBbox.startsWith('[') ? JSON.parse(rawBbox).map(Number) : rawBbox.split(',').map(Number);
+          if (Array.isArray(parts) && parts.length === 4 && parts.every(n => !isNaN(n))) customBbox = parts;
+        } catch (e) {}
       }
       const reqConcurrencyParam = parseInt(parsedUrl.query.concurrency, 10);
       const scanOptions = {
@@ -8407,19 +8439,118 @@ const server = http.createServer(async (req, res) => {
       } else {
         await searchFreeEngine(query, location, neighborhood, radiusMeters, sendEvent, userLat, userLng, circleFilter, () => isClientAborted, polygonFilter, uiLang, scanOptions);
       }
+
+      // Multi-Query Resilient Fallback: if primary workers returned 0 results for any query worldwide,
+      // query Photon + Nominatim with combined localized terms before finishing.
+      if (resultCount === 0 && !isClientAborted) {
+        sendEvent('status', { message: '🔄 جارٍ تفعيل محرك البحث الاحتياطي...' });
+        const qClean = String(query || '').trim();
+        const locClean = String(location || '').trim();
+        const fallbackQueries = [];
+        if (qClean && locClean) fallbackQueries.push(`${qClean} ${locClean}`);
+        if (qClean) fallbackQueries.push(qClean);
+        if (locClean && !qClean) fallbackQueries.push(locClean);
+
+        const seenFbKeys = new Set();
+        for (const fq of fallbackQueries.slice(0, 2)) {
+          if (isClientAborted || resultCount >= 40) break;
+          try {
+            const pUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(fq)}&limit=35${userLat && userLng ? `&lat=${encodeURIComponent(userLat)}&lon=${encodeURIComponent(userLng)}` : ''}`;
+            const pRes = await fetchWithTimeout(pUrl, { timeout: 5500, headers: { 'User-Agent': 'GeoRadar3DStudio/4.0' } });
+            if (pRes.ok) {
+              const pData = await pRes.json();
+              const feats = Array.isArray(pData?.features) ? pData.features : [];
+              for (const f of feats) {
+                const props = f?.properties || {};
+                const coords = f?.geometry?.coordinates;
+                if (!Array.isArray(coords) || coords.length < 2) continue;
+                const pName = String(props.name || '').trim();
+                const pLng = Number(coords[0]);
+                const pLat = Number(coords[1]);
+                if (!pName || !isFinite(pLat) || !isFinite(pLng)) continue;
+                const dedupKey = `${pName.toLowerCase()}_${pLat.toFixed(4)}_${pLng.toFixed(4)}`;
+                if (seenFbKeys.has(dedupKey)) continue;
+                seenFbKeys.add(dedupKey);
+                sendEvent('place', {
+                  id: `photon_fb_${seenFbKeys.size}_${Date.now()}`,
+                  name: pName,
+                  category: props.osm_value || props.osm_key || qClean || '',
+                  city: props.city || props.state || locClean || '',
+                  district: props.district || props.street || '',
+                  address: [props.street, props.district, props.city, props.country].filter(Boolean).join(', ') || locClean,
+                  lat: pLat,
+                  lng: pLng,
+                  phone: '',
+                  source: 'OSM-Photon'
+                });
+              }
+            }
+          } catch (e) {}
+
+          if (resultCount < 15 && !isClientAborted) {
+            try {
+              const nUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&extratags=1&limit=30&accept-language=${encodeURIComponent(uiLang || 'ar')},en&q=${encodeURIComponent(fq)}`;
+              const nRes = await fetchWithTimeout(nUrl, {
+                timeout: 6000,
+                headers: { 'User-Agent': 'GeoRadar3DStudio/4.0 (https://gps-tracking-dashboard-sctg.onrender.com)', 'Accept': 'application/json' }
+              });
+              if (nRes.ok) {
+                const items = await nRes.json();
+                if (Array.isArray(items)) {
+                  for (const it of items) {
+                    const pName = String(it.name || (it.display_name || '').split(',')[0] || '').trim();
+                    const pLat = parseFloat(it.lat);
+                    const pLng = parseFloat(it.lon);
+                    if (!pName || isNaN(pLat) || isNaN(pLng)) continue;
+                    const dedupKey = `${pName.toLowerCase()}_${pLat.toFixed(4)}_${pLng.toFixed(4)}`;
+                    if (seenFbKeys.has(dedupKey)) continue;
+                    seenFbKeys.add(dedupKey);
+                    const ext = it.extratags || {};
+                    const rawPhone = ext.phone || ext['contact:phone'] || ext['contact:mobile'] || '';
+                    const addr = it.address || {};
+                    sendEvent('place', {
+                      id: `nom_fb_${it.place_id || seenFbKeys.size}`,
+                      name: pName,
+                      category: it.type || it.category || qClean || '',
+                      city: addr.city || addr.town || addr.state || locClean || '',
+                      district: addr.suburb || addr.neighbourhood || addr.road || '',
+                      address: it.display_name || locClean,
+                      lat: pLat,
+                      lng: pLng,
+                      phone: rawPhone,
+                      source: 'OSM-Nominatim'
+                    });
+                  }
+                }
+              }
+            } catch (e) {}
+          }
+        }
+      }
     } catch (e) {
-      sendEvent('error', { message: e.message || 'حدث خطأ غير متوقع' });
+      searchErrorMessage = e.message || 'حدث خطأ غير متوقع أثناء البحث';
+      sendEvent('scan_error', { message: searchErrorMessage, error: searchErrorMessage });
     } finally {
       clearInterval(keepAliveTimer);
       if (!isClientAborted && !doneEventDispatched) {
         doneEventDispatched = true;
-        sendEvent('progress', { type: 'progress', percent: 100, current: resultCount, total: Math.max(resultCount, 1), pendingCells: 0, activeWorkers: 0, completed: true });
-        sendEvent('status', { message: '✅ تم اكتمال المسح بنجاح', completed: true });
+        const donePayload = {
+          type: 'done',
+          percent: 100,
+          resultCount,
+          hadError: Boolean(searchErrorMessage),
+          errorMessage: searchErrorMessage,
+          message: searchErrorMessage
+            ? `تعذر إتمام البحث: ${searchErrorMessage}`
+            : (resultCount > 0 ? 'تم اكتمال المسح بنجاح' : 'لم يتم العثور على نتائج مطابقة لهذا البحث')
+        };
+        sendEvent('progress', { type: 'progress', percent: 100, current: resultCount, total: Math.max(resultCount, 1), pendingCells: 0, activeWorkers: 0, completed: !searchErrorMessage });
+        sendEvent('status', { message: donePayload.message, completed: !searchErrorMessage, hadError: Boolean(searchErrorMessage) });
         try {
-          res.write(`data: {"type": "done"}\n\n`);
+          res.write(`data: ${JSON.stringify(donePayload)}\n\n`);
         } catch (e) {}
-        sendEvent('done', { type: 'done', percent: 100, message: 'تم اكتمال المسح بنجاح' });
-        sendEvent('complete', { message: 'تم اكتمال المسح بنجاح' });
+        sendEvent('done', donePayload);
+        sendEvent('complete', donePayload);
       }
       // Record search in Admin Logs for every user or visitor
       recordSearch({

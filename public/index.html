@@ -121,7 +121,7 @@
   <script>
     (function() {
       // Unregister stale Service Workers & purge Cache Storage once per version bump so the latest index.html always loads fresh
-      var CURRENT_APP_VER = 'v23_quick_multidistrict_strict';
+      var CURRENT_APP_VER = 'v24_universal_core_engine';
       try {
         var prevVer = localStorage.getItem('georadar_app_schema_ver');
         if (prevVer !== CURRENT_APP_VER) {
@@ -4766,7 +4766,11 @@
         .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
         .replace(/[أإآ]/g, 'ا')
         .replace(/ة/g, 'ه')
-        .replace(/ى/g, 'ي')
+        .replace(/[ىی]/g, 'ي')
+        .replace(/ؤ/g, 'و')
+        .replace(/ئ/g, 'ي')
+        .replace(/ک/g, 'ك')
+        .replace(/پ/g, 'ب')
         .replace(/[^\p{L}\p{N}\s]/gu, ' ')
         .replace(/\s+/g, ' ')
         .trim();
@@ -5020,10 +5024,10 @@
 
     const STRICT_SECTOR_SYNONYM_REGEX = {
       groceries: /(بقال|بقاله|بقالات|تموين|تموينات|سوبر\s*ماركت|سوبرماركت|ميني\s*ماركت|هايبر|ماركت|مواد\s*غذائ|غذائيات|غذائيه|استهلاك|ارزاق|دكان|كشك|خضار|فواكه|عطاره|بهارات|البان|مكسرات|عسل|تمور|متجر|\bgrocery\b|\bgroceries\b|\bsupermarket\b|\bminimart\b|\bconvenience(?:_store)?\b|\bgrocery_or_supermarket\b|\bgeneral_store\b|\bfood\s*store\b|\bmart\b|\bmarket\b)/i,
-      pharmacies: /(صيدل|صيدليه|صيدليات|\bpharmacy\b|\bdrugstore\b|\bchemist\b)/i,
+      pharmacies: /(صيدل|صيدليه|صيدليات|مستودع\s*ادويه|مستودعات\s*ادويه|مخزن\s*ادويه|دواء|ادويه|\bpharmacy\b|\bpharmacies\b|\bdrugstore\b|\bchemist\b)/i,
       pharma_companies: /(شركه\s*ادويه|شركات\s*ادويه|مستودع\s*ادويه|مستودعات\s*ادويه|مخازن\s*ادويه|توزيع\s*ادويه|للتجاره\s*الدوائيه|فارما|مستلزمات\s*طبيه|\bpharma\b|\bpharmaceutical\b)/i,
       hospitals: /(مستشفي|مستشفيات|عياد|مجمع\s*طبي|مركز\s*طبي|مستوصف|مختبر|اشعه|اسنان|دكتور|طبيب|\bhospital\b|\bclinic\b|\bmedical\b|\bdentist\b)/i,
-      restaurants: /(مطعم|مطاعم|بوفيه|مطبخ|شوايه|كافيه|مقهي|كوفي|كافتيريا|مندي|مضغوط|\brestaurant\b|\bcafe\b|\bcoffee\b|\bfast[_\s]*food\b|\bgrill\b)/i,
+      restaurants: /(مطعم|مطاعم|بوفيه|مطبخ|شوايه|كافيه|مقهي|كوفي|كافتيريا|مندي|مضغوط|وجبات|مخبز|حلويات|\brestaurant\b|\bcafe\b|\bcoffee\b|\bfast[_\s]*food\b|\bgrill\b|\bbakery\b)/i,
       banks: /(بنك|بنوك|مصرف|صراف|تحويلات|كريمي|امتياز|النجم|\bbank\b|\bexchange\b|\batm\b)/i,
       hotels: /(فندق|فنادق|منتجع|شقق\s*مفروش|اجنحه|استراحه|\bhotel\b|\bresort\b|\bapartments\b|\bmotel\b)/i,
       education: /(جامعه|كليه|مدرسه|مدارس|معهد|اكاديميه|روضه|\bschool\b|\buniversity\b|\bcollege\b|\binstitute\b|\bacademy\b)/i,
@@ -5036,6 +5040,10 @@
       sports: /(صاله\s*رياض|نادي\s*رياض|جيم|مسبح|مسابح|رياضه|\bgym\b|\bfitness\b|\bsport\b)/i,
       beauty: /(صالون|حلاق|حلاقه|كوافير|تجميل|سبا|\bsalon\b|\bbarber\b|\bbeauty\b|\bspa\b)/i,
       malls: /(مول|مولات|مركز\s*تجاري|مجمع\s*تجاري|\bmall\b|\bshopping\b)/i,
+      fuel: /(محطه\s*وقود|محطه\s*بترول|محطه\s*بنزين|بترول|بنزين|وقود|\bgas\s*station\b|\bfuel\b|\bpetrol\b)/i,
+      bookstores: /(مكتبه|مكتبات|قرطاسيه|كتب|\bbookstore\b|\blibrary\b|\bstationery\b)/i,
+      laundries: /(مغسله|مغاسل|غسيل\s*ملابس|مكوي|دراي\s*كلين|\blaundry\b|\bdry\s*cleaning\b)/i,
+      mosques: /(مسجد|مساجد|جامع|مصلي|\bmosque\b)/i,
       companies: /(شركه|شركات|مؤسس|مجموعه|القابضه|للتجاره|للاستيراد|\bcompany\b|\bcorp\b|\btrading\b)/i
     };
 
@@ -5044,11 +5052,11 @@
     function getExpectedCategoryKeyForQuery(rawQuery) {
       const q = normalizeUniversalCatText(rawQuery || '');
       if (!q || q === '__full_scan__') return '';
-      if (/(شركه ادويه|شركات ادويه|مستودع ادويه|فارما|مستلزمات طبيه|\bpharma\b)/i.test(q)) return 'pharma_companies';
-      if (/(صيدل|\bpharmacy\b)/i.test(q)) return 'pharmacies';
+      if (/(شركه ادويه|شركات ادويه|فارما|مستلزمات طبيه|\bpharma\b)/i.test(q)) return 'pharma_companies';
+      if (/(صيدل|مستودع ادويه|\bpharmacy\b|\bdrugstore\b)/i.test(q)) return 'pharmacies';
       if (/(مستشفي|مستشفيات|عياد|طبي|مختبر|مستوصف|\bhospital\b|\bclinic\b|\bmedical\b)/i.test(q)) return 'hospitals';
       if (/(بقال|تموين|سوبر|ماركت|غذائ|\bgrocery\b|\bsupermarket\b|\bminimart\b)/i.test(q)) return 'groceries';
-      if (/(مطعم|مطاعم|بوفيه|مطبخ|كافيه|مقهي|وجبات|\brestaurant\b|\bcafe\b)/i.test(q)) return 'restaurants';
+      if (/(مطعم|مطاعم|بوفيه|مطبخ|كافيه|مقهي|وجبات|مخبز|\brestaurant\b|\bcafe\b|\bbakery\b)/i.test(q)) return 'restaurants';
       if (/(بنك|مصرف|صراف|\bbank\b|\bexchange\b)/i.test(q)) return 'banks';
       if (/(فندق|فنادق|منتجع|شقق|\bhotel\b|\bresort\b)/i.test(q)) return 'hotels';
       if (/(جامعه|كليه|مدرسه|مدارس|معهد|اكاديميه|\bschool\b|\buniversity\b)/i.test(q)) return 'education';
@@ -5060,6 +5068,10 @@
       if (/(صاله|نادي|جيم|مسبح|رياضه|\bgym\b|\bfitness\b)/i.test(q)) return 'sports';
       if (/(صالون|حلاق|تجميل|سبا|\bsalon\b|\bbarber\b)/i.test(q)) return 'beauty';
       if (/(مول|مركز تجاري|\bmall\b)/i.test(q)) return 'malls';
+      if (/(محطه وقود|بترول|بنزين|وقود|\bgas\s*station\b|\bfuel\b)/i.test(q)) return 'fuel';
+      if (/(مكتبه|مكتبات|قرطاسيه|\bbookstore\b|\blibrary\b)/i.test(q)) return 'bookstores';
+      if (/(مغسله|مغاسل|غسيل ملابس|\blaundry\b)/i.test(q)) return 'laundries';
+      if (/(مسجد|مساجد|جامع|\bmosque\b)/i.test(q)) return 'mosques';
       if (/(محكم|نياب|وزار|حكوم|منفذ|جمارك|\bcourt\b|\bgovernment\b)/i.test(q)) return 'government';
       if (/(شركه|شركات|مؤسس|\bcompany\b)/i.test(q)) return 'companies';
       return '';
@@ -5084,8 +5096,8 @@
         const directRx = STRICT_SECTOR_SYNONYM_REGEX[expectedCat];
         const hasDirectMatch = Boolean(directRx && (directRx.test(rawPlace) || directRx.test(rawAddr)));
 
-        // Strict separation between pharma companies/warehouses and retail pharmacies
-        if (expectedCat === 'pharmacies' && STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) {
+        // Separate corporate pharmaceutical companies from retail pharmacies while keeping drug depots aligned with pharmacies
+        if (expectedCat === 'pharmacies' && /(شركه\s*ادويه|شركات\s*ادويه|للتجاره\s*الدوائيه|مستلزمات\s*طبيه)/i.test(rawPlace)) {
           return { relevant: false, score: 0 };
         }
         if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawAll)) {
@@ -6249,7 +6261,7 @@
           if (statusMessage && !isSearchDoneHandled) {
             statusMessage.innerText = `🔍 جارِ البحث السريع المتوازي${activeModeQueryLabel ? ` عن ${activeModeQueryLabel}` : ''} في ${activeModeAreaLabel} (قطاع ${quickSectorCompletedCount} / ${quickSectorTotalCount})...`;
           }
-          if (quickSectorCompletedCount >= quickSectorTotalCount && !isSearchDoneHandled) {
+          if (quickSectorCompletedCount >= quickSectorTotalCount && (quickPrimaryDone || !currentEventSource) && !isSearchDoneHandled) {
             closeAllQuickSearchSectorStreams();
             handleSearchDoneEvent();
           }
@@ -7106,54 +7118,13 @@
 
     function isRelevantToQuery(place, activeQuery) {
       const rawQ = String(activeQuery || '').trim();
-      // Disable strict filter for empty/blank "All Places" scan
-      if (!rawQ || rawQ === '__EMPTY__' || rawQ === '__FULL_CITY_SCAN__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(rawQ)) {
+      if (!rawQ || rawQ === '__EMPTY__' || rawQ === '__FULL_CITY_SCAN__' || rawQ === '__FULL_SCAN__' || /^(الكل|الجميع|مسح شامل|مسح شامل لجميع الأنشطة|all|everything|\*)$/i.test(rawQ)) {
         return true;
       }
-
-      const qNorm = normalizeRelevanceText(rawQ);
-      if (!qNorm) return true;
-
-      const typesArr = Array.isArray(place.types) ? place.types.join(' ') : String(place.types || '');
-      const nameNorm = normalizeRelevanceText(place.name || '');
-      const catNorm = normalizeRelevanceText(`${place.category || ''} ${place.categoryAr || ''} ${place.type || ''} ${typesArr}`);
-      const combined = `${nameNorm} ${catNorm}`.trim();
-      if (!combined) return false;
-
-      // Global Broad-Match Mode:
-      // Disable aggressive blocking so results returned directly by live scraping workers (Google Maps / OSM / Photon / ArcGIS)
-      // for ANY search term in ANY country or language are accepted instead of dropped.
-      const isLiveScrapedResult = Boolean(
-        place.placeId || place.place_id || place.osmId || place.osm_id ||
-        (place.source && /(google|osm|overpass|live|خرائط|الرادار|العالمي|جوجل)/i.test(String(place.source)))
-      );
-
-      const targetProfile = resolveStrictQueryCategoryProfile(rawQ);
-      if (targetProfile) {
-        // Light exclusion only for obvious bank/exchange noise when searching generic companies ("شركة" / "شركات")
-        if (targetProfile.id === 'companies' && !qNorm.includes('بنك') && !qNorm.includes('صراف') && !qNorm.includes('تحويل') && !qNorm.includes('مصرف')) {
-          if (/(بنك|بنوك|صرافه|صراف|تحويلات|مصرف|مصارف)/.test(nameNorm)) {
-            return false;
-          }
-        }
-
-        // Direct match against target industry synonyms & Google Place types
-        for (let i = 0; i < targetProfile.acceptKeywords.length; i++) {
-          if (combined.includes(targetProfile.acceptKeywords[i])) {
-            return true;
-          }
-        }
-
-        // Accept live worker results (e.g. brand names or foreign-language names like "Hilton", "McDonald's", "Starbucks")
-        // instead of aggressively dropping them
-        if (isLiveScrapedResult) {
-          return true;
-        }
-        return true;
+      // 100% Unified Core Relevance Engine across Quick Search & Comprehensive Scan
+      if (typeof evaluateUniversalCoreRelevance === 'function') {
+        return evaluateUniversalCoreRelevance(place, rawQ).relevant;
       }
-
-      // Custom search term not explicitly in STRICT_CATEGORY_RELEVANCE_PROFILES:
-      // Default to a broad match and accept live scraping results directly instead of dropping them.
       return true;
     }
 
@@ -7800,7 +7771,10 @@
       } else if (countNum === 0) {
         showSmartNotification('ℹ️ لم يتم العثور على نتائج مطابقة', 'اضغط للعودة إلى البحث وتعديل الكلمة أو توسيع النطاق', { target: 'search', variant: 'warning', durationMs: 8500 });
       } else {
-        showSmartNotification('✅ اكتمل المسح الشامل بنجاح! (100%)', `إجمالي المواقع الصافية بدون تكرار: ${countNum.toLocaleString()} موقع`, { target: 'results', variant: 'success', durationMs: 9000 });
+        const modeTitle = window.__activeSearchModeType === 'quick'
+          ? '✅ اكتمل البحث السريع بنجاح! (100%)'
+          : '✅ اكتمل المسح الشامل بنجاح! (100%)';
+        showSmartNotification(modeTitle, `إجمالي المواقع الصافية بدون تكرار: ${countNum.toLocaleString()} موقع`, { target: 'results', variant: 'success', durationMs: 9000 });
       }
     }
 
@@ -8018,6 +7992,30 @@
 
       const phonesEl = document.getElementById('statPhones');
       if (phonesEl) phonesEl.innerText = liveExtractedPhonesTotal.toLocaleString();
+
+      // Keep Google vs OSM live counters synced dynamically from actual extractedPlaces across both Quick Search & Comprehensive Scan
+      if (total > 0) {
+        let gLive = 0;
+        let oLive = 0;
+        for (let i = 0; i < extractedPlaces.length; i++) {
+          const src = String(extractedPlaces[i]?.source || '').toLowerCase();
+          if (src.includes('google') || src.includes('جوجل')) gLive++;
+          else if (src.includes('osm') || src.includes('overpass') || src.includes('photon') || src.includes('nominatim')) oLive++;
+        }
+        if (gLive > 0 || oLive > 0) {
+          const gFmt = gLive.toLocaleString();
+          const oFmt = oLive.toLocaleString();
+          const dualTxt = `🌐 Google: ${gFmt} | 🗺️ OSM: ${oFmt}`;
+          const tDual = document.getElementById('telemetryDualEngineBadge');
+          if (tDual) tDual.innerText = dualTxt;
+          const pDual = document.getElementById('progressDualEngineBadge');
+          if (pDual) pDual.innerText = dualTxt;
+          const dqG = document.getElementById('dqGoogleCount');
+          if (dqG) dqG.innerText = gFmt;
+          const dqO = document.getElementById('dqOsmCount');
+          if (dqO) dqO.innerText = oFmt;
+        }
+      }
 
       const dqBar = document.getElementById('dataQualitySummaryBar');
       if (dqBar) {

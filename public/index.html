@@ -4727,12 +4727,25 @@
     function normalizeUniversalCatText(str = '') {
       return String(str || '')
         .toLowerCase()
-        .replace(/[\u064B-\u065F\u0670]/g, '')
+        .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
         .replace(/[أإآ]/g, 'ا')
         .replace(/ة/g, 'ه')
         .replace(/ى/g, 'ي')
+        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+    }
+
+    function stemCoreQueryToken(tok = '') {
+      let t = normalizeUniversalCatText(tok);
+      if (t.length >= 4 && t.startsWith('ال')) t = t.slice(2);
+      if (t.length >= 5 && t.endsWith('ات')) t = t.slice(0, -2);
+      if (/^[a-z]{4,}$/.test(t)) {
+        if (t.endsWith('ies')) t = t.slice(0, -3) + 'y';
+        else if (t.endsWith('es') && t.length >= 5) t = t.slice(0, -2);
+        else if (t.endsWith('s')) t = t.slice(0, -1);
+      }
+      return t;
     }
 
     function getScanCategoryGroupsList() {
@@ -4990,16 +5003,16 @@
       companies: /(شركه|شركات|مؤسس|مجموعه|القابضه|للتجاره|للاستيراد|\bcompany\b|\bcorp\b|\btrading\b)/i
     };
 
-    const UNRELATED_GENERIC_ENTITY_REGEX = /(محاسب|محاسبه|مصمم\s*مواقع|تصميم\s*مواقع|مهندس\s*معماري|مكتب\s*هندسي|استشارات\s*هندس|محامي|محاماه|برمجيات|مقاول|مقاولات|مكتب\s*عقار|عقارات|جهات\s*حكوميه|وزاره|محكمه|نيابه|مستشفي|مدرسه|جامعه|معهد|بنك|صرافه|فندق|ورشه|بنشر|حلاق|صالون|\baccountant\b|\bweb\s*design\b|\barchitect\b|\blawyer\b|\bcontractor\b|\breal\s*estate\b)/i;
+    const UNRELATED_GENERIC_ENTITY_REGEX = /(محاسب|محاسبه|مصمم\s*مواقع|تصميم\s*مواقع|مهندس\s*معماري|مكتب\s*هندسي|استشارات\s*هندس|محامي|محاماه|برمجيات|مقاول|مقاولات|مكتب\s*عقار|عقارات|جهات\s*حكوميه|وزاره|محكمه|نيابه|مستشفي|مدرسه|جامعه|معهد|مسجد|جامع|بنك|صرافه|فندق|ورشه|بنشر|حلاق|صالون|\baccountant\b|\bweb\s*design\b|\barchitect\b|\blawyer\b|\bcontractor\b|\breal\s*estate\b|\bmosque\b)/i;
 
     function getExpectedCategoryKeyForQuery(rawQuery) {
       const q = normalizeUniversalCatText(rawQuery || '');
       if (!q || q === '__full_scan__') return '';
       if (/(شركه ادويه|شركات ادويه|مستودع ادويه|فارما|مستلزمات طبيه|\bpharma\b)/i.test(q)) return 'pharma_companies';
       if (/(صيدل|\bpharmacy\b)/i.test(q)) return 'pharmacies';
-      if (/(مستشفي|مستشفيات|عياد|طبي|مختبر|\bhospital\b|\bclinic\b)/i.test(q)) return 'hospitals';
-      if (/(بقال|تموين|سوبر|ماركت|غذائ|\bgrocery\b|\bsupermarket\b)/i.test(q)) return 'groceries';
-      if (/(مطعم|مطاعم|بوفيه|مطبخ|كافيه|مقهي|\brestaurant\b|\bcafe\b)/i.test(q)) return 'restaurants';
+      if (/(مستشفي|مستشفيات|عياد|طبي|مختبر|مستوصف|\bhospital\b|\bclinic\b|\bmedical\b)/i.test(q)) return 'hospitals';
+      if (/(بقال|تموين|سوبر|ماركت|غذائ|\bgrocery\b|\bsupermarket\b|\bminimart\b)/i.test(q)) return 'groceries';
+      if (/(مطعم|مطاعم|بوفيه|مطبخ|كافيه|مقهي|وجبات|\brestaurant\b|\bcafe\b)/i.test(q)) return 'restaurants';
       if (/(بنك|مصرف|صراف|\bbank\b|\bexchange\b)/i.test(q)) return 'banks';
       if (/(فندق|فنادق|منتجع|شقق|\bhotel\b|\bresort\b)/i.test(q)) return 'hotels';
       if (/(جامعه|كليه|مدرسه|مدارس|معهد|اكاديميه|\bschool\b|\buniversity\b)/i.test(q)) return 'education';
@@ -5016,36 +5029,54 @@
       return '';
     }
 
-    function doesPlaceStrictlyMatchActiveQuery(place, rawQuery) {
+    // Universal 100% Parity Relevance & Exclusion Engine (identical across Quick Search & Comprehensive Scan)
+    function evaluateUniversalCoreRelevance(place, rawQuery) {
       const q = normalizeUniversalCatText(rawQuery || '');
-      if (!q || q === '__full_scan__') return true;
+      if (!q || q === '__full_scan__') return { relevant: true, score: 1 };
+
       const expectedCat = getExpectedCategoryKeyForQuery(q);
       const rawName = normalizeUniversalCatText(place?.name || '');
       const rawCats = normalizeUniversalCatText(`${place?.categoryAr || ''} ${place?.category || ''} ${place?.type || ''}`);
       const rawPlace = `${rawName} ${rawCats}`.trim();
+      if (!rawPlace) return { relevant: false, score: 0 };
 
       if (expectedCat) {
         const directRx = STRICT_SECTOR_SYNONYM_REGEX[expectedCat];
         const hasDirectMatch = Boolean(directRx && directRx.test(rawPlace));
-        // Actively exclude generic companies/institutions/unrelated sectors unless the place explicitly confirms the searched business type
         if (!hasDirectMatch) {
           if (expectedCat !== 'companies' && /^(شركه|شركات|مؤسسه|مؤسسات|مجموعه)\b/.test(rawName)) {
-            return false;
+            return { relevant: false, score: 0 };
           }
           if (UNRELATED_GENERIC_ENTITY_REGEX.test(rawPlace)) {
-            return false;
+            return { relevant: false, score: 0 };
           }
-          return classifyExtractedPlaceCategoryKey(place) === expectedCat;
+          const catMatch = classifyExtractedPlaceCategoryKey(place) === expectedCat;
+          return { relevant: catMatch, score: catMatch ? 1 : 0 };
         }
-        // Even if direct match exists, block pharma company from retail pharmacies & vice versa
-        if (expectedCat === 'pharmacies' && STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) return false;
-        if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) return false;
-        return true;
+        // Strict separation between pharma companies/warehouses and retail pharmacies
+        if (expectedCat === 'pharmacies' && STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) {
+          return { relevant: false, score: 0 };
+        }
+        if (expectedCat === 'pharma_companies' && !STRICT_SECTOR_SYNONYM_REGEX.pharma_companies.test(rawPlace)) {
+          return { relevant: false, score: 0 };
+        }
+        return { relevant: true, score: 2 };
       }
 
-      const tokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and|for)$/i.test(t));
-      if (tokens.length === 0) return true;
-      return tokens.some(tok => rawPlace.includes(tok));
+      // Arbitrary custom user-typed query in any language: normalized token + stem matching with cross-domain guard
+      const rawTokens = q.split(/\s+/).filter(t => t.length >= 2 && !/^(في|من|الى|على|عن|و|the|in|of|and|for|to|at)$/i.test(t));
+      if (rawTokens.length === 0) return { relevant: true, score: 1 };
+      const stemmedTokens = rawTokens.map(stemCoreQueryToken).filter(t => t.length >= 2);
+      const placeWords = rawPlace.split(/\s+/);
+      const placeStemmed = placeWords.map(stemCoreQueryToken).join(' ');
+
+      const hasTokenHit = rawTokens.some(tok => rawPlace.includes(tok)) || stemmedTokens.some(st => placeStemmed.includes(st));
+      if (!hasTokenHit) return { relevant: false, score: 0 };
+      return { relevant: true, score: 2 };
+    }
+
+    function doesPlaceStrictlyMatchActiveQuery(place, rawQuery) {
+      return evaluateUniversalCoreRelevance(place, rawQuery).relevant;
     }
 
     function updateStrictRelevanceToggleUI(matchedCount, totalCount) {
@@ -5984,7 +6015,9 @@
       const isQuickSearchMode = Boolean(!wasExplicitComprehensive && query && query !== '__FULL_SCAN__');
       window.__activeSearchModeType = isQuickSearchMode ? 'quick' : 'comprehensive';
 
-      // Make Quick Search genuinely fast (no 3,760-cell quadtree explosion): use compact radius & clean time/batch cap
+      // Make Quick Search genuinely fast (no 3,760-cell quadtree explosion): use compact radius & hide deep cell counter
+      const quadBadgeEl = document.getElementById('quadtreeCellsBadge');
+      if (quadBadgeEl) quadBadgeEl.classList.toggle('hidden', isQuickSearchMode);
       if (isQuickSearchMode) {
         params.set('radius', String(Math.min(Number(selectedRadius) || 8, 8)));
         params.delete('scopeMode');

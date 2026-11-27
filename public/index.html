@@ -2284,6 +2284,16 @@
                 <i data-lucide="layout-grid" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>جدول / بطاقات</span>
               </button>
+              <button
+                type="button"
+                id="btnToggleSubLabelRefinement"
+                onclick="toggleSubLabelRefinementPanel()"
+                class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <span>خيارات الغربلة وترتيب المسميات</span>
+                <span id="subLabelRefinementActiveBadge" class="hidden px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-num text-[10px] font-bold">مفعّل</span>
+              </button>
               <button type="button" onclick="switchAppView('view-map')" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
                 <i data-lucide="map-pin" class="w-3.5 h-3.5 text-emerald-400"></i>
                 <span>الخريطة</span>
@@ -2305,6 +2315,39 @@
               <button type="button" onclick="navigateBack()" class="btn-secondary px-3.5 py-2 text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
                 <span>🔙 رجوع للبحث</span>
               </button>
+            </div>
+          </div>
+
+          <!-- Collapsible Sub-Label Refinement & Priority Ordering Panel -->
+          <div id="subLabelRefinementPanel" class="hidden bg-[#131f33] border border-emerald-500/30 rounded-xl p-3.5 sm:p-4 space-y-3.5 shadow-xl">
+            <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-400/15">
+              <div class="flex items-center gap-2">
+                <i data-lucide="sliders-horizontal" class="w-4 h-4 text-emerald-400"></i>
+                <span class="text-xs sm:text-sm font-bold text-[#f1f5f9]">خيارات الغربلة وترتيب المسميات</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <button type="button" onclick="resetSubLabelRefinement()" class="btn-secondary px-3 py-1.5 text-xs font-semibold cursor-pointer min-h-[36px]">
+                  عرض الكل / إعادة ضبط
+                </button>
+                <button type="button" onclick="toggleSubLabelRefinementPanel(false)" class="btn-secondary w-9 h-9 text-xs font-bold flex items-center justify-center cursor-pointer" title="إغلاق">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Mode 1: Isolate / Toggle Sub-Labels -->
+            <div class="space-y-2">
+              <div class="text-xs font-semibold text-slate-300">1) تصفية المسمى (اضغط لعزل أو دمج مسميات محددة):</div>
+              <div id="subLabelFilterPillsContainer" class="flex flex-wrap items-center gap-2"></div>
+            </div>
+
+            <!-- Mode 2: Priority Grouping Order -->
+            <div class="space-y-2 pt-2 border-t border-slate-400/15">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-semibold text-slate-300">2) ترتيب الأولوية في الجدول وملف Excel (المسمى الأعلى يظهر أولاً):</span>
+                <span id="subLabelPriorityHint" class="text-[11px] text-emerald-400 font-medium">الترتيب الافتراضي</span>
+              </div>
+              <div id="subLabelPriorityListContainer" class="space-y-1.5"></div>
             </div>
           </div>
 
@@ -4590,6 +4633,7 @@
 
       bar.classList.remove('hidden');
       if (typeof syncResultsLetterFilterOptions === 'function') syncResultsLetterFilterOptions();
+      if (typeof renderSubLabelRefinementUI === 'function') renderSubLabelRefinementUI();
       const activeMeta = getActiveCategoryFilterMeta();
       if (indicator) {
         const activeCount = counts[activeMeta.key] || 0;
@@ -4616,6 +4660,245 @@
           `;
         })
         .join('');
+    }
+
+    // =========================================================================
+    // Dynamic Sub-Label Detection, Isolation & Priority Grouping Engine
+    // =========================================================================
+    let subLabelSelectedSet = new Set(); // empty = show all sub-labels
+    let subLabelPriorityOrder = [];      // ordered array of sub-label keys
+    let subLabelPriorityActive = false;  // true once user reorders or pins a sub-label first
+    let detectedSubLabelMetaMap = new Map(); // key -> { key, label, count }
+
+    const KNOWN_SUBLABEL_RULES = [
+      { key: 'sub_pharma_co', label: 'شركة أدوية', rx: /(شركه ادويه|شركات ادويه|للتجاره الدوائيه|فارما|\bpharma\b|pharmaceutical)/i },
+      { key: 'sub_pharma_wh', label: 'مستودع أدوية', rx: /(مستودع ادويه|مستودعات ادويه|مخازن ادويه|مخزن ادويه|توزيع ادويه)/i },
+      { key: 'sub_med_supply', label: 'مستلزمات طبية', rx: /(مستلزمات طبيه|معدات طبيه|تجهيزات طبيه|medical supplies)/i },
+      { key: 'sub_pharmacy', label: 'صيدلية', rx: /(صيدليه|صيدليات|\bpharmacy\b|drugstore)/i },
+      { key: 'sub_hospital', label: 'مستشفى', rx: /(مستشفي|مستشفيات|\bhospital\b)/i },
+      { key: 'sub_med_center', label: 'مركز / مجمع طبي', rx: /(مركز طبي|مجمع طبي|مستوصف|medical center)/i },
+      { key: 'sub_clinic', label: 'عيادة', rx: /(عياده|عيادات|اسنان|دكتور|\bclinic\b|dentist)/i },
+      { key: 'sub_lab', label: 'مختبر / أشعة', rx: /(مختبر|مختبرات|اشعه|\blab\b|radiology)/i },
+      { key: 'sub_grocery', label: 'بقالة', rx: /(بقاله|بقالات|\bgrocery\b)/i },
+      { key: 'sub_tamweenat', label: 'تموينات', rx: /(تموينات|تموين)/i },
+      { key: 'sub_supermarket', label: 'سوبرماركت', rx: /(سوبرماركت|سوبر ماركت|هايبر|\bsupermarket\b)/i },
+      { key: 'sub_minimart', label: 'ميني ماركت', rx: /(ميني ماركت|\bminimart\b|convenience)/i },
+      { key: 'sub_foodstuff', label: 'مواد غذائية', rx: /(مواد غذائيه|غذائيه|غذائيات)/i },
+      { key: 'sub_restaurant', label: 'مطعم', rx: /(مطعم|مطاعم|\brestaurant\b)/i },
+      { key: 'sub_buffet', label: 'بوفيه / كافتيريا', rx: /(بوفيه|كافتيريا|شوايه|fast_food)/i },
+      { key: 'sub_kitchen', label: 'مطبخ / مندي', rx: /(مطبخ|مطابخ شعبيه|مندي|مضغوط)/i },
+      { key: 'sub_cafe', label: 'كافيه / مقهى', rx: /(كافيه|مقهي|كوفي|قهوه|\bcafe\b|\bcoffee\b)/i },
+      { key: 'sub_bakery', label: 'مخبز / حلويات', rx: /(مخبز|مخابز|فرن|حلويات|\bbakery\b)/i },
+      { key: 'sub_bank', label: 'بنك / مصرف', rx: /(بنك|بنوك|مصرف|\bbank\b)/i },
+      { key: 'sub_exchange', label: 'صرافة / تحويلات', rx: /(صرافه|تحويلات|كريمي|النجم|امتياز|\bexchange\b)/i },
+      { key: 'sub_hotel', label: 'فندق', rx: /(فندق|فنادق|\bhotel\b)/i },
+      { key: 'sub_apts', label: 'شقق مفروشة / أجنحة', rx: /(شقق مفروشه|اجنحه|استراحه|منتجع|\bapartments\b|\bresort\b)/i },
+      { key: 'sub_university', label: 'جامعة / كلية', rx: /(جامعه|كليه|\buniversity\b|\bcollege\b)/i },
+      { key: 'sub_school', label: 'مدرسة / روضة', rx: /(مدرسه|مدارس|روضه|\bschool\b)/i },
+      { key: 'sub_institute', label: 'معهد / أكاديمية', rx: /(معهد|اكاديميه|\binstitute\b|academy)/i },
+      { key: 'sub_realestate', label: 'عقارات', rx: /(عقار|عقارات|عقاريه|real estate)/i },
+      { key: 'sub_engineering', label: 'مقاولات وهندسة', rx: /(مقاولات|هندسه|هندسيه|construction|engineering)/i },
+      { key: 'sub_auto_show', label: 'معرض سيارات', rx: /(معرض سيارات|سيارات|\bcar\b|\bauto\b)/i },
+      { key: 'sub_auto_fix', label: 'ورشة / صيانة سيارات', rx: /(ورشه|ميكانيكي|كهربائي سيارات|بنشر|غسيل سيارات|\bgarage\b|mechanic)/i },
+      { key: 'sub_auto_parts', label: 'قطع غيار', rx: /(قطع غيار|اطارات)/i },
+      { key: 'sub_mobile', label: 'جوالات وهواتف', rx: /(جوال|جوالات|تلفونات|هواتف|\bmobile\b)/i },
+      { key: 'sub_electronics', label: 'إلكترونيات وكمبيوتر', rx: /(الكترونيات|كمبيوتر|لابتوب|\belectronics\b|computer)/i },
+      { key: 'sub_salon', label: 'صالون / حلاقة', rx: /(صالون|حلاق|حلاقه|كوافير|تجميل|سبا|\bsalon\b|\bbarber\b|\bbeauty\b)/i },
+      { key: 'sub_gym', label: 'نادي / صالة رياضية', rx: /(صاله رياضيه|نادي رياضي|جيم|مسبح|مسابح|\bgym\b|\bfitness\b)/i },
+      { key: 'sub_company', label: 'شركة', rx: /(شركه|شركات|\bcompany\b|\bcorp\b)/i },
+      { key: 'sub_est', label: 'مؤسسة / مكتب', rx: /(مؤسسه|مؤسسات|مكتب|وكاله)/i }
+    ];
+
+    function detectPlaceSubLabelInfo(place) {
+      if (!place || typeof place !== 'object') return { key: 'sub_other', label: 'مسميات أخرى' };
+      const raw = normalizeUniversalCatText(`${place.name || ''} ${place.categoryAr || ''} ${place.category || ''}`);
+      for (let i = 0; i < KNOWN_SUBLABEL_RULES.length; i++) {
+        const rule = KNOWN_SUBLABEL_RULES[i];
+        if (rule.rx.test(raw)) {
+          return { key: rule.key, label: rule.label };
+        }
+      }
+      // Dynamic leading business term extraction for any unlisted search topic
+      const firstWord = String(place.name || '').trim().replace(/^[^\u0600-\u06FFa-zA-Z]+/, '').split(/\s+/)[0] || '';
+      const normFirst = normalizeUniversalCatText(firstWord);
+      if (normFirst && normFirst.length >= 3 && !/^(ال|في|من|على|بن|ابو|ام|دار|بيت|the|and|for)$/i.test(normFirst)) {
+        return { key: 'sub_dyn_' + normFirst.slice(0, 20), label: firstWord.slice(0, 22) };
+      }
+      return { key: 'sub_other', label: 'مسميات أخرى' };
+    }
+
+    function computeDetectedSubLabels(sourceList) {
+      const rawCounts = new Map();
+      const rawLabels = new Map();
+      for (let i = 0; i < sourceList.length; i++) {
+        const info = detectPlaceSubLabelInfo(sourceList[i]);
+        sourceList[i]._subLabelKey = info.key;
+        sourceList[i]._subLabelText = info.label;
+        rawCounts.set(info.key, (rawCounts.get(info.key) || 0) + 1);
+        if (!rawLabels.has(info.key)) rawLabels.set(info.key, info.label);
+      }
+
+      // Collapse singleton dynamic words into 'sub_other' so the refinement panel stays clean & meaningful
+      const finalMap = new Map();
+      for (let i = 0; i < sourceList.length; i++) {
+        let k = sourceList[i]._subLabelKey || 'sub_other';
+        let lbl = sourceList[i]._subLabelText || 'مسميات أخرى';
+        if (k.startsWith('sub_dyn_') && (rawCounts.get(k) || 0) < 2) {
+          k = 'sub_other';
+          lbl = 'مسميات أخرى';
+          sourceList[i]._subLabelKey = k;
+          sourceList[i]._subLabelText = lbl;
+        }
+        if (!finalMap.has(k)) {
+          finalMap.set(k, { key: k, label: lbl, count: 0 });
+        }
+        finalMap.get(k).count++;
+      }
+
+      detectedSubLabelMetaMap = finalMap;
+      const detectedKeys = Array.from(finalMap.values())
+        .sort((a, b) => b.count - a.count)
+        .map(item => item.key);
+
+      // Sync priority order preserving user's manual ordering for existing keys
+      const kept = subLabelPriorityOrder.filter(k => finalMap.has(k));
+      const added = detectedKeys.filter(k => !kept.includes(k));
+      subLabelPriorityOrder = [...kept, ...added];
+
+      // Prune any selected sub-labels that no longer exist in current results
+      for (const selKey of Array.from(subLabelSelectedSet)) {
+        if (!finalMap.has(selKey)) subLabelSelectedSet.delete(selKey);
+      }
+      return finalMap;
+    }
+
+    function toggleSubLabelRefinementPanel(forceState) {
+      const panel = document.getElementById('subLabelRefinementPanel');
+      if (!panel) return;
+      const shouldShow = typeof forceState === 'boolean' ? forceState : panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !shouldShow);
+      if (shouldShow) renderSubLabelRefinementUI();
+    }
+
+    function toggleSubLabelFilterKey(key) {
+      if (key === 'all') {
+        subLabelSelectedSet.clear();
+      } else if (subLabelSelectedSet.has(key)) {
+        subLabelSelectedSet.delete(key);
+      } else {
+        subLabelSelectedSet.add(key);
+      }
+      renderSubLabelRefinementUI();
+      refreshVisibleResultsView(true);
+    }
+
+    function pinSubLabelFirst(key) {
+      const idx = subLabelPriorityOrder.indexOf(key);
+      if (idx > 0) {
+        subLabelPriorityOrder.splice(idx, 1);
+        subLabelPriorityOrder.unshift(key);
+      }
+      subLabelPriorityActive = true;
+      renderSubLabelRefinementUI();
+      refreshVisibleResultsView(true);
+    }
+
+    function moveSubLabelPriority(key, delta) {
+      const idx = subLabelPriorityOrder.indexOf(key);
+      if (idx === -1) return;
+      const newIdx = idx + delta;
+      if (newIdx < 0 || newIdx >= subLabelPriorityOrder.length) return;
+      const tmp = subLabelPriorityOrder[newIdx];
+      subLabelPriorityOrder[newIdx] = subLabelPriorityOrder[idx];
+      subLabelPriorityOrder[idx] = tmp;
+      subLabelPriorityActive = true;
+      renderSubLabelRefinementUI();
+      refreshVisibleResultsView(true);
+    }
+
+    function resetSubLabelRefinement() {
+      subLabelSelectedSet.clear();
+      subLabelPriorityOrder = [];
+      subLabelPriorityActive = false;
+      renderSubLabelRefinementUI();
+      refreshVisibleResultsView(true);
+    }
+
+    function renderSubLabelRefinementUI() {
+      const pillsBox = document.getElementById('subLabelFilterPillsContainer');
+      const prioBox = document.getElementById('subLabelPriorityListContainer');
+      const badge = document.getElementById('subLabelRefinementActiveBadge');
+      const hint = document.getElementById('subLabelPriorityHint');
+
+      // Base list respects active main category so sub-labels reflect the currently selected category!
+      const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all';
+      const baseList = hasCatFilter
+        ? extractedPlaces.filter(p => classifyExtractedPlaceCategoryKey(p) === activeCategorySummaryFilter)
+        : extractedPlaces;
+
+      computeDetectedSubLabels(baseList);
+
+      const isActive = subLabelSelectedSet.size > 0 || subLabelPriorityActive;
+      if (badge) {
+        badge.classList.toggle('hidden', !isActive);
+        if (isActive) {
+          badge.innerText = subLabelSelectedSet.size > 0 ? `${subLabelSelectedSet.size}` : 'مرتب';
+        }
+      }
+
+      if (!pillsBox || !prioBox) return;
+
+      if (detectedSubLabelMetaMap.size === 0) {
+        pillsBox.innerHTML = '<span class="text-xs text-slate-400">لا توجد نتائج مصنفة بعد.</span>';
+        prioBox.innerHTML = '';
+        return;
+      }
+
+      const allSelected = subLabelSelectedSet.size === 0;
+      const allBtnClass = allSelected
+        ? 'px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs min-h-[40px] cursor-pointer transition inline-flex items-center gap-1.5'
+        : 'px-3 py-2 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-[#f1f5f9] font-semibold text-xs min-h-[40px] cursor-pointer transition inline-flex items-center gap-1.5';
+
+      let pillsHtml = `<button type="button" onclick="toggleSubLabelFilterKey('all')" class="${allBtnClass}"><span>الكل</span><span class="font-num text-[11px] opacity-90">(${baseList.length.toLocaleString()})</span></button>`;
+
+      subLabelPriorityOrder.forEach((k) => {
+        const meta = detectedSubLabelMetaMap.get(k);
+        if (!meta) return;
+        const selected = subLabelSelectedSet.has(k);
+        const cls = selected
+          ? 'px-3 py-2 rounded-xl bg-emerald-600 text-white font-bold text-xs min-h-[40px] cursor-pointer transition inline-flex items-center gap-1.5'
+          : 'px-3 py-2 rounded-xl bg-[#0b1320] hover:bg-slate-800 border border-slate-400/20 text-[#f1f5f9] font-semibold text-xs min-h-[40px] cursor-pointer transition inline-flex items-center gap-1.5';
+        const safeK = String(k).replace(/'/g, "\\'");
+        pillsHtml += `<button type="button" onclick="toggleSubLabelFilterKey('${safeK}')" class="${cls}"><span>${selected ? '✓ ' : ''}${meta.label}</span><span class="font-num text-[11px] text-emerald-300">(${meta.count.toLocaleString()})</span></button>`;
+      });
+      pillsBox.innerHTML = pillsHtml;
+
+      if (hint) {
+        const firstMeta = detectedSubLabelMetaMap.get(subLabelPriorityOrder[0]);
+        hint.innerText = subLabelPriorityActive && firstMeta
+          ? `الأولوية الحالية: ${firstMeta.label} أولاً`
+          : 'الترتيب الافتراضي (اضغط «أولاً» أو الأسهم لتغيير الأولوية)';
+      }
+
+      prioBox.innerHTML = subLabelPriorityOrder.map((k, idx) => {
+        const meta = detectedSubLabelMetaMap.get(k);
+        if (!meta) return '';
+        const safeK = String(k).replace(/'/g, "\\'");
+        return `
+          <div class="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#0b1320] border border-slate-400/15 text-xs">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="w-6 h-6 rounded-lg bg-[#131f33] text-emerald-400 font-num font-bold text-[11px] flex items-center justify-center shrink-0">${idx + 1}</span>
+              <span class="font-bold text-[#f1f5f9] truncate">${meta.label}</span>
+              <span class="text-[11px] font-num text-slate-400 shrink-0">(${meta.count.toLocaleString()})</span>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              ${idx > 0 ? `<button type="button" onclick="pinSubLabelFirst('${safeK}')" class="btn-secondary px-2.5 py-1.5 text-[11px] font-bold min-h-[36px] cursor-pointer">أولاً</button>` : '<span class="px-2 py-1 rounded-lg bg-emerald-600/20 text-emerald-400 text-[11px] font-bold">الأول</span>'}
+              <button type="button" onclick="moveSubLabelPriority('${safeK}', -1)" ${idx === 0 ? 'disabled' : ''} class="btn-secondary w-9 h-9 text-xs font-bold flex items-center justify-center cursor-pointer disabled:opacity-35" title="تحريك لأعلى">▲</button>
+              <button type="button" onclick="moveSubLabelPriority('${safeK}', 1)" ${idx === subLabelPriorityOrder.length - 1 ? 'disabled' : ''} class="btn-secondary w-9 h-9 text-xs font-bold flex items-center justify-center cursor-pointer disabled:opacity-35" title="تحريك لأسفل">▼</button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     // =========================================================================
@@ -4769,18 +5052,24 @@
 
     function getActiveFilteredPlaces() {
       const hasCatFilter = activeCategorySummaryFilter && activeCategorySummaryFilter !== 'all';
+      const hasSubLabelFilter = subLabelSelectedSet && subLabelSelectedSet.size > 0;
       const hasSearch = Boolean(inResultsSearchQuery && inResultsSearchQuery.trim().length > 0);
       const hasLetter = Boolean(resultsLetterFilter && resultsLetterFilter !== 'all');
       const hasSort = Boolean(resultsSortMode && resultsSortMode !== 'default');
+      const hasPrioritySort = Boolean(subLabelPriorityActive && subLabelPriorityOrder.length > 1);
 
       const normSearch = hasSearch ? normalizeUniversalCatText(inResultsSearchQuery) : '';
       const searchDigits = hasSearch ? inResultsSearchQuery.replace(/\D/g, '') : '';
 
       let resultList = extractedPlaces;
-      if (filterOnlyPhone || filterOnlyOpen || hasCatFilter || hasSearch || hasLetter) {
+      if (filterOnlyPhone || filterOnlyOpen || hasCatFilter || hasSubLabelFilter || hasSearch || hasLetter) {
         resultList = extractedPlaces.filter(p => {
           if (hasCatFilter && classifyExtractedPlaceCategoryKey(p) !== activeCategorySummaryFilter) {
             return false;
+          }
+          if (hasSubLabelFilter) {
+            const subKey = p._subLabelKey || detectPlaceSubLabelInfo(p).key;
+            if (!subLabelSelectedSet.has(subKey)) return false;
           }
           if (filterOnlyPhone) {
             const hasPhone = (Array.isArray(p.phones) && p.phones.length > 0) || (p.phone && p.phone !== 'غير متوفر' && p.phone.trim() !== '');
@@ -4804,17 +5093,34 @@
         });
       }
 
-      if (hasSort && resultList.length > 1) {
+      if ((hasPrioritySort || hasSort) && resultList.length > 1) {
+        const prioRankMap = new Map();
+        if (hasPrioritySort) {
+          subLabelPriorityOrder.forEach((k, idx) => prioRankMap.set(k, idx));
+        }
         const locale = (resultsSortMode.endsWith('_ar'))
           ? 'ar'
           : (resultsSortMode.endsWith('_en') ? 'en' : detectPredominantResultsLocale(resultList));
         const desc = resultsSortMode.includes('_desc_');
         const collator = locale === 'ar' ? arAlphaCollator : enAlphaCollator;
+
         resultList = [...resultList].sort((a, b) => {
-          const ka = normalizeAlphaSortKey(a?.name || '');
-          const kb = normalizeAlphaSortKey(b?.name || '');
-          const cmp = collator ? collator.compare(ka, kb) : ka.localeCompare(kb, locale);
-          return desc ? -cmp : cmp;
+          if (hasPrioritySort) {
+            const ra = prioRankMap.has(a._subLabelKey || detectPlaceSubLabelInfo(a).key)
+              ? prioRankMap.get(a._subLabelKey || detectPlaceSubLabelInfo(a).key)
+              : 9999;
+            const rb = prioRankMap.has(b._subLabelKey || detectPlaceSubLabelInfo(b).key)
+              ? prioRankMap.get(b._subLabelKey || detectPlaceSubLabelInfo(b).key)
+              : 9999;
+            if (ra !== rb) return ra - rb;
+          }
+          if (hasSort) {
+            const ka = normalizeAlphaSortKey(a?.name || '');
+            const kb = normalizeAlphaSortKey(b?.name || '');
+            const cmp = collator ? collator.compare(ka, kb) : ka.localeCompare(kb, locale);
+            return desc ? -cmp : cmp;
+          }
+          return 0;
         });
       }
 
@@ -5194,6 +5500,11 @@
       userManuallyToggledResultsView = false;
       if (typeof dynamicCategoryMetaMap !== 'undefined' && dynamicCategoryMetaMap.clear) {
         dynamicCategoryMetaMap.clear();
+      }
+      if (typeof subLabelSelectedSet !== 'undefined' && subLabelSelectedSet.clear) {
+        subLabelSelectedSet.clear();
+        subLabelPriorityOrder = [];
+        subLabelPriorityActive = false;
       }
 
       currentEventSource = new EventSource(`/api/search?${params.toString()}`);
